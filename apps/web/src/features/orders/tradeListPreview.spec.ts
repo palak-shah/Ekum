@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   tradeListFacts,
+  tradeListPathMark,
   tradeListPreview,
   tradeListQtyFact,
   tradeListThumbs,
@@ -14,6 +15,10 @@ function orderItem(partial: {
   tradeMode?: string;
   intent?: string;
   updatedAt?: string;
+  facilitatorCompanyId?: string | null;
+  buyerCompanyId?: string;
+  sellerCompanyId?: string;
+  downstreamOrderId?: string | null;
 }): TradeListItem {
   return {
     kind: 'order',
@@ -27,6 +32,10 @@ function orderItem(partial: {
       direction: partial.direction ?? 'buying',
       intent: partial.intent ?? 'order',
       status: partial.status ?? 'requested',
+      facilitatorCompanyId: partial.facilitatorCompanyId ?? null,
+      buyerCompanyId: partial.buyerCompanyId ?? 'buyer-co',
+      sellerCompanyId: partial.sellerCompanyId ?? 'seller-co',
+      downstreamOrderId: partial.downstreamOrderId ?? null,
       counterpart: { id: 'c1', name: 'Jaipur Emporium', city: 'Jaipur', verification: 'none', logoUrl: null },
       items: [{ name: 'Silk', sku: 's1' }],
       createdAt: '2026-09-07T00:00:00.000Z',
@@ -41,19 +50,42 @@ describe('tradeListPreview', () => {
     const { preview, accent } = tradeListPreview(item, 'buyer-co');
     expect(accent).toBe(false);
     expect(preview).toBe('');
-    expect(tradeListFacts(item)).toMatch(/^Order #\S+ 1 design$/);
+    expect(tradeListFacts(item)).toMatch(/^#\S+ · 1 design$/);
   });
 
-  it('marks I-handle sell as Trading', () => {
-    const item = orderItem({
+  it('marks I-handle sell as a chain, Direct Link as people, 1:1 as none', () => {
+    const handle = orderItem({
       status: 'confirmed',
       direction: 'selling',
       tradeMode: 'manage',
     });
-    expect(tradeListPreview(item, 'trader').preview).toBe('Trading');
+    expect(tradeListPreview(handle, 'trader').preview).toBe('');
+    expect(tradeListPathMark(handle, 'trader')).toBe('handle');
+    expect(
+      tradeListPathMark(
+        orderItem({
+          direction: 'buying',
+          tradeMode: 'bilateral',
+          downstreamOrderId: 'parent-1',
+        }),
+        'trader',
+      ),
+    ).toBe('handle');
+    expect(
+      tradeListPathMark(
+        orderItem({
+          tradeMode: 'direct',
+          facilitatorCompanyId: 'trader',
+          buyerCompanyId: 'buyer-co',
+          sellerCompanyId: 'seller-co',
+        }),
+        'trader',
+      ),
+    ).toBe('direct');
+    expect(tradeListPathMark(orderItem({ tradeMode: 'bilateral' }), 'buyer-co')).toBeNull();
   });
 
-  it('Needs-you preview stays verb-only for helpers; list UI uses protocol', () => {
+  it('Needs-you preview stays verb-only for helpers; list UI uses the glance cue', () => {
     const item = {
       kind: 'order',
       id: 'o1',
@@ -91,10 +123,10 @@ describe('tradeListPreview', () => {
     const { preview, accent } = tradeListPreview(item, 'seller-co');
     expect(accent).toBe(true);
     expect(preview).toBe('Confirm');
-    expect(tradeListFacts(item)).toMatch(/^Order #\S+ 1 design 10 pcs$/);
+    expect(tradeListFacts(item)).toMatch(/^#\S+ · 1 design 10 pcs$/);
   });
 
-  it('facts keep designs and summed qty, spaces not middot', () => {
+  it('facts keep designs and summed qty with middot after the id', () => {
     const item = {
       kind: 'order',
       id: 'cm-vonr',
@@ -116,8 +148,8 @@ describe('tradeListPreview', () => {
         updatedAt: '2026-09-07T00:00:00.000Z',
       },
     } as TradeListItem;
-    expect(tradeListFacts(item)).toBe('Order #VONR 2 designs 12 sets');
-    expect(tradeListFacts(item)).not.toContain('·');
+    expect(tradeListFacts(item)).toBe('#VONR · 2 designs 12 sets');
+    expect(tradeListFacts(item)).toContain('·');
     const mixed = {
       ...item,
       order: {
@@ -128,7 +160,7 @@ describe('tradeListPreview', () => {
         ],
       },
     } as TradeListItem;
-    expect(tradeListFacts(mixed)).toBe('Order #VONR 2 designs');
+    expect(tradeListFacts(mixed)).toBe('#VONR · 2 designs');
     expect(
       tradeListQtyFact([
         { quantity: 10, unit: 'mtr', lineStatus: 'open' },

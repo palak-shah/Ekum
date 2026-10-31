@@ -27,7 +27,7 @@ export function DebugApiErrorPanel() {
     <div
       role="alert"
       data-testid="debug-api-error"
-      className="fixed inset-x-0 top-0 z-[100] mx-auto max-w-md border-b border-danger/40 bg-ink/95 px-3 py-2 text-left text-[11px] leading-snug text-white shadow-[var(--shadow-soft)]"
+      className="fixed inset-x-0 top-0 z-[100] mx-auto max-w-md border-b border-danger/40 bg-ink/95 px-3 py-2 text-left text-meta leading-snug text-white shadow-[var(--shadow-soft)]"
     >
       <div className="mb-1 flex items-center justify-between gap-2">
         <p className="font-emphasis tracking-tight text-tangerine">Debug · API error</p>

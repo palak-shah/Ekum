@@ -51,6 +51,21 @@ describe('orderUnitChrome', () => {
     expect(screen.getByTestId('order-ticket-grand-total')).toHaveTextContent('₹69,500');
   });
 
+  it('hides Total rupees and missing-rate cue when showBill is off', () => {
+    render(
+      <OrderUnitTotal
+        showBill={false}
+        items={[
+          { quantity: 4, unit: 'set', piecesPerPack: 1, rate: 91 },
+          { quantity: 2, unit: 'set', rate: null },
+        ]}
+      />,
+    );
+    expect(screen.getByTestId('order-ticket-qty-total')).toHaveTextContent('6 sets');
+    expect(screen.queryByTestId('order-ticket-bill-total')).toBeNull();
+    expect(screen.queryByTestId('order-ticket-missing-rates')).toBeNull();
+  });
+
   it('prints OrderRate as ₹/unit', () => {
     render(<OrderRate rate={640} unit="set" dispatchUnit="set" testId="rate" />);
     expect(screen.getByTestId('rate')).toHaveTextContent('₹640/pc');

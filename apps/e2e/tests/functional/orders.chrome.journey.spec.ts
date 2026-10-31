@@ -1,6 +1,16 @@
 import { test, expect } from '@playwright/test';
-import { accessTokenFromPage, createOrder } from '../../helpers/orders';
-import { loginAsMeena, loginAsRavi } from '../../helpers/persona';
+import {
+  accessTokenFromPage,
+  createOrder,
+  dispatchOrder,
+  getOrder,
+  quoteOrder,
+  setupConfirmedOrder,
+} from '../../helpers/orders';
+import { SAMPLE_JPG } from '../../helpers/fixtures';
+import { API_URL } from '../../helpers/env';
+import { loginAsKavita, loginAsMeena, loginAsRavi } from '../../helpers/persona';
+import { placeCuratedABPack } from '../../helpers/fromPackJourney';
 
 test.describe('orders chrome @functional @release @orders', () => {
   test('Pending and Completed tabs; no loader flash on switch', async ({ page }) => {
@@ -281,7 +291,11 @@ test.describe('orders chrome @functional @release @orders', () => {
     const row = page.locator(`[data-order-id="${order.id}"]`);
     await expect(row).toBeVisible({ timeout: 15_000 });
     await expect(row.getByTestId('orders-needs-you')).toBeVisible();
-    await expect(row.getByTestId('trade-list-facts')).toContainText(/Order #/);
+    await expect(row.getByTestId('orders-needs-you')).toHaveText('Confirm');
+    await expect(row.getByTestId('orders-needs-you')).toHaveAttribute('data-glance-icon', 'confirm');
+    await expect(row).not.toHaveClass(/border-l-accent/);
+    await expect(row.getByTestId('trade-list-facts')).toContainText(/#/);
+    await expect(row.getByTestId('trade-list-facts')).not.toContainText(/Order #/);
     await expect(row.getByTestId('trade-list-facts')).toContainText(/1 design 20 sets/);
     await expect(row.getByRole('button', { name: 'Confirm' })).toHaveCount(0);
     await row.click();
@@ -350,5 +364,162 @@ test.describe('orders chrome @functional @release @orders', () => {
       timeout: 15_000,
     });
     await expect(page.getByTestId('order-personal-note-preview')).toHaveCount(0);
+  });
+
+  test('buyer ticket chrome: Buying, wait, Notes; dock verbs stay', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await loginAsMeena(page);
+    const buyerToken = await accessTokenFromPage(page);
+    const order = await createOrder(page.request, buyerToken, {
+      sellerCompanyId: 'seed-company-ravi',
+      intent: 'order',
+      items: [{ productId: 'seed-prod-1', quantity: 20 }],
+    });
+    await page.goto(`/orders/${order.id}`);
+    await expect(page.getByRole('heading', { name: /#/ })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText(/^Buying · /)).toBeVisible();
+    await expect(page.getByTestId('order-ticket-waiting')).toHaveText('Waiting: supplier');
+    await expect(page.getByTestId('order-ticket-progress')).toHaveCount(0);
+    await expect(page.getByTestId('order-ticket-notes')).toBeVisible();
+    await expect(page.getByTestId('order-ticket-notes').getByText('No notes yet.')).toBeVisible();
+    await expect(page.getByTestId('order-ticket-notes').getByText('Notes & comments')).toBeVisible();
+    await expect(page.getByTestId('note-attach-plus')).toBeVisible();
+    await expect(page.getByTestId('order-ticket-note-add')).toHaveText('Add');
+    await expect(page.getByTestId('order-ticket-bill-total')).toHaveCount(0);
+    await expect(page.getByTestId('order-timeline-more')).toContainText(/Timeline · /);
+    await expect(page.getByTestId('order-parent-items').getByText('Designs')).toBeVisible();
+    await expect(page.getByTestId('order-line-facts')).toHaveAttribute('data-density', 'ticket');
+    await expect(page.getByTestId('order-note-forward')).toHaveCount(0);
+    const dock = page.getByTestId('order-action-dock');
+    await expect(dock.getByTestId('order-dock-cancel')).toBeVisible();
+    await expect(dock.getByTestId('order-dock-edit')).toBeVisible();
+    await expect(dock.getByTestId('order-dock-accept-quote')).toHaveCount(0);
+  });
+
+  test('seller same chrome; buyer Accept quote stays on the dock', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await loginAsMeena(page);
+    const buyerToken = await accessTokenFromPage(page);
+    const order = await createOrder(page.request, buyerToken, {
+      sellerCompanyId: 'seed-company-ravi',
+      intent: 'order',
+      items: [{ productId: 'seed-prod-1', quantity: 20 }],
+    });
+
+    await loginAsRavi(page);
+    await page.goto(`/orders/${order.id}`);
+    await expect(page.getByText(/^Selling · /)).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId('order-ticket-waiting')).toHaveCount(0);
+    await expect(page.getByTestId('order-ticket-notes')).toBeVisible();
+    await expect(page.getByTestId('order-dock-confirm')).toBeVisible();
+
+    const sellerToken = await accessTokenFromPage(page);
+    const detailed = await getOrder(page.request, sellerToken, order.id);
+    await quoteOrder(
+      page.request,
+      sellerToken,
+      order.id,
+      detailed.items.map((item) => ({ orderItemId: item.id, rate: 91, quantity: item.quantity })),
+    );
+
+    await loginAsMeena(page);
+    await page.goto(`/orders/${order.id}`);
+    await expect(page.getByTestId('order-dock-accept-quote')).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId('order-ticket-waiting')).toHaveCount(0);
+    await expect(page.getByTestId('app-bottom-nav')).toBeHidden();
+  });
+
+  test('ticket progress uses order unit after part dispatch', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await loginAsMeena(page);
+    const buyerToken = await accessTokenFromPage(page);
+    await loginAsRavi(page);
+    const sellerToken = await accessTokenFromPage(page);
+    const placed = await setupConfirmedOrder(page.request, buyerToken, sellerToken);
+    const detailed = await getOrder(page.request, sellerToken, placed.id);
+    await dispatchOrder(page.request, sellerToken, placed.id, {
+      items: [{ orderItemId: detailed.items[0]!.id, quantity: 5 }],
+    });
+
+    await loginAsMeena(page);
+    await page.goto(`/orders/${placed.id}`);
+    await expect(page.getByTestId('order-ticket-progress')).toContainText('sent', { timeout: 15_000 });
+    await expect(page.getByTestId('order-ticket-progress')).toContainText('5 of');
+    await expect(page.getByTestId('order-ticket-progress')).not.toContainText('/pc');
+  });
+
+  test('buyer adds a ticket note with photo; + offers Voice', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await loginAsMeena(page);
+    const buyerToken = await accessTokenFromPage(page);
+    const order = await createOrder(page.request, buyerToken, {
+      sellerCompanyId: 'seed-company-ravi',
+      intent: 'order',
+      note: 'Place lining',
+      items: [{ productId: 'seed-prod-1', quantity: 12 }],
+    });
+    await page.goto(`/orders/${order.id}`);
+    const notes = page.getByTestId('order-ticket-notes');
+    await expect(notes).toBeVisible({ timeout: 15_000 });
+    await expect(notes.getByText('Place lining')).toBeVisible();
+    await notes.getByTestId('note-attach-plus').click();
+    await expect(page.getByRole('menuitem', { name: 'Voice' })).toBeVisible();
+    await notes.getByTestId('note-attach-plus').click();
+    await notes.locator('input[type="file"][multiple]').setInputFiles(SAMPLE_JPG);
+    await expect(notes.locator('textarea')).toBeVisible({ timeout: 15_000 });
+    await notes.locator('textarea').fill('Need extra lining');
+    await notes.getByTestId('order-ticket-note-add').click();
+    await expect(notes.getByText('Need extra lining')).toBeVisible({ timeout: 15_000 });
+    await expect(notes.locator('img').first()).toBeVisible();
+    await expect(page.getByTestId('order-personal-note-preview')).toHaveCount(0);
+  });
+
+  test('I-handle trader Forwards a note onto a mill hop', async ({ page }) => {
+    test.setTimeout(120_000);
+    await page.setViewportSize({ width: 390, height: 844 });
+    const placed = await placeCuratedABPack(page);
+    expect(placed.downstream?.id).toBeTruthy();
+    const parentId = placed.downstream!.id;
+
+    await loginAsMeena(page);
+    await page.goto(`/orders/${parentId}`);
+    await page.getByRole('button', { name: 'Send to Ahmedabad Loom Co' }).click();
+    await expect(page.getByText('Sent.').first()).toBeVisible({ timeout: 15_000 });
+
+    await loginAsRavi(page);
+    await page.goto(`/orders/${parentId}`);
+    const buyerNotes = page.getByTestId('order-ticket-notes');
+    await expect(buyerNotes).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId('order-note-forward')).toHaveCount(0);
+    await buyerNotes.locator('textarea').fill('Need lining on mill lot');
+    await buyerNotes.getByTestId('order-ticket-note-add').click();
+    await expect(buyerNotes.getByText('Need lining on mill lot')).toBeVisible({ timeout: 15_000 });
+    await expect(buyerNotes).not.toContainText(/Ahmedabad Loom Co/i);
+
+    await loginAsMeena(page);
+    await page.goto(`/orders/${parentId}`);
+    await expect(page.getByTestId('order-note-forward').first()).toBeVisible({ timeout: 15_000 });
+    await page.getByTestId('order-note-forward').first().click();
+
+    const traderToken = await accessTokenFromPage(page);
+    const traderDetail = await page.request.get(`${API_URL}/orders/${parentId}`, {
+      headers: { authorization: `Bearer ${traderToken}` },
+    });
+    const desks = (
+      (await traderDetail.json()) as {
+        millDesks: Array<{ sellerName: string; upstreamOrderId: string; held: boolean }>;
+      }
+    ).millDesks;
+    const millHop = desks.find((desk) => desk.sellerName === 'Ahmedabad Loom Co');
+    expect(millHop && !millHop.held).toBeTruthy();
+
+    await loginAsKavita(page);
+    await page.goto(`/orders/${millHop!.upstreamOrderId}`);
+    const millNotes = page.getByTestId('order-ticket-notes');
+    await expect(millNotes.getByText('Need lining on mill lot')).toBeVisible({ timeout: 15_000 });
+    await expect(millNotes.getByText(/Forwarded/)).toBeVisible();
+    await expect(millNotes).toContainText('Jaipur Emporium');
+    await expect(millNotes).not.toContainText(/Surat Silk|Ravi/i);
+    await expect(page.getByTestId('order-note-forward')).toHaveCount(0);
   });
 });

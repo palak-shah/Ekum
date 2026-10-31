@@ -20,13 +20,13 @@ describe('typography weight tokens', () => {
 
   it('defines the approved size steps and header utilities', () => {
     const tokens = readFileSync(resolve(__dirname, 'tokens.css'), 'utf8');
-    expect(tokens).toContain('--ekum-text-badge: 10px');
-    expect(tokens).toContain('--ekum-text-meta: 11px');
+    expect(tokens).toContain('--ekum-text-badge: 11px');
+    expect(tokens).toContain('--ekum-text-meta: 13px');
     expect(tokens).toContain('--ekum-text-support: 13px');
-    expect(tokens).toContain('--ekum-text-name: 15px');
-    expect(tokens).toContain('--ekum-text-page-title: 17px');
-    expect(tokens).toContain('--ekum-text-sheet-title: 1.05rem');
-    expect(tokens).toContain('--ekum-text-tab-title: 1.375rem');
+    expect(tokens).toContain('--ekum-text-name: 16px');
+    expect(tokens).toContain('--ekum-text-page-title: 20px');
+    expect(tokens).toContain('--ekum-text-sheet-title: 18px');
+    expect(tokens).toContain('--ekum-text-tab-title: 20px');
 
     const css = readFileSync(resolve(__dirname, '../index.css'), 'utf8');
     expect(css).toContain('--text-page-title: var(--ekum-text-page-title)');

@@ -177,7 +177,7 @@ export function AppShell() {
                 type="button"
                 aria-label="Back"
                 data-testid={exploreSelecting ? 'explore-select-back' : 'you-back-home'}
-                className="-ml-1.5 rounded-full p-1.5 text-ink hover:bg-foam"
+                className="-ml-1.5 flex h-12 w-12 items-center justify-center rounded-full text-ink hover:bg-foam"
                 onClick={() => navigate('/')}
               >
                 <BackIcon />
@@ -209,7 +209,7 @@ export function AppShell() {
               >
                 <BellIcon />
                 {unread.data && unread.data.count > 0 ? (
-                  <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-tangerine px-1 text-[10px] font-bold text-ink">
+                  <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-tangerine px-1 text-[length:var(--ekum-text-badge)] font-bold text-ink">
                     {tabCountLabel(unread.data.count)}
                   </span>
                 ) : null}
@@ -284,7 +284,7 @@ export function AppShell() {
             type="button"
             data-testid="app-create-fab"
             aria-label="Create"
-            className="flex h-12 w-12 items-center justify-center rounded-full bg-accent text-white"
+            className="flex h-12 w-12 items-center justify-center rounded-full bg-accent text-on-accent"
             onClick={onCreate}
           >
             <PlusIcon width={28} height={28} />
@@ -336,7 +336,7 @@ function NavItem({
   label: string;
   Icon: ComponentType<SVGProps<SVGSVGElement>>;
   end: boolean;
-  /** Teal count pill (chat unread / orders Need you) — not the orange notification style. */
+  /** Lime count pill (chat unread / orders Need you) — not the orange notification style. */
   badge?: number;
   ariaLabel?: string;
 }) {
@@ -357,7 +357,7 @@ function NavItem({
       }}
       className={({ isActive }) =>
         cx(
-          'flex min-w-0 flex-1 flex-col items-center gap-0.5 py-1.5 text-[11px] font-emphasis tracking-tight',
+          'flex min-w-0 flex-1 flex-col items-center gap-0.5 py-1.5 text-meta font-emphasis tracking-tight',
           isActive ? 'text-accent' : 'text-slate',
         )
       }
@@ -367,14 +367,14 @@ function NavItem({
           <span
             className={cx(
               'relative flex h-8 w-8 items-center justify-center rounded-lg',
-              isActive && 'bg-foam',
+              isActive && 'bg-accent-soft',
             )}
           >
             <Icon width={22} height={22} />
             {badge != null && badge > 0 ? (
               <span
                 aria-hidden
-                className="absolute -right-1 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-badge px-1 text-[10px] font-bold text-white"
+                className="absolute -right-1 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-badge px-1 text-[length:var(--ekum-text-badge)] font-bold text-badge-ink"
               >
                 {tabCountLabel(badge)}
               </span>

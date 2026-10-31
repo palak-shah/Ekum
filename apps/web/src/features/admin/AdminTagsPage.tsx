@@ -201,7 +201,7 @@ export function AdminTagsPage() {
 
       <Field label="Master category">
         <select
-          className={`h-10 w-full ${SELECT_FIELD_CLASS} px-3 text-[16px] text-ink`}
+          className={`h-12 w-full ${SELECT_FIELD_CLASS} px-3 text-[16px] text-ink`}
           value={categoryId}
           onChange={(e) => {
             setCategoryId(e.target.value);
@@ -220,7 +220,7 @@ export function AdminTagsPage() {
 
       <Field label="Option type">
         <select
-          className={`h-10 w-full ${SELECT_FIELD_CLASS} px-3 text-[16px] text-ink`}
+          className={`h-12 w-full ${SELECT_FIELD_CLASS} px-3 text-[16px] text-ink`}
           value={kind}
           onChange={(e) => {
             setKind(e.target.value as OptionKind | '');

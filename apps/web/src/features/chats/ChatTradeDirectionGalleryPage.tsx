@@ -11,7 +11,7 @@ const thumbs = [
 
 function card(partial: Partial<ChatTradeCardModel> & Pick<ChatTradeCardModel, 'primary' | 'mine' | 'kind'>): ChatTradeCardModel {
   return {
-    who: partial.mine ? 'You' : 'Surat Silk House',
+    who: null,
     details: partial.details ?? ['9 designs · 20 pcs each'],
     thumbs: partial.variant === 'pulse' ? [] : thumbs.slice(0, 4),
     thumbOverflow: partial.variant === 'pulse' ? 0 : 2,
@@ -127,11 +127,11 @@ const CASES: { id: string; label: string; model: ChatTradeCardModel }[] = [
 export function ChatTradeDirectionGalleryPage() {
   return (
     <div className="min-h-dvh bg-canvas px-3 py-4" data-testid="chat-trade-direction-gallery">
-      <p className="mb-3 text-[13px] font-emphasis text-ink">Chat business-object direction rule</p>
+      <p className="mb-3 text-meta font-emphasis text-ink">Chat business-object direction rule</p>
       <div className="flex flex-col gap-5">
         {CASES.map((row) => (
           <section key={row.id} data-case={row.id} className="flex flex-col gap-1.5">
-            <p className="text-[11px] font-body text-muted">{row.label}</p>
+            <p className="text-meta font-body text-muted">{row.label}</p>
             <div className={row.model.mine ? 'flex justify-end' : 'flex justify-start'}>
               <div className="w-[85%]">
                 <ChatTradeCard

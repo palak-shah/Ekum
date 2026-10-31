@@ -11,7 +11,7 @@ import {
 } from './followAskDecide';
 
 export const compactCta =
-  'inline-flex h-8 min-w-[4.75rem] shrink-0 items-center justify-center rounded-lg px-3 text-[13px] font-emphasis tracking-tight disabled:cursor-not-allowed disabled:opacity-45';
+  'inline-flex h-8 min-w-[4.75rem] shrink-0 items-center justify-center rounded-lg px-3 text-meta font-emphasis tracking-tight disabled:cursor-not-allowed disabled:opacity-45';
 
 /** Incoming ask: shop name + full-width why-line (never crush the sentence). */
 export function FollowAskHeader({
@@ -32,7 +32,7 @@ export function FollowAskHeader({
     <>
       <Avatar name={name} imageUrl={logoUrl} size={avatarSize} />
       <div className="min-w-0 flex-1">
-        <p className="truncate text-[15px] font-emphasis leading-snug text-ink">{name}</p>
+        <p className="truncate text-name font-emphasis leading-snug text-ink">{name}</p>
         <p className="text-sm font-emphasis leading-snug text-ink" data-testid="follow-ask-why">
           {SEE_PACKS_ASK_LINE}
         </p>
@@ -93,7 +93,7 @@ export function FollowGrantChecks({
             <span
               className={cx(
                 'flex h-4 w-4 shrink-0 items-center justify-center rounded border-[1.5px]',
-                on ? 'border-accent bg-accent text-white' : 'border-line bg-surface',
+                on ? 'border-accent bg-accent text-on-accent' : 'border-line bg-surface',
               )}
               aria-hidden
             >
@@ -109,7 +109,7 @@ export function FollowGrantChecks({
                 </svg>
               ) : null}
             </span>
-            <span className="text-[13px] font-emphasis leading-snug text-ink">
+            <span className="text-meta font-emphasis leading-snug text-ink">
               {compact ? option.shortLabel : option.label}
             </span>
           </button>
@@ -142,7 +142,7 @@ export function FollowAskDecideRow({
       <div className="flex gap-2">
         <button
           type="button"
-          className={cx(compactCta, 'bg-accent text-white')}
+          className={cx(compactCta, 'bg-accent text-on-accent')}
           disabled={disabled || !decision}
           onClick={() => decision && onAllow(decision)}
         >

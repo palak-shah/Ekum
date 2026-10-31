@@ -17,8 +17,10 @@ export interface OrderCardCopy {
   action: string;
   /** Body — You / party name + plain action. No Order #, Seller, or Buyer. */
   headline: string;
-  /** Support lines (counts / notes) — never role chips or live status. */
+  /** Header support (counts / catalog / can’t-supply) — never mill-lot hashes. */
   lines: string[];
+  /** Parent cue + Place/Send body — under thumbs, not in the header. */
+  note: string | null;
 }
 
 function metaOf(message: MessageView): Record<string, unknown> | null {
@@ -30,24 +32,6 @@ function metaOf(message: MessageView): Record<string, unknown> | null {
 function asCount(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }
-
-const COMPACT_ORDER_EVENTS = new Set<string>([
-  OrderChatEvent.QuoteAccepted,
-  OrderChatEvent.OrderDeclined,
-  OrderChatEvent.OrderCancelled,
-  OrderChatEvent.OrderDispatched,
-  OrderChatEvent.OrderSettled,
-  OrderChatEvent.OrderDelivered,
-  OrderChatEvent.ReturnRaised,
-]);
-
-const RICH_ORDER_EVENTS = new Set<string>([
-  OrderChatEvent.RateRequested,
-  OrderChatEvent.OrderRequested,
-  OrderChatEvent.OrderUpdated,
-  OrderChatEvent.QuoteSent,
-  OrderChatEvent.LinesDecided,
-]);
 
 function resolveEvent(
   message: MessageView,
@@ -91,16 +75,25 @@ function resolveAction(
   );
 }
 
-/** Rich card for designs/quote; compact chip for later lifecycle pulses. */
+/** Living order/rate cards stay rich; lifecycle pulses are centered tags, not compact chips. */
 export function isRichOrderChatMessage(
   message: MessageView,
-  ref?: MessageReference | null,
+  _ref?: MessageReference | null,
 ): boolean {
-  if (message.type === 'rate') return true;
-  const event = resolveEvent(message, ref);
-  if (COMPACT_ORDER_EVENTS.has(event)) return false;
-  if (RICH_ORDER_EVENTS.has(event)) return true;
-  return true;
+  return message.type === 'order_card' || message.type === 'rate';
+}
+
+/** Newest living trade card for an order (legacy stacks: last in chrono). */
+export function livingOrderCardId(
+  messages: MessageView[],
+  orderId: string,
+): string | null {
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    const message = messages[i]!;
+    if (message.type !== 'order_card' && message.type !== 'rate') continue;
+    if (message.reference?.id === orderId) return message.id;
+  }
+  return null;
 }
 
 /**
@@ -241,9 +234,6 @@ export function buildOrderCardCopy(
   const lines: string[] = [];
   const parentLabel =
     typeof meta?.parentOrderLabel === 'string' ? meta.parentOrderLabel.trim() : '';
-  if (parentLabel) {
-    lines.push(`Part of ${parentLabel}`);
-  }
   if (ref?.itemCount != null) {
     // Quote cards: itemCount is this send (quoted + newly declined), not order total.
     const declined = asCount(meta?.declinedCount) ?? 0;
@@ -270,16 +260,21 @@ export function buildOrderCardCopy(
       }
     }
   }
+  const noteParts: string[] = [];
+  if (parentLabel) {
+    noteParts.push(`Part of ${parentLabel}`);
+  }
   if (body) {
     const note = stripOrderChatBodyNoise(body, frozenActor);
     const looksLikeDefault =
       !note ||
+      /logged an order/i.test(note) ||
       /^(confirmed|declined|dispatched|requested|cancelled|accepted quote|marked delivered|sent quote|updated lines|updated|asked for rates|settled|returned|raised a return)\b/i.test(
         note,
       ) ||
       headline.toLowerCase().includes(note.toLowerCase());
     if (!looksLikeDefault && note !== headline) {
-      lines.push(note);
+      noteParts.push(note);
     }
   }
 
@@ -288,7 +283,30 @@ export function buildOrderCardCopy(
     action,
     headline,
     lines,
+    note: noteParts.join('\n') || null,
   };
+}
+
+/** Living-card sentence when a supplier or trader logged the ticket for the buyer. */
+export function orderPlacedByLine(
+  message: MessageView,
+  ref: MessageReference | null | undefined,
+  options?: { partyName?: string | null },
+): string | null {
+  if (!ref?.loggedForBuyer) return null;
+  if (message.mine) return 'You placed this order.';
+  const meta = metaOf(message);
+  const frozenActor =
+    ref.actorLabel?.trim() ||
+    (typeof meta?.actorLabel === 'string' ? meta.actorLabel.trim() : '') ||
+    null;
+  const partyName = partyNameFallback(message, ref, meta, options?.partyName);
+  const actor = orderChatActor({
+    mine: false,
+    actorLabel: frozenActor,
+    partyName,
+  });
+  return `Order placed by ${actor}.`;
 }
 
 /** Inbox one-liner: Order # Action (or quote total). */

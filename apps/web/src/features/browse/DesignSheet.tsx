@@ -443,7 +443,7 @@ export function DesignSheet({
               onClick={startOrder}
               className={cx(
                 'flex min-h-12 min-w-[5.75rem] shrink-0 items-center justify-center rounded-xl px-3',
-                'border border-accent bg-accent text-sm font-emphasis text-white',
+                'border border-accent bg-accent text-sm font-emphasis text-on-accent',
               )}
             >
               {ownVerbs.orderLabel}

@@ -488,7 +488,7 @@ export function OrderBuilderPage() {
               <button
                 type="button"
                 data-testid="same-for-all-chip"
-                className="inline-flex w-fit items-center rounded-full border border-line bg-surface px-3.5 py-2 text-[13px] font-emphasis tracking-tight text-ink"
+                className="inline-flex w-fit items-center rounded-full border border-line bg-surface px-3.5 py-2 text-meta font-emphasis tracking-tight text-ink"
                 onClick={() => {
                   setSameDraft(
                     seedSameForAllQty(
@@ -682,7 +682,7 @@ export function OrderBuilderPage() {
                       className={cx(
                         'min-h-11 shrink-0 rounded-xl px-2.5 text-sm font-emphasis',
                         preset === '1000' ? 'min-w-[3.5rem]' : 'min-w-[3rem]',
-                        bulkQty === preset ? 'bg-accent text-white' : 'bg-foam text-slate',
+                        bulkQty === preset ? 'bg-accent-soft text-accent-ink' : 'bg-foam text-slate',
                       )}
                     >
                       {preset}
@@ -823,7 +823,7 @@ export function OrderBuilderPage() {
                   onClick={() => setSheetQty(preset)}
                   className={cx(
                     'min-h-11 min-w-[3.25rem] rounded-xl px-3 text-sm font-emphasis',
-                    sheetQty === preset ? 'bg-accent text-white' : 'bg-foam text-slate',
+                    sheetQty === preset ? 'bg-accent-soft text-accent-ink' : 'bg-foam text-slate',
                   )}
                 >
                   {preset}

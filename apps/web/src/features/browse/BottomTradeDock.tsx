@@ -72,15 +72,15 @@ export function DockIconButton({
       className={cx(
         'relative flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl border text-xs font-emphasis',
         primary
-          ? 'border-accent bg-accent text-white'
+          ? 'border-accent bg-accent text-on-accent'
           : 'border-line bg-surface text-ink',
         'disabled:opacity-40',
       )}
     >
-      <span className={cx('relative', primary ? 'text-white' : 'text-accent')}>
+      <span className={cx('relative', primary ? 'text-on-accent' : 'text-accent')}>
         {children}
         {badge != null && badge > 0 ? (
-          <span className="absolute -right-2 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-badge px-0.5 text-[10px] font-bold text-white">
+          <span className="absolute -right-2 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-badge px-0.5 text-[length:var(--ekum-text-badge)] font-bold text-badge-ink">
             {badge > 99 ? '99+' : badge}
           </span>
         ) : null}

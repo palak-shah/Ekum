@@ -27,7 +27,7 @@ export function BrandMark({ className, title = 'ekum', size = 'header' }: BrandM
           x="28"
           y="38"
           textAnchor="middle"
-          fontFamily="Inter, Segoe UI, Helvetica Neue, Arial, sans-serif"
+          fontFamily="Noto Sans, Segoe UI, Helvetica Neue, Arial, sans-serif"
           fontSize="30"
           fontWeight="700"
           fill="#fff"
@@ -37,7 +37,7 @@ export function BrandMark({ className, title = 'ekum', size = 'header' }: BrandM
         <text
           x="56"
           y="39"
-          fontFamily="Inter, Segoe UI, Helvetica Neue, Arial, sans-serif"
+          fontFamily="Noto Sans, Segoe UI, Helvetica Neue, Arial, sans-serif"
           fontSize="34"
           fontWeight="700"
           fill="#fff"

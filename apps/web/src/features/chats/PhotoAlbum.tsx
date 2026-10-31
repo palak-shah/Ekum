@@ -96,7 +96,7 @@ export function PhotoAlbum({
   // Drop blanks so a bad reference never throws through the router error boundary.
   const clean = urls.filter((url): url is string => Boolean(url));
   const thumb = size === 'thumb';
-  const preview = clean.slice(0, thumb ? 2 : 4);
+  const preview = clean.slice(0, thumb ? 3 : 4);
   const compact = size === 'compact';
   const overlayClass = thumb ? 'text-[10px]' : compact ? 'text-sm' : 'text-2xl';
   const canOpen = interactive && !locked;
@@ -109,7 +109,8 @@ export function PhotoAlbum({
   };
   /** Thumbs beyond the preview, plus designs with no image still counted on the card. */
   const extra = Math.max(0, clean.length - preview.length) + Math.max(0, overflowCount);
-  const moreLabel = extra > 0 ? `+${extra}` : undefined;
+  const moreLabel =
+    extra > 0 && (!thumb || preview.length === 3) ? `+${extra}` : undefined;
   const count = preview.length;
 
   const viewer =
@@ -136,53 +137,29 @@ export function PhotoAlbum({
     );
 
   if (thumb) {
-    // Compact but photograph-first — fixed cells so single thumbs don’t expand.
-    const grid =
-      count === 1 ? (
-        <div className="h-14 w-14">
-          <Cell
-            src={urlAt(preview, 0)}
-            onClick={() => open(0)}
-            rounded="rounded-lg"
-            overlay={moreLabel}
-            overlayClass={overlayClass}
-            locked={locked}
-            well="bg-canvas"
-          />
-        </div>
-      ) : (
-        <div className="grid h-14 w-[7.5rem] grid-cols-2" style={{ gap: GUTTER }}>
-          <Cell
-            src={urlAt(preview, 0)}
-            onClick={() => open(0)}
-            rounded="rounded-l-lg"
-            overlayClass={overlayClass}
-            locked={locked}
-            well="bg-canvas"
-          />
-          <Cell
-            src={urlAt(preview, 1)}
-            onClick={() => open(1)}
-            rounded="rounded-r-lg"
-            overlay={moreLabel}
-            overlayClass={overlayClass}
-            locked={locked}
-            well="bg-canvas"
-          />
-        </div>
-      );
     return (
       <>
         <div
           className={cx(
-            'h-14 w-fit shrink-0 overflow-hidden',
+            'flex w-fit shrink-0 gap-1',
             !canOpen && 'pointer-events-none',
           )}
           data-testid="photo-album-thumb"
           data-locked={locked ? 'true' : undefined}
           data-interactive={canOpen ? undefined : 'false'}
         >
-          {grid}
+          {preview.map((_, index) => (
+            <div key={index} className="h-[60px] w-[60px] overflow-hidden rounded-[6px]">
+              <Cell
+                src={urlAt(preview, index)}
+                onClick={() => open(index)}
+                overlay={index === preview.length - 1 ? moreLabel : undefined}
+                overlayClass={overlayClass}
+                locked={locked}
+                well="bg-canvas"
+              />
+            </div>
+          ))}
         </div>
         {viewer}
       </>

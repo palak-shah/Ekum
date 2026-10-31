@@ -5,6 +5,7 @@ import {
   linesDecidedEventLabel,
   nextOrderAction,
   orderChatEventLabel,
+  orderLifecycleTagCopy,
   roleLabel,
 } from '@ekum/domain-types';
 
@@ -144,5 +145,44 @@ describe('roleLabel', () => {
     expect(roleLabel('buying')).toBe('You buy');
     expect(roleLabel('selling')).toBe('You sell');
     expect(roleLabel(null)).toBeNull();
+  });
+});
+
+describe('orderLifecycleTagCopy', () => {
+  it('uses You/shop confirm and can’t-supply, never Seller/Buyer', () => {
+    expect(
+      orderLifecycleTagCopy({ event: OrderChatEvent.LinesDecided, actor: 'You' }),
+    ).toBe('You confirmed');
+    expect(
+      orderLifecycleTagCopy({
+        event: OrderChatEvent.LinesDecided,
+        actor: 'Surat Silk House',
+        confirmedCount: 2,
+        declinedCount: 1,
+      }),
+    ).toBe('Surat Silk House confirmed 2 · can’t supply 1');
+    expect(
+      orderLifecycleTagCopy({ event: OrderChatEvent.OrderDeclined, actor: 'You' }),
+    ).toBe('You declined');
+  });
+
+  it('names the design and order unit on qty after lock', () => {
+    expect(
+      orderLifecycleTagCopy({
+        event: OrderChatEvent.OrderUpdated,
+        actor: 'Surat Silk House',
+        qtyChange: { count: 1, name: 'HANDLE', before: 3, after: 2, unit: 'pc' },
+      }),
+    ).toBe('Surat Silk House changed 1 design · HANDLE: 3 → 2 pcs');
+  });
+
+  it('rewrites buyer amend summaries with You', () => {
+    expect(
+      orderLifecycleTagCopy({
+        event: OrderChatEvent.OrderUpdated,
+        actor: 'You',
+        amendSummary: 'Updated qty · 20 → 12',
+      }),
+    ).toBe('You updated qty · 20 → 12');
   });
 });

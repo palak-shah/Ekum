@@ -16,6 +16,9 @@ import {
   MessageType,
   ProductStatus,
   OrderChatEvent,
+  ORDER_LIFECYCLE_KIND,
+  inferOrderChatEvent,
+  orderLifecycleTagCopy,
   OrderIntent,
   OrderKind,
   OrderLineStatus,
@@ -53,7 +56,10 @@ import {
   type SettleOrderDto,
   type SetLineSupplyDto,
   type SetLineQuantityDto,
+  type AddOrderNoteDto,
+  type ForwardOrderNoteDto,
   TradeLaneTicket,
+  showBillTotalOnOrders,
 } from '@ekum/domain-types';
 import { claimParentItemId, matchParentItemId, shouldPassThrough, traderListHidesSubset, allReleasedSubsetsComplete } from './i-handle-desk';
 import { buyerSafePassThroughSummary } from './i-handle-soft-hide';
@@ -823,6 +829,7 @@ export class OrderService {
         actorLabel,
         actorRole: 'buyer',
         intent: order.intent,
+        amendSummary: summary,
       },
     );
 
@@ -2002,8 +2009,13 @@ export class OrderService {
 
     const byId = new Map(order.items.map((item) => [item.id, item]));
     const shippedByItem = this.shippedTotals(order);
-    const changed: Array<{ name: string; quantity: number; before: number; orderItemId: string }> =
-      [];
+    const changed: Array<{
+      name: string;
+      quantity: number;
+      before: number;
+      orderItemId: string;
+      unit: string | null;
+    }> = [];
     const qtyItems = fanOutCatalogWholeLines(order.items, dto.items);
 
     for (const line of qtyItems) {
@@ -2039,7 +2051,13 @@ export class OrderService {
         where: { id: item.id },
         data: { quantity: nextQty, lineStatus: nextLineStatus },
       });
-      changed.push({ name: item.name, quantity: nextQty, before: beforeQty, orderItemId: item.id });
+      changed.push({
+        name: item.name,
+        quantity: nextQty,
+        before: beforeQty,
+        orderItemId: item.id,
+        unit: (item as { unit?: string | null }).unit ?? 'pc',
+      });
     }
 
     if (changed.length < 1) {
@@ -2116,6 +2134,13 @@ export class OrderService {
         actorLabel,
         actorRole: 'seller',
         itemCount: changed.length,
+        qtyChange: {
+          count: changed.length,
+          name: changed[0]!.name,
+          before: changed[0]!.before,
+          after: changed[0]!.quantity,
+          unit: changed[0]!.unit,
+        },
       },
     );
     await this.passMillLinesToParent(id, actorCompanyId, userId);
@@ -3602,6 +3627,216 @@ export class OrderService {
     return this.get(actorCompanyId, id);
   }
 
+  async addNote(
+    actorCompanyId: string,
+    userId: string,
+    id: string,
+    dto: AddOrderNoteDto,
+  ): Promise<OrderView> {
+    const order = await this.loadForParty(id, actorCompanyId);
+    const voice = await this.trailVoiceFields(actorCompanyId, dto);
+    const note = dto.note?.trim() || null;
+    if (!note && !voice.noteVoiceMediaId && voice.noteImageUrls.length === 0) {
+      throw new BadRequestException({
+        code: 'NOTE_EMPTY',
+        message: 'Add a note, voice, or photo.',
+      });
+    }
+    await this.trail.append({
+      orderId: order.id,
+      type: OrderTrailType.Noted,
+      actorCompanyId,
+      actorUserId: userId,
+      note,
+      noteVoiceMediaId: voice.noteVoiceMediaId,
+      noteVoiceUrl: voice.noteVoiceUrl,
+      noteVoiceDurationMs: voice.noteVoiceDurationMs,
+      noteImageUrls: voice.noteImageUrls,
+    });
+    await this.prisma.order.update({
+      where: { id: order.id },
+      data: this.withActor(userId),
+    });
+    await this.postNoteSystemTag(order, actorCompanyId);
+    return this.get(actorCompanyId, id);
+  }
+
+  async forwardNote(
+    actorCompanyId: string,
+    userId: string,
+    id: string,
+    noteId: string,
+    dto: ForwardOrderNoteDto,
+  ): Promise<OrderView> {
+    const order = await this.loadForParty(id, actorCompanyId);
+    this.assertCanForwardNotes(order, actorCompanyId);
+    const source = await this.loadForwardSource(order, noteId);
+    const targetId = await this.resolveForwardTargetId(order, actorCompanyId, dto.millOrderId);
+    const target = await this.loadForParty(targetId, actorCompanyId);
+    await this.trail.append({
+      orderId: target.id,
+      type: OrderTrailType.Noted,
+      actorCompanyId,
+      actorUserId: userId,
+      note: source.note,
+      noteVoiceMediaId: source.noteVoiceMediaId,
+      noteVoiceUrl: source.noteVoiceUrl,
+      noteVoiceDurationMs: source.noteVoiceDurationMs,
+      noteImageUrls: source.noteImageUrls,
+      payload: { forwarded: true, fromOrderId: order.id, sourceEventId: noteId },
+    });
+    await this.prisma.order.update({
+      where: { id: target.id },
+      data: this.withActor(userId),
+    });
+    await this.postNoteSystemTag(target, actorCompanyId);
+    return this.get(actorCompanyId, id);
+  }
+
+  private assertCanForwardNotes(
+    order: { tradeMode: string; buyerCompanyId: string; sellerCompanyId: string; downstreamOrderId: string | null },
+    actorCompanyId: string,
+  ): void {
+    if (order.tradeMode === OrderTradeMode.Direct) {
+      throw new ForbiddenException({
+        code: 'NOT_ALLOWED',
+        message: 'This ticket has no other hop to forward to.',
+      });
+    }
+    const millHopTrader =
+      Boolean(order.downstreamOrderId) && order.buyerCompanyId === actorCompanyId;
+    const parentTrader =
+      !order.downstreamOrderId &&
+      order.tradeMode === OrderTradeMode.Manage &&
+      order.sellerCompanyId === actorCompanyId;
+    if (!millHopTrader && !parentTrader) {
+      throw new ForbiddenException({
+        code: 'NOT_ALLOWED',
+        message: 'Only the trader can forward a note.',
+      });
+    }
+  }
+
+  private async loadForwardSource(
+    order: {
+      id: string;
+      note: string | null;
+      noteVoiceMediaId: string | null;
+      noteVoiceUrl: string | null;
+      noteVoiceDurationMs: number | null;
+    },
+    noteId: string,
+  ): Promise<{
+    note: string | null;
+    noteVoiceMediaId: string | null;
+    noteVoiceUrl: string | null;
+    noteVoiceDurationMs: number | null;
+    noteImageUrls: string[];
+  }> {
+    if (noteId === 'place') {
+      const requested = await this.prisma.orderTrailEvent.findFirst({
+        where: { orderId: order.id, type: OrderTrailType.Requested },
+        orderBy: { at: 'asc' },
+      });
+      return {
+        note: order.note,
+        noteVoiceMediaId: order.noteVoiceMediaId,
+        noteVoiceUrl: order.noteVoiceUrl,
+        noteVoiceDurationMs: order.noteVoiceDurationMs,
+        noteImageUrls: requested?.noteImageUrls ?? [],
+      };
+    }
+    const event = await this.prisma.orderTrailEvent.findUnique({ where: { id: noteId } });
+    if (!event || event.orderId !== order.id) {
+      throw new NotFoundException({ code: 'NOT_FOUND', message: 'Note not found.' });
+    }
+    if (event.type !== OrderTrailType.Noted && event.type !== OrderTrailType.Requested) {
+      throw new BadRequestException({
+        code: 'NOTE_NOT_FORWARDABLE',
+        message: 'That is not a ticket note.',
+      });
+    }
+    return {
+      note: event.note,
+      noteVoiceMediaId: event.noteVoiceMediaId,
+      noteVoiceUrl: event.noteVoiceUrl,
+      noteVoiceDurationMs: event.noteVoiceDurationMs,
+      noteImageUrls: event.noteImageUrls ?? [],
+    };
+  }
+
+  private async resolveForwardTargetId(
+    order: { id: string; downstreamOrderId: string | null; buyerCompanyId: string },
+    actorCompanyId: string,
+    millOrderId?: string,
+  ): Promise<string> {
+    if (order.downstreamOrderId && order.buyerCompanyId === actorCompanyId) {
+      return order.downstreamOrderId;
+    }
+    const hops = await this.prisma.order.findMany({
+      where: { downstreamOrderId: order.id, upstreamReleasedAt: { not: null } },
+      select: { id: true },
+    });
+    if (millOrderId) {
+      if (!hops.some((hop) => hop.id === millOrderId)) {
+        throw new BadRequestException({
+          code: 'MILL_NOT_ON_ORDER',
+          message: 'Pick a mill on this order.',
+        });
+      }
+      return millOrderId;
+    }
+    if (hops.length === 1) return hops[0]!.id;
+    if (hops.length === 0) {
+      throw new BadRequestException({
+        code: 'MILL_NOT_SENT',
+        message: 'Send to mill first.',
+      });
+    }
+    throw new BadRequestException({
+      code: 'PICK_MILL',
+      message: 'Pick a mill.',
+    });
+  }
+
+  /** System tag only — never rewrite the living order card (G-001). */
+  private async postNoteSystemTag(
+    order: { id: string; buyerCompanyId: string; sellerCompanyId: string; buyer: { name: string }; seller: { name: string } },
+    actorCompanyId: string,
+  ): Promise<void> {
+    const shopName =
+      actorCompanyId === order.buyerCompanyId ? order.buyer.name : order.seller.name;
+    const body = `${shopName} added a note`;
+    const threadId = await this.resolveOrderCardThread(
+      order.buyerCompanyId,
+      order.sellerCompanyId,
+      order.id,
+    );
+    const posted = await this.prisma.message.create({
+      data: {
+        threadId,
+        senderCompanyId: actorCompanyId,
+        type: MessageType.System,
+        body,
+        referenceId: order.id,
+        metadata: { kind: 'order_note', event: 'noted', orderId: order.id },
+      },
+      select: { id: true },
+    });
+    await this.prisma.thread.update({
+      where: { id: threadId },
+      data: { lastMessageAt: new Date() },
+    });
+    await this.announceLivingOrderMessage(
+      threadId,
+      posted.id,
+      actorCompanyId,
+      body,
+      MessageType.System,
+      { kind: 'order_note', event: 'noted', orderId: order.id },
+    );
+  }
+
   private async loadPersonalNote(
     orderId: string,
     companyId: string,
@@ -3731,15 +3966,13 @@ export class OrderService {
 
     let messageId: string;
     if (existing) {
-      // Bump createdAt so unread (createdAt > lastReadAt) and inbox sort see the update.
+      // Pin first author + original createdAt so the card does not jump sides or fly to the bottom.
       await this.prisma.message.update({
         where: { id: existing.id },
         data: {
-          senderCompanyId,
           type,
           body,
           metadata: nextMeta as Prisma.InputJsonValue,
-          createdAt: new Date(),
         },
       });
       messageId = existing.id;
@@ -3758,19 +3991,126 @@ export class OrderService {
       messageId = created.id;
     }
 
+    const tag = existing
+      ? this.buildOrderLifecycleTag(
+          senderCompanyId,
+          messageId,
+          orderId,
+          nextMeta,
+          prevMeta,
+          type,
+        )
+      : null;
+    let announceId = messageId;
+    let announceBody = body;
+    let announceType: typeof MessageType.OrderCard | typeof MessageType.Rate | typeof MessageType.System =
+      type;
+    let announceMeta = nextMeta;
+    if (tag) {
+      const posted = await this.prisma.message.create({
+        data: {
+          threadId,
+          senderCompanyId,
+          type: MessageType.System,
+          body: tag.body,
+          referenceId: orderId,
+          metadata: tag.metadata as Prisma.InputJsonValue,
+        },
+        select: { id: true },
+      });
+      announceId = posted.id;
+      announceBody = tag.body;
+      announceType = MessageType.System;
+      announceMeta = tag.metadata;
+    }
+
     await this.prisma.thread.update({
       where: { id: threadId },
       data: { lastMessageAt: new Date() },
     });
     await this.announceLivingOrderMessage(
       threadId,
-      messageId,
+      announceId,
       senderCompanyId,
-      body,
-      type,
-      nextMeta,
+      announceBody,
+      announceType,
+      announceMeta,
     );
     return messageId;
+  }
+
+  private buildOrderLifecycleTag(
+    actorCompanyId: string,
+    livingMessageId: string,
+    orderId: string,
+    nextMeta: Record<string, unknown>,
+    prevMeta: Record<string, unknown> | null,
+    type: typeof MessageType.OrderCard | typeof MessageType.Rate,
+  ): { body: string; metadata: Record<string, unknown> } | null {
+    const event = inferOrderChatEvent({ messageType: type, metadata: nextMeta });
+    if (
+      event === OrderChatEvent.OrderRequested ||
+      event === OrderChatEvent.RateRequested
+    ) {
+      return null;
+    }
+    const actorLabel =
+      typeof nextMeta.actorLabel === 'string' && nextMeta.actorLabel.trim()
+        ? nextMeta.actorLabel.trim()
+        : 'They';
+    const quoteUpdated =
+      event === OrderChatEvent.QuoteSent &&
+      (prevMeta?.quoted === true || prevMeta?.event === OrderChatEvent.QuoteSent);
+    const qtyRaw =
+      nextMeta.qtyChange && typeof nextMeta.qtyChange === 'object'
+        ? (nextMeta.qtyChange as Record<string, unknown>)
+        : null;
+    const qtyChange = qtyRaw
+      ? {
+          count: typeof qtyRaw.count === 'number' ? qtyRaw.count : 0,
+          name: typeof qtyRaw.name === 'string' ? qtyRaw.name : null,
+          before: typeof qtyRaw.before === 'number' ? qtyRaw.before : null,
+          after: typeof qtyRaw.after === 'number' ? qtyRaw.after : null,
+          unit: typeof qtyRaw.unit === 'string' ? qtyRaw.unit : null,
+        }
+      : null;
+    const amendSummary =
+      typeof nextMeta.amendSummary === 'string' ? nextMeta.amendSummary : null;
+    const lrNumber =
+      typeof nextMeta.lrNumber === 'string' ? nextMeta.lrNumber : null;
+    const confirmedCount =
+      typeof nextMeta.confirmedCount === 'number' ? nextMeta.confirmedCount : null;
+    const declinedCount =
+      typeof nextMeta.declinedCount === 'number' ? nextMeta.declinedCount : null;
+    const body = orderLifecycleTagCopy({
+      event,
+      actor: actorLabel,
+      confirmedCount,
+      declinedCount,
+      partial: nextMeta.partial === true,
+      lrNumber,
+      quoteUpdated,
+      qtyChange,
+      amendSummary,
+    });
+    return {
+      body,
+      metadata: {
+        kind: ORDER_LIFECYCLE_KIND,
+        event,
+        actorLabel,
+        actorCompanyId,
+        livingMessageId,
+        orderId,
+        confirmedCount,
+        declinedCount,
+        partial: nextMeta.partial === true,
+        lrNumber,
+        quoteUpdated,
+        qtyChange,
+        amendSummary,
+      },
+    };
   }
 
   /** Living card upserts skip MessageService.send — still notify the other party. */
@@ -3779,7 +4119,7 @@ export class OrderService {
     messageId: string,
     senderCompanyId: string,
     body: string,
-    type: typeof MessageType.OrderCard | typeof MessageType.Rate,
+    type: typeof MessageType.OrderCard | typeof MessageType.Rate | typeof MessageType.System,
     meta: Record<string, unknown>,
   ): Promise<void> {
     const { companyIds, userIds } = await this.threads.notifyUserIdsForMessage(
@@ -3790,6 +4130,17 @@ export class OrderService {
       return;
     }
     const trimmed = body.trim();
+    if (type === MessageType.System || meta.kind === ORDER_LIFECYCLE_KIND) {
+      this.events.messageSent({
+        threadId,
+        messageId,
+        senderCompanyId,
+        recipientCompanyIds: companyIds,
+        recipientUserIds: userIds,
+        preview: (trimmed || 'Order update').slice(0, 140),
+      });
+      return;
+    }
     const customNote = trimmed && !/^Quote\b/i.test(trimmed) ? trimmed : null;
     const total =
       typeof meta.totalLabel === 'string' && meta.totalLabel.trim()
@@ -3913,7 +4264,19 @@ export class OrderService {
       this.prisma,
       items.map((item) => item.productId),
     );
-    return this.serializer.toOrderView(order, actorCompanyId, threadId, livingMessageId, catalog);
+    const settings = await this.prisma.companySettings.findUnique({
+      where: { companyId: order.sellerCompanyId },
+      select: { tradeDefaults: true },
+    });
+    const view = this.serializer.toOrderView(
+      order,
+      actorCompanyId,
+      threadId,
+      livingMessageId,
+      catalog,
+    );
+    view.showBillTotal = showBillTotalOnOrders(settings?.tradeDefaults);
+    return view;
   }
 
   private async resolveFacilitatorOptions(
@@ -4084,6 +4447,16 @@ export class OrderService {
       include: { seller: true, items: true },
     });
     const quoted = await this.orderIdsWithSellerQuote(ups);
+    const millSellerIds = [...new Set(ups.map((up) => up.sellerCompanyId))];
+    const millSettings = millSellerIds.length
+      ? await this.prisma.companySettings.findMany({
+          where: { companyId: { in: millSellerIds } },
+          select: { companyId: true, tradeDefaults: true },
+        })
+      : [];
+    const millBillBySeller = new Map(
+      millSettings.map((row) => [row.companyId, showBillTotalOnOrders(row.tradeDefaults)]),
+    );
     const lanes = await this.prisma.tradeLane.findMany({
       where: {
         traderCompanyId: order.sellerCompanyId,
@@ -4154,6 +4527,7 @@ export class OrderService {
           millQuoted: quoted.has(up.id),
           ticket: (lane?.ticket === TradeLaneTicket.Mill ? 'mill' : 'me') as 'me' | 'mill',
           lines,
+          showBillTotal: millBillBySeller.get(up.sellerCompanyId) === true,
         };
       }),
     );
@@ -4366,6 +4740,22 @@ export class OrderService {
         orderLabel: shortOrderLabel(parent.id),
         actorLabel: parent.seller.name,
         actorRole: 'seller',
+        ...(qtyChanged > 0 && qtyPayload[0]
+          ? {
+              qtyChange: {
+                count: qtyPayload.length,
+                name:
+                  parent.items.find((item) => item.id === qtyPayload[0]!.orderItemId)?.name ??
+                  null,
+                before: qtyPayload[0].before,
+                after: qtyPayload[0].after,
+                unit:
+                  (parent.items.find((item) => item.id === qtyPayload[0]!.orderItemId) as
+                    | { unit?: string | null }
+                    | undefined)?.unit ?? 'pc',
+              },
+            }
+          : {}),
       },
     );
   }

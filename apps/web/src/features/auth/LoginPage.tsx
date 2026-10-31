@@ -12,15 +12,15 @@ interface OtpIssueResult {
   devCode?: string;
 }
 
-/** Horizontal wash sampled from `logo-primary.png` (left #1b8481 → right #01a7bc). */
+/** Charcoal wash — brand go colour, not lime. */
 const LOGIN_PANEL =
-  'flex w-full flex-col gap-6 rounded-2xl bg-gradient-to-r from-[#1b8481] to-[#01a7bc] px-5 pb-5 pt-7 [&_label>span.text-ink]:text-white [&_.text-muted]:text-white/80';
+  'flex w-full flex-col gap-6 rounded-2xl bg-gradient-to-r from-accent to-accent-dark px-5 pb-5 pt-7 [&_label>span.text-ink]:text-on-accent [&_.text-muted]:text-on-accent/80';
 
 const FORM_STACK = 'flex flex-col gap-4';
 
 /**
  * Mobile login: logo + OTP sit on one horizontal box filled with the
- * same teal gradient as the badge.
+ * charcoal gradient (go), not lime.
  * Invite deep links (`state.from` / `?invite=`) survive OTP and onboarding.
  */
 export function LoginPage() {
@@ -90,13 +90,13 @@ export function LoginPage() {
         <div className={LOGIN_PANEL}>
         <div className="-mt-1 flex flex-col items-center gap-2">
           <BrandMark size="login" />
-          <p className="text-center text-sm font-emphasis tracking-tight text-white/90">
+          <p className="text-center text-sm font-emphasis tracking-tight text-on-accent/90">
             Textile trade, organised.
           </p>
         </div>
 
         {inviteReturn ? (
-          <div className="rounded-xl bg-white/15 px-3.5 py-3 text-center text-sm text-white">
+          <div className="rounded-xl bg-white/15 px-3.5 py-3 text-center text-sm text-on-accent">
             {inviteReturn.startsWith('/s/')
               ? 'Sign in to open this on Ekum.'
               : inviteReturn.startsWith('/t/')
@@ -167,7 +167,7 @@ export function LoginPage() {
             </Button>
             <button
               type="button"
-              className="text-center text-sm font-emphasis text-white"
+              className="text-center text-sm font-emphasis text-on-accent"
               onClick={() => {
                 setStep('phone');
                 setCode('');

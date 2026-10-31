@@ -499,7 +499,7 @@ export function SelectionPage() {
       ) : (
         <>
           <p
-            className="px-0.5 text-[15px] font-emphasis tracking-tight text-ink"
+            className="px-0.5 text-name font-emphasis tracking-tight text-ink"
             data-testid="selection-count-label"
           >
             {pickSelectionLabel(albumPick.count, shortlist.count)}
@@ -605,7 +605,7 @@ export function SelectionPage() {
               */}
               <div className="pointer-events-auto flex flex-col gap-2.5 border-t border-line bg-surface/95 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur">
                 {availableTotal < 1 && !resolving ? (
-                  <p className="text-[13px] text-muted">Nothing available to act on</p>
+                  <p className="text-meta text-muted">Nothing available to act on</p>
                 ) : null}
                 {packAskDesigns.length > 1 ? (
                   <Button
@@ -701,7 +701,7 @@ export function SelectionPage() {
                       onClick={onOrder}
                       className={cx(
                         'flex min-h-12 min-w-[5.75rem] shrink-0 items-center justify-center rounded-xl px-4',
-                        'border border-accent bg-accent text-sm font-emphasis text-white',
+                        'border border-accent bg-accent text-sm font-emphasis text-on-accent',
                         'disabled:opacity-40',
                       )}
                     >
@@ -711,7 +711,7 @@ export function SelectionPage() {
                 </div>
                 <button
                   type="button"
-                  className="self-center py-1 text-[13px] font-body text-muted hover:text-ink"
+                  className="self-center py-1 text-meta font-body text-muted hover:text-ink"
                   onClick={onClear}
                   data-testid="selection-clear"
                 >
@@ -905,14 +905,14 @@ function SelectionRow({
       <div className="min-w-0 flex-1 py-0.5">
         <p
           className={cx(
-            'truncate text-[15px] font-emphasis leading-snug tracking-tight',
+            'truncate text-name font-emphasis leading-snug tracking-tight',
             faded ? 'text-muted' : 'text-ink',
           )}
         >
           {name}
         </p>
         {companyName ? (
-          <p className="mt-0.5 truncate text-[13px] leading-snug text-muted">{companyName}</p>
+          <p className="mt-0.5 truncate text-meta leading-snug text-muted">{companyName}</p>
         ) : null}
         {faded && reason ? (
           <p
@@ -925,7 +925,7 @@ function SelectionRow({
         {askState ? (
           <button
             type="button"
-            className="mt-1.5 text-[13px] font-emphasis text-accent disabled:opacity-50"
+            className="mt-1.5 text-meta font-emphasis text-accent disabled:opacity-50"
             disabled={askState === 'asking'}
             onClick={onAsk}
             data-testid="selection-ask-relist"
@@ -937,7 +937,7 @@ function SelectionRow({
       <button
         type="button"
         aria-label={`Remove ${name}`}
-        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-[1.25rem] leading-none text-muted hover:bg-foam hover:text-ink"
+        className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg text-[1.25rem] leading-none text-muted hover:bg-foam hover:text-ink"
         onClick={onRemove}
       >
         ×

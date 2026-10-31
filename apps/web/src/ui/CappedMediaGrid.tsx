@@ -69,7 +69,7 @@ export function CappedMediaGrid<T>({
       )}
       <span className="absolute inset-0 flex flex-col items-center justify-center bg-ink/45 px-1 text-center">
         <span className="text-sm font-emphasis text-white">+{remaining}</span>
-        <span className="text-[11px] font-emphasis text-white/90">Load more</span>
+        <span className="text-meta font-emphasis text-white/90">Load more</span>
       </span>
     </button>
   );

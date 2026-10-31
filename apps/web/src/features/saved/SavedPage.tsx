@@ -332,7 +332,7 @@ export function SavedPage({
                 onClick={() => setTab(value)}
                 className={cx(
                   'rounded-full px-4 py-1.5 text-sm font-emphasis',
-                  tab === value ? 'bg-accent text-white' : 'bg-foam text-muted',
+                  tab === value ? 'bg-accent-soft text-accent-ink' : 'bg-foam text-muted',
                 )}
               >
                 {value === 'designs' ? 'Designs' : 'Collections'}
@@ -531,7 +531,7 @@ function SavedFeedRow({
           <Avatar name={item.company.name} imageUrl={item.company.logoUrl} size={40} />
         </Link>
         <Link to={`/company/${item.company.id}`} className="min-w-0 flex-1">
-          <p className="truncate text-[15px] font-emphasis tracking-tight text-ink">
+          <p className="truncate text-name font-emphasis tracking-tight text-ink">
             {highlightSearchText(item.company.name, highlightQuery)}
           </p>
           <p className="truncate text-xs font-body text-muted">

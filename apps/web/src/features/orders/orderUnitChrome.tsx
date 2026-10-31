@@ -44,6 +44,7 @@ export function OrderUnitGroups<T>({
   headingTestId,
   lineTestId,
   lineClassName = 'px-3 py-2.5',
+  hideHeadingWhenSingle = false,
   children,
 }: {
   items: T[];
@@ -55,12 +56,15 @@ export function OrderUnitGroups<T>({
   headingTestId?: string;
   lineTestId?: string;
   lineClassName?: string;
+  /** Ticket Designs caption already names the one family. */
+  hideHeadingWhenSingle?: boolean;
   children: (item: T, index: number, last: boolean) => ReactNode;
 }) {
   const groups = groupHowManyByOrderUnit(items, unitOf);
   const lastIndex = items.length - 1;
   let index = 0;
   const headingId = headingTestId ?? 'order-sheet-unit-heading';
+  const showHeadings = !(hideHeadingWhenSingle && groups.length <= 1);
 
   return (
     <div
@@ -70,9 +74,11 @@ export function OrderUnitGroups<T>({
     >
       {groups.map((group) => (
         <div key={group.unit} className="flex flex-col gap-2">
-          <div data-testid={headingId}>
-            <SectionHeader title={orderUnitSheetHeading(group.unit, role)} />
-          </div>
+          {showHeadings ? (
+            <div data-testid={headingId}>
+              <SectionHeader title={orderUnitSheetHeading(group.unit, role)} />
+            </div>
+          ) : null}
           {layout === 'stack' ? (
             <ul className="overflow-x-hidden rounded-xl border border-line bg-surface">
               {group.items.map((item, itemIndex) => {
@@ -144,10 +150,13 @@ export function OrderUnitTotal({
   items,
   missingPressed = false,
   onMissingToggle,
+  showBill = true,
 }: {
   items: HowManyQtyLine[];
   missingPressed?: boolean;
   onMissingToggle?: () => void;
+  /** Seller company flag — qty always; ₹ and +Missing rates only when on. */
+  showBill?: boolean;
 }) {
   const counted = items.filter((item) => item.lineStatus !== 'declined');
   const summary = ticketTotalSummary(counted);
@@ -178,22 +187,24 @@ export function OrderUnitTotal({
           >
             {row.qty}
           </p>
-          <p
-            className={totalBillClass}
-            data-testid={index === 0 ? 'order-ticket-bill-total' : undefined}
-          >
-            {row.money ?? '\u00a0'}
-          </p>
+          {showBill ? (
+            <p
+              className={totalBillClass}
+              data-testid={index === 0 ? 'order-ticket-bill-total' : undefined}
+            >
+              {row.money ?? '\u00a0'}
+            </p>
+          ) : null}
         </div>
       ))}
-      {summary.grand ? (
+      {showBill && summary.grand ? (
         <div className={totalRowClass} data-testid="order-ticket-grand-total">
           <p className="w-16 shrink-0" aria-hidden />
           <p className={totalQtyClass}>All</p>
           <p className={totalBillClass}>{summary.grand}</p>
         </div>
       ) : null}
-      {summary.missingCue ? (
+      {showBill && summary.missingCue ? (
         <div className={totalRowClass} data-testid="order-ticket-missing-rates-row">
           <p className="w-16 shrink-0" aria-hidden />
           <p className="min-w-0 flex-1" aria-hidden />

@@ -55,6 +55,40 @@ describe('messagePreviewText', () => {
   });
 });
 
+describe('order lifecycle inbox preview', () => {
+  it('shows You/shop tag copy, not You · prefix', () => {
+    expect(
+      messagePreviewText(
+        msg({
+          type: MessageType.System,
+          mine: true,
+          body: 'Surat Silk House confirmed',
+          metadata: {
+            kind: 'order_lifecycle',
+            event: 'lines_decided',
+            actorLabel: 'Surat Silk House',
+            confirmedCount: 2,
+          },
+        }),
+      ),
+    ).toBe('You confirmed');
+    expect(
+      messagePreviewText(
+        msg({
+          type: MessageType.System,
+          mine: false,
+          body: 'Surat Silk House confirmed',
+          metadata: {
+            kind: 'order_lifecycle',
+            event: 'lines_decided',
+            actorLabel: 'Surat Silk House',
+          },
+        }),
+      ),
+    ).toBe('Surat Silk House confirmed');
+  });
+});
+
 describe('inboxPreviewTypeKey', () => {
   it('keeps voice for the inbox kind icon', () => {
     expect(

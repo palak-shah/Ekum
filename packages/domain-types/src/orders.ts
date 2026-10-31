@@ -203,6 +203,30 @@ export const updatePersonalOrderNoteSchema = z.object({
 });
 export type UpdatePersonalOrderNoteDto = z.infer<typeof updatePersonalOrderNoteSchema>;
 
+/** Hop-scoped ticket Notes — text / voice / photos on this order only. */
+export const addOrderNoteSchema = z
+  .object(orderNoteVoiceFields)
+  .superRefine((value, ctx) => {
+    const hasText = Boolean(value.note?.trim());
+    const hasVoice = Boolean(value.noteVoiceMediaId);
+    const hasPhotos = (value.noteImageUrls?.length ?? 0) > 0;
+    if (!hasText && !hasVoice && !hasPhotos) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Add a note, voice, or photo.',
+      });
+    }
+  });
+export type AddOrderNoteDto = z.infer<typeof addOrderNoteSchema>;
+
+/** Trader Forward onto the other hop. 2+ mills require millOrderId. */
+export const forwardOrderNoteSchema = z
+  .object({
+    millOrderId: z.string().min(1).optional(),
+  })
+  .default({});
+export type ForwardOrderNoteDto = z.infer<typeof forwardOrderNoteSchema>;
+
 export type OrderPersonalNoteView = {
   note: string | null;
   noteVoiceUrl: string | null;
@@ -389,6 +413,8 @@ export interface OrderMillDeskView {
     millQuantity: number | null;
     millDeclined: boolean;
   }>;
+  /** Mill hop seller: Total ₹ on this mill card. Same ticket for that hop. */
+  showBillTotal?: boolean;
 }
 export type SendUpOrderDto = z.infer<typeof sendUpOrderSchema>;
 
@@ -826,6 +852,11 @@ export interface OrderView {
   quoteNoteImageUrls?: string[];
   buyerCompanyId: string;
   sellerCompanyId: string;
+  /**
+   * Hop seller company: show Total ₹ on this ticket. Same for every viewer.
+   * Default / omitted = hide (qty only).
+   */
+  showBillTotal?: boolean;
   counterpart: PublicCompanySummary;
   items: OrderItemView[];
   shipments: OrderShipmentView[];

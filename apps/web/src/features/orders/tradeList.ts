@@ -142,12 +142,7 @@ export function matchesTradeCompleted(item: TradeListItem): boolean {
   return matchesReturnCompleted(item.ret);
 }
 
-/** Pending list: Needs you first, then last-edited. */
+/** List pile: last-updated first. Needs you is a cue, not a sort bump. */
 export function sortTradePending(items: TradeListItem[]): TradeListItem[] {
-  return [...items].sort((a, b) => {
-    const aNeeds = matchesTradeNeeds(a) ? 0 : 1;
-    const bNeeds = matchesTradeNeeds(b) ? 0 : 1;
-    if (aNeeds !== bNeeds) return aNeeds - bNeeds;
-    return sortKey(b) - sortKey(a);
-  });
+  return [...items].sort((a, b) => sortKey(b) - sortKey(a));
 }

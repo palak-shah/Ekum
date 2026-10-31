@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   AddressView,
   BillingFirmView,
+  CompanySettingsView,
   UpsertAddressDto,
   UpsertBillingFirmDto,
 } from '@ekum/domain-types';
@@ -63,6 +64,20 @@ export function SettingsPage() {
   const billingFirms = useQuery({
     queryKey: ['billing-firms'],
     queryFn: () => api.get<BillingFirmView[]>('/settings/billing-firms'),
+  });
+  const companySettings = useQuery({
+    queryKey: ['company-settings'],
+    queryFn: () => api.get<CompanySettingsView>('/settings'),
+    enabled: selling || trading,
+  });
+  const showBill = companySettings.data?.showBillTotalOnOrders === true;
+  const saveBillTotal = useMutation({
+    mutationFn: (on: boolean) => api.put('/settings', { showBillTotalOnOrders: on }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['company-settings'] });
+      void queryClient.invalidateQueries({ queryKey: ['order'] });
+      void queryClient.invalidateQueries({ queryKey: ['orders'] });
+    },
   });
 
   const createAddress = useMutation({
@@ -126,7 +141,7 @@ export function SettingsPage() {
       </SettingsDomainGroup>
 
       <section className="flex flex-col gap-1.5" data-testid="settings-domain-appearance">
-        <h2 className="px-0.5 text-[13px] font-emphasis tracking-tight text-ink">Appearance</h2>
+        <h2 className="px-0.5 text-meta font-emphasis tracking-tight text-ink">Appearance</h2>
         <div className="rounded-xl border border-line bg-surface px-3.5 py-3">
           <p className="text-sm font-emphasis text-ink">Theme</p>
           <p className="mt-0.5 text-xs text-muted">Light, dark, or match this phone.</p>
@@ -147,7 +162,7 @@ export function SettingsPage() {
 
       <section className="flex flex-col gap-1.5" data-testid="settings-domain-dispatch">
         <div className="flex items-center justify-between gap-3 px-0.5">
-          <h2 className="text-[13px] font-emphasis tracking-tight text-ink">Dispatch</h2>
+          <h2 className="text-meta font-emphasis tracking-tight text-ink">Dispatch</h2>
           <button className="text-xs font-emphasis text-accent" onClick={() => setAddrOpen(true)}>
             Add
           </button>
@@ -182,7 +197,7 @@ export function SettingsPage() {
 
       <section className="flex flex-col gap-1.5" data-testid="settings-domain-billing">
         <div className="flex items-center justify-between gap-3 px-0.5">
-          <h2 className="text-[13px] font-emphasis tracking-tight text-ink">Billing</h2>
+          <h2 className="text-meta font-emphasis tracking-tight text-ink">Billing</h2>
           <button
             type="button"
             data-testid="settings-add-billing-firm"
@@ -215,6 +230,17 @@ export function SettingsPage() {
             <p className="px-3.5 py-3 text-sm text-muted">Add the GST firm you invoice under.</p>
           )}
         </div>
+        {selling || trading ? (
+          <FilterRail>
+            <Chip
+              active={showBill}
+              data-testid="settings-show-bill-total"
+              onClick={() => saveBillTotal.mutate(!showBill)}
+            >
+              Show bill total on orders
+            </Chip>
+          </FilterRail>
+        ) : null}
       </section>
 
       <Sheet open={addrOpen} onClose={() => setAddrOpen(false)} title="New address">

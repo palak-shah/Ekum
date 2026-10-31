@@ -32,7 +32,7 @@ const base = {
 };
 
 describe('OrderLineFulfillExpand', () => {
-  it('shows edit icon · fact strip · Ordered qty — no Last LR / Ship now / Dispatch', () => {
+  it('shows edit icon · ticket qty · Ordered qty — no Last LR / Ship now / Dispatch', () => {
     const onSaveQty = vi.fn();
     render(
       <OrderLineFulfillExpand
@@ -42,10 +42,10 @@ describe('OrderLineFulfillExpand', () => {
         onSaveQty={onSaveQty}
       />,
     );
-    expect(screen.getByTestId('order-line-facts')).toBeTruthy();
-    expect(screen.getByTestId('order-line-fact-qty')).toHaveTextContent('20');
-    expect(screen.getByTestId('order-line-fact-shipped')).toHaveTextContent('15');
-    expect(screen.getByTestId('order-line-fact-balance')).toHaveTextContent('-5');
+    expect(screen.getByTestId('order-line-facts')).toHaveAttribute('data-density', 'ticket');
+    expect(screen.getByTestId('order-line-fact-qty')).toHaveTextContent('15 of 20 sets sent');
+    expect(screen.queryByTestId('order-line-fact-shipped')).toBeNull();
+    expect(screen.queryByTestId('order-line-fact-balance')).toBeNull();
     expect(screen.queryByTestId('order-line-fact-pending')).toBeNull();
     expect(screen.queryByText('Last LR')).toBeNull();
     expect(screen.queryByTestId('order-line-last-lr-qty')).toBeNull();
@@ -175,7 +175,7 @@ describe('OrderLineFulfillExpand', () => {
     expect(screen.queryByTestId('order-line-ordered-qty')).toBeNull();
   });
 
-  it('does not repeat per mtr under the name — unit lives on Total', () => {
+  it('puts Rate per on the name and qty under — no identity per mtr', () => {
     render(
       <OrderLineFulfillExpand
         {...base}
@@ -194,8 +194,8 @@ describe('OrderLineFulfillExpand', () => {
     );
     expect(screen.queryByTestId('order-line-identity')).toBeNull();
     expect(screen.queryByText('per mtr')).toBeNull();
-    expect(screen.getByTestId('order-line-fact-qty')).toHaveTextContent('10');
-    expect(screen.getByTestId('order-line-fact-qty').textContent).not.toMatch(/mtrs|sets/);
+    expect(screen.getByTestId('order-line-rate')).toHaveTextContent('₹128/mtr');
+    expect(screen.getByTestId('order-line-fact-qty')).toHaveTextContent('10 mtrs');
     expect(screen.getByText('Chiffon Roll')).toBeTruthy();
   });
 

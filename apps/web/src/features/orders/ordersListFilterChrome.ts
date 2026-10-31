@@ -9,6 +9,6 @@ export function ordersListFilterChrome(): {
   return {
     tabRowClass: 'grid min-w-0 grid-cols-3 border-b border-line',
     tabClass:
-      'relative min-h-11 text-[15px] font-emphasis tracking-tight',
+      'relative min-h-11 text-name font-emphasis tracking-tight',
   };
 }

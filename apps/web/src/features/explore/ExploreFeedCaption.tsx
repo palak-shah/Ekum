@@ -26,7 +26,7 @@ export function ExploreFeedCaption({
         </p>
         {rateLine ? (
           <p
-            className="shrink-0 text-base font-body leading-normal tracking-tight text-accent no-underline"
+            className="shrink-0 text-base font-emphasis leading-normal tracking-tight text-accent no-underline"
             data-testid="explore-feed-rate"
           >
             {rateLine}

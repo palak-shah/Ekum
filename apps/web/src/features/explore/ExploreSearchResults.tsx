@@ -161,7 +161,7 @@ function UniversalResults({
     <div className="flex flex-col gap-6">
       {data.companies.length > 0 ? (
         <section className="flex flex-col gap-1">
-          <h2 className="px-0.5 text-[15px] font-emphasis tracking-tight text-ink">Businesses</h2>
+          <h2 className="px-0.5 text-name font-emphasis tracking-tight text-ink">Businesses</h2>
           <div className="flex flex-col divide-y divide-line/70">
             {data.companies.map((company) => (
               <CompanyRow
@@ -178,7 +178,7 @@ function UniversalResults({
 
       {data.collections.length > 0 ? (
         <section className="flex flex-col gap-2">
-          <h2 className="px-0.5 text-[15px] font-emphasis tracking-tight text-ink">Collections</h2>
+          <h2 className="px-0.5 text-name font-emphasis tracking-tight text-ink">Collections</h2>
           <div className="flex flex-col gap-2">
             {data.collections.map((collection) => (
               <CollectionListItem key={collection.id} collection={collection} highlightQuery={query} />
@@ -189,7 +189,7 @@ function UniversalResults({
 
       {data.designs.length > 0 ? (
         <section className="flex flex-col gap-2">
-          <h2 className="px-0.5 text-[15px] font-emphasis tracking-tight text-ink">Designs</h2>
+          <h2 className="px-0.5 text-name font-emphasis tracking-tight text-ink">Designs</h2>
           <div className="grid grid-cols-2 gap-3">
             {data.designs.map((product) => (
               <Link key={product.id} to={`/explore/products/${product.id}`}>

@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { type CursorPage, type FollowAskView, type MuteFor, type ThreadSummary } from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
 import { FindInExploreLink } from '@/ui/FindInExploreLink';
-import { Button, Chip, ChipCountBadge, EmptyState, ErrorState, FilterRail, LoadingBlock, SearchInput, Sheet, cx } from '@/ui/kit';
+import { Button, Chip, ChipCountBadge, EmptyState, ErrorState, FilterRail, LoadingBlock, SearchInput, Sheet, cx, listRowClass } from '@/ui/kit';
 import { ListSearchRow } from '@/ui/ListSearchRow';
 import { ChevronRightIcon } from '@/ui/icons';
 import { subscribeChatsNewChat } from './chatsNewChat';
@@ -224,7 +224,7 @@ export function ChatsPage() {
 
       {showInChats ? (
         <section data-testid="chats-in-chats" className="flex flex-col gap-1">
-          <h2 className="px-0.5 text-[13px] font-body text-muted">In chats</h2>
+          <h2 className="px-0.5 text-meta font-body text-muted">In chats</h2>
           <ul className="-mx-4 overflow-hidden bg-surface">
             {IN_CHATS.map((item) => {
               const { Icon, badge } = chatMediaKindChrome(item.kind);
@@ -233,17 +233,17 @@ export function ChatsPage() {
                   <Link
                     to={`/chats/find?kind=${item.kind}`}
                     data-testid={`chats-find-${item.kind}`}
-                    className="flex items-center gap-2.5 px-4 py-2 hover:bg-canvas active:bg-canvas"
+                    className={cx(listRowClass, 'flex items-center gap-2.5 text-left')}
                   >
                     <span
                       className={cx(
-                        'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl',
+                        'flex h-12 w-12 shrink-0 items-center justify-center rounded-xl',
                         badge,
                       )}
                     >
                       <Icon width={18} height={18} aria-hidden />
                     </span>
-                    <span className="min-w-0 flex-1 text-[14px] font-emphasis text-ink">{item.label}</span>
+                    <span className="min-w-0 flex-1 text-base font-emphasis text-ink">{item.label}</span>
                     <ChevronRightIcon width={18} height={18} className="shrink-0 text-muted" />
                   </Link>
                 </li>
@@ -342,7 +342,7 @@ export function ChatsPage() {
                     <button
                       type="button"
                       onClick={() => setStartOpen(true)}
-                      className="inline-flex items-center justify-center rounded-xl bg-accent px-5 py-2.5 text-[15px] font-emphasis text-white"
+                      className="inline-flex items-center justify-center rounded-xl bg-accent px-5 py-2.5 text-name font-emphasis text-on-accent"
                     >
                       Start a chat
                     </button>

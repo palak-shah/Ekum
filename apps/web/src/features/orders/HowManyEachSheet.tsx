@@ -512,7 +512,7 @@ export function HowManyEachSheet({
                 type="button"
                 disabled={busy}
                 data-testid="same-for-all-chip"
-                className="inline-flex w-fit items-center rounded-full border border-line bg-surface px-3.5 py-2 text-[13px] font-emphasis tracking-tight text-ink disabled:opacity-45"
+                className="inline-flex w-fit items-center rounded-full border border-line bg-surface px-3.5 py-2 text-meta font-emphasis tracking-tight text-ink disabled:opacity-45"
                 onClick={() => {
                   setSameDraft(
                     seedSameForAllQty(Object.values(overrides), sharedQty),

@@ -7,6 +7,7 @@ import {
   buildOrderTimelineSteps,
   collapseQuotedTrailEvents,
   shortOrderLabel,
+  OrderTrailType,
   type DecideOrderLinesDto,
   type DispatchDto,
   type EditShipmentDto,
@@ -66,8 +67,10 @@ import { sellerCanFulfillEdit } from '@/features/orders/lineFulfillCard';
 import { OrderLineFulfillExpand } from '@/features/orders/OrderLineFulfillExpand';
 import {
   newestFirstTrail,
+  timelineUpdatedDot,
   timelineVisibleSlice,
 } from '@/features/orders/orderTimelineDisplay';
+import { explorePostedWhen } from '@/ui/cards';
 import {
   decideLinesConfirmExtras,
   decideLinesConfirmReady,
@@ -93,9 +96,8 @@ import { tradeListStatusLabel } from '@/features/orders/tradeListProtocol';
 import {
   ChatIcon,
   CheckIcon,
-  ChevronDownIcon,
   ChevronRightIcon,
-  ChevronUpIcon,
+  ClockIcon,
   CloseIcon,
   DocumentIcon,
   MegaphoneIcon,
@@ -116,12 +118,22 @@ import { type NoteVoiceValue } from '@/features/voice/NoteVoiceField';
 import { VoicePlayer } from '@/features/voice/VoicePlayer';
 import { orderPartyLines, partyLineShowsOpenChat } from '@/features/orders/orderPartyLines';
 import {
+  orderTicketCanForwardNotes,
+  orderTicketForwardMills,
+  orderTicketNotes,
+  orderTicketProgress,
+  orderTicketSubtitle,
+  orderTicketWaitingCue,
+} from '@/features/orders/orderTicketChrome';
+import { OrderTicketNotes } from '@/features/orders/OrderTicketNotes';
+import {
   OrderLineFacts,
   OrderLineMoneyLine,
   formatOrderLinePriceAmount,
   orderLineBalance,
   orderLineBalanceRowClass,
   orderLineFactsWithThisLr,
+  orderTicketLineRateCopy,
 } from '@/features/orders/OrderLineFacts';
 import { QtyStepper } from '@/features/orders/QtyStepper';
 import { OrderLineStack } from '@/features/orders/OrderLineStack';
@@ -129,6 +141,7 @@ import { OrderDesignTitle } from '@/features/orders/OrderDesignTitle';
 import {
   howManyOrderUnitsMixed,
   lastGroupedItem,
+  ticketDesignsCaption,
 } from '@/features/orders/howManyLineMeta';
 import { OrderQtyFooterSummary } from '@/features/orders/OrderQtyFooterSummary';
 import { OrderLineNoteCue } from '@/features/orders/OrderLineNoteCue';
@@ -180,6 +193,7 @@ import {
   quoteSheetItems,
 } from '@/features/orders/quoteSheetItems';
 import {
+  Avatar,
   Button,
   Card,
   ErrorState,
@@ -210,9 +224,9 @@ import {
 import { ORDER_QTY_SCOPE_ATTR, orderQtyInputProps } from '@/features/orders/orderQtyFocus';
 
 /** Compact full-width dock / mill send. */
-const COMPACT_SEND_CLASS = 'min-h-10 w-full px-3 text-sm';
+const COMPACT_SEND_CLASS = 'min-h-12 w-full px-3 text-sm';
 /** Mill card Send / Decline — chip-sized, not a full-bleed bar. */
-const MILL_CARD_ACTION_CLASS = '!min-h-8 h-8 w-auto px-3 text-[13px]';
+const MILL_CARD_ACTION_CLASS = '!min-h-8 h-8 w-auto px-3 text-meta';
 
 function RateFigure({
   amount,
@@ -262,24 +276,47 @@ function actionErrorMessage(err: unknown, fallback: string): string {
   return err instanceof ApiError ? err.message : fallback;
 }
 
-function TimelineExpandChevron({
+function TimelineHeader({
+  count,
   expanded,
+  canExpand,
   onToggle,
 }: {
+  count: number;
   expanded: boolean;
+  canExpand: boolean;
   onToggle: () => void;
 }) {
+  const label = `Timeline · ${count}`;
+  if (!canExpand) {
+    return (
+      <p className="mb-2 text-xs font-body text-muted" data-testid="order-timeline-more">
+        {label}
+      </p>
+    );
+  }
   return (
     <button
       type="button"
       data-testid="order-timeline-more"
       aria-expanded={expanded}
       aria-label={expanded ? 'Hide timeline details' : 'Show timeline details'}
-      className="shrink-0 rounded-lg p-1 text-accent hover:bg-foam"
+      className="mb-2 text-left text-xs font-body text-muted"
       onClick={onToggle}
     >
-      {expanded ? <ChevronUpIcon width={20} height={20} /> : <ChevronDownIcon width={20} height={20} />}
+      {label}
     </button>
+  );
+}
+
+function TimelineDot({ warning }: { warning: boolean }) {
+  return (
+    <span
+      className={cx(
+        'mt-1.5 h-[7px] w-[7px] shrink-0 rounded-full',
+        warning ? 'bg-warning' : 'bg-accent',
+      )}
+    />
   );
 }
 
@@ -295,7 +332,7 @@ function OrderTimeline({
 }) {
   const [expanded, setExpanded] = useState(false);
   const toggle = () => setExpanded((v) => !v);
-  const rawTrail = order.trail ?? [];
+  const rawTrail = (order.trail ?? []).filter((step) => step.type !== OrderTrailType.Noted);
   if (rawTrail.length > 0) {
     const { events: trailAsc, quoteEditCount } = hidePriorQuotes
       ? collapseQuotedTrailEvents(rawTrail)
@@ -316,33 +353,36 @@ function OrderTimeline({
     const canExpand = hiddenCount > 0 || newestHasExtras || expanded;
     return (
       <Card className="flex flex-col gap-0" data-testid="order-timeline">
-        <div className="mb-2 flex items-center justify-between gap-2">
-          <p className="text-xs font-body text-muted">Timeline</p>
-          {canExpand ? (
-            <TimelineExpandChevron expanded={expanded} onToggle={toggle} />
-          ) : null}
-        </div>
+        <TimelineHeader
+          count={trail.length}
+          expanded={expanded}
+          canExpand={canExpand}
+          onToggle={toggle}
+        />
         <ol className="flex flex-col">
           {visible.map((step, index) => (
             <li key={step.id} className="flex gap-3">
               <div className="flex w-4 flex-col items-center">
-                <span className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full bg-accent" />
-                {index < visible.length - 1 ? (
-                  <span className="my-1 min-h-4 w-px flex-1 bg-accent/40" />
-                ) : null}
+                <TimelineDot warning={timelineUpdatedDot(step.type, step.summary)} />
               </div>
-              <div className={cx('min-w-0 pb-3', index === visible.length - 1 && 'pb-0')}>
-                <p className="text-sm font-emphasis text-ink">{step.summary ?? step.type}</p>
+              <div className={cx('min-w-0 flex-1 pb-3', index === visible.length - 1 && 'pb-0')}>
+                <div className="flex min-w-0 items-baseline justify-between gap-2">
+                  <p className="min-w-0 text-sm font-emphasis text-ink">
+                    {step.summary ?? step.type}
+                  </p>
+                  {step.at ? (
+                    <p className="shrink-0 text-xs text-muted">{explorePostedWhen(step.at)}</p>
+                  ) : null}
+                </div>
                 {expanded ? (
                   <>
-                    <p className="text-xs text-muted">{formatDate(step.at)}</p>
                     {hidePriorQuotes && step.type === 'quoted' && quoteEditCount > 0 ? (
                       <p className="text-xs text-muted">
                         Edited
                         {quoteEditCount > 1 ? ` · ${quoteEditCount} times` : ''}
                       </p>
                     ) : null}
-                    {step.who ? <p className="text-[11px] text-muted">{step.who}</p> : null}
+                    {step.who ? <p className="text-meta text-muted">{step.who}</p> : null}
                     {step.detail ? <p className="text-xs text-muted">{step.detail}</p> : null}
                     {step.note ? (
                       <p className="mt-0.5 whitespace-pre-wrap text-xs text-muted">{step.note}</p>
@@ -410,47 +450,43 @@ function OrderTimeline({
 
   return (
     <Card className="flex flex-col gap-0" data-testid="order-timeline">
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <p className="text-xs font-body text-muted">Timeline</p>
-        {canExpand ? (
-          <TimelineExpandChevron expanded={expanded} onToggle={toggle} />
-        ) : null}
-      </div>
+      <TimelineHeader
+        count={steps.length}
+        expanded={expanded}
+        canExpand={canExpand}
+        onToggle={toggle}
+      />
       <ol className="flex flex-col">
         {visible.map((step, index) => (
           <li key={step.key} className="flex gap-3">
             <div className="flex w-4 flex-col items-center">
-              <span
-                className={cx(
-                  'mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full',
-                  step.done || step.current ? 'bg-accent' : 'bg-line',
-                )}
-              />
-              {index < visible.length - 1 ? (
-                <span className={cx('my-1 w-px flex-1 min-h-4', step.done ? 'bg-accent/40' : 'bg-line')} />
-              ) : null}
+              <TimelineDot warning={timelineUpdatedDot(undefined, step.label)} />
             </div>
-            <div className={cx('min-w-0 pb-3', index === visible.length - 1 && 'pb-0')}>
-              <p
-                className={cx(
-                  'text-sm font-emphasis',
-                  step.done || step.current ? 'text-ink' : 'text-muted',
-                )}
-              >
-                {step.label}
-              </p>
+            <div className={cx('min-w-0 flex-1 pb-3', index === visible.length - 1 && 'pb-0')}>
+              <div className="flex min-w-0 items-baseline justify-between gap-2">
+                <p
+                  className={cx(
+                    'min-w-0 text-sm font-emphasis',
+                    step.done || step.current ? 'text-ink' : 'text-muted',
+                  )}
+                >
+                  {step.label}
+                </p>
+                {step.at ? (
+                  <p className="shrink-0 text-xs text-muted">{explorePostedWhen(step.at)}</p>
+                ) : null}
+              </div>
               {expanded ? (
                 <>
-                  <p className="text-xs text-muted">{step.at ? formatDate(step.at) : '—'}</p>
                   {step.staffLine ? (
-                    <p className="text-[11px] text-muted">{step.staffLine}</p>
+                    <p className="text-meta text-muted">{step.staffLine}</p>
                   ) : null}
                   {step.detail ? <p className="text-xs text-muted">{step.detail}</p> : null}
                   {step.key === 'requested' && amended ? (
                     <p className="text-xs text-muted">
                       Updated
                       {order.amendCount > 1 ? ` · ${order.amendCount} times` : ''} ·{' '}
-                      {formatDate(order.updatedAt)}
+                      {explorePostedWhen(order.updatedAt)}
                     </p>
                   ) : null}
                 </>
@@ -491,17 +527,19 @@ function OrderLinePhoto({
   item: OrderItemView;
   items: OrderItemView[];
   onOpen: (index: number) => void;
-  /** lg = default beside stack; md/sm for tight chrome only. */
-  size?: 'lg' | 'md' | 'sm';
+  /** lg = 48px sheets; ticket = proto 42×4/5; md/sm for tight chrome only. */
+  size?: 'lg' | 'md' | 'sm' | 'ticket';
 }) {
   const raw = urlsForOrderItem(item)[0];
   const url = raw ? toAbsoluteMediaUrl(raw) : '';
   const box =
-    size === 'sm'
-      ? 'h-[3.15rem] w-[3.15rem] min-h-[3.15rem] min-w-[3.15rem] shrink-0 rounded-lg'
-      : size === 'md'
-        ? 'h-[3.675rem] w-[3.675rem] min-h-[3.675rem] min-w-[3.675rem] shrink-0 rounded-xl'
-        : 'h-12 w-12 min-h-12 min-w-12 shrink-0 rounded-lg';
+    size === 'ticket'
+      ? 'h-[52.5px] w-[42px] min-h-[52.5px] min-w-[42px] shrink-0 rounded-md'
+      : size === 'sm'
+        ? 'h-[3.15rem] w-[3.15rem] min-h-[3.15rem] min-w-[3.15rem] shrink-0 rounded-lg'
+        : size === 'md'
+          ? 'h-[3.675rem] w-[3.675rem] min-h-[3.675rem] min-w-[3.675rem] shrink-0 rounded-xl'
+          : 'h-12 w-12 min-h-12 min-w-12 shrink-0 rounded-lg';
   if (!url) {
     return (
       <div
@@ -543,16 +581,19 @@ function OrderLineCantSupplyFace({
   children,
   className,
   soldAs = true,
+  ticketLayout = false,
 }: {
   item: OrderItemView;
   items: OrderItemView[];
   cantSupply: boolean;
   onOpen: (index: number) => void;
-  size?: 'lg' | 'md' | 'sm';
+  size?: 'lg' | 'md' | 'sm' | 'ticket';
   children?: ReactNode;
   className?: string;
   /** Mill Send qty is a bare number — keep per mtr. Ticket Total carries the unit. */
   soldAs?: boolean;
+  /** Prototype ticket line: rate on the name, qty under — no Price · Bill extra. */
+  ticketLayout?: boolean;
 }) {
   const leftover = orderLineLeftoverCue(item);
   const faded = cantSupply || Boolean(leftover);
@@ -562,12 +603,20 @@ function OrderLineCantSupplyFace({
     <OrderLineStack
       className={className}
       muted={faded}
-      photo={<OrderLinePhoto item={item} items={items} onOpen={onOpen} size={size} />}
+      photo={
+        <OrderLinePhoto
+          item={item}
+          items={items}
+          onOpen={onOpen}
+          size={ticketLayout ? 'ticket' : size}
+        />
+      }
       title={
         <OrderDesignTitle
           name={item.name}
           muted={faded}
-          extra={<OrderLineMoneyLine item={item} />}
+          rate={ticketLayout ? orderTicketLineRateCopy(item) : undefined}
+          extra={ticketLayout ? undefined : <OrderLineMoneyLine item={item} />}
         />
       }
       secondary={
@@ -702,6 +751,12 @@ export function OrderDetailPage() {
   const [orderMenuOpen, setOrderMenuOpen] = useState(false);
   const [complaintAgainstOpen, setComplaintAgainstOpen] = useState(false);
   const [complaintTargets, setComplaintTargets] = useState<ComplaintAgainstTarget[]>([]);
+  const [ticketNote, setTicketNote] = useState('');
+  const [ticketNoteVoice, setTicketNoteVoice] = useState<NoteVoiceValue>(null);
+  const [ticketNoteImages, setTicketNoteImages] = useState<string[]>([]);
+  const [ticketNoteError, setTicketNoteError] = useState<string | null>(null);
+  const [forwardNoteId, setForwardNoteId] = useState<string | null>(null);
+  const [millPickOpen, setMillPickOpen] = useState(false);
 
   const order = useQuery({
     queryKey: ['order', id],
@@ -738,6 +793,34 @@ export function OrderDetailPage() {
       void queryClient.invalidateQueries({ queryKey: ['thread', threadId, 'messages'] });
     }
   };
+
+  const addTicketNote = useMutation({
+    mutationFn: () =>
+      api.post<OrderView>(`/orders/${id}/notes`, noteAttachPayload(ticketNote, ticketNoteVoice, ticketNoteImages)),
+    onSuccess: () => {
+      setTicketNote('');
+      setTicketNoteVoice(null);
+      setTicketNoteImages([]);
+      setTicketNoteError(null);
+      refresh();
+    },
+    onError: (err) => setTicketNoteError(actionErrorMessage(err, 'Could not add note.')),
+  });
+
+  const forwardTicketNote = useMutation({
+    mutationFn: ({ noteId, millOrderId }: { noteId: string; millOrderId?: string }) =>
+      api.post<OrderView>(
+        `/orders/${id}/notes/${encodeURIComponent(noteId)}/forward`,
+        millOrderId ? { millOrderId } : {},
+      ),
+    onSuccess: () => {
+      setForwardNoteId(null);
+      setMillPickOpen(false);
+      setTicketNoteError(null);
+      refresh();
+    },
+    onError: (err) => setTicketNoteError(actionErrorMessage(err, 'Could not forward note.')),
+  });
 
   const resolveComplaint = useMutation({
     mutationFn: (complaintId: string) => api.post(`/complaints/${complaintId}/resolve`, {}),
@@ -1586,6 +1669,7 @@ export function OrderDetailPage() {
     <div className={cx('flex flex-col gap-4', actionDock.kind !== 'none' && BOTTOM_DOCK_CLEARANCE_CLASS)}>
       <PageHeader
         title={idLabel}
+        subtitle={orderTicketSubtitle(data)}
         onBack={onOrderBack}
         action={
           <div className="flex items-start gap-1">
@@ -1735,18 +1819,27 @@ export function OrderDetailPage() {
             return orderPartyLines(partyCtx).map((line) => {
               const showChat =
                 Boolean(chatTo) && partyLineShowsOpenChat(line, partyCtx);
+              const logoUrl =
+                line.companyId === data.counterpart.id ? data.counterpart.logoUrl : null;
               return (
                 <div
                   key={line.label}
                   className="flex items-center justify-between gap-2"
                 >
-                  <p className="min-w-0 flex-1 leading-5 text-muted">
-                    {line.label} ·{' '}
-                    <PartyShopName
+                  <div className="flex min-w-0 flex-1 items-center gap-3">
+                    <Avatar
                       name={line.name}
-                      href={partyCompanyHref(line.you, line.companyId)}
+                      imageUrl={logoUrl}
+                      size={48}
                     />
-                  </p>
+                    <p className="min-w-0 flex-1 leading-5 text-muted">
+                      {line.label} ·{' '}
+                      <PartyShopName
+                        name={line.name}
+                        href={partyCompanyHref(line.you, line.companyId)}
+                      />
+                    </p>
+                  </div>
                   {showChat && chatTo ? (
                     <Link
                       to={chatTo}
@@ -1762,6 +1855,15 @@ export function OrderDetailPage() {
             });
           })()}
         </div>
+        {orderTicketWaitingCue(data) ? (
+          <p
+            data-testid="order-ticket-waiting"
+            className="flex items-center gap-1.5 pt-1 text-sm text-muted"
+          >
+            <ClockIcon width={14} height={14} className="shrink-0" aria-hidden />
+            {orderTicketWaitingCue(data)}
+          </p>
+        ) : null}
         {data.tradeMode === 'direct' &&
         data.facilitatorCompanyId &&
         companyId === data.facilitatorCompanyId ? (
@@ -1774,6 +1876,28 @@ export function OrderDetailPage() {
           </p>
         ) : null}
       </Card>
+
+      {(() => {
+        const progress = orderTicketProgress(data);
+        if (!progress) return null;
+        const pct = progress.over
+          ? 100
+          : Math.min(100, Math.round((progress.shipped / progress.total) * 100));
+        return (
+          <Card
+            className={cx('flex flex-col gap-2', progress.over && 'bg-warning-soft')}
+            data-testid="order-ticket-progress"
+          >
+            <p className="text-sm font-emphasis text-ink">{progress.copy}</p>
+            <div className="h-1.5 overflow-hidden rounded-full bg-line">
+              <div
+                className={cx('h-full rounded-full', progress.over ? 'bg-warning' : 'bg-accent/70')}
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+          </Card>
+        );
+      })()}
 
       {data.millDesks && data.millDesks.length > 0
         ? data.millDesks.map((desk) => {
@@ -1816,11 +1940,12 @@ export function OrderDetailPage() {
                       />
                     ) : null}
                   </div>
-                  <OrderTicketBillBlock items={rows}>
+                  <OrderTicketBillBlock items={rows} showBill={desk.showBillTotal === true}>
                   <OrderUnitGroupedList
                     items={rows}
                     unitOf={(item) => item.unit}
                     getKey={(item) => item.id}
+                    hideHeadingWhenSingle
                   >
                     {(item) => {
                     const millLine = millLineForParent(desk, item.id);
@@ -1842,10 +1967,11 @@ export function OrderDetailPage() {
                           cantSupply={cantSupply}
                           onOpen={openPhotoViewer}
                           soldAs={false}
+                          ticketLayout
                         >
-                          <OrderLineFacts item={item} />
+                          <OrderLineFacts layout="ticket" item={item} />
                           {millLine?.millRate != null && desk.millQuoted ? (
-                            <p className="mt-1 text-[11px] text-muted">
+                            <p className="mt-1 text-meta text-muted">
                               Mill ₹{millLine.millRate.toLocaleString('en-IN')}
                             </p>
                           ) : null}
@@ -2026,11 +2152,12 @@ export function OrderDetailPage() {
                   </div>
                 ) : (
                   <>
-                  <OrderTicketBillBlock items={rows}>
+                  <OrderTicketBillBlock items={rows} showBill={desk.showBillTotal === true}>
                   <OrderUnitGroupedList
                     items={rows}
                     unitOf={(item) => item.unit}
                     getKey={(item) => item.id}
+                    hideHeadingWhenSingle
                   >
                     {(item) => {
                     const millLine = millLineForParent(desk, item.id);
@@ -2088,8 +2215,9 @@ export function OrderDetailPage() {
                           cantSupply={cantSupply}
                           onOpen={openPhotoViewer}
                           soldAs={false}
+                          ticketLayout={!cells}
                         >
-                          {!cells ? <OrderLineFacts item={item} /> : null}
+                          {!cells ? <OrderLineFacts layout="ticket" item={item} /> : null}
                         </OrderLineCantSupplyFace>
                         {cells ? (
                           <>
@@ -2163,11 +2291,18 @@ export function OrderDetailPage() {
       {showOrderParentItemsList(data.millDesks) ? (
       <Card className="flex flex-col gap-2" data-testid="order-parent-items">
         {lineFulfillError ? <InlineNotice message={lineFulfillError} /> : null}
-        <OrderTicketBillBlock items={ticketBillItems(data.items)}>
+        <div>
+          <p className="text-sm font-emphasis text-ink">Designs</p>
+          {ticketDesignsCaption(ticketItems) ? (
+            <p className="text-xs font-body text-muted">{ticketDesignsCaption(ticketItems)}</p>
+          ) : null}
+        </div>
+        <OrderTicketBillBlock items={ticketBillItems(data.items)} showBill={data.showBillTotal === true}>
         <OrderUnitGroupedList
           items={ticketItems}
           unitOf={(item) => item.unit}
           getKey={(item) => item.id}
+          hideHeadingWhenSingle
         >
           {(item) => {
           const canEdit = sellerCanFulfillEdit(data);
@@ -2183,6 +2318,7 @@ export function OrderDetailPage() {
                   item={item}
                   items={data.items}
                   onOpen={openPhotoViewer}
+                  size="ticket"
                 />
               }
               onToggle={() =>
@@ -2206,20 +2342,7 @@ export function OrderDetailPage() {
           }}
         </OrderUnitGroupedList>
         </OrderTicketBillBlock>
-        {data.note ? <p className="border-t border-line pt-2 text-sm text-muted">{data.note}</p> : null}
-        {data.noteVoiceUrl ? (
-          <div className="border-t border-line pt-2">
-            <VoicePlayer src={data.noteVoiceUrl} durationMs={data.noteVoiceDurationMs} />
-          </div>
-        ) : null}
       </Card>
-      ) : data.note || data.noteVoiceUrl ? (
-        <Card className="flex flex-col gap-2">
-          {data.note ? <p className="text-sm text-muted">{data.note}</p> : null}
-          {data.noteVoiceUrl ? (
-            <VoicePlayer src={data.noteVoiceUrl} durationMs={data.noteVoiceDurationMs} />
-          ) : null}
-        </Card>
       ) : null}
 
       {data.transporter?.trim() && data.shipments.length === 0 ? (
@@ -2253,6 +2376,44 @@ export function OrderDetailPage() {
           ))}
         </Card>
       ) : null}
+
+      <OrderTicketNotes
+        notes={orderTicketNotes(data, companyId ?? '')}
+        canForward={orderTicketCanForwardNotes(data)}
+        note={ticketNote}
+        onNoteChange={setTicketNote}
+        voice={ticketNoteVoice}
+        onVoiceChange={setTicketNoteVoice}
+        images={ticketNoteImages}
+        onImagesChange={setTicketNoteImages}
+        onAdd={() => addTicketNote.mutate()}
+        adding={addTicketNote.isPending}
+        error={ticketNoteError}
+        onForward={(noteId) => {
+          const released = orderTicketForwardMills(data);
+          if (orderTicketCanForwardNotes(data) && !data.downstreamOrderId && released.length > 1) {
+            setForwardNoteId(noteId);
+            setMillPickOpen(true);
+            return;
+          }
+          forwardTicketNote.mutate({
+            noteId,
+            millOrderId: released.length === 1 ? released[0]!.orderId : undefined,
+          });
+        }}
+        forwarding={forwardTicketNote.isPending}
+        millPickOpen={millPickOpen}
+        millPickMills={orderTicketForwardMills(data)}
+        onPickMill={(millOrderId) => {
+          if (!forwardNoteId) return;
+          forwardTicketNote.mutate({ noteId: forwardNoteId, millOrderId });
+        }}
+        onCloseMillPick={() => {
+          setMillPickOpen(false);
+          setForwardNoteId(null);
+        }}
+        onOpenNotePhotos={openNotePhotos}
+      />
 
       <OrderTimeline
         order={data}
@@ -2406,7 +2567,7 @@ export function OrderDetailPage() {
               {actionDock.declineLogged ? (
                 <Button
                   variant="ghost"
-                  className="!min-h-10 shrink-0 px-2 text-sm"
+                  className="!min-h-12 shrink-0 px-2 text-sm"
                   data-testid="order-dock-decline"
                   disabled={act.isPending}
                   onClick={() => act.mutate('cancel')}
@@ -2416,7 +2577,7 @@ export function OrderDetailPage() {
               ) : actionDock.cancel ? (
                 <Button
                   variant="ghost"
-                  className="!min-h-10 shrink-0 px-2 text-sm"
+                  className="!min-h-12 shrink-0 px-2 text-sm"
                   data-testid="order-dock-cancel"
                   disabled={act.isPending || actionWithNote.isPending}
                   onClick={() => {
@@ -2431,7 +2592,7 @@ export function OrderDetailPage() {
               {actionDock.edit ? (
                 <Button
                   variant="secondary"
-                  className="!min-h-10 min-w-0 flex-1 px-2.5 text-sm"
+                  className="!min-h-12 min-w-0 flex-1 px-2.5 text-sm"
                   data-testid="order-dock-edit"
                   onClick={openAmendSheet}
                 >
@@ -2440,7 +2601,7 @@ export function OrderDetailPage() {
               ) : null}
               {actionDock.acceptQuote ? (
                 <Button
-                  className="!min-h-10 min-w-0 flex-1 px-2.5 text-sm"
+                  className="!min-h-12 min-w-0 flex-1 px-2.5 text-sm"
                   data-testid="order-dock-accept-quote"
                   disabled={act.isPending}
                   onClick={() => act.mutate('accept-quote')}
@@ -2453,7 +2614,7 @@ export function OrderDetailPage() {
             <>
               <Button
                 variant="ghost"
-                className="!min-h-10 shrink-0 px-2 text-sm"
+                className="!min-h-12 shrink-0 px-2 text-sm"
                 data-testid={actionDock.sendOrder ? 'order-mill-decline-all' : 'order-dock-decline'}
                 disabled={act.isPending || actionWithNote.isPending || millDecline.isPending}
                 onClick={() => {
@@ -2473,7 +2634,7 @@ export function OrderDetailPage() {
                   variant={
                     requestedDockPrimary(actionDock) === 'confirm' ? undefined : 'secondary'
                   }
-                  className="!min-h-10 min-w-0 flex-1 px-2.5 text-sm"
+                  className="!min-h-12 min-w-0 flex-1 px-2.5 text-sm"
                   data-testid="order-dock-confirm"
                   onClick={openLinesSheet}
                 >
@@ -2485,7 +2646,7 @@ export function OrderDetailPage() {
                   variant={
                     requestedDockPrimary(actionDock) === 'sendOrder' ? undefined : 'secondary'
                   }
-                  className="!min-h-10 min-w-0 flex-1 px-2.5 text-sm"
+                  className="!min-h-12 min-w-0 flex-1 px-2.5 text-sm"
                   data-testid="order-mill-send-all"
                   disabled={sendUp.isPending || millDecline.isPending}
                   onClick={() =>
@@ -2506,7 +2667,7 @@ export function OrderDetailPage() {
                 <Button
                   data-testid="order-settle-open"
                   variant={actionDock.dispatch ? 'secondary' : undefined}
-                  className="!min-h-10 min-w-0 flex-1 px-2.5 text-sm"
+                  className="!min-h-12 min-w-0 flex-1 px-2.5 text-sm"
                   onClick={() => {
                     setSettleNote('');
                     setSettleNoteVoice(null);
@@ -2522,7 +2683,7 @@ export function OrderDetailPage() {
               {actionDock.dispatch ? (
                 <Button
                   data-testid="order-dispatch-open"
-                  className="!min-h-10 min-w-0 flex-1 px-2.5 text-sm"
+                  className="!min-h-12 min-w-0 flex-1 px-2.5 text-sm"
                   onClick={openDispatchSheet}
                 >
                   {actionDock.dispatchMore ? 'Dispatch more' : 'Dispatch'}
@@ -2545,7 +2706,7 @@ export function OrderDetailPage() {
             <div className="flex items-center gap-2">
               <Button
                 variant="ghost"
-                className="!min-h-10 shrink-0 px-2 text-sm"
+                className="!min-h-12 shrink-0 px-2 text-sm"
                 data-testid="order-lines-decline"
                 disabled={openItems.length === 0 || decideLines.isPending}
                 onClick={() => decideLines.mutate('decline')}
@@ -2556,7 +2717,7 @@ export function OrderDetailPage() {
                   : 'Decline all'}
               </Button>
               <Button
-                className="!min-h-10 min-w-0 flex-1 px-2.5 text-sm"
+                className="!min-h-12 min-w-0 flex-1 px-2.5 text-sm"
                 data-testid="order-lines-confirm"
                 disabled={
                   openItems.length === 0 ||
@@ -2682,7 +2843,7 @@ export function OrderDetailPage() {
                   className={cx(
                     'mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded border-2',
                     on
-                      ? 'border-accent bg-accent text-white'
+                      ? 'border-accent bg-accent text-on-accent'
                       : 'border-line bg-surface text-transparent',
                   )}
                   aria-pressed={on}
@@ -2712,12 +2873,12 @@ export function OrderDetailPage() {
                   cues={
                     <>
                       {orderLineLeftoverCue(item) ? (
-                        <p className="truncate text-[11px] font-emphasis text-ink">
+                        <p className="truncate text-meta font-emphasis text-ink">
                           {orderLineLeftoverCue(item)}
                         </p>
                       ) : null}
                       {on ? null : (
-                        <p className="truncate text-[11px] font-body text-muted">Declined</p>
+                        <p className="truncate text-meta font-body text-muted">Declined</p>
                       )}
                     </>
                   }
@@ -2999,7 +3160,7 @@ export function OrderDetailPage() {
                         className={cx(
                           'mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded border-2',
                           on
-                            ? 'border-accent bg-accent text-white'
+                            ? 'border-accent bg-accent text-on-accent'
                             : 'border-line bg-surface text-transparent',
                         )}
                         aria-pressed={on}
@@ -3045,7 +3206,7 @@ export function OrderDetailPage() {
                         }
                         cues={
                           orderLineLeftoverCue(item) ? (
-                            <p className="truncate text-[11px] font-emphasis text-ink">
+                            <p className="truncate text-meta font-emphasis text-ink">
                               {orderLineLeftoverCue(item)}
                             </p>
                           ) : null
@@ -3278,11 +3439,11 @@ export function OrderDetailPage() {
                                 </>
                               );
                             })()}
-                            <p className="text-[11px] text-muted">
+                            <p className="text-meta text-muted">
                               {formatDate(shipment.dispatchedAt)}
                             </p>
                             {!expanded ? (
-                              <p className="truncate text-[11px] text-muted">
+                              <p className="truncate text-meta text-muted">
                                 {shipment.items
                                   .map((line) => `${line.name} × ${line.quantity}`)
                                   .join(' · ')}
@@ -3684,7 +3845,7 @@ export function OrderDetailPage() {
                     name={item.name}
                     extra={
                       orderLineLeftoverCue(item) ? (
-                        <p className="truncate text-[11px] font-emphasis text-ink">
+                        <p className="truncate text-meta font-emphasis text-ink">
                           {orderLineLeftoverCue(item)}
                         </p>
                       ) : null

@@ -78,6 +78,9 @@ export function readFilterMenuPosition(
 /** Resize + panel size — first paint can undersize before fonts/layout settle. */
 export function watchFilterMenuPlace(place: () => void, panel: HTMLElement | null): () => void {
   window.addEventListener('resize', place);
+  if (typeof ResizeObserver === 'undefined') {
+    return () => window.removeEventListener('resize', place);
+  }
   const ro = panel ? new ResizeObserver(place) : null;
   if (panel) ro.observe(panel);
   return () => {

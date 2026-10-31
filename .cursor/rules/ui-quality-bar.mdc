@@ -69,13 +69,13 @@ Before calling any screen with a fixed or sticky bar done (select bars, composer
 
 Reuse before inventing:
 
-- **List chrome:** search + one trailing 40×40 square (`ListSearchRow` / Explore filter / Orders `+`). Kit Button / TextInput are 40px; Chip is 28px. Type in fields stays 16px (iOS zoom).
+- **List chrome:** search + one trailing 48×48 square (`ListSearchRow` / Explore filter / Orders `+`). Kit Button / TextInput are 48px; Chip is 32px (gray foam, no border; selected = chip-on tint). `SearchInput` is TextInput chrome on every find field. Type in fields stays 16px (iOS zoom). Flat lists use `listRowClass` (hairline + foam press). Orders trade rows stay cards. `EmptyState` is the only empty-message class (15px title).
 - **Selection:** tappable rows with `border-accent bg-accent/5` + quiet Selected/Add/Return/Skip — **not** native checkboxes (except rare secondary toggles like quote “Can’t supply”). See `ConnectionPicker`, return sheet, HowManyEach thumbs.
 - **Design lines:** `h-12 w-12` thumb (or initial) + name + compact qty `TextInput` (HowManyEach, dispatch, return) — keep 48px thumbs; do not shrink with kit chrome.
 - **Sheets / CTAs:** kit `Sheet`, full-width primary `Button`, `Field` + `TextInput`/`TextArea`.
 - **Errors:** in-sheet `InlineNotice`; page CTAs → danger toast (`z-[90]`). Never bury errors behind an open sheet.
 - **Status:** `StatusPill` + shared `status.ts` labels (use `returnStatusLabel` for returns).
-- **Other kit:** `Chip` + `FilterRail`, `PageHeader`, `Card` list rows, `EmptyState` / `LoadingBlock`.
+- **Other kit:** `Chip` + `FilterRail` (same Chip on Chats / Orders Pending·Completed / Settings appearance), `PageHeader`, `Card` list rows, `EmptyState` / `LoadingBlock`.
 
 Copy voice: plain trader language, short why-lines, no product jargon.
 

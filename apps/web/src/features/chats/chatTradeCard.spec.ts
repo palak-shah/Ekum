@@ -48,10 +48,56 @@ describe('buildOrderTradeCard slots', () => {
     const message = orderMessage();
     const model = buildOrderTradeCard(message, message.reference, 'Jaipur Emporium', false);
     expect(model.primary).toBe('Order #J5NS Requested');
-    expect(model.who).toBe('Jaipur Emporium');
+    expect(model.who).toBeNull();
     expect(model.details).toContain('3 designs');
     expect(model.variant).toBe('bubble');
     expect(model.thumbs).toHaveLength(1);
+  });
+
+  it('shows shop who only in a group thread', () => {
+    const message = orderMessage();
+    const model = buildOrderTradeCard(
+      message,
+      message.reference,
+      'Jaipur Emporium',
+      false,
+      {},
+      true,
+    );
+    expect(model.who).toBe('Jaipur Emporium');
+  });
+
+  it('omits logged an order from details', () => {
+    const message = orderMessage({
+      body: 'Jaipur Emporium logged an order',
+    });
+    const model = buildOrderTradeCard(message, message.reference, 'Jaipur Emporium', false);
+    expect(model.details.some((line) => /logged an order/i.test(line))).toBe(false);
+  });
+
+  it('puts mill-lot parent and For-order body under thumbs as the note', () => {
+    const message = orderMessage({
+      body: 'For order #HANDLE — mill lot',
+      metadata: {
+        event: OrderChatEvent.OrderRequested,
+        parentOrderLabel: 'Order #DOWN',
+      },
+      reference: {
+        id: 'mill-1',
+        kind: 'order' as const,
+        name: 'Order #LEUP',
+        image: 'https://example.com/a.jpg',
+        orderLabel: 'Order #LEUP',
+        available: true,
+        itemCount: 1,
+        images: ['https://example.com/a.jpg'],
+        event: OrderChatEvent.OrderRequested,
+      },
+    });
+    const model = buildOrderTradeCard(message, message.reference, 'Surat Silk House', false);
+    expect(model.details).toEqual(['1 design']);
+    expect(model.note).toBe('Part of Order #DOWN\nFor order #HANDLE — mill lot');
+    expect(model.thumbs).toEqual(['https://example.com/a.jpg']);
   });
 
   it('omits redundant who on outgoing rich order without teammate', () => {
@@ -76,7 +122,7 @@ describe('buildOrderTradeCard slots', () => {
     const message = orderCardMessage({ id: 'm1', mine: false, reference: ref });
     const model = buildOrderTradeCard(message, ref, 'Jaipur Emporium', true);
     expect(model.primary).toBe('Order #J5NS Accepted');
-    expect(model.who).toBe('Jaipur Emporium');
+    expect(model.who).toBeNull();
     expect(model.details.some((line) => /Jaipur Emporium/i.test(line))).toBe(false);
     expect(model.variant).toBe('pulse');
     expect(model.thumbs).toHaveLength(0);
@@ -162,9 +208,10 @@ describe('buildOrderTradeCard slots', () => {
     ).toBe('View order →');
   });
 
-  it('shows quiet Decline with View order when the buyer can decline', () => {
+  it('shows quiet Decline on the placed-by line when the buyer can decline', () => {
     const decline = vi.fn();
     const message = orderMessage({
+      mine: false,
       reference: {
         id: 'ord-1',
         kind: 'order',
@@ -172,7 +219,9 @@ describe('buildOrderTradeCard slots', () => {
         image: null,
         orderLabel: 'Order #J5NS',
         available: true,
+        loggedForBuyer: true,
         canDeclineOrder: true,
+        actorLabel: 'Jaipur Emporium',
         event: OrderChatEvent.OrderRequested,
         intent: 'order',
       },
@@ -182,9 +231,35 @@ describe('buildOrderTradeCard slots', () => {
       declineOrder: decline,
     });
     expect(model.action?.label).toBe('View order →');
-    expect(model.secondaryAction?.label).toBe('Decline');
-    model.secondaryAction?.onClick?.();
+    expect(model.actionRow).toBeUndefined();
+    expect(model.placedByLine).toBe('Order placed by Jaipur Emporium.');
+    expect(model.placedByDecline?.label).toBe('Decline');
+    model.placedByDecline?.onClick?.();
     expect(decline).toHaveBeenCalled();
+  });
+
+  it('says You placed this order on the logger’s own card without Decline', () => {
+    const message = orderMessage({
+      mine: true,
+      reference: {
+        id: 'ord-1',
+        kind: 'order',
+        name: 'Order #J5NS',
+        image: null,
+        orderLabel: 'Order #J5NS',
+        available: true,
+        loggedForBuyer: true,
+        canDeclineOrder: false,
+        event: OrderChatEvent.OrderRequested,
+        intent: 'order',
+      },
+    });
+    const model = buildOrderTradeCard(message, message.reference, 'You', false, {
+      openOrder: () => undefined,
+    });
+    expect(model.placedByLine).toBe('You placed this order.');
+    expect(model.placedByDecline).toBeUndefined();
+    expect(model.action?.label).toBe('View order →');
   });
 
   it('omits Decline when the card is not wired to decline', () => {
@@ -222,7 +297,7 @@ describe('buildCollectionTradeCard / buildDesignTradeCard', () => {
       'Order goes to Ahmedabad Loom Co',
     );
     expect(model.primary).toBe('Mill Lot — March');
-    expect(model.who).toBe('Jaipur Emporium');
+    expect(model.who).toBeNull();
     expect(model.details).toEqual(['Order goes to Ahmedabad Loom Co']);
     expect(model.action?.label).toBe('View collection →');
   });
@@ -269,7 +344,7 @@ describe('buildCollectionTradeCard / buildDesignTradeCard', () => {
       'Order goes to Surat Silk House',
     );
     expect(model.primary).toBe('Banarasi Silk Saree');
-    expect(model.who).toBe('Jaipur Emporium');
+    expect(model.who).toBeNull();
     expect(model.details).toEqual(['Order goes to Surat Silk House']);
   });
 

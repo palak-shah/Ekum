@@ -26,7 +26,7 @@ import {
 
 const MAX_PHOTOS = 9;
 const QUIET_LINK =
-  'self-start text-[15px] font-emphasis text-accent disabled:cursor-not-allowed disabled:opacity-45';
+  'self-start text-name font-emphasis text-accent disabled:cursor-not-allowed disabled:opacity-45';
 /** Stable empty defaults — inline `= []` would re-fire the open reset effect forever. */
 const EMPTY_IMAGES: string[] = [];
 const EMPTY_SUPPLIER_ALTERNATIVES: Array<{
@@ -275,7 +275,7 @@ export function ChatComplaintSheet({
                       type="button"
                       disabled={busy}
                       aria-label="Remove photo"
-                      className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-ink text-[11px] text-white"
+                      className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-ink text-meta text-white"
                       onClick={() => setImages((prev) => prev.filter((item) => item !== url))}
                     >
                       ×

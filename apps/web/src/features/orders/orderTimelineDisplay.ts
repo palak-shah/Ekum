@@ -5,6 +5,12 @@ export function newestFirstTrail<T>(events: T[]): T[] {
   return [...events].reverse();
 }
 
+/** Amend / Updated rows get the warning dot. */
+export function timelineUpdatedDot(type?: string | null, summary?: string | null): boolean {
+  if (type === 'updated') return true;
+  return Boolean(summary && /^Updated\b/i.test(summary));
+}
+
 /** Default collapsed: only the newest row; chevron expands the rest + details. */
 export function timelineVisibleSlice<T>(
   newestFirst: T[],

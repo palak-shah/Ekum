@@ -24,7 +24,7 @@ export function GrowingDescriptionField({
       ref={ref}
       aria-label="Description"
       data-testid="collection-description"
-      className="min-h-10 resize-none overflow-hidden py-2"
+      className="min-h-12 resize-none overflow-hidden py-2"
       rows={1}
       value={value}
       onChange={(e) => onChange(e.target.value)}

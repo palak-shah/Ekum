@@ -94,3 +94,99 @@ describe('InboxThreadRow select swipe', () => {
     expect(onToggle).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('InboxThreadRow Ink & Lime chrome', () => {
+  afterEach(() => cleanup());
+
+  it('folds object kind onto the preview line and uses a hairline + foam press', () => {
+    const withPhoto = {
+      ...thread,
+      lastMessage: {
+        id: 'm1',
+        type: 'photo',
+        body: null,
+        mine: false,
+        createdAt: new Date().toISOString(),
+        senderCompanyId: 'c1',
+        metadata: { urls: ['https://example.com/a.jpg'] },
+        reference: null,
+      },
+    } as ThreadSummary;
+    render(
+      <MemoryRouter>
+        <InboxThreadRow
+          thread={withPhoto}
+          selecting
+          selected={false}
+          canMenu={false}
+          onMenu={() => undefined}
+          onToggle={() => undefined}
+        />
+      </MemoryRouter>,
+    );
+    const row = screen.getByTestId('chats-select-row-t1');
+    expect(row.textContent?.match(/Photo/g)?.length).toBe(1);
+    expect(row.className).toMatch(/border-b/);
+    expect(row.className).toContain('hover:bg-foam');
+    expect(row.className).not.toContain('hover:bg-canvas');
+  });
+
+  it('prefixes kind when the preview does not already start with it', () => {
+    const withCollection = {
+      ...thread,
+      lastMessage: {
+        id: 'm2',
+        type: 'collection_card',
+        body: null,
+        mine: false,
+        createdAt: new Date().toISOString(),
+        senderCompanyId: 'c1',
+        metadata: null,
+        reference: { id: 'col1', kind: 'collection', name: 'Summer' },
+      },
+    } as ThreadSummary;
+    render(
+      <MemoryRouter>
+        <InboxThreadRow
+          thread={withCollection}
+          selecting
+          selected={false}
+          canMenu={false}
+          onMenu={() => undefined}
+          onToggle={() => undefined}
+        />
+      </MemoryRouter>,
+    );
+    expect(screen.getByTestId('chats-select-row-t1').textContent).toMatch(
+      /Collection Shared: Summer/,
+    );
+    const kind = screen.getByTestId('inbox-kind');
+    expect(kind).toHaveTextContent('Collection');
+    expect(kind.className).toContain('font-title');
+    expect(kind.className).toContain('text-chip-on-ink');
+  });
+
+  it('uses a people glyph when a group has no photo', () => {
+    const group = {
+      ...thread,
+      type: 'group',
+      title: 'Yash · Ethonique',
+      imageUrl: null,
+    } as ThreadSummary;
+    render(
+      <MemoryRouter>
+        <InboxThreadRow
+          thread={group}
+          selecting={false}
+          selected={false}
+          canMenu={false}
+          onMenu={() => undefined}
+          onToggle={() => undefined}
+        />
+      </MemoryRouter>,
+    );
+    expect(screen.getByTestId('avatar-group-fallback')).toBeInTheDocument();
+  });
+});
+
+

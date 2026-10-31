@@ -291,7 +291,15 @@ export function quotedComposerThumbUrl(
   if (productId) {
     return quotedDesignFromAlbum(message.reference, productId)?.image ?? null;
   }
-  return quotedPhotoUrl(message, photoIndex);
+  if (message.type === MessageType.Photo || message.type === 'photo') {
+    return quotedPhotoUrl(message, photoIndex);
+  }
+  const images = (message.reference?.images ?? []).filter(
+    (url): url is string => typeof url === 'string' && Boolean(url.trim()),
+  );
+  const fromRef = images[0] ?? message.reference?.image ?? null;
+  const url = typeof fromRef === 'string' ? fromRef.trim() : '';
+  return url || null;
 }
 
 /**

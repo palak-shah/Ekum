@@ -14,7 +14,7 @@ import { createPortal } from 'react-dom';
 import { statusClasses, statusLabel, toneClasses, type StatusTone } from '@/lib/status';
 import { initials } from '@/lib/format';
 import { avatarTone } from '@/ui/avatarTone';
-import { BackIcon, CloseIcon, SearchIcon } from '@/ui/icons';
+import { BackIcon, CloseIcon, GroupIcon, SearchIcon } from '@/ui/icons';
 import { InfoHint } from '@/ui/InfoHint';
 import { cx } from '@/lib/cx';
 import { listSquareButtonClass } from '@/ui/ListSearchRow';
@@ -26,12 +26,13 @@ import { chipCountBadge } from '@/ui/chipBadge';
 
 export { cx } from '@/lib/cx';
 export { InfoHint } from '@/ui/InfoHint';
+export { GroupIcon, LinkIcon } from '@/ui/icons';
 
 type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
 
 const BUTTON_VARIANT: Record<ButtonVariant, string> = {
   primary:
-    'bg-accent text-white hover:bg-accent-dark active:bg-accent-dark disabled:bg-accent-muted disabled:text-white disabled:opacity-100',
+    'bg-accent text-on-accent hover:bg-accent-dark active:bg-accent-dark disabled:bg-accent-muted disabled:text-on-accent disabled:opacity-100',
   secondary:
     'bg-surface text-accent border-[1.5px] border-accent hover:bg-foam active:bg-foam disabled:opacity-45',
   ghost: 'text-accent hover:bg-foam active:bg-foam disabled:opacity-45',
@@ -57,7 +58,7 @@ export function Button({
   return (
     <button
       className={cx(
-        'inline-flex min-h-10 items-center justify-center gap-2 rounded-xl px-3.5 text-[14px] font-emphasis tracking-tight transition-colors disabled:cursor-not-allowed',
+        'inline-flex min-h-12 items-center justify-center gap-2 rounded-xl px-4 text-base font-emphasis tracking-tight transition-colors disabled:cursor-not-allowed',
         BUTTON_VARIANT[variant],
         fullWidth && 'w-full',
         className,
@@ -70,7 +71,7 @@ export function Button({
         <Spinner
           label={false}
           className={
-            variant === 'primary' ? 'border-white/35 border-t-white' : undefined
+            variant === 'primary' ? 'border-on-accent/35 border-t-on-accent' : undefined
           }
         />
       ) : null}
@@ -79,7 +80,7 @@ export function Button({
   );
 }
 
-/** Prototype chip — one style system for filters and action cues. */
+/** Filter-rail chip — gray foam idle; selected is chip-on tint. */
 export function Chip({
   children,
   active = false,
@@ -98,11 +99,9 @@ export function Chip({
   'data-testid'?: string;
 }) {
   const classes = cx(
-    'inline-flex shrink-0 items-center justify-center rounded-lg border font-emphasis tracking-tight transition-colors',
-    compact ? 'h-7 px-2.5 text-[12px]' : 'h-8 px-3 text-[13px]',
-    active
-      ? 'border-accent bg-accent text-white'
-      : 'border-line bg-surface text-slate hover:border-accent',
+    'inline-flex shrink-0 items-center justify-center rounded-lg tracking-tight transition-colors',
+    compact ? 'h-8 px-2.5 text-meta' : 'h-8 px-3 text-meta',
+    active ? 'bg-chip-on font-title text-chip-on-ink' : 'bg-foam font-emphasis text-slate',
     className,
   );
   // Span when nested in a Link (no button-in-anchor).
@@ -120,7 +119,7 @@ export function Chip({
   );
 }
 
-/** Teal count on a Chip — Chats Unread, Orders Need you. Hidden at 0. */
+/** Lime count on a Chip — Chats Unread, Orders Need you. Hidden at 0. Dark ink on lime. */
 export function ChipCountBadge({
   count,
   inverted = false,
@@ -133,14 +132,18 @@ export function ChipCountBadge({
   return (
     <span
       className={cx(
-        'flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-bold',
-        inverted ? 'bg-white/25 text-white' : 'bg-badge text-white',
+        'flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[length:var(--ekum-text-badge)] font-bold',
+        inverted ? 'bg-badge text-badge-ink' : 'bg-badge text-badge-ink',
       )}
     >
       {label}
     </span>
   );
 }
+
+/** Hairline + foam press for flat lists (inbox, Followed, Settings). Not cards. */
+export const listRowClass =
+  'border-b border-line px-4 py-3 last:border-b-0 hover:bg-foam active:bg-foam';
 
 /** Horizontal filter rail — keeps chips intentional, not scattered. */
 export function FilterRail({ children, className }: { children: ReactNode; className?: string }) {
@@ -327,7 +330,7 @@ export function StatusPill({
   return (
     <span
       className={cx(
-        'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-emphasis',
+        'inline-flex items-center rounded-full px-2.5 py-0.5 text-meta font-emphasis',
         statusClasses(status),
       )}
     >
@@ -340,7 +343,7 @@ export function Tag({ children, tone = 'neutral' }: { children: ReactNode; tone?
   return (
     <span
       className={cx(
-        'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-emphasis',
+        'inline-flex items-center rounded-full px-2.5 py-0.5 text-meta font-emphasis',
         toneClasses(tone),
       )}
     >
@@ -353,10 +356,13 @@ export function Avatar({
   name,
   imageUrl,
   size = 36,
+  fallback = 'initials',
 }: {
   name: string;
   imageUrl?: string | null;
   size?: number;
+  /** Group chats with no photo use a people glyph, not a letter. */
+  fallback?: 'initials' | 'group';
 }) {
   const src = imageUrl?.trim() ? toAbsoluteMediaUrl(imageUrl) : '';
   const [broken, setBroken] = useState(false);
@@ -371,6 +377,18 @@ export function Avatar({
         draggable={false}
         onError={() => setBroken(true)}
       />
+    );
+  }
+  if (fallback === 'group') {
+    return (
+      <span
+        className="flex shrink-0 items-center justify-center rounded-full bg-foam text-muted"
+        style={{ width: size, height: size }}
+        aria-hidden
+        data-testid="avatar-group-fallback"
+      >
+        <GroupIcon width={Math.round(size * 0.48)} height={Math.round(size * 0.48)} />
+      </span>
     );
   }
   const tone = avatarTone(name);
@@ -393,7 +411,7 @@ export function Avatar({
 export function SectionHeader({ title, action }: { title: string; action?: ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-3 px-0.5">
-      <h2 className="text-[13px] font-emphasis tracking-tight text-ink">{title}</h2>
+      <h2 className="text-meta font-emphasis tracking-tight text-ink">{title}</h2>
       {action}
     </div>
   );
@@ -443,7 +461,7 @@ export function EmptyState({
 }) {
   return (
     <div className="flex flex-col items-center gap-2 px-4 py-10 text-center">
-      <p className="text-sm font-emphasis text-ink">{title}</p>
+      <p className="text-[15px] font-title text-ink">{title}</p>
       {message ? <p className="max-w-xs text-sm font-body text-muted">{message}</p> : null}
       {action ? <div className="mt-3">{action}</div> : null}
     </div>
@@ -588,7 +606,7 @@ export function Sheet({
           <div
             className={cx(
               'flex shrink-0 items-center gap-2',
-              full ? 'mb-3' : headerAction ? 'mb-4 pr-24' : 'mb-4 pr-10',
+              full ? 'mb-3' : headerAction ? 'mb-4 pr-28' : 'mb-4 pr-14',
             )}
           >
             {onBack ? (
@@ -628,7 +646,7 @@ export function Sheet({
                 <CloseIcon width={20} height={20} />
               </button>
             ) : headerAction ? (
-              <div className="absolute right-12 top-2 z-20">{headerAction}</div>
+              <div className="absolute right-16 top-2 z-20">{headerAction}</div>
             ) : null}
           </div>
         ) : null}

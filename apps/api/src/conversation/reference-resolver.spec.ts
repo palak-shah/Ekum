@@ -904,6 +904,7 @@ describe('ReferenceResolver payment cards', () => {
     expect(bilateral.get('m-log')?.canAcceptLogged).toBe(false);
     expect(manage.get('m-log')?.canAcceptLogged).toBe(false);
     expect(bilateral.get('m-log')?.canDeclineOrder).toBe(true);
+    expect(bilateral.get('m-log')?.loggedForBuyer).toBe(true);
   });
 
   it('does not offer chat Decline to the seller or the buyer who placed it', async () => {
@@ -939,6 +940,7 @@ describe('ReferenceResolver payment cards', () => {
     const asSeller = await new ReferenceResolver(prisma, makeVisibility()).resolve([card], 'seller');
     expect(asBuyer.get('m-buyer')?.canDeclineOrder).toBe(false);
     expect(asSeller.get('m-buyer')?.canDeclineOrder).toBe(false);
+    expect(asBuyer.get('m-buyer')?.loggedForBuyer).toBe(false);
   });
 });
 

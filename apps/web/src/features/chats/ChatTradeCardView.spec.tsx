@@ -64,12 +64,12 @@ describe('ChatTradeCard voice note', () => {
     );
     const amount = screen.getByText('₹2,83,800');
     expect(amount.className).toMatch(/font-title/);
-    expect(amount.className).toMatch(/text-\[15px\]/);
+    expect(amount.className).toMatch(/text-name/);
   });
 });
 
 describe('ChatTradeCard direction surface rule', () => {
-  it('incoming bubble: chat-in surface + accent rail (not solid accent fill)', () => {
+  it('incoming bubble: chat-in surface without accent rail or outer border', () => {
     render(
       <MemoryRouter>
         <ChatTradeCard
@@ -86,7 +86,9 @@ describe('ChatTradeCard direction surface rule', () => {
     const card = screen.getByTestId('chat-trade-card');
     expect(card).toHaveAttribute('data-mine', 'false');
     expect(card.className).toMatch(/bg-chat-in/);
-    expect(card.className).toMatch(/border-l-accent/);
+    expect(card.className).not.toMatch(/border-l-accent/);
+    expect(card.className).not.toMatch(/(?:^|\s)border(?:\s|$)/);
+    expect(card.className).toMatch(/min-w-\[262px\]/);
     expect(card.className).not.toMatch(/(?:^|\s)bg-accent(?:\s|$)/);
     expect(screen.getByText('View inquiry →').className).toMatch(/text-accent/);
   });
@@ -175,10 +177,10 @@ describe('ChatTradeCard direction surface rule', () => {
     );
     const accept = screen.getByText('Accept quote');
     expect(accept.className).toMatch(/(?:^|\s)bg-accent(?:\s|$)/);
-    expect(accept.className).toMatch(/text-white/);
+    expect(accept.className).toMatch(/text-on-accent/);
   });
 
-  it('incoming bubble and pulse share the same chat-in + accent-rail surface', () => {
+  it('incoming bubble and pulse share the same chat-in surface (no rail)', () => {
     const { rerender } = render(
       <MemoryRouter>
         <ChatTradeCard
@@ -194,7 +196,7 @@ describe('ChatTradeCard direction surface rule', () => {
     );
     const bubble = screen.getByTestId('chat-trade-card');
     expect(bubble.className).toMatch(/bg-chat-in/);
-    expect(bubble.className).toMatch(/border-l-accent/);
+    expect(bubble.className).not.toMatch(/border-l-accent/);
 
     rerender(
       <MemoryRouter>
@@ -211,7 +213,7 @@ describe('ChatTradeCard direction surface rule', () => {
     );
     const pulse = screen.getByTestId('chat-trade-card-pulse');
     expect(pulse.className).toMatch(/bg-chat-in/);
-    expect(pulse.className).toMatch(/border-l-accent/);
+    expect(pulse.className).not.toMatch(/border-l-accent/);
     expect(pulse.className).not.toMatch(/bg-foam|bg-kind-order/);
   });
 
@@ -231,7 +233,7 @@ describe('ChatTradeCard direction surface rule', () => {
     );
     const accept = screen.getByText('Accept quote');
     expect(accept.className).toMatch(/(?:^|\s)bg-accent(?:\s|$)/);
-    expect(accept.className).toMatch(/text-white/);
+    expect(accept.className).toMatch(/text-on-accent/);
   });
 });
 
@@ -263,6 +265,58 @@ describe('ChatTradeCard section order', () => {
     expect(card.textContent).toContain('Please pack tight');
   });
 
+  it('shows mill-lot parent and For-order as the note under thumbs', () => {
+    render(
+      <MemoryRouter>
+        <ChatTradeCard
+          model={model({
+            kind: 'order',
+            primary: 'Order #LEUP Requested',
+            who: null,
+            details: ['1 design'],
+            thumbs: ['https://img/a.jpg'],
+            note: 'Part of Order #DOWN\nFor order #HANDLE — mill lot',
+            noteVoiceUrl: null,
+            action: { label: 'View order →', to: '/orders/1', style: 'link' },
+          })}
+        />
+      </MemoryRouter>,
+    );
+    const header = screen.getByTestId('chat-trade-card-header');
+    const images = screen.getByTestId('chat-trade-card-images');
+    const note = screen.getByTestId('chat-trade-card-note');
+    expect(header).toHaveTextContent('1 design');
+    expect(header).not.toHaveTextContent('Part of Order');
+    expect(header).not.toHaveTextContent('For order');
+    expect(images.compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(note).toHaveTextContent('Part of Order #DOWN');
+    expect(note).toHaveTextContent('For order #HANDLE — mill lot');
+  });
+
+  it('puts Seen ticks beside the card time, not under View order', () => {
+    render(
+      <MemoryRouter>
+        <ChatTradeCard
+          seen
+          model={model({
+            kind: 'order',
+            primary: 'Order #585D Requested',
+            who: null,
+            details: ['2 designs'],
+            thumbs: ['https://img/a.jpg'],
+            noteVoiceUrl: null,
+            action: { label: 'View order →', to: '/orders/1', style: 'link' },
+          })}
+        />
+      </MemoryRouter>,
+    );
+    const time = screen.getByTestId('chat-trade-card-time');
+    const ticks = screen.getByTestId('chat-seen');
+    const actions = screen.getByTestId('chat-trade-card-actions');
+    expect(time.contains(ticks)).toBe(true);
+    expect(actions.contains(ticks)).toBe(false);
+  });
+
   it('omits the note band when there is no user message', () => {
     render(
       <MemoryRouter>
@@ -283,7 +337,7 @@ describe('ChatTradeCard section order', () => {
     expect(screen.getByTestId('chat-trade-card-actions')).toBeInTheDocument();
   });
 
-  it('puts time at card-edge right-1 under the chevron; dividers bleed past chevron pad', () => {
+  it('puts time hugging content with no header hairline; footer still bleeds under chevron', () => {
     render(
       withChevronPad(
         <ChatTradeCard
@@ -303,16 +357,14 @@ describe('ChatTradeCard section order', () => {
     const note = screen.getByTestId('chat-trade-card-note');
     const time = screen.getByTestId('chat-trade-card-time');
     const actions = screen.getByTestId('chat-trade-card-actions');
-    expect(note.contains(time)).toBe(true);
-    expect(time.className).toMatch(/absolute/);
-    expect(time.className).toMatch(/right-3/);
-    // Cancel MessageChrome bubble pr-8 so rules / time reach the painted edge.
-    for (const el of [header, note, actions]) {
-      expect(el.className).toMatch(/-mr-8/);
-    }
-    expect(header.className).toMatch(/border-b/);
+    expect(note.contains(time)).toBe(false);
+    expect(time.className).not.toMatch(/absolute/);
+    expect(time.className).toMatch(/text-right/);
+    expect(actions.className).toMatch(/-mr-8/);
+    expect(header.className).not.toMatch(/border-b/);
     expect(actions.className).toMatch(/border-t/);
-    expect(note.compareDocumentPosition(actions) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(note.compareDocumentPosition(time) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(time.compareDocumentPosition(actions) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it('full-width divider above View action; without note, time sits above the action band', () => {
@@ -406,8 +458,82 @@ describe('ChatTradeCard section order', () => {
     const time = screen.getByTestId('chat-trade-card-time');
     expect(card.className).not.toMatch(/overflow-hidden/);
     expect(time.className).not.toMatch(/-mr-8/);
-    expect(time.className).toMatch(/pb-2\.5/);
+    expect(time.className).toMatch(/pb-1/);
     expect(screen.queryByTestId('chat-trade-card-actions')).toBeNull();
+  });
+
+  it('shows three 60px thumbs and +n on the last', () => {
+    render(
+      <MemoryRouter>
+        <ChatTradeCard
+          model={model({
+            kind: 'order',
+            primary: 'Order #58D Requested',
+            who: null,
+            details: ['4 designs'],
+            thumbs: ['https://img/a.jpg', 'https://img/b.jpg', 'https://img/c.jpg'],
+            thumbOverflow: 1,
+            noteVoiceUrl: null,
+            action: { label: 'View order →', onClick: () => undefined, style: 'link' },
+          })}
+        />
+      </MemoryRouter>,
+    );
+    const album = screen.getByTestId('photo-album-thumb');
+    expect(album.querySelectorAll('img')).toHaveLength(3);
+    expect(screen.getByTestId('photo-album-overflow')).toHaveTextContent('+1');
+    expect(screen.queryByText('logged an order')).toBeNull();
+  });
+
+  it('places Decline on the placed-by line and View order on the footer', () => {
+    render(
+      <MemoryRouter>
+        <ChatTradeCard
+          model={model({
+            kind: 'order',
+            primary: 'Order #P24G Requested',
+            who: null,
+            details: ['1 design'],
+            noteVoiceUrl: null,
+            placedByLine: 'Order placed by Jaipur Emporium.',
+            placedByDecline: {
+              label: 'Decline',
+              onClick: () => undefined,
+              style: 'link',
+              emphasis: 'quiet',
+            },
+            action: { label: 'View order →', onClick: () => undefined, style: 'link' },
+          })}
+        />
+      </MemoryRouter>,
+    );
+    expect(screen.getByTestId('chat-trade-card-placed-by')).toHaveTextContent(
+      'Order placed by Jaipur Emporium.',
+    );
+    expect(screen.getByTestId('chat-trade-card-decline')).toHaveTextContent('Decline');
+    const actions = screen.getByTestId('chat-trade-card-actions');
+    expect(actions).toHaveTextContent('View order →');
+    expect(actions).not.toHaveTextContent('Decline');
+  });
+
+  it('does not put +n on a single thumb', () => {
+    render(
+      <MemoryRouter>
+        <ChatTradeCard
+          model={model({
+            kind: 'order',
+            primary: 'Order #P24G Requested',
+            who: null,
+            details: ['1 design'],
+            thumbs: ['https://img/a.jpg'],
+            thumbOverflow: 1,
+            noteVoiceUrl: null,
+            action: { label: 'View order →', onClick: () => undefined, style: 'link' },
+          })}
+        />
+      </MemoryRouter>,
+    );
+    expect(screen.queryByTestId('photo-album-overflow')).toBeNull();
   });
 });
 

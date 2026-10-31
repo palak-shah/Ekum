@@ -171,6 +171,7 @@ describe('OrderTicketQtySummary', () => {
   it('sums billed ₹, All, and Missing rates toggle lights uncounted lines', () => {
     render(
       <OrderTicketBillBlock
+        showBill
         items={[
           { quantity: 50, unit: 'set', piecesPerPack: 1, rate: 1290, name: 'Georgette' },
           { quantity: 50, unit: 'set', piecesPerPack: 1, name: 'Banarasi' },

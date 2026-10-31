@@ -47,7 +47,7 @@ export function ShareComposerBar({
   return (
     <div className="flex min-w-0 items-end gap-2" data-testid="share-composer">
       <div
-        className={cx('flex min-h-11 min-w-0 flex-1 items-end px-3 py-1.5', COMPOSER_SHELL_CLASS)}
+        className={cx('flex min-h-12 min-w-0 flex-1 items-end px-3 py-1.5', COMPOSER_SHELL_CLASS)}
       >
         <textarea
           ref={ref}
@@ -74,8 +74,8 @@ export function ShareComposerBar({
         disabled={!canSend}
         onClick={onSend}
         className={cx(
-          'flex h-11 w-11 shrink-0 items-center justify-center rounded-full',
-          canSend ? 'bg-accent text-white' : 'bg-line text-muted',
+          'flex h-12 w-12 shrink-0 items-center justify-center rounded-full',
+          canSend ? 'bg-accent text-on-accent' : 'bg-line text-muted',
         )}
       >
         <SendIcon width={20} height={20} />
@@ -87,7 +87,7 @@ export function ShareComposerBar({
           data-testid={nativeTestId}
           disabled={nativeDisabled || busy}
           onClick={onNativeShare}
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-ink/70 hover:bg-foam hover:text-ink disabled:opacity-40"
+          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-ink/70 hover:bg-foam hover:text-ink disabled:opacity-40"
         >
           <ShareIcon width={20} height={20} />
         </button>

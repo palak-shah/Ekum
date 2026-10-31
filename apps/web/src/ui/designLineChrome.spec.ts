@@ -23,29 +23,27 @@ describe('designLineChrome', () => {
     expect(stepperTrackClass).not.toContain('border');
     expect(stepperQtyInputClass).toContain('border-0');
     expect(stepperQtyInputClass).toContain('bg-transparent');
-    expect(stepperQtyInputClass).toContain('text-[14px]');
-    expect(stepperQtyInputClass).not.toContain('text-base');
+    expect(stepperQtyInputClass).toContain('text-base');
     expect(stepperBtnClass).toContain('h-7');
-    expect(stepperBtnClass).toContain('text-[14px]');
+    expect(stepperBtnClass).toContain('text-base');
     expect(stepperBtnClass).not.toContain('border-line');
   });
 
   it('name and subtext match catalog cards / chat titles', () => {
-    expect(designNameClass).toContain('text-[15px]');
+    expect(designNameClass).toContain('text-name');
     expect(designNameClass).toContain('font-emphasis');
-    expect(designSubtextClass).toContain('text-[12px]');
+    expect(designSubtextClass).toContain('text-meta');
     expect(designSubtextClass).toContain('text-muted');
   });
 
   it('quote / confirm Qty | Rate match How many / Edit number type', () => {
-    expect(compactSheetNumInputClass).toContain('text-[14px]');
+    expect(compactSheetNumInputClass).toContain('text-base');
     expect(compactSheetNumInputClass).toContain('font-emphasis');
     expect(compactSheetNumInputClass).toContain(FIELD_IDLE_FILL_CLASS);
-    expect(compactSheetNumInputClass).not.toContain('text-base');
-    expect(compactSheetRateInputClass).toContain('text-[14px]');
+    expect(compactSheetRateInputClass).toContain('text-base');
     expect(compactSheetRateInputClass).toContain('font-emphasis');
     expect(compactSheetRateInputClass).toContain(FIELD_IDLE_FILL_CLASS);
-    expect(stepperQtyInputClass).toContain('text-[14px]');
+    expect(stepperQtyInputClass).toContain('text-base');
     expect(stepperQtyInputClass).toContain('font-emphasis');
   });
 });

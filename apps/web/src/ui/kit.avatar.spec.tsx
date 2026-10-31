@@ -16,4 +16,10 @@ describe('Avatar initials colours', () => {
     expect(a.style.backgroundColor).not.toBe(b.style.backgroundColor);
     expect(a.className).not.toMatch(/bg-accent/);
   });
+
+  it('uses a people glyph for group fallback when there is no photo', () => {
+    render(<Avatar name="Yash · Ethonique" fallback="group" />);
+    expect(screen.getByTestId('avatar-group-fallback')).toBeInTheDocument();
+    expect(screen.queryByText('YE')).toBeNull();
+  });
 });

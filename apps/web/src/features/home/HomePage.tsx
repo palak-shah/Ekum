@@ -17,7 +17,7 @@ import { api } from '@/lib/apiClient';
 import { useMyCompany } from '@/lib/queries';
 import { useTradePresence } from '@/lib/tradePresence';
 import { CompanyRow, CoverImage } from '@/ui/cards';
-import { Avatar, Button, LoadingBlock, SectionHeader, cx } from '@/ui/kit';
+import { Avatar, Button, LoadingBlock, SectionHeader, cx, listRowClass } from '@/ui/kit';
 import {
   ChatIcon,
   CheckIcon,
@@ -216,13 +216,13 @@ export function HomePage() {
   return (
     <div className="flex flex-col">
       <header className="flex flex-col gap-2">
-        <p className="text-[15px] font-body leading-snug text-ink">
+        <p className="text-name font-body leading-snug text-ink">
           {greetName ? `Namaste, ${greetName}` : 'Namaste'}
         </p>
         {attentionLoading ? (
           <p className="text-sm text-muted">Checking what needs you…</p>
         ) : hasNeeds ? (
-          <p className="text-[15px] font-emphasis leading-snug text-accent">
+          <p className="text-name font-emphasis leading-snug text-accent">
             {needs.length === 1
               ? '1 item needs attention.'
               : `${needs.length} items need attention.`}
@@ -232,13 +232,13 @@ export function HomePage() {
             <p className="text-sm leading-relaxed text-muted">
               Start by browsing the market - find businesses on Explore.
             </p>
-            <Link to="/explore" className="self-start text-[15px] font-emphasis text-accent">
+            <Link to="/explore" className="self-start text-name font-emphasis text-accent">
               Open Explore →
             </Link>
           </div>
         ) : (
           <div className="mt-1 flex flex-col gap-1">
-            <p className="text-[15px] font-emphasis text-ink">Nothing needs you</p>
+            <p className="text-name font-emphasis text-ink">Nothing needs you</p>
             <p className="text-sm leading-relaxed text-muted">
               Explore what&apos;s new in the market.
             </p>
@@ -264,7 +264,7 @@ export function HomePage() {
 
       {!attentionLoading && hasNeeds ? (
         <section className="mt-6 flex flex-col gap-3">
-          <h2 className="px-0.5 text-[15px] font-emphasis tracking-tight text-ink">
+          <h2 className="px-0.5 text-name font-emphasis tracking-tight text-ink">
             Needs your attention
           </h2>
           <div className="flex flex-col gap-2.5">
@@ -285,7 +285,7 @@ export function HomePage() {
             <button
               type="button"
               onClick={() => setShowAllNeeds(true)}
-              className="self-start px-0.5 pt-0.5 text-[15px] font-emphasis text-accent"
+              className="self-start px-0.5 pt-0.5 text-name font-emphasis text-accent"
             >
               See all {needs.length} →
             </button>
@@ -298,7 +298,7 @@ export function HomePage() {
           <SectionHeader
             title="New collections"
             action={
-              <Link to="/explore?side=buying" className="text-[13px] font-emphasis text-accent">
+              <Link to="/explore?side=buying" className="text-meta font-emphasis text-accent">
                 See all →
               </Link>
             }
@@ -390,7 +390,7 @@ function PostListSection({
       <SectionHeader
         title={title}
         action={
-          <Link to="/explore" className="text-[13px] font-emphasis text-accent">
+          <Link to="/explore" className="text-meta font-emphasis text-accent">
             {actionLabel}
           </Link>
         }
@@ -420,7 +420,7 @@ function EmptyPlatformSection({ buying, selling }: { buying: boolean; selling: b
         </Link>
         {selling ? (
           <div className="mt-3 flex flex-col gap-2">
-            <Link to="/more" className="block text-center text-[15px] font-emphasis text-accent">
+            <Link to="/more" className="block text-center text-name font-emphasis text-accent">
               My designs
             </Link>
             <Link
@@ -494,18 +494,18 @@ function NeedCard({
     >
       <span
         className={cx(
-          'flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-accent',
+          'flex h-12 w-12 shrink-0 items-center justify-center rounded-lg text-accent',
           lead ? 'bg-surface' : 'bg-foam',
         )}
       >
         <Icon width={18} height={18} />
       </span>
       <div className="min-w-0 flex-1 py-0.5">
-        <p className="truncate text-[15px] font-emphasis leading-snug tracking-tight text-ink">
+        <p className="truncate text-name font-emphasis leading-snug tracking-tight text-ink">
           {item.title}
         </p>
         {item.subtitle ? (
-          <p className="mt-0.5 truncate text-[13px] leading-snug text-muted">{item.subtitle}</p>
+          <p className="mt-0.5 truncate text-meta leading-snug text-muted">{item.subtitle}</p>
         ) : null}
       </div>
       <ChevronRightIcon width={18} height={18} className="shrink-0 self-center text-muted" />
@@ -574,7 +574,7 @@ function MarketPostRow({ group }: { group: HomePostGroup }) {
   return (
     <Link
       to={homePostGroupLink(group)}
-      className="flex items-center gap-3 border-b border-line px-4 py-3 last:border-b-0 hover:bg-foam active:bg-foam"
+      className={cx(listRowClass, 'flex items-center gap-3')}
     >
       {thumb ? (
         <div className="h-14 w-14 shrink-0 overflow-hidden rounded-lg">
@@ -584,11 +584,11 @@ function MarketPostRow({ group }: { group: HomePostGroup }) {
         <Avatar name={group.companyName} size={56} />
       )}
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <p className="truncate text-[15px] font-emphasis text-ink">{title}</p>
-        {place ? <p className="truncate text-[13px] text-muted">{place}</p> : null}
+        <p className="truncate text-name font-emphasis text-ink">{title}</p>
+        {place ? <p className="truncate text-meta text-muted">{place}</p> : null}
         {group.count === 1 ? (
           <>
-            <p className="truncate text-[13px] text-ink">{itemName}</p>
+            <p className="truncate text-meta text-ink">{itemName}</p>
             <p className="truncate text-[12px] text-muted">{meta}</p>
           </>
         ) : null}

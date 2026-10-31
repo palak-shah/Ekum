@@ -2,7 +2,7 @@ import { useRef, useState, useSyncExternalStore } from 'react';
 import { Link } from 'react-router-dom';
 import { type ThreadSummary } from '@ekum/domain-types';
 import { timeAgo } from '@/lib/format';
-import { Avatar, cx } from '@/ui/kit';
+import { Avatar, cx, listRowClass } from '@/ui/kit';
 import { PinIcon } from '@/ui/icons';
 import { LONG_PRESS_SURFACE_CLASS, useLongPress } from '@/ui/useLongPress';
 import { useSelectSwipe } from '@/ui/useSelectSwipe';
@@ -62,41 +62,56 @@ export function InboxThreadRow({
 
   const body = (
     <>
-      <Avatar name={title} imageUrl={avatarUrl} size={48} />
+      <Avatar
+        name={title}
+        imageUrl={avatarUrl}
+        size={48}
+        fallback={thread.type === 'group' ? 'group' : 'initials'}
+      />
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline justify-between gap-2">
-          <p className="flex min-w-0 items-center gap-1 text-[15px] font-emphasis leading-tight tracking-[-0.02em] text-ink">
+          <p className="flex min-w-0 items-center gap-1 text-name font-emphasis leading-tight text-ink">
             {thread.pinned ? (
               <PinIcon width={12} height={12} className="shrink-0 text-slate" aria-hidden />
             ) : null}
             <span className="truncate">{highlightSearchText(title, highlightQuery)}</span>
             {visibility ? (
-              <span className="shrink-0 text-[11px] font-body text-muted">· {visibility}</span>
+              <span className="shrink-0 text-meta font-body text-muted">· {visibility}</span>
             ) : null}
           </p>
           <span
             className={cx(
-              'shrink-0 text-[11px] tabular-nums',
+              'shrink-0 text-meta tabular-nums',
               thread.unreadCount > 0 ? 'font-emphasis text-accent' : 'font-body text-muted',
             )}
           >
             {timeAgo(thread.lastMessageAt)}
           </span>
         </div>
-        {objectLabel ? (
-          <p className="text-[11px] font-emphasis tracking-tight text-accent">{objectLabel}</p>
-        ) : null}
         <div className="flex items-center justify-between gap-2">
           <p
             className={cx(
-              'min-w-0 truncate text-[13px] font-body leading-snug',
+              'min-w-0 truncate text-meta font-body leading-snug',
               draftLine ? 'font-emphasis text-accent' : 'text-muted',
             )}
           >
-            {highlightSearchText(preview, highlightQuery)}
+            {objectLabel &&
+            !preview.toLowerCase().startsWith(objectLabel.toLowerCase()) ? (
+              <>
+                <span
+                  data-testid="inbox-kind"
+                  className="mr-1.5 text-[12px] font-title text-chip-on-ink"
+                >
+                  {highlightSearchText(objectLabel, highlightQuery)}
+                </span>{' '}
+                {highlightSearchText(preview, highlightQuery)}
+              </>
+            ) : (
+              highlightSearchText(preview, highlightQuery)
+            )}
           </p>
           {thread.unreadCount > 0 ? (
-            <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-badge px-1.5 text-[11px] font-emphasis text-white">
+            <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-badge px-1.5 text-[length:var(--ekum-text-badge)] font-bold text-badge-ink">
               {thread.unreadCount}
             </span>
           ) : null}
@@ -107,8 +122,9 @@ export function InboxThreadRow({
 
   const rowClass = cx(
     LONG_PRESS_SURFACE_CLASS,
-    'flex w-full items-center gap-3 px-4 py-3 text-left',
-    selected ? 'bg-accent/5' : 'bg-surface hover:bg-canvas active:bg-canvas',
+    listRowClass,
+    'flex w-full items-center gap-3 text-left',
+    selected ? 'bg-accent/5' : 'bg-surface',
   );
   const rowRef = useRef<HTMLAnchorElement>(null);
   const startX = useRef<number | null>(null);

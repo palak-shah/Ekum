@@ -4,7 +4,9 @@ import {
   buildOrderCardCopy,
   dedupeOrderThreadMessages,
   isRichOrderChatMessage,
+  livingOrderCardId,
   declineOrderMessageIds,
+  orderPlacedByLine,
   primaryAcceptQuoteMessageId,
 } from './orderCardCopy';
 import { orderCardMessage, orderRef, textMessage } from '@/test/messageFixtures';
@@ -61,22 +63,38 @@ describe('isRichOrderChatMessage', () => {
     expect(isRichOrderChatMessage(orderCardMessage({ id: 'r1', type: 'rate' }))).toBe(true);
   });
 
-  it('treats quote_accepted as compact', () => {
+  it('keeps quote_accepted rich (tags carry the pulse)', () => {
     const msg = orderCardMessage({
       id: 'c1',
       metadata: { event: OrderChatEvent.QuoteAccepted },
       reference: orderRef({ id: 'ord-1', event: OrderChatEvent.QuoteAccepted }),
     });
-    expect(isRichOrderChatMessage(msg)).toBe(false);
+    expect(isRichOrderChatMessage(msg)).toBe(true);
   });
 
-  it('treats return_raised as compact', () => {
+  it('keeps return_raised rich (tags carry the pulse)', () => {
     const msg = orderCardMessage({
       id: 'c2',
       metadata: { event: OrderChatEvent.ReturnRaised },
       reference: orderRef({ id: 'ord-1', event: OrderChatEvent.ReturnRaised }),
     });
-    expect(isRichOrderChatMessage(msg)).toBe(false);
+    expect(isRichOrderChatMessage(msg)).toBe(true);
+  });
+});
+
+describe('livingOrderCardId', () => {
+  it('returns the newest living card for that order', () => {
+    const older = orderCardMessage({
+      id: 'old',
+      reference: orderRef({ id: 'ord-1' }),
+    });
+    const newer = orderCardMessage({
+      id: 'new',
+      type: 'rate',
+      reference: orderRef({ id: 'ord-1' }),
+    });
+    expect(livingOrderCardId([older, newer], 'ord-1')).toBe('new');
+    expect(livingOrderCardId([older, newer], 'other')).toBeNull();
   });
 });
 
@@ -118,7 +136,30 @@ describe('buildOrderCardCopy', () => {
       }),
     });
     const copy = buildOrderCardCopy(msg, msg.reference);
-    expect(copy.lines).toContain('Part of Order #A1B2');
+    expect(copy.lines).not.toContain('Part of Order #A1B2');
+    expect(copy.note).toBe('Part of Order #A1B2');
+  });
+
+  it('puts mill-lot parent and For-order body in the note, not the header', () => {
+    const msg = orderCardMessage({
+      id: 'm-lot',
+      mine: true,
+      body: 'For order #HANDLE — mill lot',
+      metadata: {
+        event: OrderChatEvent.OrderRequested,
+        actorLabel: 'You',
+        parentOrderLabel: 'Order #DOWN',
+      },
+      reference: orderRef({
+        id: 'mill-1',
+        event: OrderChatEvent.OrderRequested,
+        actorLabel: 'You',
+        itemCount: 1,
+      }),
+    });
+    const copy = buildOrderCardCopy(msg, msg.reference);
+    expect(copy.lines).toEqual(['1 design']);
+    expect(copy.note).toBe('Part of Order #DOWN\nFor order #HANDLE — mill lot');
   });
 
   it('splits quoted vs can’t supply from this send, not the whole order', () => {
@@ -180,5 +221,37 @@ describe('declineOrderMessageIds', () => {
       reference: orderRef({ id: 'ord-2', canDeclineOrder: false, available: true }),
     });
     expect([...declineOrderMessageIds([older, newer, buyerPlaced])]).toEqual(['m-new']);
+  });
+});
+
+describe('orderPlacedByLine', () => {
+  it('names the logger for the buyer and You for the logger', () => {
+    const theirs = orderCardMessage({
+      mine: false,
+      reference: orderRef({
+        id: 'ord-1',
+        loggedForBuyer: true,
+        actorLabel: 'Jaipur Emporium',
+      }),
+    });
+    expect(orderPlacedByLine(theirs, theirs.reference)).toBe(
+      'Order placed by Jaipur Emporium.',
+    );
+    const mine = orderCardMessage({
+      mine: true,
+      reference: orderRef({
+        id: 'ord-1',
+        loggedForBuyer: true,
+        actorLabel: 'Jaipur Emporium',
+      }),
+    });
+    expect(orderPlacedByLine(mine, mine.reference)).toBe('You placed this order.');
+  });
+
+  it('omits the line on buyer-placed tickets', () => {
+    const msg = orderCardMessage({
+      reference: orderRef({ id: 'ord-1', loggedForBuyer: false }),
+    });
+    expect(orderPlacedByLine(msg, msg.reference)).toBeNull();
   });
 });

@@ -55,6 +55,35 @@ describe('SettingsService.updateSettings', () => {
     );
     expect(view.tradeDefaults).toMatchObject({ tradingEnabled: false });
   });
+
+  it('persists showBillTotalOnOrders in tradeDefaults and defaults off', async () => {
+    const upsert = vi.fn(async ({ create, update }: { create: unknown; update: unknown }) => ({
+      companyId: 'c1',
+      returnPolicy: null,
+      tradeDefaults: (update as { tradeDefaults: unknown }).tradeDefaults ?? create,
+      myTools: null,
+    }));
+    const prisma = {
+      companySettings: {
+        findUnique: async () => ({ tradeDefaults: { sellingEnabled: true } }),
+        upsert,
+      },
+    } as unknown as PrismaService;
+    const service = new SettingsService(prisma);
+
+    const view = await service.updateSettings('c1', { showBillTotalOnOrders: true });
+    expect(upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        update: expect.objectContaining({
+          tradeDefaults: expect.objectContaining({ showBillTotalOnOrders: true }),
+        }),
+      }),
+    );
+    expect(view.showBillTotalOnOrders).toBe(true);
+
+    const off = await service.updateSettings('c1', { showBillTotalOnOrders: false });
+    expect(off.showBillTotalOnOrders).toBe(false);
+  });
 });
 
 describe('SettingsService.updateAddress ownership', () => {

@@ -22,6 +22,7 @@ export function OrderUnitGroupedList<T>({
   role = 'ordering',
   headingTestId = 'order-ticket-unit-heading',
   testId = 'order-ticket-unit-groups',
+  hideHeadingWhenSingle = false,
   children,
 }: {
   items: T[];
@@ -30,6 +31,7 @@ export function OrderUnitGroupedList<T>({
   role?: OrderUnitRole;
   headingTestId?: string;
   testId?: string;
+  hideHeadingWhenSingle?: boolean;
   children: (item: T) => ReactNode;
 }) {
   return (
@@ -41,6 +43,7 @@ export function OrderUnitGroupedList<T>({
       layout="cards"
       testId={testId}
       headingTestId={headingTestId}
+      hideHeadingWhenSingle={hideHeadingWhenSingle}
     >
       {(item) => children(item)}
     </OrderUnitGroups>
@@ -88,9 +91,11 @@ export { OrderUnitTotal as OrderTicketQtySummary };
 export function OrderTicketBillBlock({
   items,
   children,
+  showBill = false,
 }: {
   items: Array<HowManyQtyLine & ItemFacts>;
   children: ReactNode;
+  showBill?: boolean;
 }) {
   const [on, setOn] = useState(false);
   return (
@@ -98,6 +103,7 @@ export function OrderTicketBillBlock({
       {children}
       <OrderUnitTotal
         items={items}
+        showBill={showBill}
         missingPressed={on}
         onMissingToggle={() => setOn((prev) => !prev)}
       />

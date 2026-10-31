@@ -94,3 +94,38 @@ describe('quote one design in a set', () => {
     ).toBe(true);
   });
 });
+
+describe('quotedComposerThumbUrl order cards', () => {
+  it('uses the line photo, never the order body as an image URL', () => {
+    const card = {
+      type: 'order_card',
+      body: 'Order #LEUP Requested',
+      metadata: { event: 'order_requested' },
+      reference: {
+        kind: 'order',
+        id: 'ord-1',
+        name: 'Order #LEUP',
+        image: 'https://cdn.example/lot.jpg',
+        images: ['https://cdn.example/lot.jpg'],
+        available: true,
+      },
+    } as MessageView;
+    expect(quotedComposerThumbUrl(card)).toBe('https://cdn.example/lot.jpg');
+  });
+
+  it('returns null when the card has no photo (no broken img)', () => {
+    const card = {
+      type: 'order_card',
+      body: 'Order #LEUP Requested',
+      metadata: null,
+      reference: {
+        kind: 'order',
+        id: 'ord-1',
+        name: 'Order #LEUP',
+        image: null,
+        available: true,
+      },
+    } as MessageView;
+    expect(quotedComposerThumbUrl(card)).toBeNull();
+  });
+});

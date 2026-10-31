@@ -21,6 +21,7 @@ import {
   type CreateForBuyerResult,
   type OrderInviteView,
   type OrderView,
+  showBillTotalOnOrders,
 } from '@ekum/domain-types';
 import { PrismaService } from '../core/prisma/prisma.service';
 import { ThreadService } from '../conversation/thread.service';
@@ -432,7 +433,13 @@ export class BuyForBuyerService {
       this.prisma,
       items.map((item) => item.productId),
     );
-    return this.serializer.toOrderView(order, actorCompanyId, threadId, null, catalog);
+    const settings = await this.prisma.companySettings.findUnique({
+      where: { companyId: order.sellerCompanyId },
+      select: { tradeDefaults: true },
+    });
+    const view = this.serializer.toOrderView(order, actorCompanyId, threadId, null, catalog);
+    view.showBillTotal = showBillTotalOnOrders(settings?.tradeDefaults);
+    return view;
   }
 
   private async requireOpenInvite(token: string) {

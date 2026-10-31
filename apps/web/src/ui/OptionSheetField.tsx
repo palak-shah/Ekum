@@ -40,7 +40,7 @@ export function OptionSheetField({
         aria-haspopup="dialog"
         aria-expanded={open}
         className={cx(
-          'flex min-h-10 w-full items-center justify-between gap-2 rounded-xl border border-line px-3.5 text-left text-base font-body',
+          'flex min-h-12 w-full items-center justify-between gap-2 rounded-xl border border-line px-3.5 text-left text-base font-body',
           FIELD_IDLE_FILL_CLASS,
           selected ? 'text-ink' : 'text-muted',
         )}

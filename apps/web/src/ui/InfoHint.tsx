@@ -78,7 +78,7 @@ export function InfoHint({
           event.stopPropagation();
           setOpen((v) => !v);
         }}
-        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted hover:bg-foam"
+        className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-muted hover:bg-foam"
       >
         <InfoIcon width={16} height={16} aria-hidden />
       </button>

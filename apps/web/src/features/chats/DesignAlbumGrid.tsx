@@ -100,7 +100,7 @@ export function DesignAlbumGrid({
                 </div>
               )}
               <div className="px-2 py-1.5">
-                <p className="truncate text-[11px] font-emphasis leading-snug text-ink">
+                <p className="truncate text-meta font-emphasis leading-snug text-ink">
                   {item.name}
                 </p>
                 <p className="text-[10px] font-body text-muted">Design</p>

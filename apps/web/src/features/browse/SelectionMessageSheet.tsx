@@ -111,7 +111,7 @@ export function SelectionMessageSheet({
       <div className="flex flex-col gap-2.5" data-testid="selection-message-sheet">
         <p
           data-testid="selection-message-to"
-          className="text-[13px] font-body leading-snug text-muted"
+          className="text-meta font-body leading-snug text-muted"
         >
           To <span className="font-emphasis text-ink">{toName}</span>
         </p>
@@ -188,7 +188,7 @@ export function SelectionMessageSheet({
               aria-label={sending ? 'Sending' : 'Send'}
               onClick={() => void onSend()}
               className={cx(
-                'flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-accent',
+                'flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-accent',
                 'disabled:opacity-40',
               )}
             >

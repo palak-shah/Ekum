@@ -2,37 +2,52 @@ import { shortOrderLabel } from '@ekum/domain-types';
 import { orderViewerIsFacilitator } from '@/features/browse/forwardAttribution';
 import { formatOrderQty } from '@/features/orders/orderLineBilling';
 import { orderSheetTitle } from './orderQtyUi';
-import { orderListMillCue, orderListRoleBit } from './tradeListRole';
 import { tradeNeedsYouLabel } from './tradeNeedsYouLabel';
+import { tradeListShipFact } from './tradeListShipLine';
 import { tradeListThumbs } from './tradeListThumbs';
 import type { TradeListItem } from './tradeList';
 
 export { tradeListThumbs } from './tradeListThumbs';
-export { tradeListShipLine } from './tradeListShipLine';
+export {
+  tradeListShipFact,
+  tradeListShipLine,
+  tradeListShipProgress,
+} from './tradeListShipLine';
 export { tradeListBallStrip } from './tradeListBallStrip';
 export { tradeListProtocol, tradeListStatusLabel } from './tradeListProtocol';
+export {
+  tradeListGlanceIcon,
+  tradeListGlanceVerb,
+  tradeListWaitingCue,
+} from './tradeListGlance';
+
+export type TradeListPathMark = 'direct' | 'handle' | null;
+
+/** People = Direct Link; chain = I-handle. 1:1 has no icon. */
+export function tradeListPathMark(
+  item: TradeListItem,
+  companyId: string | null,
+): TradeListPathMark {
+  if (item.kind !== 'order') return null;
+  const order = item.order;
+  if (orderViewerIsFacilitator(order, companyId)) return 'direct';
+  if (order.tradeMode === 'manage' && order.direction === 'selling') return 'handle';
+  if (order.downstreamOrderId && order.direction === 'buying') return 'handle';
+  return null;
+}
 
 export function tradeListPreview(
   item: TradeListItem,
-  companyId: string | null,
+  _companyId: string | null,
 ): { preview: string; accent: boolean } {
   const needs = tradeNeedsYouLabel(item);
   if (needs) {
-    // List already has a left accent for Needs you — show only the verb (Dispatch, Confirm…).
+    // List glance shows the verb on the lime disc — keep helpers verb-only.
     const verb = needs.replace(/^Needs you\s+/, '').trim() || needs;
     return { preview: verb, accent: true };
   }
 
   if (item.kind === 'order') {
-    const order = item.order;
-    const shared = orderViewerIsFacilitator(order, companyId);
-    // Quiet context only when it adds signal — no You buy/You sell (chrome + protocol cover that).
-    if (shared) return { preview: 'Shared', accent: false };
-    const mills = orderListMillCue(order);
-    if (mills) return { preview: `Trading · ${mills}`, accent: false };
-    if (orderListRoleBit(order, false) === 'Trading') {
-      return { preview: 'Trading', accent: false };
-    }
     return { preview: '', accent: false };
   }
 
@@ -73,15 +88,24 @@ export function tradeListFactLines<
   return remaining.length > 0 ? remaining : items;
 }
 
-/** Always-on identity: `Order #VONR 2 designs 12 sets` (qty when the unit is shared). */
+/** Glance identity: `#VONR · 2 designs 12 sets` or `#VONR · 0/60 sets sent`. */
 export function tradeListFacts(item: TradeListItem): string {
   if (item.kind === 'order') {
     const order = item.order;
-    const idLabel = shortOrderLabel(order.id, { inquiry: order.intent === 'inquiry' });
+    const idLabel = shortOrderLabel(order.id, { inquiry: order.intent === 'inquiry' }).replace(
+      /^Order /,
+      '',
+    );
+    const manual = order.manualRef?.manualOrderNo?.trim() || null;
+    const ship = tradeListShipFact(order);
+    if (ship) {
+      return [idLabel, manual, ship].filter(Boolean).join(' · ');
+    }
     const lines = tradeListFactLines(order.items);
     const designs = orderSheetTitle(lines.length);
     const qty = tradeListQtyFact(order.items);
-    return [idLabel, designs, qty].filter(Boolean).join(' ');
+    const rest = [designs, qty].filter(Boolean).join(' ');
+    return [idLabel, manual, rest].filter(Boolean).join(' · ');
   }
   if (item.kind === 'sample') {
     return `Sample · 1 design`;

@@ -7,7 +7,7 @@ describe('GrowingDescriptionField', () => {
     render(<GrowingDescriptionField value="" onChange={() => undefined} />);
     const field = screen.getByTestId('collection-description');
     expect(field.tagName).toBe('TEXTAREA');
-    expect(field.className).toContain('min-h-10');
+    expect(field.className).toContain('min-h-12');
     expect(field.className).toContain('resize-none');
   });
 });

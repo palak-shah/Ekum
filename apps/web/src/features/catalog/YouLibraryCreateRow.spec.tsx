@@ -8,11 +8,11 @@ afterEach(() => {
 });
 
 describe('YouLibraryCreateRow', () => {
-  it('uses a 40px dashed thumb, not a 64px album tile', () => {
+  it('uses a 48px dashed thumb, not a 64px album tile', () => {
     render(<YouLibraryCreateRow testId="you-new-design" label="New design" onClick={() => undefined} />);
     const row = screen.getByTestId('you-new-design');
     expect(row).toHaveTextContent('New design');
-    expect(row.querySelector('.h-10.w-10')).toBeTruthy();
+    expect(row.querySelector('.h-12.w-12')).toBeTruthy();
     expect(row.querySelector('.h-16.w-16')).toBeNull();
   });
 

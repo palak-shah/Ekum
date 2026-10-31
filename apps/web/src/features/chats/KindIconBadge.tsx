@@ -3,7 +3,7 @@ import { chatTypeMeta } from './messagePreview';
 
 export function KindIconBadge({
   messageType,
-  size = 20,
+  size = 22,
   iconSize = 14,
   onAccent = false,
 }: {
@@ -18,8 +18,7 @@ export function KindIconBadge({
     <span
       className={cx(
         'inline-flex shrink-0 items-center justify-center rounded-md',
-        /* Soft accent wash — not canvas white (clashes on chat-out green cards). */
-        onAccent ? 'bg-white/15 text-white' : 'bg-accent/10 text-accent',
+        onAccent ? 'bg-white/15 text-white' : 'bg-chip-on text-chip-on-ink',
       )}
       style={{ width: size, height: size }}
     >

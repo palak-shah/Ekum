@@ -17,7 +17,7 @@ export function HowManyLineNote({
 }) {
   return (
     <TextInput
-      className="mt-1.5 h-8 min-h-8 text-[13px]"
+      className="mt-1.5 h-8 min-h-8"
       placeholder="Note"
       value={value}
       disabled={disabled}

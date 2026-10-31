@@ -65,7 +65,10 @@ describe('ChatsPage tabs', () => {
     });
     renderPage();
 
-    expect(await screen.findByRole('button', { name: 'All' })).toBeInTheDocument();
+    const allChip = await screen.findByRole('button', { name: 'All' });
+    expect(allChip).toBeInTheDocument();
+    expect(allChip.className).toContain('bg-foam');
+    expect(allChip.className).not.toContain('border-accent');
     expect(screen.getByRole('button', { name: /Requests/ })).toBeInTheDocument();
     expect(screen.queryByTestId('chats-more')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Mark all read' })).toBeNull();
@@ -250,8 +253,9 @@ describe('ChatsPage In chats find', () => {
       '/chats/find?kind=complaints',
     );
     expect(screen.queryByText('Orders')).toBeNull();
-    expect(screen.getByTestId('chats-find-complaints').className).toMatch(/py-2/);
-    expect(screen.getByTestId('chats-find-photos').querySelector('.h-10')).toBeTruthy();
+    expect(screen.getByTestId('chats-find-complaints').className).toMatch(/py-3/);
+    expect(screen.getByTestId('chats-find-complaints').className).toContain('hover:bg-foam');
+    expect(screen.getByTestId('chats-find-photos').querySelector('.h-12')).toBeTruthy();
   });
 
   it('hides In chats when typing a query', async () => {

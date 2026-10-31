@@ -8,7 +8,7 @@ import {
   orderLineBillingCaptions,
 } from '@/features/orders/orderLineBilling';
 import { isPackOrderUnit } from '@/lib/catalogRate';
-import { orderRateText } from '@/features/orders/howManyLineMeta';
+import { orderRateText, qtyCountNoun } from '@/features/orders/howManyLineMeta';
 import { designSubtextClass } from '@/ui/designLineChrome';
 
 export type OrderLineFactColumn = 'qty' | 'price' | 'bill' | 'ship' | 'thisLr' | 'balance';
@@ -197,6 +197,29 @@ export type OrderLineFactCellDef = {
   colSpan?: number;
   control?: ReactNode;
 };
+
+/** Rate per on the ticket name row (`₹91/mtr`). */
+export function orderTicketLineRateCopy(item: ItemFacts): string | null {
+  return orderRateText({
+    rate: item.rate,
+    unit: item.unit,
+    dispatchUnit: item.dispatchUnit,
+    catalogRateUnit: item.catalogRateUnit,
+  });
+}
+
+/** Qty under the ticket name: `4 sets` or `5 of 12 sets sent`. */
+export function orderTicketLineQtyCopy(item: ItemFacts): string {
+  const qty = item.quantity;
+  if (orderLineShowsShipFacts(item)) {
+    const shipped = item.shippedQuantity ?? 0;
+    const extra = orderLineOverShipped(item);
+    const noun = item.unit ? qtyCountNoun(item.unit) : '';
+    const base = noun ? `${shipped} of ${qty} ${noun} sent` : `${shipped} of ${qty} sent`;
+    return extra > 0 ? `${base} · +${extra} extra` : base;
+  }
+  return formatOrderQty({ quantity: qty, unit: item.unit });
+}
 
 /** Quiet Price · Bill under the name after confirm — not a strip column. */
 export function orderLineMoneyCue(item: ItemFacts): string | null {
@@ -389,12 +412,15 @@ export function OrderLineFacts({
   className,
   density = 'compact',
   dualQty = true,
+  layout = 'strip',
 }: {
   item: ItemFacts;
   className?: string;
   density?: 'compact' | 'detail' | 'sheet';
   /** Action sheets keep the order-unit noun; ticket compact/detail Qty is a number. */
   dualQty?: boolean;
+  /** Ticket proto lines — qty under the name, no Qty · Price · Bill strip. */
+  layout?: 'strip' | 'ticket';
 }) {
   const qty = item.quantity;
   const hasPrice = item.rate != null;
@@ -426,6 +452,37 @@ export function OrderLineFacts({
           dispatchUnit: item.dispatchUnit,
         })
       : [];
+
+  if (layout === 'ticket') {
+    const extra = orderLineOverShipped(item);
+    const pct =
+      qty > 0 ? Math.min(100, Math.round((shipped / qty) * 100)) : 0;
+    return (
+      <div
+        className={cx('flex w-full min-w-0 flex-col', className)}
+        data-testid="order-line-facts"
+        data-density="ticket"
+      >
+        <p className="text-[13px] text-ink" data-testid="order-line-fact-qty">
+          {orderTicketLineQtyCopy(item)}
+        </p>
+        {showShip && item.lineStatus !== 'declined' ? (
+          <span
+            className="mt-1 block h-1.5 overflow-hidden rounded-full bg-foam"
+            data-testid="order-line-ship-bar"
+          >
+            <span
+              className={cx(
+                'block h-full rounded-full',
+                extra > 0 ? 'bg-warning' : 'bg-accent/70',
+              )}
+              style={{ width: `${pct}%` }}
+            />
+          </span>
+        ) : null}
+      </div>
+    );
+  }
 
   if (density === 'sheet') {
     return (
@@ -495,7 +552,7 @@ export function OrderLineFacts({
       />
       {captions.length > 0 ? (
         <p
-          className="mt-1 text-[11px] font-body leading-snug text-muted"
+          className="mt-1 text-meta font-body leading-snug text-muted"
           data-testid="order-line-billing-captions"
         >
           {captions.join(' · ')}

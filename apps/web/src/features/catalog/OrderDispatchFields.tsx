@@ -82,7 +82,7 @@ export function OrderDispatchFields({
       </Field>
       <Field label={containsLabel}>
         <div
-          className={`flex min-h-10 w-fit items-center gap-1 rounded-xl border border-line ${FIELD_IDLE_FILL_CLASS} px-3 text-sm ${FIELD_FOCUS_WITHIN_FILL_CLASS}`}
+          className={`flex min-h-12 w-fit items-center gap-1 rounded-xl border border-line ${FIELD_IDLE_FILL_CLASS} px-3 text-sm ${FIELD_FOCUS_WITHIN_FILL_CLASS}`}
           data-testid="collection-set-contains-cluster"
         >
           <TextInput

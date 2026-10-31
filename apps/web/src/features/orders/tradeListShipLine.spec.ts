@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { OrderView } from '@ekum/domain-types';
 import { howManyOrderFooterSummary, howManySetsBanner, qtyCountNoun } from './howManyLineMeta';
-import { tradeListShipLine } from './tradeListShipLine';
+import { tradeListShipFact, tradeListShipLine, tradeListShipProgress } from './tradeListShipLine';
 
 function line(partial: {
   id?: string;
@@ -168,6 +168,46 @@ describe('tradeListShipLine', () => {
 
   it('hides when still only requested', () => {
     expect(tradeListShipLine(order({ status: 'requested' }))).toBeNull();
+    expect(tradeListShipFact(order({ status: 'requested' }))).toBeNull();
+    expect(tradeListShipProgress(order({ status: 'requested' }))).toBeNull();
+  });
+
+  it('glance ship fact is order-unit 0/N sent', () => {
+    expect(tradeListShipFact(order({}))).toBe('0/20 pcs sent');
+    expect(
+      tradeListShipFact(
+        order({
+          status: 'part_shipped',
+          items: [
+            line({
+              unit: 'set',
+              dispatchUnit: 'pc',
+              piecesPerPack: 6,
+              quantity: 10,
+              shippedQuantity: 3,
+              remainingQuantity: 7,
+            }),
+          ],
+        }),
+      ),
+    ).toBe('3/10 sets sent');
+    expect(
+      tradeListShipFact(
+        order({
+          status: 'part_shipped',
+          items: [
+            line({
+              unit: 'set',
+              dispatchUnit: 'pc',
+              piecesPerPack: 6,
+              quantity: 10,
+              shippedQuantity: 3,
+              remainingQuantity: 7,
+            }),
+          ],
+        }),
+      ),
+    ).not.toMatch(/18|pcs/);
   });
 });
 

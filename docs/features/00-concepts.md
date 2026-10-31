@@ -142,38 +142,40 @@ When publishing (or updating visibility), the sheet sets:
 
 **You** has three sections: **Collections · Catalogs · Designs**. Every company has one **General Collection** (`Collection.kind = general` — identity is this flag, never the name). Unassigned own designs (Draft or Published, not Deleted) belong there. It is leftover storage, not a pack they order (no apply-all, no pack Order and dispatch). **New collection** is always `kind=regular`. **New catalog** (`?kind=catalog`) is always `kind=catalog` + `orderMode` (whole \| pick) — no “Treat as catalog?” checkbox. Own designs in a catalog are exclusive to that catalog (picker = General Collection leftovers). **Move to catalog / collection** relocates an exclusive design (clears the old stamp and source catalog join; one catalog, or collections, not both — including another catalog). Mill→trader **Curate** may still reuse mill product IDs; orders on that catalog follow its whole / pick. **Order as whole:** every Order path (Explore / shop / You / album / design sheet / cart) takes **the catalog** — no Choose designs, and exclusive members cannot be ticked as a solo Order line. How many is **catalog name + one qty** (catalog Order taken in) with a read-only member list. Qty 1 = that unit of every published member. Ticket / Confirm / Dispatch show **one catalog row** (member OrderItems stay stored for SKUs and mill hops). **Pick and choose** keeps All designs / Choose designs. A regular collection is never an order line. Lifecycle is **Draft · Published · Deleted** (soft `archived`). No Ready. No Restore. Delete does not erase rows. See [Catalog](./catalog.md) and [Collections](./collections.md).
 
-**Platform kind colors** (object type, not status): **Order** teal (brand accent) · **Collection** steel · **Design** clay. Shared via `kindTone` / CSS `--color-kind-*`. Status colors (success / danger / tangerine) stay separate.
+**Platform kind colors** (object type, not status): **Order** teal (`kind-order` — not the charcoal brand) · **Collection** steel · **Design** clay. Shared via `kindTone` / CSS `--color-kind-*`. Brand actions are charcoal ink (`accent`). Needs-you counts are lime (`badge` + dark ink). Status colors (success / danger / tangerine) stay separate.
 
 See [Catalog](./catalog.md) and [Collections](./collections.md).
 
 ## Chrome density
 
-Everyday kit is **WhatsApp-tight**, not 48px everywhere:
+Everyday kit follows **Theme C (Ink & Lime)** — charcoal go, lime counts, comfortable taps on the main controls, compact chips and nav so lists stay readable:
 
 | Control | Size |
 |---------|------|
-| `Button` / `TextInput` / `SearchInput` | 40px tall. Field type stays **16px** (iOS must not zoom). |
-| `Chip` | 28px |
-| List square (search trailing / sheet Close) | 40×40 |
-| Qty / rate beside a design | Stay compact fields; **design thumbs stay 48px**. How many / Edit / Confirm / quote numbers: **14px emphasis tabular-nums** (`designLineChrome`) |
-| Quiet info (`InfoHint`) | Circle **i** next to a title or label. Tap shows instructional copy. One icon — change `InfoIcon` / `InfoHint` and every screen follows. Live status stays `Field.hint` under the field. |
+| `Button` / `TextInput` / `SearchInput` | 48px tall. Field type stays **16px** (iOS must not zoom). Button label is 16px. Primary fill is charcoal + on-accent white. `SearchInput` is the same TextInput chrome on every find field (not a Chats-only shape). |
+| `Chip` | 32px, 13px type. Gray foam, **no border**. Selected = chip-on tint (`#EFF1D6` / ink `#3F4A12`; dark `#2C2F14` / `#E8E28A`), not badge lime and not ink-weight-on-gray. Same Chip on Chats filters, Orders Pending/Completed, Settings Light/Dark/System. |
+| List square (search trailing / sheet Close) | 48×48 |
+| Flat list row | Hairline + foam press (`listRowClass`): Chats inbox, In-chats, Home Followed, Settings stacks, Group media. Orders trade rows and Home needs-you stay **cards**. |
+| Qty / rate beside a design | Stay compact beside the thumb; **design thumbs stay 48px**. How many / Edit / Confirm / quote numbers: **16px tabular-nums** (`designLineChrome`). Stepper ± stays compact. |
+| Quiet info (`InfoHint`) | Circle **i** is a 48px tap next to a title or label. Tap shows instructional copy. One icon — change `InfoIcon` / `InfoHint` and every screen follows. Live status stays `Field.hint` under the field. |
+| `EmptyState` | One empty-message class. Title 15px `font-title`; body 14px muted. Chats Requests, Orders, Explore, Group media — not a page-local empty. |
 | Sell-as (~80% sets / ~20% native) | Platform default (Settings unset too): **order + dispatch journey in sets**, **price / “1 set contains” / billing per Rate per**. Rate per on create is the Category **primary** (first sheet unit) — Readyset **pc**, Fabric/Jobwork **mtr** even when pc is also offered. Billing = sets × pack size × rate when pack size known or obvious (dozen=12); blank set/box/bundle contents → no conversion / no ₹ invent. Niche (lehenga etc.) configures **pc** — rate and qty stay per piece. Same create knobs; not a second app mode. |
-| Nav ＋ / camera shutter | Stay 48px |
+| Nav wells | Stay 32px. Selected well is foam. Nav ＋ stays 48px. Camera shutter stays 48px inner. |
 
 ### Typography weights
 
-Single face: **Inter** (`--font-sans`). Sizes stay as approved chrome (page title ~17px, body ~15px, buttons ~14px, chips 12–13px) — do not jump to marketing Brand Kit sizes on everyday screens.
+Single face: **Noto Sans** (`--font-sans`). Digits are equal-width (`tabular-nums` on `body`).
 
 | Role | Weight | Utility | Use for |
 |------|--------|---------|---------|
-| Body | 400 | `font-body` | Descriptions, messages, metadata, form values, secondary lines |
+| Body | 400 | `font-body` | Descriptions, messages, metadata, form values, secondary lines — 16px |
 | Emphasis | 500 | `font-emphasis` | Section headings, list/shop names, buttons, chips, field labels |
-| Title | 600 | `font-title` | Sticky page titles, sheet titles, important prices / quantities |
-| Bold | 700 | `font-bold` | Rare — tiny unread/nav badge digits and avatar initials only |
+| Title | 600 | `font-title` | Sticky page titles (20px), sheet titles (18px), tab titles (20px), important prices / quantities |
+| Bold | 700 | `font-bold` | Rare — unread/nav badge digits (11px) and avatar initials only |
 
 Secondary information uses **muted** color at body weight — not bold ink. Tokens: `--ekum-weight-*` and `--ekum-text-*` in `apps/web/src/theme/tokens.css`.
 
-Approved sizes that Tailwind does not already name: `text-badge` 10px · `text-meta` 11px · `text-support` 13px · `text-name` 15px · `text-page-title` 17px · `text-sheet-title` 1.05rem · `text-tab-title` 1.375rem. `text-xs` / `text-sm` / `text-base` stay 12 / 14 / 16. Headers use the title utilities (`AppShell` tab, `PageHeader` page, sheet title). Other screens still use their current size classes until a later pass.
+Approved sizes that Tailwind does not already name: `text-badge` 11px · `text-meta` 13px · `text-support` 13px · `text-name` 16px · `text-page-title` 20px · `text-sheet-title` 18px · `text-tab-title` 20px. `text-xs` / `text-sm` / `text-base` stay 12 / 14 / 16. Placeholders stay 14px. Headers use the title utilities (`AppShell` tab, `PageHeader` page, sheet title).
 
 Page gaps and one-off list rows may still be roomier until a later pass.
 

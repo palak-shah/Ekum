@@ -91,7 +91,7 @@ export function SameRateForAll({
           autoCorrect="off"
           spellCheck={false}
           placeholder=""
-          className="h-10 min-h-10 w-[7.5rem] shrink-0 px-2.5 text-center text-base font-title tabular-nums"
+          className="h-12 min-h-12 w-[7.5rem] shrink-0 px-2.5 text-center text-base font-title tabular-nums"
           value={draft}
           aria-label={ariaLabel}
           onChange={(event) => onDraftChange(sanitizeQuoteRateInput(event.target.value))}
@@ -230,13 +230,13 @@ export function SameQtyRateForAll({
       <button
         type="submit"
         disabled={!canApply}
-        className="text-[13px] font-emphasis text-accent disabled:opacity-45"
+        className="text-meta font-emphasis text-accent disabled:opacity-45"
       >
         Apply
       </button>
       <button
         type="button"
-        className="text-[13px] font-body text-muted"
+        className="text-meta font-body text-muted"
         onClick={onCancel}
       >
         Cancel

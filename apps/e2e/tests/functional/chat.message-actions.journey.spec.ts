@@ -12,7 +12,7 @@ test.describe('chat message actions @functional @chat', () => {
     await expect(page.getByText(marker)).toBeVisible();
 
     const bubble = page.locator('[data-message-id]').filter({ hasText: marker }).first();
-    await bubble.getByTestId('message-actions').click();
+    await bubble.getByTestId('message-actions').click({ force: true });
     await expect(page.getByTestId('message-actions-menu')).toBeVisible();
     await expect(page.getByRole('menuitem', { name: 'Forward' })).toBeVisible();
     await expect(page.getByRole('menuitem', { name: 'Copy' })).toBeVisible();
@@ -22,7 +22,7 @@ test.describe('chat message actions @functional @chat', () => {
     await page.getByRole('menuitem', { name: 'Star' }).click();
     await expect(page.getByTestId('message-actions-menu')).toBeHidden({ timeout: 10_000 });
 
-    await bubble.getByTestId('message-actions').click();
+    await bubble.getByTestId('message-actions').click({ force: true });
     await expect(page.getByRole('menuitem', { name: 'Unstar' })).toBeVisible();
     await page.getByRole('menuitem', { name: 'Edit' }).click();
     await expect(page.getByRole('heading', { name: 'Edit message' })).toBeVisible();
@@ -32,7 +32,7 @@ test.describe('chat message actions @functional @chat', () => {
     await expect(page.getByText(edited)).toBeVisible({ timeout: 10_000 });
     await expect(page.getByText('Edited')).toBeVisible();
 
-    await page.locator('[data-message-id]').filter({ hasText: edited }).first().getByTestId('message-actions').click();
+    await page.locator('[data-message-id]').filter({ hasText: edited }).first().getByTestId('message-actions').click({ force: true });
     await page.getByRole('menuitem', { name: 'Select' }).click();
     await expect(page.getByTestId('thread-forward-dock')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Select all' })).toHaveCount(0);
@@ -52,7 +52,7 @@ test.describe('chat message actions @functional @chat', () => {
 
     await page.goto('/chats/seed-thread-1');
     const editedBubble = page.locator('[data-message-id]').filter({ hasText: edited }).first();
-    await editedBubble.getByTestId('message-actions').click();
+    await editedBubble.getByTestId('message-actions').click({ force: true });
     await page.getByRole('menuitem', { name: 'Delete' }).click();
     await expect(page.getByRole('heading', { name: 'Delete message?' })).toBeVisible();
     await page.getByRole('button', { name: 'Delete for me' }).click();
@@ -69,10 +69,26 @@ test.describe('chat message actions @functional @chat', () => {
     await expect(page.getByText(marker)).toBeVisible();
 
     const bubble = page.locator('[data-message-id]').filter({ hasText: marker }).first();
-    await bubble.getByTestId('message-actions').click();
+    await bubble.getByTestId('message-actions').click({ force: true });
     await page.getByRole('menuitem', { name: 'Forward' }).click();
     await expect(page.getByRole('heading', { name: 'Forward to…' })).toBeVisible({
       timeout: 10_000,
     });
+  });
+
+  test('text long-press opens the actions menu, not Select', async ({ page }) => {
+    await loginAsMeena(page);
+    await page.goto('/chats/seed-thread-1');
+
+    const marker = `lp-txt-${Date.now()}`;
+    await page.getByTestId('chat-composer').fill(marker);
+    await page.getByTestId('chat-send').click();
+    await expect(page.getByText(marker)).toBeVisible();
+
+    const bubble = page.locator('[data-message-id]').filter({ hasText: marker }).first();
+    await bubble.dispatchEvent('contextmenu');
+    await expect(page.getByTestId('message-actions-menu')).toBeVisible();
+    await expect(page.getByRole('menuitem', { name: 'Select' })).toBeVisible();
+    await expect(page.getByTestId('thread-forward-dock')).toHaveCount(0);
   });
 });

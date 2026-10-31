@@ -19,7 +19,7 @@ export function quoteCantSupplyMutedClass(cantSupply: boolean): string {
 export function quoteCantSupplyControlClass(cantSupply: boolean): string {
   return cantSupply
     ? 'mt-1 flex items-center gap-1.5 text-xs font-emphasis text-ink'
-    : 'mt-0.5 flex items-center gap-1 text-[11px] text-muted';
+    : 'mt-0.5 flex items-center gap-1 text-meta text-muted';
 }
 
 export function orderLineCantSupplyCue(cantSupply: boolean): string | null {

@@ -167,7 +167,7 @@ export function DirectLinksPage() {
           <div className="flex items-center gap-2 border-b border-line px-4 py-2 text-xs text-muted">
             <span className="min-w-0 flex-1">Supplier</span>
             <span className="min-w-0 flex-1">Buyer</span>
-            <span className="h-10 w-10 shrink-0" aria-hidden="true" />
+            <span className="h-12 w-12 shrink-0" aria-hidden="true" />
           </div>
           {rows.map((row) => (
             <div
@@ -181,7 +181,7 @@ export function DirectLinksPage() {
               <p className="min-w-0 flex-1 text-sm leading-tight text-ink">{row.buyerName}</p>
               <button
                 type="button"
-                className="flex h-10 w-10 shrink-0 items-center justify-center text-danger"
+                className="flex h-12 w-12 shrink-0 items-center justify-center text-danger"
                 aria-label="Remove Direct link"
                 data-testid={`path-remove-${row.id}`}
                 onClick={() => setRemoveId(row.id)}

@@ -26,7 +26,7 @@ export function YouLibraryCreateRow({
     >
       <span
         className={cx(
-          'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-dashed border-line',
+          'flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-dashed border-line',
           disabled ? 'text-muted' : 'text-accent',
         )}
       >
@@ -34,7 +34,7 @@ export function YouLibraryCreateRow({
       </span>
       <span
         className={cx(
-          'text-[14px] font-emphasis tracking-tight',
+          'text-base font-emphasis tracking-tight',
           disabled ? 'text-muted' : 'text-accent',
         )}
       >

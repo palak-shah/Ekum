@@ -13,7 +13,7 @@ export function ChatsHeaderNew() {
       data-testid="chats-new"
       aria-label="New chat"
       onClick={() => requestChatsNewChat()}
-      className="flex h-10 w-10 items-center justify-center rounded-full bg-accent text-white shadow-[0_2px_8px_rgba(15,76,71,0.35)] hover:bg-accent-dark"
+      className="flex h-12 w-12 items-center justify-center rounded-full bg-accent text-on-accent shadow-[0_2px_8px_rgb(31_42_48_/_0.35)] hover:bg-accent-dark"
     >
       <PlusIcon width={22} height={22} />
     </button>

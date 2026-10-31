@@ -99,7 +99,7 @@ export function YouCollectionListRow({
       type="button"
       data-testid="you-collection-share"
       aria-label="Share"
-      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-accent hover:bg-accent/10"
+      className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-accent hover:bg-accent/10"
       onClick={(event) => {
         event.preventDefault();
         event.stopPropagation();
@@ -117,7 +117,7 @@ export function YouCollectionListRow({
         <CoverImage src={thumb} alt={displayCollectionName(collection.name)} className="h-16 w-16" priority variant={MEDIA_VARIANT.Thumbnail1} />
       </div>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-[15px] font-emphasis tracking-tight text-ink">
+        <p className="truncate text-name font-emphasis tracking-tight text-ink">
           {highlightSearchText(displayCollectionName(collection.name), highlightQuery)}
         </p>
         {meta || draft || generalBadge ? (
@@ -212,14 +212,14 @@ export function YouCollectionListRow({
           }}
         >
           <MoreHorizontalIcon width={22} height={22} />
-          <span className="text-[11px] font-emphasis tracking-tight">More</span>
+          <span className="text-meta font-emphasis tracking-tight">More</span>
         </button>
         <button
           type="button"
           tabIndex={actionsVisible ? 0 : -1}
           data-testid="you-collection-swipe-share"
           aria-label="Share"
-          className="flex h-full w-[72px] shrink-0 flex-col items-center justify-center bg-accent text-white"
+          className="flex h-full w-[72px] shrink-0 flex-col items-center justify-center bg-accent text-on-accent"
           onClick={() => {
             setDrag(0);
             onSwipeClose();

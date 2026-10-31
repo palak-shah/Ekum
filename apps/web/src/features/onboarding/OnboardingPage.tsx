@@ -174,7 +174,7 @@ export function OnboardingPage() {
                   onClick={() => toggle(opt.slug)}
                   className={cx(
                     'rounded-full px-3 py-1.5 text-sm font-emphasis',
-                    on ? 'bg-accent text-white' : 'bg-foam text-muted',
+                    on ? 'bg-accent-soft text-accent-ink' : 'bg-foam text-muted',
                   )}
                 >
                   {opt.label}

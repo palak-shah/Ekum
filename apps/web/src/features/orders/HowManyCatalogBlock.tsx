@@ -48,7 +48,7 @@ export function HowManyCatalogBlock({
         }
       />
       {extra ? (
-        <p className="text-[13px] font-body leading-snug text-muted" data-testid="how-many-catalog-rate">
+        <p className="text-meta font-body leading-snug text-muted" data-testid="how-many-catalog-rate">
           {extra}
         </p>
       ) : null}
@@ -71,7 +71,7 @@ export function HowManyCatalogBlock({
                   {product.name.charAt(0)}
                 </div>
               )}
-              <p className="min-w-0 flex-1 text-[15px] font-emphasis leading-snug text-ink">{product.name}</p>
+              <p className="min-w-0 flex-1 text-name font-emphasis leading-snug text-ink">{product.name}</p>
             </li>
           );
         })}

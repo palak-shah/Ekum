@@ -38,6 +38,8 @@ export const updateCompanySettingsSchema = z.object({
   tradingEnabled: z.boolean().optional(),
   /** Legacy API: merged into tradeDefaults.orderPathPreference. UI removed — Prefer handle when unset. */
   orderPathPreference: z.enum(orderPathPreferenceValues).optional(),
+  /** Seller company: show Total ₹ on tickets this shop supplies. Default off. */
+  showBillTotalOnOrders: z.boolean().optional(),
 });
 export type UpdateCompanySettingsDto = z.infer<typeof updateCompanySettingsSchema>;
 
@@ -64,4 +66,14 @@ export interface CompanySettingsView {
   returnPolicy: string | null;
   tradeDefaults: Record<string, unknown>;
   myTools: Record<string, boolean>;
+  /** Derived from tradeDefaults.showBillTotalOnOrders — default false. */
+  showBillTotalOnOrders: boolean;
+}
+
+/** Seller-company flag: Total ₹ on tickets this shop supplies. */
+export function showBillTotalOnOrders(tradeDefaults: unknown): boolean {
+  if (!tradeDefaults || typeof tradeDefaults !== 'object' || Array.isArray(tradeDefaults)) {
+    return false;
+  }
+  return (tradeDefaults as Record<string, unknown>).showBillTotalOnOrders === true;
 }

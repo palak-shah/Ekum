@@ -91,7 +91,7 @@ function ExpandableNotes({
       onFocus={() => setFocused(true)}
       onBlur={() => setFocused(false)}
       onChange={(e) => onChange(e.target.value)}
-      className={cx('resize-none overflow-hidden rounded-[13px]', expand ? 'min-h-24' : 'min-h-10')}
+      className={cx('resize-none overflow-hidden rounded-[13px]', expand ? 'min-h-24' : 'min-h-12')}
     />
   );
 }
@@ -911,7 +911,7 @@ export function DesignBatchPage() {
                         ) : null}
                       </button>
                       {d.images.length > 1 ? (
-                        <span className="pointer-events-none absolute bottom-1 right-1 rounded bg-ink/70 px-1.5 text-[11px] font-emphasis text-white">
+                        <span className="pointer-events-none absolute bottom-1 right-1 rounded bg-ink/70 px-1.5 text-meta font-emphasis text-white">
                           {d.images.length}
                         </span>
                       ) : null}

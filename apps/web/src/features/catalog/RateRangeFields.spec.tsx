@@ -19,7 +19,7 @@ describe('RateRangeFields', () => {
     );
     expect(screen.getAllByTestId('collection-rate-prefix')).toHaveLength(1);
     expect(screen.getByTestId('collection-rate-from').className).toMatch(
-      /(?:^|\s)min-h-10(?:\s|$)/,
+      /(?:^|\s)min-h-12(?:\s|$)/,
     );
     expect(screen.getByTestId('collection-rate-from').className).not.toMatch(
       /(?:^|\s)min-h-0(?:\s|$)/,

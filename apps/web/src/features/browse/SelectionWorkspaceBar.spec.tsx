@@ -135,7 +135,7 @@ describe('SelectionWorkspaceBar', () => {
         </MemoryRouter>
       </QueryClientProvider>,
     );
-    expect(SELECTION_FLOATER_MIN_H).toBe('min-h-10');
+    expect(SELECTION_FLOATER_MIN_H).toBe('min-h-12');
     expect(screen.getByTestId('selection-workspace-bar')).toBeTruthy();
     const actions = screen.getByTestId('selection-workspace-actions');
     const cart = screen.getByTestId('selection-workspace-cart');

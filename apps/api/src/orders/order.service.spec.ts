@@ -93,6 +93,33 @@ interface Options {
     shipments?: {
       items: { orderItemId: string; quantity: { toNumber: () => number } }[];
     }[];
+    note?: string | null;
+    noteVoiceMediaId?: string | null;
+    noteVoiceUrl?: string | null;
+    noteVoiceDurationMs?: number | null;
+    downstreamOrderId?: string | null;
+  } | null;
+  sourceNote?: {
+    id: string;
+    orderId: string;
+    type: string;
+    note: string | null;
+    noteVoiceMediaId: string | null;
+    noteVoiceUrl: string | null;
+    noteVoiceDurationMs: number | null;
+    noteImageUrls: string[];
+  } | null;
+  requestedTrail?: { noteImageUrls: string[] } | null;
+  upstreamHops?: Array<{ id: string }>;
+  hopOrder?: {
+    id: string;
+    status: string;
+    tradeMode?: string;
+    buyerCompanyId: string;
+    sellerCompanyId: string;
+    downstreamOrderId?: string | null;
+    items?: unknown[];
+    shipments?: unknown[];
   } | null;
 }
 
@@ -156,6 +183,20 @@ function makeService(options: Options) {
       },
     },
     order: {
+      findMany: async (args?: {
+        where?: { downstreamOrderId?: string };
+        select?: Record<string, unknown>;
+      }) => {
+        if (
+          args?.where?.downstreamOrderId &&
+          args.select &&
+          Object.keys(args.select).length === 1 &&
+          args.select.id
+        ) {
+          return options.upstreamHops ?? [];
+        }
+        return [];
+      },
       create: async (args: { data: Captured['createData'] & Record<string, unknown> }) => {
         captured.createData = args.data;
         return {
@@ -170,8 +211,18 @@ function makeService(options: Options) {
           shipments: [],
         };
       },
-      findUnique: async () => orderState,
-      findMany: async () => [],
+      findUnique: async (args?: { where?: { id?: string } }) => {
+        if (args?.where?.id && options.hopOrder && args.where.id === options.hopOrder.id) {
+          return {
+            ...options.hopOrder,
+            buyer: { id: options.hopOrder.buyerCompanyId, name: 'Trader' },
+            seller: { id: options.hopOrder.sellerCompanyId, name: 'Mill' },
+            items: options.hopOrder.items ?? [],
+            shipments: options.hopOrder.shipments ?? [],
+          };
+        }
+        return orderState;
+      },
       update: async (args: { where: { id: string }; data: Record<string, unknown> }) => {
         captured.updateData = args.data;
         captured.orderUpdates.push(args.data);
@@ -290,19 +341,30 @@ function makeService(options: Options) {
     },
     orderTrailEvent: {
       count: async () => 0,
+      findUnique: async (args?: { where?: { id?: string } }) => {
+        if (args?.where?.id && options.sourceNote?.id === args.where.id) {
+          return options.sourceNote;
+        }
+        return null;
+      },
+      findFirst: async () => options.requestedTrail ?? null,
     },
     message: {
       create: async (args: { data: Record<string, unknown> }) => {
         captured.messageCreate = args.data;
-        livingMessage = {
-          id: 'msg-living',
-          type: String(args.data.type ?? 'order_card'),
-          metadata:
-            args.data.metadata && typeof args.data.metadata === 'object'
-              ? (args.data.metadata as Record<string, unknown>)
-              : null,
-        };
-        return { id: 'msg-living', ...args.data };
+        const createdType = String(args.data.type ?? 'order_card');
+        if (createdType !== 'system') {
+          livingMessage = {
+            id: 'msg-living',
+            type: createdType,
+            metadata:
+              args.data.metadata && typeof args.data.metadata === 'object'
+                ? (args.data.metadata as Record<string, unknown>)
+                : null,
+          };
+          return { id: 'msg-living', ...args.data };
+        }
+        return { id: 'msg-tag', ...args.data };
       },
       update: async (args: { where: { id: string }; data: Record<string, unknown> }) => {
         captured.messageUpdate = { id: args.where.id, ...args.data };
@@ -878,8 +940,18 @@ describe('OrderService quote + accept (partial)', () => {
         quoted: true,
       }),
     });
-    expect(captured.messageUpdate?.createdAt).toBeInstanceOf(Date);
-    expect(captured.messageCreate).toBeNull();
+    expect(captured.messageUpdate).not.toHaveProperty('createdAt');
+    expect(captured.messageUpdate).not.toHaveProperty('senderCompanyId');
+    expect(captured.messageCreate).toMatchObject({
+      type: 'system',
+      referenceId: 'o1',
+      body: 'Seller updated quote',
+      metadata: expect.objectContaining({
+        kind: 'order_lifecycle',
+        event: 'quote_sent',
+        livingMessageId: 'quote-msg',
+      }),
+    });
   });
 
   it('keeps quote voice on the living card when a later pulse omits it', async () => {
@@ -1176,6 +1248,16 @@ describe('OrderService lifecycle action cards', () => {
       type: 'order_card',
       metadata: expect.objectContaining({ event: 'quote_accepted', quoted: true }),
       body: expect.stringContaining('accepted quote'),
+    });
+    expect(captured.messageUpdate).not.toHaveProperty('createdAt');
+    expect(captured.messageUpdate).not.toHaveProperty('senderCompanyId');
+    expect(captured.messageCreate).toMatchObject({
+      type: 'system',
+      body: 'Buyer accepted quote',
+      metadata: expect.objectContaining({
+        kind: 'order_lifecycle',
+        event: 'quote_accepted',
+      }),
     });
   });
 
@@ -1548,5 +1630,110 @@ describe('OrderService state machine', () => {
   it('404s an order the caller is not a party to', async () => {
     const { service } = makeService({ order: requested });
     await expect(service.confirm('stranger', 'u1', 'o1')).rejects.toThrow();
+  });
+});
+
+describe('OrderService notes', () => {
+  it('appends noted trail + system tag without rewriting the living card', async () => {
+    const { service, captured } = makeService({
+      sellerQuoted: true,
+      order: {
+        id: 'o1',
+        status: OrderStatus.Requested,
+        buyerCompanyId: 'buyer',
+        sellerCompanyId: 'seller',
+        items: [openItem('oi1', 5)],
+      },
+    });
+    await service.addNote('buyer', 'u1', 'o1', { note: 'Need lining' });
+    expect(captured.trailAppends).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: 'noted', note: 'Need lining', actorCompanyId: 'buyer' }),
+      ]),
+    );
+    expect(captured.messageCreate).toMatchObject({
+      type: 'system',
+      body: 'Buyer added a note',
+      referenceId: 'o1',
+    });
+    expect(captured.messageUpdate).toBeNull();
+  });
+
+  it('forwards a note onto the mill hop as the trader', async () => {
+    const { service, captured } = makeService({
+      order: {
+        id: 'parent',
+        status: OrderStatus.Requested,
+        tradeMode: OrderTradeMode.Manage,
+        buyerCompanyId: 'buyer',
+        sellerCompanyId: 'trader',
+        items: [openItem('oi1', 5)],
+      },
+      sourceNote: {
+        id: 'note-1',
+        orderId: 'parent',
+        type: 'noted',
+        note: 'Need lining',
+        noteVoiceMediaId: null,
+        noteVoiceUrl: null,
+        noteVoiceDurationMs: null,
+        noteImageUrls: [],
+      },
+      upstreamHops: [{ id: 'mill-hop' }],
+      hopOrder: {
+        id: 'mill-hop',
+        status: OrderStatus.Requested,
+        tradeMode: OrderTradeMode.Manage,
+        buyerCompanyId: 'trader',
+        sellerCompanyId: 'mill',
+        downstreamOrderId: 'parent',
+        items: [openItem('oi1', 5)],
+        shipments: [],
+      },
+    });
+    await service.forwardNote('trader', 'u1', 'parent', 'note-1', {});
+    expect(captured.trailAppends).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          orderId: 'mill-hop',
+          type: 'noted',
+          actorCompanyId: 'trader',
+          note: 'Need lining',
+          payload: expect.objectContaining({ forwarded: true }),
+        }),
+      ]),
+    );
+    expect(JSON.stringify(captured.trailAppends)).not.toMatch(/buyer|mill name|Ravi/i);
+    expect(captured.messageCreate).toMatchObject({
+      type: 'system',
+      body: 'Trader added a note',
+    });
+  });
+
+  it('rejects Forward on Direct and from the buyer', async () => {
+    const { service: direct } = makeService({
+      order: {
+        id: 'o1',
+        status: OrderStatus.Requested,
+        tradeMode: OrderTradeMode.Direct,
+        facilitatorCompanyId: 'trader',
+        buyerCompanyId: 'buyer',
+        sellerCompanyId: 'mill',
+        items: [openItem('oi1', 5)],
+      },
+    });
+    await expect(direct.forwardNote('trader', 'u1', 'o1', 'note-1', {})).rejects.toThrow();
+
+    const { service: parent } = makeService({
+      order: {
+        id: 'parent',
+        status: OrderStatus.Requested,
+        tradeMode: OrderTradeMode.Manage,
+        buyerCompanyId: 'buyer',
+        sellerCompanyId: 'trader',
+        items: [openItem('oi1', 5)],
+      },
+    });
+    await expect(parent.forwardNote('buyer', 'u1', 'parent', 'note-1', {})).rejects.toThrow();
   });
 });

@@ -65,7 +65,7 @@ export function OwnerPackLifecycleSheet({
           <span
             className={cx(
               'flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-[1.5px]',
-              alsoOn ? 'border-accent bg-accent text-white' : 'border-line bg-surface',
+              alsoOn ? 'border-accent bg-accent text-on-accent' : 'border-line bg-surface',
             )}
             aria-hidden
           >

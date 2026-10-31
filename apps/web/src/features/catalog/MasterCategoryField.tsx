@@ -27,7 +27,7 @@ export function MasterCategoryField({
       {locked ? (
         <div
           data-testid={testId}
-          className="flex h-10 items-center rounded-xl border border-line bg-foam/90 px-3 text-sm font-body text-ink"
+          className="flex h-12 items-center rounded-xl border border-line bg-foam/90 px-3 text-sm font-body text-ink"
         >
           {selected?.label || 'From collection'}
         </div>

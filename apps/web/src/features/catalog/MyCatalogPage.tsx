@@ -843,7 +843,7 @@ export function MyCatalogPage({
                 data-testid={item.testId}
                 onClick={() => setTab(item.id)}
                 className={cx(
-                  'relative isolate inline-flex h-10 shrink-0 items-center gap-1.5 border-b-2 px-0.5 text-[15px] tracking-tight touch-manipulation',
+                  'relative isolate inline-flex h-12 shrink-0 items-center gap-1.5 border-b-2 px-0.5 text-name tracking-tight touch-manipulation',
                   tab === item.id
                     ? 'border-accent font-emphasis text-ink'
                     : 'border-transparent font-body text-muted',

@@ -8,6 +8,7 @@ import {
   orderLineBalanceRowClass,
   orderLineFactsWithThisLr,
   orderLineMoneyCue,
+  orderTicketLineRateCopy,
 } from './OrderLineFacts';
 
 describe('OrderLineFacts', () => {
@@ -343,7 +344,7 @@ describe('orderLineBalance', () => {
     };
     expect(orderLineMoneyCue(item)).toBe('Price ₹1,290/pc · Bill ₹64,500');
     const { rerender } = render(<OrderLineMoneyLine item={item} />);
-    expect(screen.getByTestId('order-line-money-info').className).toMatch(/text-\[12px\]/);
+    expect(screen.getByTestId('order-line-money-info').className).toMatch(/text-meta/);
     expect(screen.getByTestId('order-line-money-info')).toHaveTextContent('Price ₹1,290/pc');
     rerender(<OrderLineFacts density="detail" item={item} />);
     expect(screen.getByTestId('order-line-facts').className).toContain('grid-cols-3');
@@ -353,5 +354,30 @@ describe('orderLineBalance', () => {
     expect(screen.queryByTestId('order-line-fact-price')).toBeNull();
     expect(screen.queryByTestId('order-line-fact-bill')).toBeNull();
     expect(screen.queryByTestId('order-line-money-info')).toBeNull();
+  });
+
+  it('ticket layout is qty under the name — no Qty · Price · Bill strip', () => {
+    render(
+      <OrderLineFacts
+        layout="ticket"
+        item={{
+          quantity: 4,
+          rate: 91,
+          unit: 'set',
+          catalogRateUnit: 'mtr',
+          lineStatus: 'requested',
+        }}
+      />,
+    );
+    expect(screen.getByTestId('order-line-facts')).toHaveAttribute('data-density', 'ticket');
+    expect(screen.getByTestId('order-line-fact-qty')).toHaveTextContent('4 sets');
+    expect(screen.queryByTestId('order-line-fact-price')).toBeNull();
+    expect(screen.queryByTestId('order-line-fact-bill')).toBeNull();
+    expect(orderTicketLineRateCopy({
+      quantity: 4,
+      rate: 91,
+      unit: 'set',
+      catalogRateUnit: 'mtr',
+    })).toMatch(/₹91\/mtr/);
   });
 });

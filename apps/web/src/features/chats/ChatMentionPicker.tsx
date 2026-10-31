@@ -39,7 +39,7 @@ export function ChatMentionPicker({
           <span className="min-w-0 truncate text-sm font-emphasis tracking-tight text-ink">
             {row.name}
           </span>
-          <span className="shrink-0 text-[11px] text-muted">{row.hint}</span>
+          <span className="shrink-0 text-meta text-muted">{row.hint}</span>
         </button>
       ))}
     </div>

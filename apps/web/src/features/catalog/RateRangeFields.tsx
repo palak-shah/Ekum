@@ -146,7 +146,7 @@ export function RateRangeFields({
             data-testid="collection-rate-mode-single"
             className={cx(
               'min-h-8 rounded-full px-3 text-sm font-emphasis tracking-tight transition-colors',
-              !rangeOpen ? 'bg-accent text-white' : 'bg-transparent text-muted',
+              !rangeOpen ? 'bg-accent-soft text-accent-ink' : 'bg-transparent text-muted',
             )}
             onClick={() => {
               onTo('');
@@ -162,7 +162,7 @@ export function RateRangeFields({
             data-testid="collection-rate-mode-range"
             className={cx(
               'min-h-8 rounded-full px-3 text-sm font-emphasis tracking-tight transition-colors',
-              rangeOpen ? 'bg-accent text-white' : 'bg-transparent text-muted',
+              rangeOpen ? 'bg-accent-soft text-accent-ink' : 'bg-transparent text-muted',
             )}
             onClick={() => setMode('range')}
           >

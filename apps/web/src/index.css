@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700;1,14..32,400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap');
 @import 'tailwindcss';
 @import './theme/tokens.css';
 
@@ -19,11 +19,18 @@
   --color-accent: var(--ekum-accent);
   --color-accent-dark: var(--ekum-accent-hover);
   --color-accent-muted: var(--ekum-accent-muted);
+  --color-accent-soft: var(--ekum-accent-soft);
+  --color-accent-ink: var(--ekum-accent-ink);
+  --color-on-accent: var(--ekum-on-accent);
   --color-badge: var(--ekum-badge);
+  --color-badge-ink: var(--ekum-badge-ink);
+  --color-chip-on: var(--ekum-chip-on);
+  --color-chip-on-ink: var(--ekum-chip-on-ink);
   --color-input: var(--ekum-input);
   --color-chat: var(--ekum-chat-bg);
   --color-chat-out: var(--ekum-chat-out);
   --color-chat-in: var(--ekum-chat-in);
+  --color-tick: var(--ekum-tick);
   --color-tangerine: var(--ekum-tangerine);
   --color-success: var(--ekum-success);
   --color-success-soft: var(--ekum-success-soft);
@@ -50,10 +57,14 @@
   --color-kind-collection-soft: var(--ekum-kind-collection-soft);
   --color-kind-design: var(--ekum-kind-design);
   --color-kind-design-soft: var(--ekum-kind-design-soft);
-  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-sans: 'Noto Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-weight-body: var(--ekum-weight-body);
   --font-weight-emphasis: var(--ekum-weight-emphasis);
   --font-weight-title: var(--ekum-weight-title);
+  /*
+   * Count size is 11px, but `text-badge` is the lime colour (--color-badge wins
+   * the shared name). Use text-[length:var(--ekum-text-badge)] for the size.
+   */
   --text-badge: var(--ekum-text-badge);
   --text-badge--line-height: inherit;
   --text-meta: var(--ekum-text-meta);
@@ -69,6 +80,7 @@
   --text-tab-title: var(--ekum-text-tab-title);
   --text-tab-title--line-height: inherit;
   --shadow-soft: var(--ekum-shadow-soft);
+  --shadow-menu: var(--ekum-shadow-menu);
 }
 
 html,
@@ -93,9 +105,10 @@ body {
   background: transparent;
   color: var(--color-ink);
   font-family: var(--font-sans);
-  font-size: 15px;
+  font-size: 16px;
   line-height: 1.45;
   letter-spacing: -0.022em;
+  font-variant-numeric: tabular-nums;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
@@ -167,6 +180,27 @@ select:focus-visible {
 
 .ekum-msg-flash {
   animation: ekum-msg-flash 1.4s ease-out;
+}
+
+/* WhatsApp cluster tail — last consecutive bubble from that side only. */
+.ekum-msg-bubble.ekum-msg-tail-out::after,
+.ekum-msg-bubble.ekum-msg-tail-in::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  width: 8px;
+  height: 10px;
+  pointer-events: none;
+}
+.ekum-msg-bubble.ekum-msg-tail-out::after {
+  right: -7px;
+  background: var(--ekum-chat-out);
+  clip-path: polygon(0 0, 0 100%, 100% 100%);
+}
+.ekum-msg-bubble.ekum-msg-tail-in::after {
+  left: -7px;
+  background: var(--ekum-chat-in);
+  clip-path: polygon(100% 0, 0 100%, 100% 100%);
 }
 
 /* Keep scroll; hide scrollbar chrome (chat / compact lists). */

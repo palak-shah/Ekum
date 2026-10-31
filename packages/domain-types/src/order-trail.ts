@@ -17,6 +17,7 @@ export const OrderTrailType = {
   ReturnRaised: 'return_raised',
   ReturnDecided: 'return_decided',
   PaymentAsked: 'payment_asked',
+  Noted: 'noted',
 } as const;
 export type OrderTrailType = (typeof OrderTrailType)[keyof typeof OrderTrailType];
 
@@ -32,6 +33,10 @@ export type OrderTrailEventView = {
   noteVoiceUrl: string | null;
   noteVoiceDurationMs: number | null;
   noteImageUrls?: string[];
+  /** Viewer’s company wrote this row (staff name may still show in `who`). */
+  mine?: boolean;
+  /** Copied onto this hop by the trader — no hidden-party names. */
+  forwarded?: boolean;
 };
 
 export const ORDER_TRAIL_LABELS: Record<string, string> = {
@@ -49,6 +54,7 @@ export const ORDER_TRAIL_LABELS: Record<string, string> = {
   [OrderTrailType.ReturnRaised]: 'Return raised',
   [OrderTrailType.ReturnDecided]: 'Return decided',
   [OrderTrailType.PaymentAsked]: 'Payment asked',
+  [OrderTrailType.Noted]: 'Note',
 };
 
 export function orderTrailLabel(type: string): string {
@@ -66,10 +72,15 @@ const ORDER_NOUN: Record<string, { one: string; many: string }> = {
   bundle: { one: 'bundle', many: 'bundles' },
 };
 
-function unitCountNoun(unit: string | null | undefined, count: number): string {
+/** Order-unit noun for qty strings (`3 pcs`, `1 set`) — not Rate per. */
+export function orderUnitNoun(unit: string | null | undefined, count: number): string {
   const key = unit?.trim() || 'pc';
   const pair = ORDER_NOUN[key] ?? { one: key, many: `${key}s` };
   return count === 1 ? pair.one : pair.many;
+}
+
+function unitCountNoun(unit: string | null | undefined, count: number): string {
+  return orderUnitNoun(unit, count);
 }
 
 export type OrderQtyFamilyLine = {

@@ -27,7 +27,7 @@ function IdentityBlock({
 }) {
   return (
     <section className="flex flex-col gap-1.5" data-testid={testId}>
-      <h2 className="px-0.5 text-[13px] font-emphasis tracking-tight text-ink">{title}</h2>
+      <h2 className="px-0.5 text-meta font-emphasis tracking-tight text-ink">{title}</h2>
       <div className="overflow-hidden rounded-xl border border-line bg-surface">
         <Row label="Version" value={version} />
         <Row label="Build" value={buildId} />

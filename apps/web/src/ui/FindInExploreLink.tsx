@@ -11,7 +11,7 @@ type Props = {
 };
 
 const VARIANT_CLASS: Record<NonNullable<Props['variant']>, string> = {
-  primary: 'bg-accent text-white hover:bg-accent-dark active:bg-accent-dark',
+  primary: 'bg-accent text-on-accent hover:bg-accent-dark active:bg-accent-dark',
   secondary:
     'bg-surface text-accent border-[1.5px] border-accent hover:bg-foam active:bg-foam',
   ghost: 'text-accent hover:bg-foam active:bg-foam',
@@ -30,7 +30,7 @@ export function FindInExploreLink({
       to={href}
       data-testid="find-in-explore-link"
       className={cx(
-        'inline-flex min-h-10 items-center justify-center gap-2 rounded-xl px-3.5 text-[14px] font-emphasis tracking-tight transition-colors',
+        'inline-flex min-h-12 items-center justify-center gap-2 rounded-xl px-4 text-base font-emphasis tracking-tight transition-colors',
         VARIANT_CLASS[variant],
         fullWidth && 'w-full',
         className,

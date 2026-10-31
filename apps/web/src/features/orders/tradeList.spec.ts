@@ -46,7 +46,7 @@ describe('matchesTradePending', () => {
 });
 
 describe('sortTradePending', () => {
-  it('puts Needs you rows before waiting rows', () => {
+  it('puts a newer wait above an older Needs you row', () => {
     const waiting = toTradeItems(
       [
         order({
@@ -54,6 +54,7 @@ describe('sortTradePending', () => {
           status: 'requested',
           direction: 'buying',
           createdAt: '2026-01-02T00:00:00.000Z',
+          updatedAt: '2026-01-04T00:00:00.000Z',
           canAcceptQuote: false,
         }),
       ],
@@ -67,13 +68,15 @@ describe('sortTradePending', () => {
           status: 'requested',
           direction: 'selling',
           createdAt: '2026-01-01T00:00:00.000Z',
+          updatedAt: '2026-01-03T00:00:00.000Z',
         }),
       ],
       [],
       [],
     )[0]!;
 
-    expect(sortTradePending([waiting, needs]).map((row) => row.id)).toEqual(['need', 'wait']);
+    expect(sortTradePending([waiting, needs]).map((row) => row.id)).toEqual(['wait', 'need']);
+    expect(sortTradePending([needs, waiting]).map((row) => row.id)).toEqual(['wait', 'need']);
   });
 });
 

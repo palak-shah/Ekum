@@ -20,6 +20,7 @@ import { useBrowseCart } from '@/features/browse/useBrowseCart';
 import { useBrowseShortlist } from '@/features/browse/useBrowseShortlist';
 import { SelectModeControls } from '@/features/browse/SelectModeControls';
 import { exploreShowSelectChrome } from './exploreSelectChrome';
+import { exploreStoryRingClass } from './exploreStoriesChrome';
 import { exitExploreSelectIfEmpty } from './exploreStagingSession';
 import {
   OpportunityBusinessCard,
@@ -88,7 +89,7 @@ function Section({
     <section className="flex flex-col gap-2.5">
       {title || action ? (
         <div className="flex items-baseline justify-between gap-3 px-0.5">
-          {title ? <h2 className="text-[13px] font-emphasis tracking-tight text-ink">{title}</h2> : null}
+          {title ? <h2 className="text-meta font-emphasis tracking-tight text-ink">{title}</h2> : null}
           {action}
         </div>
       ) : null}
@@ -373,7 +374,7 @@ function SupplierDirectory({
   return (
     <section className="flex flex-col gap-2.5">
       <div className="px-0.5">
-        <h2 className="text-[13px] font-emphasis tracking-tight text-ink">Suppliers on Explore</h2>
+        <h2 className="text-meta font-emphasis tracking-tight text-ink">Suppliers on Explore</h2>
         <p className="text-xs font-body text-muted">
           Companies with published designs or collections
         </p>
@@ -453,12 +454,7 @@ function StoriesRail({
               className="flex w-[72px] shrink-0 flex-col items-center gap-0.5"
               data-testid={isYou ? 'explore-story-you' : undefined}
             >
-              <span
-                className={cx(
-                  'rounded-full p-[3px]',
-                  active ? 'bg-accent' : 'bg-gradient-to-br from-accent to-tangerine',
-                )}
-              >
+              <span className={exploreStoryRingClass(active)}>
                 <span className="block rounded-full bg-canvas p-[3px]">
                   <Avatar name={story.company.name} imageUrl={story.company.logoUrl} size={56} />
                 </span>
@@ -841,7 +837,7 @@ export function ExplorePage() {
             <button
               type="button"
               onClick={openSearch}
-              className={`flex min-h-10 min-w-0 flex-1 items-center gap-2 rounded-xl border border-line ${FIELD_IDLE_FILL_CLASS} px-3.5 text-sm font-body text-muted`}
+              className={`flex min-h-12 min-w-0 flex-1 items-center gap-2 rounded-xl border border-line ${FIELD_IDLE_FILL_CLASS} px-3.5 text-sm font-body text-muted`}
             >
               <SearchIcon width={16} height={16} className="shrink-0" />
               <span className="truncate">{EXPLORE_SEARCH_HINT}</span>
@@ -866,7 +862,7 @@ export function ExplorePage() {
             >
               <CartIcon width={20} height={20} />
               {cart.count > 0 ? (
-                <span className="absolute right-0.5 top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-badge px-0.5 text-[10px] font-bold text-white">
+                <span className="absolute right-0.5 top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-badge px-0.5 text-[length:var(--ekum-text-badge)] font-bold text-badge-ink">
                   {cart.count > 99 ? '99+' : cart.count}
                 </span>
               ) : null}

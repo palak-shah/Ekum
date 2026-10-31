@@ -144,7 +144,7 @@ export function VoicePlayer({ src, durationMs, className }: Props) {
         data-card-action
         onClick={toggle}
         onPointerDown={(event) => event.stopPropagation()}
-        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent text-white"
+        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent text-on-accent"
       >
         {playing ? (
           <span className="flex gap-0.5" aria-hidden>
@@ -168,7 +168,7 @@ export function VoicePlayer({ src, durationMs, className }: Props) {
           style={{ width: `${Math.round(fill * 100)}%` }}
         />
       </div>
-      <p className="shrink-0 text-[11px] tabular-nums text-muted">
+      <p className="shrink-0 text-meta tabular-nums text-muted">
         {failed ? 'Can’t play' : formatVoiceDuration(labelMs)}
       </p>
     </div>

@@ -137,7 +137,7 @@ export function DesignSheetPhotoCarousel({
                 goTo(safeIndex - 1);
               }}
               className={cx(
-                'absolute left-1.5 top-1/2 z-[1] flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-ink/55 text-white shadow-sm',
+                'absolute left-1.5 top-1/2 z-[1] flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-ink/55 text-white shadow-sm',
                 'disabled:pointer-events-none disabled:opacity-0',
               )}
             >
@@ -153,14 +153,14 @@ export function DesignSheetPhotoCarousel({
                 goTo(safeIndex + 1);
               }}
               className={cx(
-                'absolute right-1.5 top-1/2 z-[1] flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-ink/55 text-white shadow-sm',
+                'absolute right-1.5 top-1/2 z-[1] flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-full bg-ink/55 text-white shadow-sm',
                 'disabled:pointer-events-none disabled:opacity-0',
               )}
             >
               <ChevronRightIcon width={22} height={22} />
             </button>
             <p
-              className="pointer-events-none absolute bottom-2 right-2 rounded-full bg-ink/55 px-2 py-0.5 text-[11px] font-emphasis text-white"
+              className="pointer-events-none absolute bottom-2 right-2 rounded-full bg-ink/55 px-2 py-0.5 text-meta font-emphasis text-white"
               data-testid="collection-design-photo-count"
             >
               {safeIndex + 1} / {urls.length}

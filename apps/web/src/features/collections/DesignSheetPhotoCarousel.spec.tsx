@@ -84,7 +84,7 @@ describe('DesignSheetPhotoCarousel', () => {
 });
 
 describe('collection design photos sheet height', () => {
-  it('raises sheet max-height like Share so the panel hugs toward the viewport', () => {
+  it('uses the shared sheet ceiling so the panel can hug the viewport', () => {
     render(
       <Sheet
         open
@@ -101,6 +101,7 @@ describe('collection design photos sheet height', () => {
     );
     const panel = document.querySelector('.ekum-sheet');
     expect(panel).toBeTruthy();
-    expect(panel!.className).toMatch(/!max-h-\[min\(92dvh,100dvh\)\]/);
+    expect(panel!.className).toMatch(/max-h-\[100dvh\]/);
+    expect(panel!.className).not.toMatch(/92dvh/);
   });
 });

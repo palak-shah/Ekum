@@ -14,7 +14,7 @@ import { toAbsoluteMediaUrl } from '@/lib/mediaUrl';
 import { timeAgo } from '@/lib/format';
 import { PhotoViewer } from '@/ui/PhotoViewer';
 import { ManagedImage } from '@/ui/ManagedImage';
-import { Chip, EmptyState, ErrorState, LoadingBlock, cx } from '@/ui/kit';
+import { Chip, EmptyState, ErrorState, LoadingBlock, cx, listRowClass } from '@/ui/kit';
 import { ChevronRightIcon } from '@/ui/icons';
 import { chatMediaKindChrome } from './chatMediaKindChrome';
 import {
@@ -135,18 +135,18 @@ export function GroupInfoMediaPanel({
               <button
                 type="button"
                 data-testid={`group-info-media-${row}`}
-                className="flex w-full items-center gap-3 border-b border-line/70 px-4 py-3.5 text-left last:border-b-0 hover:bg-canvas"
+                className={cx(listRowClass, 'flex w-full items-center gap-3 text-left')}
                 onClick={() => onPickKind(row)}
               >
                 <span
                   className={cx(
-                    'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl',
+                    'flex h-12 w-12 shrink-0 items-center justify-center rounded-xl',
                     badge,
                   )}
                 >
                   <Icon width={20} height={20} aria-hidden />
                 </span>
-                <span className="min-w-0 flex-1 text-[15px] font-emphasis text-ink">
+                <span className="min-w-0 flex-1 text-name font-emphasis text-ink">
                   {GROUP_MEDIA_LABEL[row]}
                 </span>
                 <ChevronRightIcon width={18} height={18} className="shrink-0 text-muted" />
@@ -184,7 +184,7 @@ export function GroupInfoMediaPanel({
         <div className="flex flex-col gap-4">
           {photoGroups.map((group) => (
             <section key={group.key}>
-              <h2 className="mb-2 px-0.5 text-[13px] font-body text-muted">{group.label}</h2>
+              <h2 className="mb-2 px-0.5 text-meta font-body text-muted">{group.label}</h2>
               <div className="grid grid-cols-3 gap-0.5 overflow-hidden rounded-xl">
                 {group.items.map((cell, localIndex) => (
                   <button
@@ -230,7 +230,7 @@ export function GroupInfoMediaPanel({
                 >
                   <div
                     className={cx(
-                      'flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl text-[11px] font-emphasis',
+                      'flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl text-meta font-emphasis',
                       thumb ? 'bg-linen text-muted' : badge,
                     )}
                   >
@@ -252,7 +252,7 @@ export function GroupInfoMediaPanel({
                     <p className="truncate text-sm font-emphasis text-ink">{title}</p>
                     {cue ? <p className="truncate text-sm text-muted">{cue}</p> : null}
                   </div>
-                  <p className="shrink-0 text-[10px] text-muted">{timeAgo(message.createdAt)}</p>
+                  <p className="shrink-0 text-meta text-muted">{timeAgo(message.createdAt)}</p>
                 </Link>
               </li>
             );

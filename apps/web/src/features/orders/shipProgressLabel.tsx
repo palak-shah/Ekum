@@ -100,11 +100,11 @@ export function SettleQtyColumns({
   return (
     <div className="mt-1.5 grid grid-cols-2 gap-3" data-testid="settle-qty-columns">
       <div>
-        <p className="text-[11px] font-body text-muted">Dispatched</p>
+        <p className="text-meta font-body text-muted">Dispatched</p>
         <p className="text-base font-title tabular-nums text-ink">{dispatched}</p>
       </div>
       <div>
-        <p className="text-[11px] font-body text-muted">Pending</p>
+        <p className="text-meta font-body text-muted">Pending</p>
         <p
           className={cx(
             'text-base font-title tabular-nums',

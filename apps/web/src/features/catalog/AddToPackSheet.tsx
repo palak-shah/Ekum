@@ -303,7 +303,7 @@ function PackGroup({
                   />
                 </div>
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[15px] tracking-tight">{name}</span>
+                  <span className="block truncate text-name tracking-tight">{name}</span>
                   {draft ? (
                     <span className="mt-0.5 inline-block">
                       <DraftChip testId="add-to-pack-draft-chip" />

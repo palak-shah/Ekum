@@ -17,7 +17,7 @@ import { api } from '@/lib/apiClient';
 import { useMyCompany } from '@/lib/queries';
 import { Avatar, Chip, EmptyState, ErrorState, FilterRail, LoadingBlock, SearchInput, cx } from '@/ui/kit';
 import { ListSearchRow, ListSquareButton } from '@/ui/ListSearchRow';
-import { FilterIcon, PlusIcon } from '@/ui/icons';
+import { FilterIcon, GroupIcon, LinkIcon, PlusIcon } from '@/ui/icons';
 import { explorePostedWhen } from '@/ui/cards';
 import { highlightSearchText } from '@/ui/highlightMatch';
 import { ordersListFilterChrome } from '@/features/orders/ordersListFilterChrome';
@@ -47,12 +47,13 @@ import {
   type TradeListItem,
 } from './tradeList';
 import { tradeNeedsYouLabel } from './tradeNeedsYouLabel';
+import { TradeListGlanceCue } from './tradeListGlanceCue';
 import {
   tradeListFacts,
-  tradeListPreview,
+  tradeListPathMark,
   tradeListWhen,
 } from './tradeListPreview';
-import { tradeListProtocol } from './tradeListProtocol';
+import { tradeListShipProgress } from './tradeListShipLine';
 import { OrdersFilterMenu } from './OrdersFilterMenu';
 import {
   statusFitsTab,
@@ -204,7 +205,6 @@ export function OrdersPage() {
       if (statusFilter === 'pending') return matchesTradePending(item);
       return matchesTradeCompleted(item);
     });
-    if (findOverridesAttention || statusFilter !== 'pending') return rows;
     return sortTradePending(rows);
   }, [inTab, deferredFind, statusFilter, findOverridesAttention]);
 
@@ -548,10 +548,10 @@ function TradeRow({
 
   const orderId = item.kind === 'order' ? item.order.id : null;
   const needsLabel = tradeNeedsYouLabel(item);
-  const { preview, accent } = tradeListPreview(item, companyId);
+  const pathMark = tradeListPathMark(item, companyId);
   const facts = tradeListFacts(item);
   const when = explorePostedWhen(tradeListWhen(item));
-  const protocol = tradeListProtocol(item);
+  const progress = item.kind === 'order' ? tradeListShipProgress(item.order) : null;
   const name =
     item.kind === 'order'
       ? item.order.counterpart.name
@@ -564,60 +564,77 @@ function TradeRow({
       : item.kind === 'sample'
         ? item.sample.counterpart.logoUrl
         : null;
-  // Quiet Shared / role context only — never a second Confirm verb (protocol owns that).
-  const showContext = Boolean(preview) && !accent && !needsLabel;
 
   const rowClass = cx(
-    'flex w-full flex-col gap-2 rounded-xl border bg-surface px-3 py-3 text-left',
-    needsLabel ? 'border-l-2 border-l-accent border-line' : 'border-line',
+    'relative flex w-full flex-col overflow-hidden rounded-xl border border-line bg-surface px-3 py-3 text-left',
     (item.kind === 'order' || item.kind === 'complaint') &&
       'hover:border-accent/40 hover:bg-accent/[0.03] active:bg-accent/[0.05]',
   );
 
   const media = <TradeListMedia name={name} logoUrl={logoUrl} />;
 
-  const protocolEl = protocol ? (
-    <p
-      data-testid={needsLabel ? 'orders-needs-you' : 'trade-list-protocol'}
-      className={cx(
-        'mt-0.5 min-w-0 truncate text-[12px] leading-snug',
-        needsLabel ? 'font-emphasis text-accent' : 'font-body text-muted',
-      )}
-    >
-      {protocol}
-    </p>
-  ) : null;
-
   const meta = (
-    <div className="flex items-start justify-between gap-2">
-      <div className="min-w-0 flex-1">
-        <p className="min-w-0 truncate text-[15px] font-emphasis leading-tight tracking-[-0.02em] text-ink">
-          {highlightSearchText(name, highlightQuery)}
+    <div className="min-w-0 flex-1">
+      <div className="flex items-baseline justify-between gap-2">
+        <p className="flex min-w-0 items-center gap-1 text-name font-emphasis leading-tight text-ink">
+          <span className="truncate">{highlightSearchText(name, highlightQuery)}</span>
+          {pathMark === 'direct' ? (
+            <span
+              className="inline-flex shrink-0 text-muted"
+              title="Direct connection"
+              data-testid="trade-list-path-direct"
+            >
+              <GroupIcon width={14} height={14} aria-hidden />
+            </span>
+          ) : null}
+          {pathMark === 'handle' ? (
+            <span
+              className="inline-flex shrink-0 text-muted"
+              title="Through you"
+              data-testid="trade-list-path-handle"
+            >
+              <LinkIcon width={14} height={14} aria-hidden />
+            </span>
+          ) : null}
         </p>
-        {protocolEl}
-        {facts ? (
-          <p
-            data-testid="trade-list-facts"
-            className="mt-0.5 min-w-0 truncate text-[11px] font-body leading-snug text-muted"
-          >
-            {highlightSearchText(facts, highlightQuery)}
-          </p>
-        ) : null}
-        {showContext ? (
-          <p className="mt-0.5 min-w-0 truncate text-[12px] font-body leading-snug text-muted">
-            {highlightSearchText(preview, highlightQuery)}
-          </p>
-        ) : null}
+        <span className="shrink-0 text-meta font-body tabular-nums text-muted">{when}</span>
       </div>
-      <span className="shrink-0 text-[11px] font-body tabular-nums text-muted">{when}</span>
+      <div className="mt-0.5 flex min-h-6 items-center justify-between gap-2.5">
+        <p
+          data-testid="trade-list-facts"
+          className="min-w-0 flex-1 truncate text-meta font-body leading-snug text-muted"
+        >
+          {facts ? highlightSearchText(facts, highlightQuery) : null}
+        </p>
+        <TradeListGlanceCue item={item} />
+      </div>
     </div>
   );
 
+  const bar =
+    progress != null ? (
+      <span
+        data-testid="trade-list-progress"
+        data-progress={`${progress.shipped}/${progress.total}`}
+        aria-hidden
+        className={cx(
+          'pointer-events-none absolute inset-x-0 bottom-0 h-[3px]',
+          progress.over ? 'bg-warning' : 'bg-accent/70',
+        )}
+        style={{
+          width: `${Math.min(100, Math.round((progress.shipped / progress.total) * 100))}%`,
+        }}
+      />
+    ) : null;
+
   const body = (
-    <div className="flex w-full items-start gap-3">
-      {media}
-      <div className="min-w-0 flex-1">{meta}</div>
-    </div>
+    <>
+      <div className="flex w-full items-start gap-3">
+        {media}
+        {meta}
+      </div>
+      {bar}
+    </>
   );
 
   if (item.kind === 'sample') {

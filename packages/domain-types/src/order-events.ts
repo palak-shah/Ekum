@@ -3,6 +3,8 @@
  * for order detail. Labels stay stable on the message even if live status changes.
  */
 
+import { orderUnitNoun } from './order-trail';
+
 export const OrderChatEvent = {
   OrderRequested: 'order_requested',
   RateRequested: 'rate_requested',
@@ -253,6 +255,130 @@ export function orderChatEventHeadline(actor: string, event: string): string {
   }
 }
 
+/** Centered thread tag for later order pulses (not a second living card). */
+export const ORDER_LIFECYCLE_KIND = 'order_lifecycle';
+
+export type OrderLifecycleQtyChange = {
+  count: number;
+  name?: string | null;
+  before?: number | null;
+  after?: number | null;
+  unit?: string | null;
+};
+
+export type OrderLifecycleTagInput = {
+  event: string;
+  actor: string;
+  confirmedCount?: number | null;
+  declinedCount?: number | null;
+  partial?: boolean;
+  lrNumber?: string | null;
+  quoteUpdated?: boolean;
+  qtyChange?: OrderLifecycleQtyChange | null;
+  amendSummary?: string | null;
+};
+
+const QTY_NAME_MAX = 32;
+
+function formatQtyRange(qty: OrderLifecycleQtyChange): string | null {
+  if (qty.before == null || qty.after == null) return null;
+  const noun = orderUnitNoun(qty.unit, qty.after);
+  return `${qty.before} → ${qty.after} ${noun}`;
+}
+
+function qtyLifecycleCopy(actor: string, qty: OrderLifecycleQtyChange): string {
+  const range = formatQtyRange(qty);
+  const name = qty.name?.trim() || '';
+  const overflow = !name || name.length > QTY_NAME_MAX;
+  if (qty.count <= 1) {
+    if (name && range) return `${actor} changed 1 design · ${name}: ${range}`;
+    if (range) return `${actor} changed qty · ${range}`;
+    return `${actor} updated qty`;
+  }
+  if (!overflow && range) {
+    return `${actor} changed ${qty.count} designs · ${name}: ${range}`;
+  }
+  return `${actor} updated qty · ${qty.count} designs`;
+}
+
+function amendLifecycleCopy(actor: string, summary: string): string {
+  const rest = summary
+    .trim()
+    .replace(/^Updated qty/i, 'updated qty')
+    .replace(/^Removed /i, 'removed ')
+    .replace(/^Added /i, 'added ')
+    .replace(/^Updated$/i, 'updated');
+  return `${actor} ${rest}`;
+}
+
+function withLr(base: string, lrNumber?: string | null): string {
+  const lr = lrNumber?.trim();
+  if (!lr) return base;
+  const stamped = lr.replace(/^\s*LR\s+/i, '');
+  if (!stamped) return base;
+  return `${base} · LR ${stamped}`;
+}
+
+/** You/{shop} centered tag — order unit on qty, never Seller/Buyer, never ₹. */
+export function orderLifecycleTagCopy(input: OrderLifecycleTagInput): string {
+  const actor = input.actor.trim() || 'They';
+  if (input.qtyChange && input.qtyChange.count > 0) {
+    return qtyLifecycleCopy(actor, input.qtyChange);
+  }
+  if (input.amendSummary?.trim()) {
+    return amendLifecycleCopy(actor, input.amendSummary);
+  }
+  const confirmed =
+    typeof input.confirmedCount === 'number' && input.confirmedCount > 0
+      ? input.confirmedCount
+      : 0;
+  const declined =
+    typeof input.declinedCount === 'number' && input.declinedCount > 0
+      ? input.declinedCount
+      : 0;
+  switch (input.event) {
+    case OrderChatEvent.LinesDecided:
+      if (confirmed > 0 && declined > 0) {
+        return `${actor} confirmed ${confirmed} · can’t supply ${declined}`;
+      }
+      if (declined > 0) return `${actor} declined`;
+      return `${actor} confirmed`;
+    case OrderChatEvent.QuoteSent:
+      return input.quoteUpdated ? `${actor} updated quote` : `${actor} sent quote`;
+    case OrderChatEvent.QuoteAccepted:
+      return `${actor} accepted quote`;
+    case OrderChatEvent.OrderDeclined:
+      return `${actor} declined`;
+    case OrderChatEvent.OrderCancelled:
+      return `${actor} cancelled`;
+    case OrderChatEvent.OrderDispatched:
+      return withLr(
+        input.partial ? `${actor} dispatched part` : `${actor} dispatched`,
+        input.lrNumber,
+      );
+    case OrderChatEvent.OrderDispatchEdited:
+      return withLr(`${actor} edited dispatch`, input.lrNumber);
+    case OrderChatEvent.OrderSettled:
+      return `${actor} settled`;
+    case OrderChatEvent.OrderDelivered:
+      return `${actor} marked delivered`;
+    case OrderChatEvent.ReturnRaised:
+      return `${actor} raised a return`;
+    case OrderChatEvent.OrderUpdated:
+      return `${actor} updated`;
+    default:
+      return orderChatEventHeadline(actor, input.event);
+  }
+}
+
+export function isOrderLifecycleMetadata(meta: unknown): meta is Record<string, unknown> {
+  return Boolean(
+    meta &&
+      typeof meta === 'object' &&
+      (meta as Record<string, unknown>).kind === ORDER_LIFECYCLE_KIND,
+  );
+}
+
 /** Strip legacy role words / Order # so notes never reintroduce Seller/Buyer. */
 export function stripOrderChatBodyNoise(
   body: string,
@@ -265,6 +391,7 @@ export function stripOrderChatBodyNoise(
     .replace(/\s+Order #[A-Za-z0-9]+\b/g, '')
     .trim();
   text = text.replace(/^(seller|buyer|they)\b[\s·,]*/i, '').trim();
+  text = text.replace(/\blogged an order\b/gi, '').trim();
   if (actorLabel?.trim()) {
     const escaped = actorLabel.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     text = text.replace(new RegExp(`^${escaped}\\b[\\s·,]*`, 'i'), '').trim();

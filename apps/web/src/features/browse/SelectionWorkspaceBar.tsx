@@ -57,7 +57,7 @@ import { CartIcon, ChatIcon, PaperPlaneIcon } from '@/ui/icons';
 import { cx } from '@/ui/kit';
 
 /** @deprecated floater height — dock uses BottomTradeDock. Kept for tests. */
-export const SELECTION_FLOATER_MIN_H = 'min-h-10';
+export const SELECTION_FLOATER_MIN_H = 'min-h-12';
 
 function selectionCompanyIds(
   shortlist: ReturnType<typeof useBrowseShortlist>['entries'],
@@ -262,7 +262,7 @@ export function SelectionWorkspaceBar() {
                       'flex min-h-12 min-w-[5.75rem] shrink-0 items-center justify-center rounded-xl px-3 text-sm font-emphasis',
                       nothingSelected
                         ? 'border border-line bg-surface text-muted opacity-40'
-                        : 'border border-accent bg-accent text-white',
+                        : 'border border-accent bg-accent text-on-accent',
                     )}
                   >
                     {ownShopVerbs.orderLabel}

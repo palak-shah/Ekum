@@ -60,7 +60,7 @@ describe('mobileOverflow (BM-07)', () => {
     expect(COMPACT_SHEET_NUM_INPUT_CLASS).toContain('border-line/40');
     expect(COMPACT_SHEET_NUM_INPUT_CLASS).toContain('appearance-none');
     expect(COMPACT_SHEET_NUM_INPUT_CLASS).toContain('font-emphasis');
-    expect(COMPACT_SHEET_NUM_INPUT_CLASS).toContain('text-[14px]');
+    expect(COMPACT_SHEET_NUM_INPUT_CLASS).toContain('text-base');
   });
 
   it('keeps quiet rate soft chrome (not a tall kit box)', () => {
@@ -73,7 +73,7 @@ describe('mobileOverflow (BM-07)', () => {
   it('keeps full kit chrome when no compact overrides', () => {
     const chrome = textInputChromeClass();
     expect(chrome).toContain('px-3.5');
-    expect(chrome).toContain('min-h-10');
+    expect(chrome).toContain('min-h-12');
     expect(chrome).toContain('text-base');
     expect(chrome).toContain('select-text');
     expect(chrome).toContain('font-body');

@@ -104,6 +104,10 @@ export class OrderTrailService {
       }
       const fallback = passThroughFallback(row.type, names.sellerName);
       const rawSummary = row.summary ?? orderTrailLabel(row.type);
+      const payload =
+        row.payload && typeof row.payload === 'object' && !Array.isArray(row.payload)
+          ? (row.payload as Record<string, unknown>)
+          : null;
       return {
         id: row.id,
         type: row.type,
@@ -115,6 +119,8 @@ export class OrderTrailService {
         noteVoiceUrl: row.noteVoiceUrl,
         noteVoiceDurationMs: row.noteVoiceDurationMs,
         noteImageUrls: row.noteImageUrls ?? [],
+        mine: row.actorCompanyId === viewerCompanyId,
+        forwarded: payload?.forwarded === true,
       };
     });
   }

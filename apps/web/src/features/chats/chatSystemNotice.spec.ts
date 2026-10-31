@@ -33,4 +33,14 @@ describe('isChatSystemNotice', () => {
       }),
     ).toBe(false);
   });
+
+  it('treats order_lifecycle tags as notices even with an order reference', () => {
+    expect(
+      isChatSystemNotice({
+        type: 'system',
+        referenceId: 'o1',
+        metadata: { kind: 'order_lifecycle', event: 'lines_decided' },
+      }),
+    ).toBe(true);
+  });
 });

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { uploadAudio, uploadImage } from '@/lib/mediaUpload';
 import { ApiError } from '@/lib/apiClient';
 import { MEDIA_VARIANT } from '@ekum/domain-types';
@@ -36,6 +36,10 @@ type Props = {
   className?: string;
   /** Default textarea. `text` = single-line kit TextInput (Manual order no.). */
   control?: 'textarea' | 'text';
+  /** `composer` = chat-like + first, then field (ticket Notes). */
+  layout?: 'labeled' | 'composer';
+  /** Trailing control on the composer row (ticket Add). */
+  endSlot?: ReactNode;
   placeholder?: string;
   addLabel?: string;
   inputTestId?: string;
@@ -63,6 +67,8 @@ export function NoteAttachField({
   collapseEmpty = false,
   className,
   control = 'textarea',
+  layout = 'labeled',
+  endSlot,
   placeholder,
   addLabel = 'Add note',
   inputTestId,
@@ -210,7 +216,12 @@ export function NoteAttachField({
         disabled={uploading || recorder.recording}
         data-testid="note-attach-plus"
         aria-label={allowVoice ? 'Add voice or photo' : 'Add photo'}
-        className="flex h-9 w-9 items-center justify-center rounded-full border border-line text-muted hover:text-ink disabled:opacity-40"
+        className={cx(
+          'flex h-9 w-9 items-center justify-center disabled:opacity-40',
+          layout === 'composer'
+            ? 'rounded-xl text-accent hover:bg-foam'
+            : 'rounded-full border border-line text-muted hover:text-ink',
+        )}
         onClick={() => setMenuOpen((open) => !open)}
       >
         <PlusIcon width={18} height={18} />
@@ -219,7 +230,10 @@ export function NoteAttachField({
         <div
           role="menu"
           data-testid="note-attach-menu"
-          className="absolute right-0 z-20 mt-1 min-w-[9.5rem] overflow-hidden rounded-xl border border-line bg-surface py-1 shadow-sm"
+          className={cx(
+            'absolute z-20 mt-1 min-w-[9.5rem] overflow-hidden rounded-xl border border-line bg-surface py-1 shadow-sm',
+            layout === 'composer' ? 'left-0' : 'right-0',
+          )}
         >
           {allowVoice ? (
             <button
@@ -267,7 +281,35 @@ export function NoteAttachField({
 
   return (
     <div className="flex flex-col gap-2" ref={wrapRef} data-testid={testId}>
-      {showComposer ? (
+      {layout === 'composer' ? (
+        <div className="flex items-end gap-2">
+          {plusMenu}
+          {showComposer && control === 'text' ? (
+            <TextInput
+              value={note}
+              onChange={(event) => onNoteChange(event.target.value)}
+              placeholder={placeholder}
+              data-testid={inputTestId}
+              className={cx('min-w-0 flex-1', className)}
+            />
+          ) : null}
+          {showComposer && control === 'textarea' ? (
+            <TextArea
+              ref={noteRef}
+              value={note}
+              onChange={(event) => onNoteChange(event.target.value)}
+              rows={rows}
+              placeholder={placeholder}
+              className={cx(
+                'ekum-no-scrollbar min-w-0 flex-1 resize-none overflow-y-auto',
+                rows <= 2 && '!h-12 !min-h-12 !max-h-12',
+                className,
+              )}
+            />
+          ) : null}
+          {endSlot}
+        </div>
+      ) : showComposer ? (
         <div className="flex items-center justify-between gap-2">
           <p className="text-sm font-emphasis text-ink">
             {label}
@@ -326,7 +368,7 @@ export function NoteAttachField({
       {showComposer && hint ? (
         <p className="text-sm text-muted">{hint}</p>
       ) : null}
-      {showComposer && control === 'text' ? (
+      {layout !== 'composer' && showComposer && control === 'text' ? (
         <TextInput
           value={note}
           onChange={(event) => onNoteChange(event.target.value)}
@@ -335,7 +377,7 @@ export function NoteAttachField({
           className={className}
         />
       ) : null}
-      {showComposer && control === 'textarea' ? (
+      {layout !== 'composer' && showComposer && control === 'textarea' ? (
         <TextArea
           ref={noteRef}
           value={note}

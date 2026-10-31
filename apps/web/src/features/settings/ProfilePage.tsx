@@ -39,7 +39,7 @@ function parseList(value: string): string[] {
 
 function ReadValue({ value }: { value: string | null | undefined }) {
   const text = value?.trim();
-  return <p className="text-[15px] leading-snug text-ink">{text || '—'}</p>;
+  return <p className="text-name leading-snug text-ink">{text || '—'}</p>;
 }
 
 export function ProfilePage() {
@@ -321,7 +321,7 @@ export function ProfilePage() {
                     onClick={() => toggleMaster(opt.slug)}
                     className={cx(
                       'rounded-full px-3 py-1.5 text-sm font-emphasis',
-                      on ? 'bg-accent text-white' : 'bg-foam text-muted',
+                      on ? 'bg-accent-soft text-accent-ink' : 'bg-foam text-muted',
                     )}
                   >
                     {opt.label}
@@ -430,7 +430,7 @@ export function ProfilePage() {
                 <Link
                   to="/admin"
                   data-testid="admin-console-entry"
-                  className="block w-full rounded-xl border border-line bg-canvas px-4 py-3 text-center text-[15px] font-emphasis text-ink"
+                  className="block w-full rounded-xl border border-line bg-canvas px-4 py-3 text-center text-name font-emphasis text-ink"
                 >
                   Admin Console
                 </Link>

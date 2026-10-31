@@ -43,7 +43,7 @@ import { LONG_PRESS_SURFACE_CLASS, isLongPressActivateSuppressed, useLongPress }
 export const COVER_IMAGE_ROOT_MARGIN = '600px 0px';
 
 /** Explore feed chrome — same tightness as Chats rows. */
-export const EXPLORE_POST_ARTICLE_CLASS = '-mx-4 pb-2.5';
+export const EXPLORE_POST_ARTICLE_CLASS = '-mx-4 pb-5';
 export const EXPLORE_POST_INSET_CLASS = 'px-4';
 /** Mosaic + pack name share the page gutter with the header (not under the avatar). */
 export const EXPLORE_POST_MEDIA_INSET_CLASS = EXPLORE_POST_INSET_CLASS;
@@ -489,11 +489,11 @@ function BusinessIntentCard({
     <div className="flex items-center gap-2.5 rounded-xl border border-line bg-surface p-2.5">
       <Avatar name={company.name} imageUrl={company.logoUrl} size={EXPLORE_POST_AVATAR} />
       <div className="min-w-0 flex-1">
-        <p className="text-[11px] font-body uppercase tracking-wide text-muted">{heading}</p>
+        <p className="text-meta font-body uppercase tracking-wide text-muted">{heading}</p>
         {cats.length > 0 ? (
           <div className="mt-2 flex flex-wrap gap-1.5">
             {cats.map((category) => (
-              <Chip key={category} className="h-7 px-2.5 text-[11px]">
+              <Chip key={category} className="h-8 px-2.5 text-meta">
                 {category}
               </Chip>
             ))}

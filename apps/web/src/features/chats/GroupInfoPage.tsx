@@ -61,7 +61,7 @@ function ChatYourTeam({
           <button
             type="button"
             data-testid="group-info-team-add"
-            className="text-[13px] font-emphasis text-accent"
+            className="text-meta font-emphasis text-accent"
             onClick={onAdd}
           >
             Add
@@ -384,7 +384,7 @@ export function GroupInfoPage() {
               data-testid={`group-info-tab-${value}`}
               onClick={() => setTab(value)}
               className={cx(
-                'min-h-9 min-w-0 flex-1 rounded-[10px] px-2 text-[13px] font-emphasis tracking-tight',
+                'min-h-9 min-w-0 flex-1 rounded-[10px] px-2 text-meta font-emphasis tracking-tight',
                 tab === value ? 'bg-surface text-ink shadow-[var(--shadow-soft)]' : 'text-muted',
               )}
             >
@@ -567,7 +567,7 @@ export function GroupInfoPage() {
           data-testid="group-info-invite"
           disabled={sharing}
           onClick={() => void shareGroup()}
-          className="mx-auto mt-3 block text-center text-[13px] text-muted underline-offset-2 hover:text-ink hover:underline disabled:opacity-40"
+          className="mx-auto mt-3 block text-center text-meta text-muted underline-offset-2 hover:text-ink hover:underline disabled:opacity-40"
         >
           {sharing ? 'Opening…' : 'Share invite'}
         </button>

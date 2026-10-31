@@ -50,26 +50,51 @@ describe('PhotoAlbum overflow (BM-01)', () => {
     expect(screen.getByTestId('photo-album-collage').className).toMatch(/w-\[280px\]/);
   });
 
-  it('thumb size shows at most two cells with +N overflow', () => {
+  it('thumb size does not overlay +n on a single cell', () => {
+    render(
+      <PhotoAlbum
+        urls={['https://example.com/a.jpg']}
+        overflowCount={2}
+        size="thumb"
+      />,
+    );
+    expect(screen.queryByTestId('photo-album-overflow')).toBeNull();
+  });
+
+  it('thumb size does not overlay +n on two cells', () => {
+    render(
+      <PhotoAlbum
+        urls={['https://example.com/a.jpg', 'https://example.com/b.jpg']}
+        overflowCount={1}
+        size="thumb"
+      />,
+    );
+    expect(screen.queryByTestId('photo-album-overflow')).toBeNull();
+  });
+
+  it('thumb size shows at most three cells with +N overflow on the last', () => {
     render(
       <PhotoAlbum
         urls={[
           'https://example.com/a.jpg',
           'https://example.com/b.jpg',
           'https://example.com/c.jpg',
+          'https://example.com/d.jpg',
         ]}
         overflowCount={1}
         size="thumb"
       />,
     );
+    const wrap = screen.getByTestId('photo-album-thumb');
+    expect(wrap.querySelectorAll('img')).toHaveLength(3);
     expect(screen.getByTestId('photo-album-overflow')).toHaveTextContent('+2');
   });
 
   it('thumb size keeps a single image in a fixed box', () => {
     render(<PhotoAlbum urls={['https://example.com/a.jpg']} size="thumb" />);
     const wrap = screen.getByTestId('photo-album-thumb');
-    expect(wrap.className).toMatch(/h-14/);
     expect(wrap.className).toMatch(/w-fit/);
+    expect(wrap.firstElementChild?.className).toMatch(/h-\[60px\]/);
     expect(wrap.querySelector('img')).toBeTruthy();
   });
 

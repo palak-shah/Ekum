@@ -43,7 +43,7 @@ export function AdminLayout() {
             className={({ isActive }) =>
               cx(
                 'rounded-full px-3 py-1.5 text-sm font-emphasis',
-                isActive ? 'bg-accent text-white' : 'bg-foam text-muted',
+                isActive ? 'bg-accent-soft text-accent-ink' : 'bg-foam text-muted',
               )
             }
           >

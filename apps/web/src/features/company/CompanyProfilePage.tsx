@@ -542,7 +542,7 @@ export function CompanyProfilePage() {
               shopActionClass,
               'gap-1.5',
               isFollowing && !isFollowPending
-                ? 'bg-accent text-white disabled:opacity-45'
+                ? 'bg-accent text-on-accent disabled:opacity-45'
                 : isFollowPending
                   ? 'border border-accent/40 bg-foam text-ink disabled:opacity-45'
                   : 'bg-foam text-ink disabled:opacity-45',
@@ -613,7 +613,7 @@ export function CompanyProfilePage() {
                     onClick={() => setShopTab(value)}
                     className={cx(
                       'inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm font-emphasis',
-                      shopTab === value ? 'bg-accent text-white' : 'bg-foam text-muted',
+                      shopTab === value ? 'bg-accent-soft text-accent-ink' : 'bg-foam text-muted',
                     )}
                   >
                     <TabIcon width={14} height={14} className="shrink-0" aria-hidden />
@@ -881,7 +881,7 @@ export function CompanyProfilePage() {
 
 /** Compact shop actions — Instagram / WhatsApp density, not kit min-h-12. */
 const shopActionClass =
-  'inline-flex h-8 min-w-0 flex-1 items-center justify-center rounded-lg px-2.5 text-[13px] font-emphasis tracking-tight';
+  'inline-flex h-8 min-w-0 flex-1 items-center justify-center rounded-lg px-2.5 text-meta font-emphasis tracking-tight';
 
 function pickPrimaryContact(contacts: CompanyContactPoint[]): CompanyContactPoint | null {
   if (contacts.length === 0) return null;

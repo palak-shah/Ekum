@@ -15,9 +15,9 @@ describe('ExploreFeedCaption', () => {
     );
     const rate = screen.getByTestId('explore-feed-rate');
     expect(rate).toHaveTextContent('₹430–₹1,450/pc');
-    expect(rate.className).toMatch(/font-body/);
+    expect(rate.className).toMatch(/font-emphasis/);
     expect(rate.className).toMatch(/text-accent/);
-    expect(rate.className).not.toMatch(/font-emphasis/);
+    expect(rate.className).not.toMatch(/font-body/);
     expect(rate.parentElement).toHaveTextContent('Monsoon Cottons');
     expect(screen.getByTestId('explore-feed-categories')).toHaveTextContent('Saree · Kurti fabric');
     expect(screen.queryByText('More…')).toBeNull();

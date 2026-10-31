@@ -3,6 +3,7 @@
  * Colors: Tailwind `@theme` in index.css maps --ekum-* → utilities (bg-accent, …).
  * Weights: --ekum-weight-* → font-body / font-emphasis / font-title.
  * Light: :root · Dark: html.dark
+ * Theme C (Ink & Lime): charcoal = go, lime = needs-you counts only.
  */
 
 :root {
@@ -17,41 +18,50 @@
    * Typography sizes. text-xs (12) / text-sm (14) / text-base (16) stay Tailwind defaults.
    * These cover the approved steps Tailwind does not have. Line height stays inherited.
    */
-  --ekum-text-badge: 10px;
-  --ekum-text-meta: 11px;
+  --ekum-text-badge: 11px;
+  --ekum-text-meta: 13px;
   --ekum-text-support: 13px;
-  --ekum-text-name: 15px;
-  --ekum-text-page-title: 17px;
-  --ekum-text-sheet-title: 1.05rem;
-  --ekum-text-tab-title: 1.375rem;
+  --ekum-text-name: 16px;
+  --ekum-text-page-title: 20px;
+  --ekum-text-sheet-title: 18px;
+  --ekum-text-tab-title: 20px;
 
-  /* Surfaces */
-  --ekum-ink: #1a1714;
-  --ekum-muted: #5a554c;
-  --ekum-slate: #2c2824;
+  /* Surfaces — untinted grey so fabric photos stay true */
+  --ekum-ink: #1b1b1b;
+  --ekum-muted: #6b6b6b;
+  --ekum-slate: #3d3d3d;
   --ekum-surface: #ffffff;
   --ekum-canvas: #ffffff;
-  --ekum-foam: #dce9e8;
-  --ekum-linen: #e4e1d4;
-  --ekum-line: #ddd6c8;
-  --ekum-stage: #e8e6e1;
+  --ekum-foam: #f5f5f5;
+  --ekum-linen: #f5f5f5;
+  --ekum-line: #e6e6e6;
+  --ekum-stage: #f5f5f5;
 
-  /* Actions — prototype greens (activated / hover / incomplete CTA) */
-  --ekum-accent: #007a5e;
-  --ekum-accent-hover: #00664f;
-  --ekum-accent-muted: #93c5bd;
-  --ekum-brand: #007a5e;
+  /* Actions — charcoal ink (go). Not lime. Artifact C --teal. */
+  --ekum-accent: #1f2a30;
+  --ekum-accent-hover: #161e23;
+  --ekum-accent-muted: #8a969c;
+  --ekum-accent-soft: #f5f5f5;
+  --ekum-accent-ink: #1f2a30;
+  --ekum-on-accent: #ffffff;
+  --ekum-brand: #1f2a30;
 
-  /* Count badges (nav / chips) — not alert tangerine */
-  --ekum-badge: #22c55e;
+  /* Needs-you counts only. Text is badge-ink — never lime as type on white. */
+  --ekum-badge: #dfd76b;
+  --ekum-badge-ink: #1f2406;
 
-  /* Form fields — prototype idle fill (near-white sage); focused → surface */
-  --ekum-input: #f4f7f6;
+  /* Selected filter Chip — artifact C --tint / --c-pri. Not badge lime. */
+  --ekum-chip-on: #eff1d6;
+  --ekum-chip-on-ink: #3f4a12;
+
+  /* Form fields — neutral grey; focused → surface */
+  --ekum-input: #f5f5f5;
 
   /* Chat thread (theme wallpaper — not user-selectable) */
-  --ekum-chat-bg: #efeae2;
-  --ekum-chat-out: #dcf8c6;
+  --ekum-chat-bg: #f5f5f5;
+  --ekum-chat-out: #eef2c8;
   --ekum-chat-in: #ffffff;
+  --ekum-tick: #34b7f1;
 
   /* Alerts */
   --ekum-tangerine: #e88900;
@@ -61,13 +71,13 @@
   --ekum-success-soft: #d4f3df;
   --ekum-success-ink: #166534;
   --ekum-warning: #eab308;
-  --ekum-warning-soft: #fff0b8;
-  --ekum-warning-ink: #854d0e;
+  --ekum-warning-soft: #fff3df;
+  --ekum-warning-ink: #8f5400;
   --ekum-danger: #dc2626;
   --ekum-danger-soft: #ffd6d6;
   --ekum-info: #1d6a9a;
   --ekum-info-soft: #cfe9eb;
-  --ekum-info-ink: #007a5e;
+  --ekum-info-ink: #1a6a6f;
   --ekum-placed-soft: #ffe6a8;
   --ekum-placed-ink: #8a5a00;
   --ekum-confirmed-soft: #d0e8fb;
@@ -77,7 +87,7 @@
   --ekum-resolved-soft: #e2e8e6;
   --ekum-resolved-ink: #3d5560;
 
-  /* Kind hues (Order / Collection / Design) */
+  /* Kind hues (Order / Collection / Design) — not brand charcoal */
   --ekum-kind-order: #1a6a6f;
   --ekum-kind-order-soft: #dce9e8;
   --ekum-kind-collection: #3d5560;
@@ -85,35 +95,46 @@
   --ekum-kind-design: #7a4e32;
   --ekum-kind-design-soft: #f0e4da;
 
-  --ekum-focus-ring: rgb(0 122 94 / 0.55);
-  --ekum-shadow-soft: 0 1px 2px rgb(26 23 20 / 0.06);
+  --ekum-focus-ring: rgb(31 42 48 / 0.55);
+  --ekum-shadow-soft: 0 1px 2px rgb(27 27 27 / 0.06);
+  /* Attached menus (message actions) — float on wallpaper without a hairline box */
+  --ekum-shadow-menu: 0 10px 28px rgb(27 27 27 / 0.16), 0 2px 8px rgb(27 27 27 / 0.08);
 }
 
 html.dark {
   color-scheme: dark;
 
-  --ekum-ink: #f5f2eb;
-  --ekum-muted: #a8a29a;
-  --ekum-slate: #e7e5e4;
-  --ekum-surface: #1c1917;
-  --ekum-canvas: #0c0a09;
-  --ekum-foam: #1a2e2c;
-  --ekum-linen: #292524;
-  --ekum-line: #3f3a36;
-  --ekum-stage: #0c0a09;
+  --ekum-ink: #f5f5f5;
+  --ekum-muted: #a3a3a3;
+  --ekum-slate: #d4d4d4;
+  --ekum-surface: #1a1d1b;
+  --ekum-canvas: #111312;
+  --ekum-foam: #232724;
+  --ekum-linen: #232724;
+  --ekum-line: #2c312d;
+  --ekum-stage: #0b0c0b;
 
-  --ekum-accent: #1aa87a;
-  --ekum-accent-hover: #22c08a;
-  --ekum-accent-muted: #3d6b5f;
-  --ekum-brand: #1aa87a;
+  /* Invented: charcoal inverted — not lime buttons (that is D). */
+  --ekum-accent: #e7ecee;
+  --ekum-accent-hover: #d5dcde;
+  --ekum-accent-muted: #4a5558;
+  --ekum-accent-soft: #232724;
+  --ekum-accent-ink: #e7ecee;
+  --ekum-on-accent: #111312;
+  --ekum-brand: #e7ecee;
 
-  --ekum-badge: #22c55e;
+  --ekum-badge: #dfd76b;
+  --ekum-badge-ink: #1f2406;
 
-  --ekum-input: #292524;
+  --ekum-chip-on: #2c2f14;
+  --ekum-chip-on-ink: #e8e28a;
 
-  --ekum-chat-bg: #0f1410;
-  --ekum-chat-out: #1a3d2e;
-  --ekum-chat-in: #1c1917;
+  --ekum-input: #232724;
+
+  --ekum-chat-bg: #111312;
+  --ekum-chat-out: #3a4020;
+  --ekum-chat-in: #232724;
+  --ekum-tick: #34b7f1;
 
   --ekum-tangerine: #f59e0b;
 
@@ -134,8 +155,8 @@ html.dark {
   --ekum-confirmed-ink: #bae6fd;
   --ekum-part-soft: #7c2d12;
   --ekum-part-ink: #fed7aa;
-  --ekum-resolved-soft: #292524;
-  --ekum-resolved-ink: #a8a29a;
+  --ekum-resolved-soft: #232724;
+  --ekum-resolved-ink: #a3a3a3;
 
   --ekum-kind-order: #5eead4;
   --ekum-kind-order-soft: #134e4a;
@@ -144,6 +165,7 @@ html.dark {
   --ekum-kind-design: #d6a27a;
   --ekum-kind-design-soft: #3f2a1e;
 
-  --ekum-focus-ring: rgb(26 168 122 / 0.55);
+  --ekum-focus-ring: rgb(231 236 238 / 0.55);
   --ekum-shadow-soft: 0 1px 2px rgb(0 0 0 / 0.35);
+  --ekum-shadow-menu: 0 10px 32px rgb(0 0 0 / 0.55), 0 2px 8px rgb(0 0 0 / 0.4);
 }

@@ -368,7 +368,7 @@ function FilterPill({
       onClick={onClick}
       className={cx(
         'shrink-0 rounded-xl px-3 py-1.5 text-xs font-emphasis',
-        active ? 'bg-accent text-white' : 'bg-foam text-ink',
+        active ? 'bg-accent-soft text-accent-ink' : 'bg-foam text-ink',
       )}
     >
       {label}

@@ -251,7 +251,7 @@ export function OrderCollectionResolveSheet({
       }
     >
       <div className="flex flex-col gap-4 pb-1" data-testid="collection-resolve-sheet">
-        <p className="text-[15px] leading-relaxed text-muted">{summary}</p>
+        <p className="text-name leading-relaxed text-muted">{summary}</p>
         {error ? <InlineNotice message={error} /> : null}
         {resolveAlbums.map((album) => {
           const choice = choices[album.collectionId] ?? 'all';
@@ -262,8 +262,8 @@ export function OrderCollectionResolveSheet({
               className="flex flex-col gap-2.5 rounded-xl border border-line bg-canvas/60 p-3"
             >
               <div className="flex flex-col gap-0.5">
-                <p className="text-[15px] font-emphasis tracking-tight text-ink">{album.name}</p>
-                <p className="text-[13px] leading-snug text-muted">
+                <p className="text-name font-emphasis tracking-tight text-ink">{album.name}</p>
+                <p className="text-meta leading-snug text-muted">
                   {whole ? copy.wholeHint : copy.prompt}
                 </p>
               </div>
@@ -280,10 +280,10 @@ export function OrderCollectionResolveSheet({
                         : 'border-line bg-surface text-ink hover:bg-canvas',
                     )}
                   >
-                    <span className="block text-[15px] font-emphasis tracking-tight">
+                    <span className="block text-name font-emphasis tracking-tight">
                       {copy.allTitle}
                     </span>
-                    <span className="mt-0.5 block text-[13px] font-body leading-snug text-muted">
+                    <span className="mt-0.5 block text-meta font-body leading-snug text-muted">
                       {copy.allHint}
                     </span>
                   </button>
@@ -298,10 +298,10 @@ export function OrderCollectionResolveSheet({
                         : 'border-line bg-surface text-ink hover:bg-canvas',
                     )}
                   >
-                    <span className="block text-[15px] font-emphasis tracking-tight">
+                    <span className="block text-name font-emphasis tracking-tight">
                       {copy.chooseTitle}
                     </span>
-                    <span className="mt-0.5 block text-[13px] font-body leading-snug text-muted">
+                    <span className="mt-0.5 block text-meta font-body leading-snug text-muted">
                       {copy.chooseHint}
                     </span>
                   </button>

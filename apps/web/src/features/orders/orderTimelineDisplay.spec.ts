@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { newestFirstTrail, timelineVisibleSlice } from './orderTimelineDisplay';
+import { newestFirstTrail, timelineUpdatedDot, timelineVisibleSlice } from './orderTimelineDisplay';
 
 describe('newestFirstTrail', () => {
   it('reverses oldest-first trail', () => {
@@ -29,5 +29,13 @@ describe('timelineVisibleSlice', () => {
     const rows = [{ id: 'c' }, { id: 'b' }];
     expect(timelineVisibleSlice(rows, true).visible).toEqual(rows);
     expect(timelineVisibleSlice(rows, true).hiddenCount).toBe(0);
+  });
+});
+
+describe('timelineUpdatedDot', () => {
+  it('marks Updated / amend rows', () => {
+    expect(timelineUpdatedDot('updated', 'Updated qty')).toBe(true);
+    expect(timelineUpdatedDot('quoted', 'Quoted — ₹1,200')).toBe(false);
+    expect(timelineUpdatedDot(undefined, 'Updated qty')).toBe(true);
   });
 });

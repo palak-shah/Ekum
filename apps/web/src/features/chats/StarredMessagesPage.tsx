@@ -71,7 +71,7 @@ export function StarredMessagesPage() {
                   >
                     <div className="flex items-baseline justify-between gap-2">
                       <p className="min-w-0 truncate text-sm font-emphasis text-ink">{title}</p>
-                      <p className="shrink-0 text-[10px] text-muted">{timeAgo(row.starredAt)}</p>
+                      <p className="shrink-0 text-meta text-muted">{timeAgo(row.starredAt)}</p>
                     </div>
                     <p className="mt-0.5 truncate text-sm text-muted">{preview}</p>
                   </Link>

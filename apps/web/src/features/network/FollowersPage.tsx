@@ -202,14 +202,14 @@ export function FollowersPage() {
                         }}
                       />
                       {row.stopped ? (
-                        <span className="inline-flex min-h-6 w-[4.5rem] items-center text-[13px] font-body text-muted">
+                        <span className="inline-flex min-h-6 w-[4.5rem] items-center text-meta font-body text-muted">
                           Stopped
                         </span>
                       ) : (
                         <button
                           type="button"
                           aria-label="Stop them seeing"
-                          className="inline-flex min-h-6 w-[4.5rem] items-center text-[13px] font-body text-muted disabled:opacity-45"
+                          className="inline-flex min-h-6 w-[4.5rem] items-center text-meta font-body text-muted disabled:opacity-45"
                           disabled={decide.isPending}
                           onClick={() => void revoke.maybeConfirm(row.company.id)}
                         >

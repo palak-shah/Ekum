@@ -52,7 +52,7 @@ test.describe('I-handle desk @functional @orders', () => {
 
     await page.goto('/orders');
     await expect(page.locator(`a[href="/orders/${created.id}"]`)).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByText('Trading').first()).toBeVisible();
+    await expect(page.getByTestId('trade-list-path-handle').first()).toBeVisible();
 
     await page.goto(`/orders/${created.id}`);
     await expect(page.getByRole('button', { name: /Send to / })).toBeVisible({ timeout: 15_000 });

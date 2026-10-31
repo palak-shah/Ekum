@@ -243,7 +243,7 @@ export function ChatFindPage() {
         <div className="flex flex-col gap-4">
           {photoGroups.map((group) => (
             <section key={group.key}>
-              <h2 className="mb-2 px-0.5 text-[13px] font-body text-muted">{group.label}</h2>
+              <h2 className="mb-2 px-0.5 text-meta font-body text-muted">{group.label}</h2>
               <div className="grid grid-cols-3 gap-0.5 overflow-hidden rounded-xl">
                 {group.items.map((cell, localIndex) => {
                   const globalIndex = group.startIndex + localIndex;
@@ -293,7 +293,7 @@ export function ChatFindPage() {
                   )}
                   data-testid="chat-find-row"
                 >
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-linen text-[11px] font-body text-muted">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-linen text-meta font-body text-muted">
                     {thumb ? (
                       <ManagedImage src={thumb} alt="" variant={MEDIA_VARIANT.Thumbnail1} className="h-full w-full object-cover" loading="lazy" />
                     ) : (
@@ -314,7 +314,7 @@ export function ChatFindPage() {
                       )}
                     </p>
                   </div>
-                  <p className="shrink-0 text-[10px] text-muted">{timeAgo(row.message.createdAt)}</p>
+                  <p className="shrink-0 text-meta text-muted">{timeAgo(row.message.createdAt)}</p>
                 </Link>
               </li>
             );

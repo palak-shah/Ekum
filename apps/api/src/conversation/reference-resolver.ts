@@ -501,6 +501,7 @@ export class ReferenceResolver {
           canAcceptQuote,
           canAcceptLogged,
           canDeclineOrder,
+          loggedForBuyer,
           intent:
             order?.intent === 'inquiry' || order?.intent === 'order' ? order.intent : null,
         });

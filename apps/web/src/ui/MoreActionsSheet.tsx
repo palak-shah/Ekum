@@ -48,7 +48,7 @@ export function MoreActionRow({
       </span>
       <span
         className={cx(
-          'text-[15px] font-emphasis tracking-tight',
+          'text-name font-emphasis tracking-tight',
           item.danger ? 'text-danger' : 'text-ink',
         )}
       >

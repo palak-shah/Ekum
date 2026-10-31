@@ -647,6 +647,11 @@ export interface MessageReference {
    */
   canDeclineOrder?: boolean;
   /**
+   * Frozen: logger company is not the buyer (supplier or trader placed it).
+   * Drives “Order placed by …” on the living card for both parties.
+   */
+  loggedForBuyer?: boolean;
+  /**
    * Live order intent (inquiry | order). Like canAcceptQuote — not frozen history.
    * Chat CTAs use this so Ask-rates tickets say View inquiry until firmed.
    */

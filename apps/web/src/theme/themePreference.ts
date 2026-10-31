@@ -83,7 +83,7 @@ export function applyResolvedTheme(resolved: ResolvedTheme): void {
   const meta = document.querySelector('meta[name="theme-color"]');
   if (meta) {
     const canvas = getComputedStyle(root).getPropertyValue('--ekum-canvas').trim();
-    meta.setAttribute('content', canvas || (resolved === 'dark' ? '#0c0a09' : '#ffffff'));
+    meta.setAttribute('content', canvas || (resolved === 'dark' ? '#0c0c0c' : '#ffffff'));
   }
 }
 

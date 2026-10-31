@@ -298,6 +298,30 @@ export function orderUnitSheetHeading(
   return role === 'dispatching' ? `Dispatch in ${label}` : `Order in ${label}`;
 }
 
+/** Ticket Designs quiet line: `Order in Sets · rate per mtr`. Mixed units omit the mismatched bit. */
+export function ticketDesignsCaption(
+  items: Array<{
+    unit?: string | null;
+    dispatchUnit?: string | null;
+    catalogRateUnit?: string | null;
+    lineStatus?: string | null;
+  }>,
+): string {
+  const remaining = items.filter((item) => item.lineStatus !== 'declined');
+  const source = remaining.length > 0 ? remaining : items;
+  const orders = new Set<string>();
+  const rates = new Set<string>();
+  for (const item of source) {
+    const journey = orderLineUnitJourney(item.unit, item.dispatchUnit, item.catalogRateUnit);
+    orders.add(journey.order);
+    rates.add(journey.rate);
+  }
+  const orderBit =
+    orders.size === 1 ? orderUnitSheetHeading([...orders][0], 'ordering') : null;
+  const rateBit = rates.size === 1 ? `rate per ${[...rates][0]}` : null;
+  return [orderBit, rateBit].filter(Boolean).join(' · ');
+}
+
 /**
  * Journey: order + dispatch both set (or legacy dispatch `pc`) → dispatch is the order unit;
  * rate stays pc via catalogRateUnit.

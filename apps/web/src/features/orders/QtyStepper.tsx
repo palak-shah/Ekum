@@ -175,7 +175,7 @@ export function sameQtyRateForAllChipLabel(
 }
 
 export const sameForAllChipClassName =
-  'inline-flex w-fit items-center rounded-full border border-line bg-surface px-3.5 py-2 text-[13px] font-emphasis tracking-tight text-ink disabled:opacity-45';
+  'inline-flex w-fit items-center rounded-full border border-line bg-surface px-3.5 py-2 text-meta font-emphasis tracking-tight text-ink disabled:opacity-45';
 
 /** One-row Same for all: label · control · Apply / Cancel (Enter / mobile Done → Apply). */
 export function SameForAllEditor({
@@ -211,13 +211,13 @@ export function SameForAllEditor({
         <button
           type="submit"
           disabled={disabled}
-          className="text-[13px] font-emphasis text-accent disabled:opacity-45"
+          className="text-meta font-emphasis text-accent disabled:opacity-45"
         >
           Apply
         </button>
         <button
           type="button"
-          className="text-[13px] font-body text-muted"
+          className="text-meta font-body text-muted"
           onClick={onCancel}
         >
           Cancel

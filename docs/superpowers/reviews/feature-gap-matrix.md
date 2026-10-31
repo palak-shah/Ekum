@@ -1,6 +1,6 @@
 # Feature gap matrix
 
-**Updated:** 2026-10-29 (Blank 1 set contains — no ghost `4`; Mixed Place two How many sheets; mill credit on Collection and Catalog; I-handle Send never Direct)  
+**Updated:** 2026-10-30 (Explore Ink & Lime story rings + rate emphasis; Orders list recency sort; Chat prototype chrome)  
 **Source:** Completeness reviews under `docs/superpowers/reviews/completeness/`  
 **Tracks:** Regression (`@smoke @regression` / BM-* units) · Functional (`@functional`)  
 **Audit:** [2026-10-22-functional-gap-audit.md](./2026-10-22-functional-gap-audit.md) — requirements vs code vs tests. Does not replace rows below.
@@ -11,9 +11,9 @@ Verification: Functional · Regression · Unit-only · Untested
 | Module | Capability | Product status | Verification | Completeness priority | Notes |
 |--------|------------|----------------|--------------|----------------------|-------|
 | Explore | Collection post: one photo, swipe up to 5, last card View more, name/rate/tags; iPhone can scroll the feed from the photo | Works | Unit | Required | Completeness 2026-10-19-explore-feed-carousel; BM-07 `PHOTO_STRIP_TOUCH_CLASS` pan-x pan-y |
-| Platform | Typography weights: body 400 / emphasis 500 / title 600; Inter; no size redesign | Works | Unit | Required | Completeness 2026-10-17-typography-weight; `font-body`/`font-emphasis`/`font-title`; bold only badges+Avatar |
+| Platform | Typography: Noto Sans; body 16 / page+tab title 20 / sheet 18; weights body 400 / emphasis 500 / title 600 | Works | Unit | Required | Completeness 2026-10-29-ekum-leaf-theme (supersedes 2026-10-17 size lock); `font-body`/`font-emphasis`/`font-title`; bold only badges+Avatar |
 | Platform | Quiet info (circle i): instructional copy on tap; one `InfoHint` / `InfoIcon` | Works | Unit | Required | Completeness 2026-10-21-quiet-info-hint; Confirm title + collection Apply-all; Field `info` |
-| Orders | Confirm Qty \| Rate type matches How many / Edit (14px emphasis) | Works | Unit | Required | Completeness 2026-10-21-quiet-info-hint; `compactSheetNumInputClass` |
+| Orders | Confirm Qty \| Rate type matches How many / Edit (16px tabular) | Works | Unit | Required | Completeness 2026-10-29-ekum-leaf-theme; `compactSheetNumInputClass` |
 | Catalog | You Collections list (published+draft, page ⋯, swipe More/Share); Designs grid | Works | Unit | Required | Completeness 2026-10-17-you-collections-list; `libraryCollectionThumb` |
 | Catalog | You row More: Hide Draft / Publish (empty pack stays disabled; action id `unhide`) | Works | Unit | Required | Completeness 2026-10-27-select-exit-after-action |
 | Catalog | Bulk publish missing name/category/designs: “Add mandatory fields to publish.”; sheet stays | Works | Unit | Required | Completeness 2026-10-27-select-exit-after-action |
@@ -25,8 +25,8 @@ Verification: Functional · Regression · Unit-only · Untested
 | Catalog | Legacy everyone/connections → Followers (migrate + enforce); defaults followers; no hidden open catalog | Works | Unit | Required | Completeness 2026-10-14-legacy-audience-followers-align |
 | Browse | Unified DesignSheet (trade footer + ⋯ Bookmark/owner); collection · shop · You · Explore · Saved; chat unchanged | Works | Unit | Required | Completeness 2026-10-11-unified-design-sheet |
 | Collections | Album ⋯ idle collection bookmark; select bookmarks designs; You no account avatar | Works | Unit | Required | Completeness 2026-10-11-collection-chrome-polish |
-| Platform | Master light/dark tokens (`tokens.css`); Settings Appearance Light/Dark/System per userId | Works | Unit | Required | Completeness 2026-10-10-theme-system; kit accent-muted / input / badge |
-| Chat | Theme wallpaper + chat-out/in bubbles; trade cards header→images→note→actions | Works | Unit | Required | Completeness 2026-10-10-chat-theme-cards; no wallpaper picker |
+| Platform | Ink & Lime light/dark tokens (`tokens.css`); Settings Appearance Light/Dark/System per userId | Works | Unit | Required | Completeness 2026-10-29-ekum-ink-lime + 2026-10-30-chat-prototype-chrome; charcoal accent, lime badge+ink, Chip selected = chip-on tint |
+| Chat | Grey wallpaper + C chat-out/in bubbles; blue Seen ticks beside last-outgoing clock; trade cards no rail, 3 thumbs (`+n` on 3rd only), mill-lot note under thumbs, cluster tails, hover/long-press chevron; living card pinned (no side jump); lifecycle tags + date chips; message menu = no-border popover + sheet rows + reaction rail; inbox kind weight + group glyph | Works | Unit | Required | Completeness 2026-10-30-chat-prototype-chrome + 2026-10-30-chat-thread-placed-by + 2026-10-30-chat-order-note-under-thumbs + 2026-10-30-chat-order-update-tags + 2026-10-30-chat-message-menu-chrome; no wallpaper picker |
 | Collections | Edit collection = pack details only (no member grid; membership on album) | Works | Unit | Required | Completeness 2026-10-10-edit-collection-details-only |
 | Collections | Create/edit Rate per + unit select (default category primary; independent of Dispatch) | Works | Unit | Required | Completeness 2026-10-10-rate-per-unit-select; 2026-10-22-rate-per-independent-dispatch; 2026-10-27-category-rate-per-primary |
 | Catalog | Rate per default = Category **primary** (Jobwork **mtr**; kg/pc secondary); options = primary + secondary | Works | Unit | Required | Completeness 2026-10-27-category-rate-per-primary; `defaultRateUnit` first offered; Order/dispatch stay set |
@@ -84,12 +84,12 @@ Verification: Functional · Regression · Unit-only · Untested
 | Onboarding | Required * on business name, contact person, city, types | Works | Unit | Required | Completeness 2026-09-26-onboarding-required-star |
 | Platform | Crash page shows copyable error log | Works | Unit | Required | Completeness 2026-09-25-route-error-log; trader line stays; What broke + Copy |
 | Platform | Nav ＋ never a dead tap | Works | Unit + Functional | Required | Completeness 2026-09-25-create-fab-dead-tap; 2026-09-29 collection chooser (create vs You Collections); You ＋ stays on Saved |
-| Platform | Kit density: 40px Button/input, 28px Chip, 40×40 list square | Works | Unit | Required | Completeness 2026-09-26-kit-density; qty thumbs + nav ＋ stay 48px (restored 2026-10-01-nav-plus-size) |
+| Platform | Kit density: 48px Button/input, 32px Chip (gray, no border), 48×48 list square; nav wells stay 32 | Works | Unit | Required | Completeness 2026-10-29-ekum-ink-lime (density from 2026-10-29-ekum-leaf-theme); nav ＋ and thumbs stay 48 |
 | Explore | Feed virtual scroll + easy image load; API ranking window; 12 then More posts | Works | Unit | Required | Completeness 2026-10-04-explore-feed-virtual-lazy; stream local media |
 | Explore | Shop header: GST tick, city · cats, Request access, date under post | Works | Unit | Required | Completeness 2026-09-29-explore-shop-header-chrome; rename 2026-10-06-shop-profile-client-chrome; idle copy 2026-10-22-request-access-copy; CSV sr 8 T4 · 9/10 T1+T3 · 16 T4 |
 | Explore | Pack header rate band; design card / popup shop name | Works | Unit | Required | Completeness 2026-09-29-csv-pack-rate-design-shop-copy; CSV sr 16 T3 · 17 T3 |
 | Catalog | Nav ＋ has no Add designs (You Add only) | Works | Unit-only | Required | Completeness 2026-09-25-nav-plus-no-add-designs |
-| Catalog | You → Designs **New design** list row opens Add designs (same row as New collection / New catalog; 40px; disable while Selecting) | Works | Unit + Functional | Required | Completeness 2026-10-27-you-library-create-rows; supersedes trailing ＋ 2026-10-23 / restore 2026-10-24 |
+| Catalog | You → Designs **New design** list row opens Add designs (same row as New collection / New catalog; 48px; disable while Selecting) | Works | Unit + Functional | Required | Completeness 2026-10-27-you-library-create-rows; thumb 48px via 2026-10-29-ekum-leaf-theme |
 | Chat | WhatsApp parity: group photo inbox, public leave, no ＋ multi-group, swipe-reply, menus, Unarchive swipe, no Pin message / Select chats, starred Unstar, Android borders | Works | Unit | Required | Completeness 2026-10-02-chat-whatsapp-parity |
 | Chat | Thread down-arrow to latest (WhatsApp) | Works | Unit + Functional | Required | Completeness 2026-09-29-chat-jump-latest |
 | Chat | Seeded thread text send | Works | Functional + Regression | Required | Green 2026-08-11 |
@@ -101,7 +101,7 @@ Verification: Functional · Regression · Unit-only · Untested
 | Chat | Attach Document (PDF/office + original photo) | Works | Unit + Functional | Required | Completeness 2026-09-13-chat-document-attach; multi-pick; no video |
 | Chat | Cross-chat find (Photos / Documents / Collections / Designs) | Works | Unit + Functional | Required | Completeness 2026-09-13-chats-cross-find; Orders on Orders tab only; `/chats/find` |
 | Catalog | Design browse Feed/Grid default (last wins) | Works | Unit | Required | Completeness 2026-09-12-design-browse-layout-default; Ekum default Feed; album+Saved+My designs |
-| Chat | Leave guard (composer / attach WIP) | Works | Functional | Required | Completeness 2026-08-24-discard-guard |
+| Chat | Leave guard (attach / upload / camera / forward / select — not composer draft) | Works | Functional | Required | Completeness 2026-08-24-discard-guard; draft leave 2026-10-30-chat-order-note-under-thumbs |
 | Chat | Inbox chips All / Unread / Groups / Requests + swipe | Works | Unit | Required | Completeness 2026-09-25-chats-inbox-chips-swipe; Android left-swipe More/Archive; theme-color white |
 | Chat | PWA select-mode row swipe: right selects, left deselects (component; inbox select row) | Works | Unit | Required | Completeness 2026-10-27-pwa-select-swipe; no page-back; idle More/Archive unchanged |
 | Chat | 1:1 ＋ Complaint form + Resolve on open card; In chats / thread filter | Works | Unit | Required | Completeness 2026-09-29-chat-complaint-form; resolve UI 2026-10-09-complaint-resolve-ui; View order if attached; never View designs |
@@ -120,7 +120,7 @@ Verification: Functional · Regression · Unit-only · Untested
 | Chat | Inbox select Archive / Clear / Delete (our shop only) | Works | Unit + Functional | Required | Completeness 2026-09-22-chats-inbox-select; `inboxHiddenAt`; not Leave |
 | Chat | Inbox row long-press Pin/Mute/Archive/Clear/Delete | Works | Unit + Functional | Required | Completeness 2026-09-22-chats-inbox-row-menu; Block last 2026-09-29-inbox-menu-block-last; group **Exit group** = Leave |
 | Chat | Mark unread · Archived folder · Draft on list · Timed mute | Works | Unit + Functional | Required | Completeness 2026-09-23-chats-whatsapp-nice Phase A; mute durations sit beside the floating menu (not a sheet); Starred on ⋯ 2026-09-24 |
-| Chat | Seen · Typing · Pin message · Links · Reactions · Group photo | Works | Unit | Required | Completeness 2026-09-23-chats-phase-b; no websocket — poll + lastReadAt |
+| Chat | Seen · Typing · Pin message · Links · Reactions · Group photo | Works | Unit | Required | Completeness 2026-09-23-chats-phase-b; ticks beside time 2026-10-30-chat-order-note-under-thumbs; no websocket — poll + lastReadAt |
 | Chat | @mention teammates on this chat + other shops | Works | Unit + Functional | Required | Completeness 2026-09-23-chat-mentions; no other-shop staff; mention beats mute |
 | Chat | Group info page · share join link · add businesses | Works | Unit + Functional | Required | Completeness 2026-09-23-group-info; businesses not other-shop staff |
 | Chat | Your team under group businesses | Works | Unit + Functional | Required | Completeness 2026-09-23-group-info-your-team; our people only |
@@ -132,19 +132,23 @@ Verification: Functional · Regression · Unit-only · Untested
 | Chat | Share catalog cards in thread | Works | Untested | Recommended | |
 | Chat | WhatsApp open (unread divider / newest) | Works | Unit | Required | Completeness 2026-09-03-whatsapp-chat-open-locked-previews |
 | Chat | Locked catalog thumbs blur (no viewer) | Works | Unit | Required | `imagesLocked` + PhotoAlbum locked |
-| Chat | Message actions (Reply/Forward/Copy/Star/Edit/Delete) | Works | Unit | Required | Completeness 2026-09-03-chat-message-actions; no Select all; order teaser strip |
+| Chat | Message actions (Reply/Forward/Copy/Star/Edit/Select/Delete); icon+label; chevron on hover/long-press; no-border popover + sheet rows + reaction rail | Works | Unit + Functional | Required | Completeness 2026-09-03-chat-message-actions + 2026-10-30-chat-thread-placed-by + 2026-10-30-chat-message-menu-chrome; idle long-press opens menu; Select from menu; no Select all |
 | Chat | Quote one photo in an album (reference, not Order) | Works | Unit | Required | Completeness 2026-09-23-quote-one-album-photo |
 | Chat | Quote one design in a designs set (reference, not Order) | Works | Unit | Required | Completeness 2026-10-01-quote-one-design |
 | Chat | View designs opens set page (not PhotoViewer) | Works | Unit + Functional | Required | Completeness 2026-10-01-design-set-page-first |
-| Chat | Photo long-press opens Ekum actions menu | Works | Unit + Functional | Required | Completeness 2026-09-13-photo-longpress-menu; WA gesture, Ekum verbs |
+| Chat | Photo long-press opens Ekum actions menu | Works | Unit + Functional | Required | Completeness 2026-09-13-photo-longpress-menu; now the same idle long-press as text (2026-10-30-chat-thread-placed-by) |
+| Chat | Order-for-buyer card: Order placed by {shop} + inline Decline | Works | Unit | Required | Completeness 2026-10-30-chat-thread-placed-by; View order footer only |
 | Collections | Pack Ask Allow/Deny (Granted on request) | Works | Unit | Required | Completeness 2026-09-03-collection-view-request-allow-deny; ≠ Connection |
 | Orders | Core trade request→quote→accept | Works | Functional | Required | Green 2026-08-11 |
 | Orders | BM-05 Accept quote gating | Works | Functional | Required | Green 2026-08-11; living-order-accept Completeness |
 | Orders | Living upsert + `canAcceptQuote`/`hasSellerQuote` | Works | Unit + Functional | Required | Restored WIP 2026-08-11 |
 | Orders | Orders More menu portal (Samples/Returns) | Works | Functional | Recommended | `orders.chrome.journey.spec.ts` |
-| Orders | List: Selling / Buying / Others; Pending / Completed chips with plain counts (0 shown); text-first cards (avatar, protocol, no pill, no thumbs); no list Confirm / Accept / Decline | Works | Unit + Functional | Required | Completeness 2026-10-19-orders-list-tabs + 2026-10-21-orders-list-protocol; chips 2026-10-23-orders-pending-chat-chips; avatar 2026-10-15; textile-card 2026-10-09 |
-| Orders | List protocol is Needs you Confirm / Dispatch / Accept quote / Accept & forward; no middot; compact under the name | Works | Unit + Functional | Required | Completeness 2026-10-21-orders-list-protocol + 2026-10-21-orders-list-compact |
-| Orders | List facts: `Order #VONR 2 designs 12 sets` (sum); mixed units designs only | Works | Unit | Required | Completeness 2026-10-21-orders-list-facts-designs-qty |
+| Orders | List: Selling / Buying / Others; Pending / Completed chips with plain counts (0 shown); text-first cards (avatar, two-line glance, no pill, no thumbs); no list Confirm / Accept / Decline | Works | Unit + Functional | Required | Completeness 2026-10-19-orders-list-tabs + 2026-10-30-orders-list-card-glance; chips 2026-10-23-orders-pending-chat-chips; avatar 2026-10-15; textile-card 2026-10-09 |
+| Orders | List glance: lime disc + verb (Confirm / Dispatch / Accept quote / Forward); idle Waiting: supplier/buyer; no left rail | Works | Unit + Functional | Required | Completeness 2026-10-30-orders-list-card-glance (supersedes 2026-10-21 protocol left rail); list says Forward not Accept & forward |
+| Orders | List sort is last-edited (`updatedAt` desc) on Pending, Completed, and Find — not Needs you first | Works | Unit | Required | Completeness 2026-10-30-orders-list-recency-sort |
+| Orders | Ticket chrome: Buying/Selling · time · myNo; 48px party avatar; progress card (order unit); idle Waiting on body; hop-scoped Notes + trader Forward | Works | Unit + Functional | Required | Completeness 2026-10-30-order-ticket-chrome |
+| Orders | Ticket Notes foam + chat composer (+ first); Designs proto lines; Timeline · N; seller Show bill total (DB); list Group/chain path icons | Works | Unit + Functional | Required | Completeness 2026-10-31-ticket-notes-timeline-path-icons |
+| Orders | List facts: `#VONR · 2 designs 12 sets` or `#VONR · 0/60 sets sent` (order unit); mixed units designs only | Works | Unit | Required | Completeness 2026-10-30-orders-list-card-glance (supersedes 2026-10-21 facts `Order #` / no middot) |
 | Orders | List for/to hop cue (`for {buyer} {parent #}`) | Deferred | — | — | Completeness 2026-10-21-orders-list-hop-cue Redesign: mill hops stay off trader list; mill never sees parent buyer/# |
 | Orders | Ticket Total: qty left, ₹ right-aligned to the row (no Ship/Balance total) | Works | Unit | Required | Completeness 2026-10-21-ticket-total-mill-bill + 2026-10-21-orders-list-compact |
 | Orders | Mixed ticket Total: per-unit qty+₹ then All grand ₹ | Works | Unit | Required | Completeness 2026-10-21-ticket-unit-bill-totals |
@@ -188,7 +192,7 @@ Verification: Functional · Regression · Unit-only · Untested
 | Collections | Create/edit Product details (Category → Rate ₹ Rate → tags); short auto-grow Description; kit gaps / foam tiles | Works | Unit + Functional | Required | Completeness 2026-10-20-collection-form-chrome; 2026-10-27-create-rate-after-category |
 | Collections | New collection dock always **Create & Publish** · **Save in Draft**; after members **N designs · tap to change** strip | Works | Unit + Functional | Required | Completeness 2026-10-20-drop-add-to-continue; strip kept |
 | Collections | Create Category = full catalog (deal-in is default only); add tiles share field fill; no Pick category… | Works | Unit + Functional | Required | Completeness 2026-10-20-collection-category-any |
-| Catalog / Collections | Editor Category / Rate per / Order taken in / Dispatch = 40px field → kit Sheet rows (not Android OS select); tags hidden until Category; tag list uses visualViewport; catalog apply-all always on and hidden | Redesign | Unit + Functional | Required | Completeness 2026-10-29-editor-sheet-pickers-tags; supersedes native `<select>` lock in 2026-10-20-collection-category-any for these fields |
+| Catalog / Collections | Editor Category / Rate per / Order taken in / Dispatch = 48px field → kit Sheet rows (not Android OS select); tags hidden until Category; tag list uses visualViewport; catalog apply-all always on and hidden | Redesign | Unit + Functional | Required | Completeness 2026-10-29-editor-sheet-pickers-tags; field height via 2026-10-29-ekum-leaf-theme |
 | Collections | Item tags + Quality / work tags always multi-select on create/edit | Works | Unit | Required | Completeness 2026-10-06-collection-item-quality-tags |
 | Collections | Tag typeahead: used shop tags on empty; type for official; close on pick; cap 8 | Works | Unit | Required | Completeness 2026-10-20-tag-suggest-quiet |
 | Collections | Size tags multi-select + set-contains live **n unit** (typed `4` → 4 pcs; empty is blank + unit suffix, no ghost `4`) / dozen autofill 12 | Works | Unit | Required | Completeness 2026-10-15-collection-size-tags-multi; 2026-10-20-design-tags-category-contains; empty chrome Redesign 2026-10-29-set-contains-no-placeholder |
@@ -213,7 +217,7 @@ Verification: Functional · Regression · Unit-only · Untested
 | Collections | Curated pack visitor Ask rates / Order sticky dock | Works | Unit | Required | Completeness 2026-09-24-pack-trade-dock; match design page |
 | Collections | Pack description on album (owner + visitor; 4 lines + View more) | Works | Unit | Required | Completeness 2026-09-30-collection-visitor-note |
 | Explore | Design page Ask / Order dock visitors only | Works | Unit | Required | Owner never gets dock (even Selling/Trading); `exploreProductChrome` |
-| Explore | Instagram look + B2B: own feed, Order·Share·Message dock, Bookmark·Share·Repost, showSourceShops default off | Works | Unit + Functional | Required | Completeness 2026-10-08-explore-instagram-b2b-build; caption look 2026-10-08-explore-feed-caption-look; new-designs meta retired 2026-10-10; own live packs pinned on Buying / Stories You (2026-10-27) |
+| Explore | Instagram look + B2B: own feed, Order·Share·Message dock, Bookmark·Share·Repost, showSourceShops default off | Works | Unit + Functional | Required | Completeness 2026-10-08-explore-instagram-b2b-build; caption look 2026-10-08-explore-feed-caption-look; Ink & Lime rings + rate emphasis 2026-10-30; new-designs meta retired 2026-10-10; own live packs pinned on Buying / Stories You (2026-10-27) |
 | Explore | Caption: album read more / Show less + newlines; no meta under title; time beside shop name | Works | Unit | Required | Completeness 2026-10-10-explore-caption-album-description |
 | Explore | Per-post Repost sheet (Who / groups / 48h / forward·download) — not Your selection | Works | Unit | Required | Completeness 2026-10-08-explore-repost-publish-sheet; skip why + publish exception in **i** (2026-10-27); peer Repost publish without Category pick (2026-10-27) |
 | Explore | Repost once per peer post; own gray; done icon (not gray) when viewerReposted | Works | Unit + API | Required | Completeness 2026-10-11-explore-repost-once |
@@ -250,7 +254,7 @@ Verification: Functional · Regression · Unit-only · Untested
 | Explore | Browse seeded + open detail | Works | Functional | Required | Green 2026-08-11 |
 | Explore | Filter dismiss BM-02 | Works | Functional | Required | Green 2026-08-11 |
 | Explore | Federated search / follow feed | Works | Unit | Required | In-app `SearchService.universal` (not cross-instance). No `@explore` typed-search e2e. Audit FG-028 |
-| Explore | Businesses for you + Stories rail | Works | Unit | Recommended | Stories = follow/connected + published (Slice C) |
+| Explore | Businesses for you + Stories rail | Works | Unit | Recommended | Stories = follow/connected + published (Slice C); rings lime+charcoal conic 2026-10-30-explore-ink-lime-chrome |
 | Explore | Trade-side Buying / Selling (no All chip) | Works | Unit | Required | 2026-08-23 filter panels; dual Explore Buyers / Explore Suppliers; default Buying |
 | Explore | Filter: Change View + multi category/city | Works | Unit + Functional | Required | Popup B; Confirm closes; pin selected on reopen |
 | Explore | Search chrome: Filter square + Select pill (no Saved / Selection squares) | Works | Unit + Functional | Required | Completeness 2026-09-23-explore-chrome-cut; Select 2026-10-01-android-select-not-longpress |

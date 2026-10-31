@@ -54,7 +54,7 @@ export function PageHeader({
         <button
           aria-label="Back"
           data-testid="page-header-back"
-          className="-ml-1.5 rounded-full p-1.5 text-ink hover:bg-foam"
+          className="-ml-1.5 flex h-12 w-12 items-center justify-center rounded-full text-ink hover:bg-foam"
           onClick={() => (onBack ? onBack() : navigate(-1))}
         >
           <BackIcon />

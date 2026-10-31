@@ -13,6 +13,7 @@ import {
   ReturnIcon,
 } from '@/ui/icons';
 import { orderMessagePreviewCore } from './orderCardCopy';
+import { isOrderLifecycleNotice, orderLifecycleNoticeText } from './chatSystemNotice';
 
 type IconComponent = ComponentType<SVGProps<SVGSVGElement>>;
 
@@ -99,6 +100,9 @@ export function inboxPreviewTypeKey(message: MessageView | null | undefined): st
       ? (message.metadata as Record<string, unknown>)
       : null;
   const ref = message.reference;
+  if (isOrderLifecycleNotice(message)) {
+    return 'order_card';
+  }
   if (
     message.type === 'system' &&
     Boolean(ref?.id) &&
@@ -127,6 +131,8 @@ export function messagePreviewText(message: MessageView | null | undefined): str
   if (!message) {
     return 'No messages yet';
   }
+  const lifecycle = orderLifecycleNoticeText(message);
+  if (lifecycle) return lifecycle;
   const name = message.reference?.name?.trim() || message.body?.trim() || null;
 
   let core: string;

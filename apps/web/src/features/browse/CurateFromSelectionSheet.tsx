@@ -407,7 +407,7 @@ export function CurateFromSelectionSheet({
             {showAsk ? (
               <button
                 type="button"
-                className="shrink-0 text-[13px] font-emphasis text-accent disabled:opacity-50"
+                className="shrink-0 text-meta font-emphasis text-accent disabled:opacity-50"
                 disabled={askingKey != null}
                 data-testid="curate-blocked-ask"
                 onClick={() => {
@@ -487,7 +487,7 @@ export function CurateFromSelectionSheet({
           onClick={() => void createDraft({ openPublish: true })}
           className={cx(
             'flex min-h-12 min-w-0 flex-1 items-center justify-center rounded-xl px-4',
-            'border border-accent bg-accent text-sm font-emphasis text-white',
+            'border border-accent bg-accent text-sm font-emphasis text-on-accent',
             'disabled:opacity-40',
           )}
         >
@@ -530,7 +530,7 @@ export function CurateFromSelectionSheet({
                 'border-line bg-surface hover:border-accent hover:bg-accent/5 disabled:opacity-40',
               )}
             >
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent">
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent">
                 <CollectionIcon width={22} height={22} />
               </span>
               <span className="min-w-0 flex-1">
@@ -553,7 +553,7 @@ export function CurateFromSelectionSheet({
                 'border-line bg-surface hover:border-accent hover:bg-accent/5 disabled:opacity-40',
               )}
             >
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent">
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent">
                 <PlusIcon width={22} height={22} />
               </span>
               <span className="min-w-0 flex-1">

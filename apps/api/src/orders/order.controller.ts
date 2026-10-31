@@ -22,6 +22,8 @@ import {
   setLineQuantitySchema,
   updateManualOrderRefSchema,
   updatePersonalOrderNoteSchema,
+  addOrderNoteSchema,
+  forwardOrderNoteSchema,
   type AmendOrderDto,
   type CancelOrderDto,
   type CreateForBuyerDto,
@@ -44,6 +46,8 @@ import {
   type SetLineQuantityDto,
   type UpdateManualOrderRefDto,
   type UpdatePersonalOrderNoteDto,
+  type AddOrderNoteDto,
+  type ForwardOrderNoteDto,
 } from '@ekum/domain-types';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
 import { CurrentCompanyId } from '../auth/decorators/current-company.decorator';
@@ -159,6 +163,31 @@ export class OrderController {
     @Body(new ZodValidationPipe(updatePersonalOrderNoteSchema)) dto: UpdatePersonalOrderNoteDto,
   ) {
     return this.orders.updatePersonalNote(companyId, id, dto);
+  }
+
+  @Post(':id/notes')
+  @HttpCode(200)
+  @RequirePermission('orders')
+  addNote(
+    @CurrentCompanyId() companyId: string,
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(addOrderNoteSchema)) dto: AddOrderNoteDto,
+  ) {
+    return this.orders.addNote(companyId, user.userId, id, dto);
+  }
+
+  @Post(':id/notes/:noteId/forward')
+  @HttpCode(200)
+  @RequirePermission('orders')
+  forwardNote(
+    @CurrentCompanyId() companyId: string,
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id') id: string,
+    @Param('noteId') noteId: string,
+    @Body(new ZodValidationPipe(forwardOrderNoteSchema)) dto: ForwardOrderNoteDto,
+  ) {
+    return this.orders.forwardNote(companyId, user.userId, id, noteId, dto);
   }
 
   @Post(':id/confirm')

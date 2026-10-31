@@ -207,6 +207,30 @@ export const CheckIcon = (props: IconProps) => (
   </Icon>
 );
 
+/** Dispatch — list glance lime disc. */
+export const TruckIcon = (props: IconProps) => (
+  <Icon {...props}>
+    <path d="M2 6h11v10H2zM13 10h4l4 4v2h-8" />
+    <circle cx="6" cy="18" r="2" />
+    <circle cx="17" cy="18" r="2" />
+  </Icon>
+);
+
+/** Idle wait — list glance. */
+export const ClockIcon = (props: IconProps) => (
+  <Icon {...props}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M12 7v5l3 2" />
+  </Icon>
+);
+
+/** List glance Forward — straight right arrow (not message-menu ForwardIcon). */
+export const FwdIcon = (props: IconProps) => (
+  <Icon {...props}>
+    <path d="M4 12h14M13 6l6 6-6 6" />
+  </Icon>
+);
+
 export const LockIcon = (props: IconProps) => (
   <Icon {...props}>
     <rect x="5" y="11" width="14" height="9" rx="2" />
@@ -226,6 +250,24 @@ export const UserIcon = (props: IconProps) => (
   <Icon {...props}>
     <circle cx="12" cy="8" r="4" />
     <path d="M4 20a8 8 0 0 1 16 0" />
+  </Icon>
+);
+
+/** Group chat with no photo — two people, not a letter initial. */
+export const GroupIcon = (props: IconProps) => (
+  <Icon {...props}>
+    <circle cx="9" cy="8" r="3" />
+    <path d="M3.5 19a5.5 5.5 0 0 1 11 0" />
+    <circle cx="16" cy="8.5" r="2.5" />
+    <path d="M15 14.2a5 5 0 0 1 5.5 4.8" />
+  </Icon>
+);
+
+/** Chain — I-handle / through you on the orders list. */
+export const LinkIcon = (props: IconProps) => (
+  <Icon {...props}>
+    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
   </Icon>
 );
 
@@ -364,6 +406,37 @@ export const RepostDoneIcon = (props: IconProps) => (
       <path d="M20 12.5V14a3.5 3.5 0 0 1-3.5 3.5H4" />
       <path d="M8.5 12.5 11 15l4.5-5" />
     </g>
+  </Icon>
+);
+
+/** Reply — curved arrow back (message menu). */
+export const ReplyIcon = (props: IconProps) => (
+  <Icon {...props}>
+    <path d="M9 14 4 9l5-5" />
+    <path d="M20 20v-7a4 4 0 0 0-4-4H4" />
+  </Icon>
+);
+
+/** Forward — curved arrow out (message menu). */
+export const ForwardIcon = (props: IconProps) => (
+  <Icon {...props}>
+    <path d="m15 14 5-5-5-5" />
+    <path d="M4 20v-7a4 4 0 0 1 4-4h12" />
+  </Icon>
+);
+
+/** Copy text / message. */
+export const CopyIcon = (props: IconProps) => (
+  <Icon {...props}>
+    <rect x="9" y="9" width="11" height="11" rx="2" />
+    <path d="M5 15V5a2 2 0 0 1 2-2h10" />
+  </Icon>
+);
+
+/** Star / unstar a message. */
+export const StarIcon = (props: IconProps) => (
+  <Icon {...props}>
+    <path d="m12 3.5 2.4 4.86 5.36.78-3.88 3.78.92 5.34L12 16.74 7.2 18.26l.92-5.34-3.88-3.78 5.36-.78Z" />
   </Icon>
 );
 

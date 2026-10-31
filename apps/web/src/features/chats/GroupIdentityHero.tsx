@@ -104,7 +104,7 @@ export function GroupIdentityHero({
         )}
         {canEdit ? (
           <span
-            className="pointer-events-none absolute -bottom-0.5 -right-0.5 flex h-7 w-7 items-center justify-center rounded-full border-2 border-canvas bg-accent text-white"
+            className="pointer-events-none absolute -bottom-0.5 -right-0.5 flex h-7 w-7 items-center justify-center rounded-full border-2 border-canvas bg-accent text-on-accent"
             aria-hidden
           >
             <CameraIcon width={14} height={14} />

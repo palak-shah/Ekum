@@ -58,7 +58,7 @@ export function LegPhotoAttach({
   return (
     <div className="flex flex-col gap-1.5" ref={wrapRef} data-testid={`${testIdPrefix}-attach`}>
       <div className="flex items-center justify-between gap-2">
-        <p className="text-[11px] font-body text-muted">
+        <p className="text-meta font-body text-muted">
           LR photo
           {images.length > 0 ? (
             <span className="font-body"> · {images.length}</span>

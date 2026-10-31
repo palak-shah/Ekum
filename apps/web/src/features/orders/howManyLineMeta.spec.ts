@@ -18,6 +18,7 @@ import {
   howManyOrderUnitsMixed,
   qtyCountNoun,
   qtyStepperUnitLabel,
+  ticketDesignsCaption,
 } from './howManyLineMeta';
 
 describe('howManyLineMeta', () => {
@@ -383,5 +384,25 @@ describe('howManyLineMeta', () => {
       grand: '₹10,000',
       missingCue: 'No pcs in a set',
     });
+  });
+});
+
+describe('ticketDesignsCaption', () => {
+  it('names order unit and rate per when they agree', () => {
+    expect(
+      ticketDesignsCaption([
+        { unit: 'set', dispatchUnit: 'set', catalogRateUnit: 'mtr', lineStatus: 'open' },
+        { unit: 'set', dispatchUnit: 'set', catalogRateUnit: 'mtr', lineStatus: 'open' },
+      ]),
+    ).toBe('Order in Sets · rate per mtr');
+  });
+
+  it('omits mixed rate units rather than picking one', () => {
+    expect(
+      ticketDesignsCaption([
+        { unit: 'set', catalogRateUnit: 'pc', lineStatus: 'open' },
+        { unit: 'mtr', catalogRateUnit: 'mtr', lineStatus: 'open' },
+      ]),
+    ).toBe('');
   });
 });

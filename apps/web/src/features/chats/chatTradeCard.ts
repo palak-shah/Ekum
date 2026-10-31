@@ -4,7 +4,7 @@ import {
   catalogShareSenderLabel,
 } from '@/features/browse/forwardAttribution';
 import { inCardSenderLine } from './messagePreview';
-import { buildOrderCardCopy, type OrderCardCopy } from './orderCardCopy';
+import { buildOrderCardCopy, orderPlacedByLine, type OrderCardCopy } from './orderCardCopy';
 
 export type ChatTradeCardKind = 'order' | 'quote' | 'collection' | 'design' | 'designs' | 'complaint';
 
@@ -38,6 +38,10 @@ export interface ChatTradeCardModel {
   secondaryAction?: { label: string; onClick?: () => void };
   /** Equal-weight side-by-side CTAs (e.g. Allow | Deny). Prefer over action + secondaryAction. */
   actionRow?: ChatTradeCardAction[];
+  /** Supplier/trader logged this ticket for the buyer. */
+  placedByLine?: string | null;
+  /** Quiet Decline on the placed-by line (not the footer). */
+  placedByDecline?: ChatTradeCardAction;
   /** Caption / ask text under card meta (e.g. Meena’s “Asked to see…”). */
   note?: string;
   noteVoiceUrl?: string | null;
@@ -188,6 +192,7 @@ function catalogWhoLine(
   message: MessageView,
   senderLabel: string,
   ref: MessageReference | null | undefined,
+  isGroup: boolean,
 ): string | null {
   // Enquire = note on the card; no "You asked" / "X asked" chrome.
   if (catalogEnquireNote(message.metadata)) return null;
@@ -198,11 +203,13 @@ function catalogWhoLine(
     senderCompanyId: message.senderCompanyId,
   });
   if (share.endsWith('forwarded')) return share;
+  if (!isGroup) return null;
   if (message.mine) return inCardSenderLine(message, senderLabel);
   return senderLabel.trim() || null;
 }
 
-function orderWhoLine(message: MessageView, senderLabel: string): string | null {
+function orderWhoLine(message: MessageView, senderLabel: string, isGroup: boolean): string | null {
+  if (!isGroup) return null;
   if (message.mine) {
     return inCardSenderLine(message, senderLabel);
   }
@@ -249,18 +256,54 @@ function buildOrderActions(
   return undefined;
 }
 
+function declineAction(actions: TradeCardActions): ChatTradeCardAction | undefined {
+  if (!actions.declineOrder) return undefined;
+  return {
+    label: actions.declining ? 'Declining…' : 'Decline',
+    onClick: actions.declining ? undefined : actions.declineOrder,
+    style: 'link',
+    emphasis: 'quiet',
+    testId: 'chat-trade-card-decline',
+  };
+}
+
+function orderCardFooter(
+  viewOrAccept: ChatTradeCardAction | undefined,
+  actions: TradeCardActions,
+): Pick<
+  ChatTradeCardModel,
+  'action' | 'secondaryAction' | 'actionRow' | 'placedByDecline'
+> {
+  const decline = declineAction(actions);
+  if (viewOrAccept?.style === 'primary') {
+    return {
+      action: viewOrAccept,
+      secondaryAction: decline,
+      actionRow: undefined,
+      placedByDecline: undefined,
+    };
+  }
+  return {
+    action: viewOrAccept,
+    secondaryAction: undefined,
+    actionRow: undefined,
+    placedByDecline: decline,
+  };
+}
+
 export function buildOrderTradeCard(
   message: MessageView,
   ref: MessageReference | null | undefined,
   senderLabel: string,
   compact: boolean,
   actions: TradeCardActions = {},
+  isGroup = false,
 ): ChatTradeCardModel {
   const copy = buildOrderCardCopy(message, ref, { partyName: senderLabel });
   const { thumbs, overflow } = compact ? { thumbs: [], overflow: 0 } : resolveThumbs(ref);
   const kind: ChatTradeCardKind = message.type === 'rate' ? 'quote' : 'order';
   const primary = copy.title;
-  const who = orderWhoLine(message, senderLabel);
+  const who = orderWhoLine(message, senderLabel, isGroup);
   let details = compact ? compactOrderDetails(copy, senderLabel, primary) : [...copy.lines];
   if (message.type === 'rate' && ref?.totalLabel?.trim()) {
     const total = ref.totalLabel.trim();
@@ -280,10 +323,14 @@ export function buildOrderTradeCard(
     message.type === 'rate' && message.body?.trim() && !/^Quote\b/i.test(message.body.trim())
       ? message.body.trim()
       : undefined;
-  // Body note is also pushed into copy.lines — keep it only in `note` (once).
   if (quoteNote) {
     details = details.filter((line) => line.trim() !== quoteNote);
   }
+  const placedByLine =
+    compact || kind === 'quote'
+      ? null
+      : orderPlacedByLine(message, ref, { partyName: senderLabel });
+  const footer = orderCardFooter(buildOrderActions({ ...actions, ref }), actions);
   return {
     kind,
     primary,
@@ -291,14 +338,10 @@ export function buildOrderTradeCard(
     details,
     thumbs,
     thumbOverflow: overflow,
-    action: buildOrderActions({ ...actions, ref }),
-    secondaryAction: actions.declineOrder
-      ? {
-          label: actions.declining ? 'Declining…' : 'Decline',
-          onClick: actions.declining ? undefined : actions.declineOrder,
-        }
-      : undefined,
-    note: quoteNote,
+    ...footer,
+    placedByLine,
+    placedByDecline: placedByLine ? footer.placedByDecline : undefined,
+    note: copy.note ?? quoteNote,
     noteVoiceUrl,
     noteVoiceDurationMs,
     createdAt: message.createdAt,
@@ -314,6 +357,7 @@ export function buildCollectionTradeCard(
   senderLabel: string,
   orderGoesTo: string | null,
   actions: TradeCardActions = {},
+  isGroup = false,
 ): ChatTradeCardModel {
   const { thumbs, overflow } = resolveThumbs(ref);
   const primary = ref?.available
@@ -328,7 +372,7 @@ export function buildCollectionTradeCard(
   return {
     kind: 'collection',
     primary,
-    who: catalogWhoLine(message, senderLabel, ref),
+    who: catalogWhoLine(message, senderLabel, ref, isGroup),
     details,
     thumbs,
     thumbOverflow: overflow,
@@ -348,6 +392,7 @@ export function buildDesignSetTradeCard(
   ref: MessageReference | null | undefined,
   senderLabel: string,
   actions: TradeCardActions = {},
+  isGroup = false,
 ): ChatTradeCardModel {
   const { thumbs, overflow } = resolveThumbs(ref);
   const count = ref?.itemCount ?? ref?.productIds?.length ?? ref?.designItems?.length ?? 0;
@@ -362,7 +407,7 @@ export function buildDesignSetTradeCard(
   return {
     kind: 'designs',
     primary,
-    who: catalogWhoLine(message, senderLabel, ref),
+    who: catalogWhoLine(message, senderLabel, ref, isGroup),
     details,
     thumbs,
     thumbOverflow: overflow,
@@ -384,6 +429,7 @@ export function buildDesignTradeCard(
   senderLabel: string,
   orderGoesTo: string | null,
   actions: TradeCardActions = {},
+  isGroup = false,
 ): ChatTradeCardModel {
   const { thumbs, overflow } = resolveThumbs(ref);
   const primary = ref?.available
@@ -406,7 +452,7 @@ export function buildDesignTradeCard(
   return {
     kind: 'design',
     primary,
-    who: catalogWhoLine(message, senderLabel, ref),
+    who: catalogWhoLine(message, senderLabel, ref, isGroup),
     details,
     thumbs,
     thumbOverflow: overflow,
@@ -428,6 +474,7 @@ export function buildChatTradeCard(
   senderLabel: string,
   options: {
     compact?: boolean;
+    isGroup?: boolean;
     orderGoesTo?: string | null;
     actions?: TradeCardActions;
   } = {},
@@ -450,6 +497,7 @@ export function buildChatTradeCard(
       senderLabel,
       options.compact ?? false,
       options.actions,
+      options.isGroup ?? false,
     );
   }
   if (message.type === 'collection_card') {
@@ -459,6 +507,7 @@ export function buildChatTradeCard(
       senderLabel,
       options.orderGoesTo ?? null,
       options.actions,
+      options.isGroup ?? false,
     );
   }
   if (message.type === 'product_card') {
@@ -468,10 +517,17 @@ export function buildChatTradeCard(
       senderLabel,
       options.orderGoesTo ?? null,
       options.actions,
+      options.isGroup ?? false,
     );
   }
   if (message.type === 'design_album') {
-    return buildDesignSetTradeCard(message, ref, senderLabel, options.actions);
+    return buildDesignSetTradeCard(
+      message,
+      ref,
+      senderLabel,
+      options.actions,
+      options.isGroup ?? false,
+    );
   }
   if (message.type === 'complaint') {
     const card = complaintCardFromMessage(message, ref);
@@ -525,7 +581,12 @@ export function buildChatTradeCard(
     return {
       kind: 'complaint',
       primary: ref?.name?.trim() || message.body?.trim() || 'Complaint',
-      who: message.mine ? inCardSenderLine(message, senderLabel) : null,
+      who:
+        options.isGroup
+          ? message.mine
+            ? inCardSenderLine(message, senderLabel)
+            : senderLabel.trim() || null
+          : null,
       details: card.orderLine ? [card.orderLine] : [],
       note: card.detail || undefined,
       thumbs,

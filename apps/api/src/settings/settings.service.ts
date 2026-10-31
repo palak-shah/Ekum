@@ -1,12 +1,13 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import type { Address, BillingFirm, CompanySettings, Prisma } from '@prisma/client';
-import type {
-  AddressView,
-  BillingFirmView,
-  CompanySettingsView,
-  UpdateCompanySettingsDto,
-  UpsertAddressDto,
-  UpsertBillingFirmDto,
+import {
+  showBillTotalOnOrders,
+  type AddressView,
+  type BillingFirmView,
+  type CompanySettingsView,
+  type UpdateCompanySettingsDto,
+  type UpsertAddressDto,
+  type UpsertBillingFirmDto,
 } from '@ekum/domain-types';
 import { PrismaService } from '../core/prisma/prisma.service';
 import { asTradeDefaults, mergeTradeDefaults } from '../identity/trade-presence';
@@ -116,6 +117,9 @@ export class SettingsService {
     if (dto.orderPathPreference !== undefined) {
       presencePatch.orderPathPreference = dto.orderPathPreference;
     }
+    if (dto.showBillTotalOnOrders !== undefined) {
+      presencePatch.showBillTotalOnOrders = dto.showBillTotalOnOrders;
+    }
     const baseDefaults =
       dto.tradeDefaults !== undefined
         ? { ...asTradeDefaults(existing?.tradeDefaults), ...asTradeDefaults(dto.tradeDefaults) }
@@ -181,9 +185,11 @@ function toBillingFirmView(firm: BillingFirm): BillingFirmView {
 }
 
 function toSettingsView(settings: CompanySettings | null): CompanySettingsView {
+  const tradeDefaults = (settings?.tradeDefaults as Record<string, unknown>) ?? {};
   return {
     returnPolicy: settings?.returnPolicy ?? null,
-    tradeDefaults: (settings?.tradeDefaults as Record<string, unknown>) ?? {},
+    tradeDefaults,
     myTools: (settings?.myTools as Record<string, boolean>) ?? {},
+    showBillTotalOnOrders: showBillTotalOnOrders(tradeDefaults),
   };
 }

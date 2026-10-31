@@ -13,9 +13,9 @@ import {
 import { CantSupplySwitch } from '@/features/orders/CantSupplySwitch';
 import {
   OrderLineFacts,
-  OrderLineMoneyLine,
   orderLineBalance,
   orderLineBalanceRowClass,
+  orderTicketLineRateCopy,
 } from '@/features/orders/OrderLineFacts';
 import {
   ticketUnbilledWash,
@@ -126,7 +126,7 @@ export function OrderLineFulfillExpand({
           <OrderDesignTitle
             name={item.name}
             muted={cantSupply || Boolean(leftover)}
-            extra={<OrderLineMoneyLine item={item} />}
+            rate={orderTicketLineRateCopy(item)}
           />
         }
         cues={
@@ -154,14 +154,14 @@ export function OrderLineFulfillExpand({
           </>
         }
         nameEnd={editControl}
-        facts={!expanded ? <OrderLineFacts item={item} /> : null}
+        facts={!expanded ? <OrderLineFacts layout="ticket" item={item} /> : null}
       />
 
       {expanded && canEdit ? (
         <div className="mt-3 flex flex-col gap-2.5 border-t border-line pt-3" data-testid="order-line-expand">
           <CantSupplySwitch checked={cantSupply} busy={busy} onChange={onCantSupply} />
 
-          <OrderLineFacts item={item} />
+          <OrderLineFacts layout="ticket" item={item} />
 
           {!cantSupply ? (
             <div className="flex flex-col gap-1.5">
@@ -181,7 +181,7 @@ export function OrderLineFulfillExpand({
                 />
               </div>
               {belowShipped ? (
-                <p className="text-[11px] text-muted">Can’t go below shipped.</p>
+                <p className="text-meta text-muted">Can’t go below shipped.</p>
               ) : qtyDirty ? (
                 <Button
                   variant="secondary"

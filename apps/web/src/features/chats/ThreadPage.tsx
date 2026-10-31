@@ -49,7 +49,7 @@ import { api, ApiError } from '@/lib/apiClient';
 import { useTeamCaps } from '@/lib/teamCaps';
 import { useTradePresence } from '@/lib/tradePresence';
 import { useToast } from '@/ui/Toast';
-import { timeAgo, formatFileSize } from '@/lib/format';
+import { formatFileSize } from '@/lib/format';
 import {
   classifyChatDocumentFile,
   isPhoneLike,
@@ -92,18 +92,23 @@ import {
   ChevronUpIcon,
   CameraIcon,
   CollectionIcon,
+  CopyIcon,
   DocumentIcon,
   FilterIcon,
+  ForwardIcon,
   ImageIcon,
   MicIcon,
   OrdersIcon,
   MoreHorizontalIcon,
+  PencilIcon,
   PinIcon,
   PlusIcon,
   ProductIcon,
+  ReplyIcon,
   ReturnIcon,
   SearchIcon,
   SendIcon,
+  StarIcon,
   TrashIcon,
   UserIcon,
 } from '@/ui/icons';
@@ -137,6 +142,7 @@ import {
   dedupeOrderThreadMessages,
   declineOrderMessageIds,
   isRichOrderChatMessage,
+  livingOrderCardId,
   primaryAcceptQuoteMessageId,
 } from './orderCardCopy';
 import { chatTypeMeta, inCardSenderLine, outboundMessageLabel } from './messagePreview';
@@ -145,17 +151,31 @@ import { threadVisibilityLabel, threadVisibilitySubtitle } from './threadVisibil
 import { PhotoAlbum } from './PhotoAlbum';
 import { buildChatTradeCard, buildCollectionTradeCard, buildDesignTradeCard } from './chatTradeCard';
 import {
+  MESSAGE_ACTIONS_CHEVRON_CLASS,
+  MESSAGE_ACTIONS_MENU_CLASS,
+  MESSAGE_ACTIONS_REACTION_RAIL_CLASS,
+  MESSAGE_ACTIONS_ROW_CLASS,
   MSG_BUBBLE_CLASS,
-  MSG_BUBBLE_TIME_CLASS,
   messageChromeBubblePad,
   resolveMessageLongPress,
 } from './messageChrome';
+import { MessageTimeMeta } from './MessageTimeMeta';
+import { threadLeaveDirty } from './threadLeaveDirty';
+import { messageHasClusterTail } from './messageClusterTail';
 import { MessageBubbleChevronPadContext } from './messageBubbleChevronPad';
 import { chatBubbleCorners } from './chatBubbleCorners';
 import { paymentCardTitle } from './paymentCardCopy';
 import { ChatTradeCard } from './ChatTradeCardView';
 import { ChatComplaintSheet } from './ChatComplaintSheet';
-import { isChatSystemNotice } from './chatSystemNotice';
+import {
+  CHAT_SYSTEM_PILL_CLASS,
+  isChatSystemNotice,
+  isOrderLifecycleNotice,
+  orderLifecycleLivingMessageId,
+  orderLifecycleNoticeText,
+  orderLifecycleOrderId,
+} from './chatSystemNotice';
+import { threadDateChip } from './threadDateChip';
 import { inboxThreadAvatarUrl } from './inboxThreadAvatar';
 import { placeInboxRowMenu } from './placeInboxRowMenu';
 import {
@@ -1743,22 +1763,18 @@ export function ThreadPage() {
 
   const threadWipActive = useMemo(
     () =>
-      Boolean(
-        draft.trim() ||
-          replyTo ||
-          attachSelectedIds.size > 0 ||
-          attachSending ||
-          uploadingPhoto ||
-          uploadingDocument ||
-          cameraOpen ||
-          uploadingVoice ||
-          uploadProgress ||
-          forwardQueue.length > 0 ||
-          (selecting && selectedIds.size > 0),
-      ),
+      threadLeaveDirty({
+        attachSelected: attachSelectedIds.size > 0,
+        attachSending,
+        uploadingPhoto,
+        uploadingDocument,
+        cameraOpen,
+        uploadingVoice,
+        uploadProgress: Boolean(uploadProgress),
+        forwarding: forwardQueue.length > 0,
+        selectingWithPile: selecting && selectedIds.size > 0,
+      }),
     [
-      draft,
-      replyTo,
       attachSelectedIds.size,
       attachSending,
       uploadingPhoto,
@@ -2278,8 +2294,13 @@ export function ThreadPage() {
                 </button>
               </div>
             ) : null}
-            {ordered.map((message) => {
+            {ordered.map((message, index) => {
               const systemNotice = isChatSystemNotice(message);
+              const clusterTail = messageHasClusterTail(ordered, index);
+              const dateChip = threadDateChip(
+                index > 0 ? ordered[index - 1]!.createdAt : null,
+                message.createdAt,
+              );
               const showThumb =
                 !systemNotice &&
                 showGroupSenderThumb({
@@ -2287,8 +2308,16 @@ export function ThreadPage() {
                   incoming: !message.mine,
                 });
               return (
+              <div key={message.id}>
+                {dateChip ? (
+                  <div
+                    className="flex w-full justify-center py-1.5"
+                    data-testid="chat-date-chip"
+                  >
+                    <p className={CHAT_SYSTEM_PILL_CLASS}>{dateChip}</p>
+                  </div>
+                ) : null}
               <div
-                key={message.id}
                 className={showThumb ? 'flex items-end gap-1.5' : undefined}
               >
                 {firstUnreadId === message.id && openVisit && openVisit.unreadCount > 0 ? (
@@ -2299,7 +2328,7 @@ export function ThreadPage() {
                     aria-label={unreadDividerLabel(openVisit.unreadCount)}
                   >
                     <span className="h-px flex-1 bg-line" />
-                    <span className="shrink-0 text-[11px] font-body text-muted">
+                    <span className="shrink-0 text-meta font-body text-muted">
                       {unreadDividerLabel(openVisit.unreadCount)}
                     </span>
                     <span className="h-px flex-1 bg-line" />
@@ -2325,6 +2354,7 @@ export function ThreadPage() {
                 <TimelineItem
                   message={message}
                   threadId={id}
+                  isGroup={detail.type === 'group'}
                   primaryAcceptQuoteId={primaryAcceptQuoteId}
                   canDeclineOrder={declineOrderMessageIdSet.has(message.id)}
                   onDeclineOrder={(orderId) => declineOrder.mutate(orderId)}
@@ -2362,6 +2392,21 @@ export function ThreadPage() {
                   selecting={selecting}
                   selected={selectedIds.has(message.id)}
                   highlighted={highlightId === message.id}
+                  onJumpToLivingCard={
+                    isOrderLifecycleNotice(message)
+                      ? () => {
+                          const orderId = orderLifecycleOrderId(message);
+                          const livingId =
+                            orderLifecycleLivingMessageId(message) ??
+                            (orderId ? livingOrderCardId(ordered, orderId) : null);
+                          if (livingId) {
+                            void jumpToMessage(livingId);
+                            return;
+                          }
+                          if (orderId) navigate(`/orders/${orderId}`);
+                        }
+                      : undefined
+                  }
                   onJumpToReply={
                     message.replyTo?.available !== false && message.replyTo?.id
                       ? () => {
@@ -2384,6 +2429,8 @@ export function ThreadPage() {
                       ? () => toggleSelected(message.id)
                       : undefined
                   }
+                  clusterTail={clusterTail}
+                  seen={Boolean(seenOnLast && lastOutgoing?.id === message.id)}
                   actions={
                     canCompose && !selecting && !systemNotice
                       ? {
@@ -2458,11 +2505,7 @@ export function ThreadPage() {
                     ))}
                   </div>
                 ) : null}
-                {seenOnLast && lastOutgoing?.id === message.id ? (
-                  <p className="mt-0.5 text-right text-[11px] text-muted" data-testid="chat-seen">
-                    Seen
-                  </p>
-                ) : null}
+              </div>
               </div>
               );
             })}
@@ -2506,7 +2549,7 @@ export function ThreadPage() {
         <p className="shrink-0 px-1 pb-1 text-center text-xs text-danger">{error}</p>
       ) : null}
       {uploadProgress ? (
-        <p className="shrink-0 px-1 pb-1 text-center text-xs text-muted">{uploadProgress}</p>
+        <p className="shrink-0 px-1 pb-1 text-center text-meta text-muted">{uploadProgress}</p>
       ) : null}
       {forwardDoneTo ? (
         <p className="shrink-0 px-1 pb-1 text-center text-xs text-success-ink">
@@ -2514,7 +2557,7 @@ export function ThreadPage() {
         </p>
       ) : null}
       {forwardProgress ? (
-        <p className="shrink-0 px-1 pb-1 text-center text-xs text-muted">{forwardProgress}</p>
+        <p className="shrink-0 px-1 pb-1 text-center text-meta text-muted">{forwardProgress}</p>
       ) : null}
 
       <ThreadForwardDock
@@ -2566,7 +2609,7 @@ export function ThreadPage() {
             </div>
           ) : null}
           {voiceRecorder.recording ? (
-            <p className="px-1 text-center text-xs text-muted">
+            <p className="px-1 text-center text-meta text-muted">
               Recording {formatVoiceDuration(voiceRecorder.elapsedMs)} · slide left to cancel
             </p>
           ) : null}
@@ -2593,7 +2636,7 @@ export function ThreadPage() {
                 data-testid="chat-voice-send"
                 disabled={uploadingVoice || send.isPending}
                 onClick={() => void sendPendingVoice()}
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent text-white disabled:opacity-40"
+                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-accent text-on-accent disabled:opacity-40"
               >
                 <SendIcon width={18} height={18} />
               </button>
@@ -2678,7 +2721,7 @@ export function ThreadPage() {
                 aria-label="Send"
                 data-testid="chat-send"
                 disabled={send.isPending}
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent text-white disabled:opacity-40"
+                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-accent text-on-accent disabled:opacity-40"
               >
                 <SendIcon width={18} height={18} />
               </button>
@@ -2859,7 +2902,7 @@ export function ThreadPage() {
               >
                 <span
                   className={cx(
-                    'flex h-10 w-10 shrink-0 items-center justify-center rounded-full',
+                    'flex h-12 w-12 shrink-0 items-center justify-center rounded-full',
                     iconClass,
                   )}
                 >
@@ -3046,7 +3089,7 @@ export function ThreadPage() {
         ) : null}
 
         {uploadingPhoto || uploadingDocument || send.isPending ? (
-          <p className="mt-3 text-center text-xs text-muted">
+          <p className="mt-3 text-center text-meta text-muted">
             {uploadProgress ??
               (uploadingPhoto || uploadingDocument ? 'Uploading…' : 'Sending…')}
           </p>
@@ -3132,7 +3175,7 @@ export function ThreadPage() {
             >
               <span className="min-w-0">
                 <span className="block truncate text-sm font-emphasis text-ink">{mill.name}</span>
-                <span className="text-xs text-muted">Supplier</span>
+                <span className="text-meta text-muted">Supplier</span>
               </span>
             </button>
           ))}
@@ -3166,13 +3209,17 @@ export function ThreadPage() {
                     onClick={() => forward.mutate(row.id)}
                     className="flex items-center gap-3 rounded-xl px-2 py-2.5 text-left hover:bg-foam active:bg-foam disabled:opacity-50"
                   >
-                    <Avatar name={chatTitle} imageUrl={inboxThreadAvatarUrl(row)} />
+                    <Avatar
+                      name={chatTitle}
+                      imageUrl={inboxThreadAvatarUrl(row)}
+                      fallback={row.type === 'group' ? 'group' : 'initials'}
+                    />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-emphasis text-ink">
                         {chatTitle}
                       </span>
                       {visLine ? (
-                        <span className="block truncate text-[11px] text-muted">
+                        <span className="block truncate text-meta text-muted">
                           {visLine}
                         </span>
                       ) : null}
@@ -3186,7 +3233,7 @@ export function ThreadPage() {
           </div>
         )}
         {forward.isPending ? (
-          <p className="mt-2 text-center text-xs text-muted">
+          <p className="mt-2 text-center text-meta text-muted">
             {forwardProgress ?? 'Forwarding…'}
           </p>
         ) : null}
@@ -3308,7 +3355,7 @@ function InCardActor({ message, label }: { message: MessageView; label: string }
   const line = inCardSenderLine(message, label);
   if (!line) return null;
   return (
-    <p className="text-[11px] leading-tight text-muted">{line}</p>
+    <p className="text-meta leading-tight text-muted">{line}</p>
   );
 }
 
@@ -3368,6 +3415,39 @@ type MessageActions = {
   starred?: boolean;
 };
 
+function MessageMenuItem({
+  icon,
+  label,
+  onClick,
+  danger = false,
+}: {
+  icon: ReactNode;
+  label: string;
+  onClick: (event: MouseEvent<HTMLButtonElement>) => void;
+  danger?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      role="menuitem"
+      className={cx(MESSAGE_ACTIONS_ROW_CLASS, danger ? 'text-danger' : 'text-ink')}
+      onClick={onClick}
+    >
+      <span className={cx('shrink-0', danger ? 'text-danger' : 'text-muted')} aria-hidden>
+        {icon}
+      </span>
+      <span
+        className={cx(
+          'text-name font-emphasis tracking-tight',
+          danger ? 'text-danger' : 'text-ink',
+        )}
+      >
+        {label}
+      </span>
+    </button>
+  );
+}
+
 function MessageChrome({
   messageId,
   mine,
@@ -3416,7 +3496,8 @@ function MessageChrome({
       actions?.onEdit ||
       actions?.onDelete,
   );
-  const bubbleChevronPad = hasActions && !selecting;
+  const showChevron = hasActions && !selecting;
+  const bubbleChevronPad = false;
   const chevronOnAccent = actionsOnAccent ?? mine;
   const longPressIntent = resolveMessageLongPress({
     selecting,
@@ -3451,7 +3532,7 @@ function MessageChrome({
         rootRef.current?.getBoundingClientRect();
       if (!box) return;
       const height = menuRef.current?.offsetHeight || 280;
-      const width = menuRef.current?.offsetWidth || 160;
+      const width = menuRef.current?.offsetWidth || 176;
       setMenuPos(
         placeInboxRowMenu(
           { top: box.top, bottom: box.bottom, right: box.right },
@@ -3489,65 +3570,16 @@ function MessageChrome({
 
   const menuItems = (
     <>
-      {actions?.onReply ? (
-        <button
-          type="button"
-          role="menuitem"
-          className="block w-full px-3 py-2.5 text-left text-sm font-emphasis text-ink hover:bg-foam"
-          onClick={(event) => {
-            event.stopPropagation();
-            run(actions.onReply);
-          }}
-        >
-          Reply
-        </button>
-      ) : null}
-      {actions?.onForward ? (
-        <button
-          type="button"
-          role="menuitem"
-          className="block w-full px-3 py-2.5 text-left text-sm font-emphasis text-ink hover:bg-foam"
-          onClick={(event) => {
-            event.stopPropagation();
-            run(actions.onForward);
-          }}
-        >
-          Forward
-        </button>
-      ) : null}
-      {actions?.onCopy ? (
-        <button
-          type="button"
-          role="menuitem"
-          className="block w-full px-3 py-2.5 text-left text-sm font-emphasis text-ink hover:bg-foam"
-          onClick={(event) => {
-            event.stopPropagation();
-            run(actions.onCopy);
-          }}
-        >
-          Copy
-        </button>
-      ) : null}
-      {actions?.onStar ? (
-        <button
-          type="button"
-          role="menuitem"
-          className="block w-full px-3 py-2.5 text-left text-sm font-emphasis text-ink hover:bg-foam"
-          onClick={(event) => {
-            event.stopPropagation();
-            run(actions.onStar);
-          }}
-        >
-          {actions.starred ? 'Unstar' : 'Star'}
-        </button>
-      ) : null}
       {actions?.onReact ? (
-        <div className="flex gap-1 border-t border-line/70 px-2 py-1.5">
+        <div
+          className={MESSAGE_ACTIONS_REACTION_RAIL_CLASS}
+          data-testid="message-actions-reactions"
+        >
           {CHAT_REACTION_EMOJIS.map((emoji) => (
             <button
               key={emoji}
               type="button"
-              className="rounded-lg px-2 py-1 text-base hover:bg-foam"
+              className="rounded-lg px-2 py-1 text-base hover:bg-surface"
               onClick={(event) => {
                 event.stopPropagation();
                 setMenuOpen(false);
@@ -3559,45 +3591,79 @@ function MessageChrome({
           ))}
         </div>
       ) : null}
-      {actions?.onEdit ? (
-        <button
-          type="button"
-          role="menuitem"
-          className="block w-full px-3 py-2.5 text-left text-sm font-emphasis text-ink hover:bg-foam"
-          onClick={(event) => {
-            event.stopPropagation();
-            run(actions.onEdit);
-          }}
-        >
-          Edit
-        </button>
-      ) : null}
-      {actions?.onSelect ? (
-        <button
-          type="button"
-          role="menuitem"
-          className="block w-full px-3 py-2.5 text-left text-sm font-emphasis text-ink hover:bg-foam"
-          onClick={(event) => {
-            event.stopPropagation();
-            run(actions.onSelect);
-          }}
-        >
-          Select
-        </button>
-      ) : null}
-      {actions?.onDelete ? (
-        <button
-          type="button"
-          role="menuitem"
-          className="block w-full border-t border-line/70 px-3 py-2.5 text-left text-sm font-emphasis text-danger hover:bg-foam"
-          onClick={(event) => {
-            event.stopPropagation();
-            run(actions.onDelete);
-          }}
-        >
-          Delete
-        </button>
-      ) : null}
+      <div>
+        {actions?.onReply ? (
+          <MessageMenuItem
+            icon={<ReplyIcon width={20} height={20} />}
+            label="Reply"
+            onClick={(event) => {
+              event.stopPropagation();
+              run(actions.onReply);
+            }}
+          />
+        ) : null}
+        {actions?.onForward ? (
+          <MessageMenuItem
+            icon={<ForwardIcon width={20} height={20} />}
+            label="Forward"
+            onClick={(event) => {
+              event.stopPropagation();
+              run(actions.onForward);
+            }}
+          />
+        ) : null}
+        {actions?.onCopy ? (
+          <MessageMenuItem
+            icon={<CopyIcon width={20} height={20} />}
+            label="Copy"
+            onClick={(event) => {
+              event.stopPropagation();
+              run(actions.onCopy);
+            }}
+          />
+        ) : null}
+        {actions?.onStar ? (
+          <MessageMenuItem
+            icon={<StarIcon width={20} height={20} />}
+            label={actions.starred ? 'Unstar' : 'Star'}
+            onClick={(event) => {
+              event.stopPropagation();
+              run(actions.onStar);
+            }}
+          />
+        ) : null}
+        {actions?.onEdit ? (
+          <MessageMenuItem
+            icon={<PencilIcon width={20} height={20} />}
+            label="Edit"
+            onClick={(event) => {
+              event.stopPropagation();
+              run(actions.onEdit);
+            }}
+          />
+        ) : null}
+        {actions?.onSelect ? (
+          <MessageMenuItem
+            icon={<CheckIcon width={20} height={20} />}
+            label="Select"
+            onClick={(event) => {
+              event.stopPropagation();
+              run(actions.onSelect);
+            }}
+          />
+        ) : null}
+        {actions?.onDelete ? (
+          <MessageMenuItem
+            icon={<TrashIcon width={20} height={20} />}
+            label="Delete"
+            danger
+            onClick={(event) => {
+              event.stopPropagation();
+              run(actions.onDelete);
+            }}
+          />
+        ) : null}
+      </div>
     </>
   );
 
@@ -3617,7 +3683,7 @@ function MessageChrome({
           className={cx(
             'mb-2 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border',
             selected
-              ? 'border-accent bg-accent text-white'
+              ? 'border-accent bg-accent text-on-accent'
               : 'border-line bg-surface text-transparent',
           )}
         >
@@ -3629,7 +3695,7 @@ function MessageChrome({
         data-message-id={messageId}
         data-testid={canSwipeReply ? `message-swipe-${messageId}` : undefined}
         className={cx(
-          'relative touch-pan-y',
+          'relative touch-pan-y group',
           messageChromeBubblePad(bubbleChevronPad),
           className,
         )}
@@ -3691,7 +3757,7 @@ function MessageChrome({
         <MessageBubbleChevronPadContext.Provider value={bubbleChevronPad}>
           {children}
         </MessageBubbleChevronPadContext.Provider>
-        {bubbleChevronPad ? (
+        {showChevron ? (
           <button
             ref={chevronRef}
             type="button"
@@ -3704,10 +3770,11 @@ function MessageChrome({
               setMenuOpen((open) => !open);
             }}
             className={cx(
-              'absolute right-1 top-1 z-20 flex h-7 w-7 items-center justify-center rounded-full',
-              chevronOnAccent
-                ? 'text-white/90 hover:bg-white/20'
-                : 'text-muted hover:bg-black/[0.06]',
+              MESSAGE_ACTIONS_CHEVRON_CLASS,
+              chevronOnAccent ? 'text-white/90' : 'text-muted',
+              menuOpen
+                ? 'opacity-100'
+                : 'opacity-0 focus-visible:opacity-100 [@media(hover:hover)_and_(pointer:fine)]:group-hover:opacity-100',
             )}
           >
             <ChevronDownIcon width={16} height={16} />
@@ -3720,7 +3787,7 @@ function MessageChrome({
               ref={menuRef}
               role="menu"
               data-testid="message-actions-menu"
-              className="fixed z-[70] min-w-[8.5rem] overflow-hidden rounded-xl border border-line bg-surface py-1 shadow-soft"
+              className={MESSAGE_ACTIONS_MENU_CLASS}
               style={
                 menuPos
                   ? { top: menuPos.top, left: menuPos.left }
@@ -3739,6 +3806,7 @@ function MessageChrome({
 function TimelineItem({
   message,
   threadId,
+  isGroup = false,
   primaryAcceptQuoteId,
   canDeclineOrder = false,
   onDeclineOrder,
@@ -3765,13 +3833,17 @@ function TimelineItem({
   selecting,
   selected,
   highlighted = false,
+  onJumpToLivingCard,
   onJumpToReply,
   onToggleSelect,
   onQuotePhoto,
+  clusterTail = true,
+  seen = false,
   actions,
 }: {
   message: MessageView;
   threadId: string;
+  isGroup?: boolean;
   primaryAcceptQuoteId: string | null;
   canDeclineOrder?: boolean;
   onDeclineOrder?: (orderId: string) => void;
@@ -3802,21 +3874,32 @@ function TimelineItem({
   selecting: boolean;
   selected: boolean;
   highlighted?: boolean;
+  onJumpToLivingCard?: () => void;
   onJumpToReply?: () => void;
   onToggleSelect?: () => void;
   onQuotePhoto?: (index: number) => void;
+  clusterTail?: boolean;
+  seen?: boolean;
   actions?: MessageActions;
 }) {
   const navigate = useNavigate();
   if (isChatSystemNotice(message)) {
+    const text =
+      orderLifecycleNoticeText(message) ?? (message.body?.trim() || 'Notice');
+    const jump = isOrderLifecycleNotice(message) && !selecting ? onJumpToLivingCard : undefined;
+    const pill = <p className={CHAT_SYSTEM_PILL_CLASS}>{text}</p>;
     return (
       <div
         className="flex w-full justify-center py-1.5"
         data-testid={`chat-system-notice-${message.id}`}
       >
-        <p className="max-w-[90%] rounded-full bg-surface px-3 py-1 text-center text-[12px] font-body text-muted">
-          {message.body?.trim() || 'Notice'}
-        </p>
+        {jump ? (
+          <button type="button" onClick={jump} aria-label={text} className="max-w-[90%]">
+            {pill}
+          </button>
+        ) : (
+          pill
+        )}
       </div>
     );
   }
@@ -3919,8 +4002,8 @@ function TimelineItem({
           <div
             className={cx(
               MSG_BUBBLE_CLASS,
-              'overflow-hidden border border-line bg-surface',
-              chatBubbleCorners(message.mine),
+              'border border-line bg-surface',
+              chatBubbleCorners(message.mine, { tail: clusterTail }),
             )}
           >
             {inCardSenderLine(message, senderLabel) ? (
@@ -3938,9 +4021,11 @@ function TimelineItem({
               interactive={!selecting}
               onQuote={onQuotePhoto}
             />
-            <p className={cx(MSG_BUBBLE_TIME_CLASS, 'py-1.5 pl-3 text-xs text-muted')}>
-              {timeAgo(message.createdAt)}
-            </p>
+            <MessageTimeMeta
+              createdAt={message.createdAt}
+              seen={seen}
+              className="py-1.5 pl-3 pr-3 text-muted"
+            />
           </div>
         </div>
       </MessageChrome>
@@ -3970,8 +4055,8 @@ function TimelineItem({
           <div
             className={cx(
               MSG_BUBBLE_CLASS,
-              'overflow-hidden border border-line bg-surface',
-              chatBubbleCorners(message.mine),
+              'border border-line bg-surface',
+              chatBubbleCorners(message.mine, { tail: clusterTail }),
             )}
           >
             {inCardSenderLine(message, senderLabel) ? (
@@ -4009,15 +4094,17 @@ function TimelineItem({
                 <span className="block truncate text-sm font-emphasis text-ink">
                   {documentMeta.fileName}
                 </span>
-                <span className="block text-xs text-muted">
+                <span className="block text-meta text-muted">
                   {sizeLabel ? `${cue} · ${sizeLabel}` : cue}
                 </span>
               </span>
             </a>
-            <p className={cx(MSG_BUBBLE_TIME_CLASS, 'py-1.5 pl-3 text-xs text-muted')}>
-              {timeAgo(message.createdAt)}
-              {message.editedAt ? ' · Edited' : ''}
-            </p>
+            <MessageTimeMeta
+              createdAt={message.createdAt}
+              seen={seen}
+              edited={Boolean(message.editedAt)}
+              className="py-1.5 pl-3 pr-3 text-muted"
+            />
           </div>
         </div>
       </MessageChrome>
@@ -4042,7 +4129,7 @@ function TimelineItem({
           className={cx(
             MSG_BUBBLE_CLASS,
             'flex flex-col gap-1 border border-line bg-surface px-3 py-2',
-            chatBubbleCorners(message.mine),
+            chatBubbleCorners(message.mine, { tail: clusterTail }),
           )}
         >
           {inCardSenderLine(message, senderLabel) ? (
@@ -4052,9 +4139,11 @@ function TimelineItem({
           <div className="min-w-0">
             <VoicePlayer src={message.body} durationMs={durationMs} />
           </div>
-          <p className={cx(MSG_BUBBLE_TIME_CLASS, 'text-xs text-muted')}>
-            {timeAgo(message.createdAt)}
-          </p>
+          <MessageTimeMeta
+            createdAt={message.createdAt}
+            seen={seen}
+            className="text-muted"
+          />
         </div>
       </MessageChrome>
     );
@@ -4094,7 +4183,7 @@ function TimelineItem({
     } else if (names.length > 1) {
       model.primary = `${names.length} designs`;
     }
-    model.who = senderLabel.trim() || null;
+    model.who = isGroup ? senderLabel.trim() || null : null;
     model.details = [
       ...(askLine ? [askLine] : []),
       ...model.details.filter((line) => line !== askLine),
@@ -4145,6 +4234,7 @@ function TimelineItem({
           model={model}
           highlight={hl}
           onOpen={undefined}
+          seen={seen}
         />
       </MessageChrome>
     );
@@ -4186,7 +4276,7 @@ function TimelineItem({
     if (typeof meta.collectionName === 'string' && meta.collectionName.trim()) {
       model.primary = meta.collectionName.trim();
     }
-    model.who = senderLabel.trim() || null;
+    model.who = isGroup ? senderLabel.trim() || null : null;
     model.details = [
       ...(askLine ? [askLine] : []),
       ...model.details.filter((line) => line !== askLine),
@@ -4240,6 +4330,7 @@ function TimelineItem({
               : undefined
           }
           selecting={selecting}
+          seen={seen}
         />
       </MessageChrome>
     );
@@ -4278,10 +4369,9 @@ function TimelineItem({
         <div
           className={cx(
             MSG_BUBBLE_CLASS,
-            'w-full overflow-hidden border border-line text-left',
+            'w-full text-left',
             message.mine ? 'bg-chat-out' : 'bg-chat-in',
-            chatBubbleCorners(message.mine),
-            !message.mine && 'border-l-[3px] border-l-accent',
+            chatBubbleCorners(message.mine, { tail: clusterTail }),
           )}
         >
           <button
@@ -4293,9 +4383,9 @@ function TimelineItem({
           >
             <div className="border-b border-line/70 px-3 py-2">
               <p className="text-sm font-emphasis text-ink">{title}</p>
-              {ref?.totalLabel ? <p className="text-xs text-muted">{ref.totalLabel}</p> : null}
+              {ref?.totalLabel ? <p className="text-meta text-muted">{ref.totalLabel}</p> : null}
             </div>
-            <p className="px-3 py-2 text-center text-[13px] font-emphasis text-accent">
+            <p className="px-3 py-2 text-center text-meta font-emphasis text-accent">
               View order →
             </p>
           </button>
@@ -4321,10 +4411,8 @@ function TimelineItem({
           className={cx(
             MSG_BUBBLE_CLASS,
             'px-3.5 py-2 text-base font-body',
-            chatBubbleCorners(message.mine),
-            message.mine
-              ? 'bg-chat-out text-ink'
-              : 'border border-line bg-chat-in text-ink',
+            chatBubbleCorners(message.mine, { tail: clusterTail }),
+            message.mine ? 'bg-chat-out text-ink' : 'bg-chat-in text-ink',
           )}
         >
           {message.deletedForEveryone ? (
@@ -4335,15 +4423,27 @@ function TimelineItem({
               {reply ? (
                 <ReplyQuote preview={reply} mine={message.mine} onJump={onJumpToReply} />
               ) : null}
-              <p className="whitespace-pre-wrap break-words">
+              <p className="overflow-hidden whitespace-pre-wrap break-words">
                 {message.body?.trim() ? hl(message.body) : 'Message'}
+                {message.editedAt ? (
+                  <span className="text-meta text-muted"> Edited</span>
+                ) : null}
+                <MessageTimeMeta
+                  createdAt={message.createdAt}
+                  seen={seen}
+                  hug
+                  className="text-muted"
+                />
               </p>
-              {message.editedAt ? <p className="mt-0.5 text-[10px] text-muted">Edited</p> : null}
             </>
           )}
-          <p className={cx(MSG_BUBBLE_TIME_CLASS, 'mt-0.5 text-xs text-muted')}>
-            {timeAgo(message.createdAt)}
-          </p>
+          {message.deletedForEveryone ? (
+            <MessageTimeMeta
+              createdAt={message.createdAt}
+              seen={seen}
+              className="mt-0.5 text-muted"
+            />
+          ) : null}
         </div>
       </MessageChrome>
     );
@@ -4366,6 +4466,7 @@ function TimelineItem({
   const richOrder = isOrderLikeCard && isRichOrderChatMessage(message, ref);
   const tradeCard = buildChatTradeCard(message, ref, senderLabel, {
     compact: isOrderLikeCard && !richOrder,
+    isGroup,
     orderGoesTo,
     actions: {
       openOrder,
@@ -4407,6 +4508,7 @@ function TimelineItem({
           ) : null}
           <ChatTradeCard
             model={tradeCard}
+            clusterTail={clusterTail}
             highlight={hl}
             onOpen={
               selecting
@@ -4418,6 +4520,7 @@ function TimelineItem({
                     : undefined
             }
             selecting={selecting}
+            seen={seen}
           />
         </div>
       </MessageChrome>
@@ -4443,26 +4546,27 @@ function TimelineItem({
         <div
           className={cx(
             MSG_BUBBLE_CLASS,
-            'overflow-hidden border border-line text-sm text-ink',
+            'text-sm text-ink',
             message.mine ? 'bg-chat-out' : 'bg-chat-in',
-            chatBubbleCorners(message.mine),
-            !message.mine && 'border-l-[3px] border-l-accent',
+            chatBubbleCorners(message.mine, { tail: clusterTail }),
           )}
           data-testid="chat-trade-card-fallback"
         >
           <div className="flex items-center gap-1.5 border-b border-line/70 px-2.5 py-2">
             <TypeIcon width={12} height={12} className="shrink-0 text-accent" aria-hidden />
-            <p className="min-w-0 flex-1 truncate text-[15px] font-emphasis tracking-tight text-ink">
+            <p className="min-w-0 flex-1 truncate text-name font-emphasis tracking-tight text-ink">
               {typeMeta.label}
             </p>
           </div>
           <div className="px-2.5 py-2">
-            <p className="text-[13px] font-emphasis text-ink">
+            <p className="text-meta font-emphasis text-ink">
               {hl(message.body?.trim() || 'Shared attachment')}
             </p>
-            <p className={cx(MSG_BUBBLE_TIME_CLASS, 'mt-1 text-xs text-muted')}>
-              {timeAgo(message.createdAt)}
-            </p>
+            <MessageTimeMeta
+              createdAt={message.createdAt}
+              seen={seen}
+              className="mt-1 text-meta text-muted"
+            />
           </div>
         </div>
       </div>

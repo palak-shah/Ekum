@@ -1,6 +1,5 @@
 import { Link } from 'react-router-dom';
 import { useState, type CSSProperties, type ReactNode } from 'react';
-import { timeAgo } from '@/lib/format';
 import { toAbsoluteMediaUrl } from '@/lib/mediaUrl';
 import { PhotoViewer } from '@/ui/PhotoViewer';
 import { cx } from '@/ui/kit';
@@ -9,6 +8,7 @@ import { PhotoAlbum } from './PhotoAlbum';
 import { VoicePlayer } from '@/features/voice/VoicePlayer';
 import type { ChatTradeCardModel } from './chatTradeCard';
 import { MSG_BUBBLE_CLASS } from './messageChrome';
+import { MessageTimeMeta } from './MessageTimeMeta';
 import { useMessageBubbleChevronPad } from './messageBubbleChevronPad';
 import { chatBubbleCorners } from './chatBubbleCorners';
 
@@ -30,9 +30,7 @@ function isAmountLine(line: string): boolean {
  * Never solid accent fills. CSS vars so Safari paint + theme stay one source.
  */
 function directionChrome(mine: boolean) {
-  const shell = mine
-    ? 'border border-line bg-chat-out text-ink'
-    : 'border border-line border-l-[3px] border-l-accent bg-chat-in text-ink';
+  const shell = mine ? 'bg-chat-out text-ink' : 'bg-chat-in text-ink';
   return {
     shell,
     pulseShell: shell,
@@ -42,7 +40,7 @@ function directionChrome(mine: boolean) {
     } satisfies CSSProperties,
     headerBorder: 'border-line/70',
     title: 'text-ink',
-    who: 'text-muted',
+    who: 'text-chip-on-ink',
     detailMuted: 'text-muted',
     detailStrong: 'text-ink',
     note: 'text-ink',
@@ -53,9 +51,9 @@ function directionChrome(mine: boolean) {
     footerAccent: 'text-accent',
     footerQuiet: 'text-muted',
     primaryBtn:
-      'mt-1 w-full rounded-xl bg-accent px-2.5 py-2 text-center text-[13px] font-emphasis tracking-tight text-white',
+      'mt-1 w-full rounded-xl bg-accent px-2.5 py-2 text-center text-meta font-emphasis tracking-tight text-on-accent',
     solidBtn:
-      'mt-1 w-full rounded-xl border border-line bg-surface px-2.5 py-2 text-center text-[13px] font-emphasis tracking-tight text-ink',
+      'mt-1 w-full rounded-xl border border-line bg-surface px-2.5 py-2 text-center text-meta font-emphasis tracking-tight text-ink',
     hoverOpen: 'hover:bg-canvas active:bg-canvas',
   };
 }
@@ -126,7 +124,7 @@ function renderAction(
         data-card-action
         onClick={(event) => event.stopPropagation()}
         className={cx(
-          'block w-full px-2.5 py-2 text-center text-[13px] font-emphasis tracking-tight',
+          'block w-full px-2.5 py-[9px] text-center text-sm font-title tracking-tight',
           chrome.link,
         )}
         style={{ color: chrome.linkColor }}
@@ -146,7 +144,7 @@ function renderAction(
           action.onClick?.();
         }}
         className={cx(
-          'w-full px-2.5 py-2 text-center text-[13px] font-emphasis tracking-tight',
+          'w-full px-2.5 py-[9px] text-center text-sm font-title tracking-tight',
           chrome.link,
         )}
         style={{ color: chrome.linkColor }}
@@ -185,14 +183,19 @@ function PrimaryHeader({
   return (
     <div
       data-testid="chat-trade-card-header"
-      className={cx('border-b', chevronBleed && BLEED_CHEVRON_PAD, chrome.headerBorder)}
+      className={cx(chevronBleed && BLEED_CHEVRON_PAD)}
     >
-      <div className={cx('px-2.5 py-2', chevronBleed && 'pr-8')}>
-        <div className="flex items-center gap-2">
-          <KindIconBadge messageType={typeKeyForKind(kind)} onAccent={false} />
+      <div className={cx('px-2 pt-2', details.length === 0 && 'pb-1.5', chevronBleed && 'pr-8')}>
+        {who ? (
+          <p className={cx('mb-0.5 text-[13px] font-emphasis leading-snug', chrome.who)}>
+            {highlight(who)}
+          </p>
+        ) : null}
+        <div className="flex items-center gap-[7px]">
+          <KindIconBadge messageType={typeKeyForKind(kind)} size={22} iconSize={14} onAccent={false} />
           <p
             className={cx(
-              'min-w-0 flex-1 truncate text-[15px] font-emphasis tracking-tight',
+              'min-w-0 flex-1 truncate text-[14.5px] font-title tracking-tight',
               chrome.title,
               (kind === 'order' || kind === 'quote') && 'whitespace-nowrap',
             )}
@@ -200,21 +203,16 @@ function PrimaryHeader({
             {highlight(primary)}
           </p>
         </div>
-        {who ? (
-          <p className={cx('mt-0.5 text-[12px] font-body leading-snug', chrome.who)}>
-            {highlight(who)}
-          </p>
-        ) : null}
         {details.map((line, index) => {
           const amount = isAmountLine(line);
           return (
             <p
               key={index}
               className={cx(
-                'whitespace-pre-wrap break-words leading-snug',
+                'whitespace-pre-wrap break-words leading-snug pl-[31px]',
                 amount
-                  ? cx('text-[15px] font-title tracking-tight tabular-nums', chrome.detailStrong)
-                  : cx('text-[12px] font-body', chrome.detailMuted),
+                  ? cx('text-name font-title tracking-tight tabular-nums', chrome.detailStrong)
+                  : cx('pb-1.5 pt-px text-[13px] font-body', chrome.detailMuted),
               )}
             >
               {highlight(line)}
@@ -231,11 +229,13 @@ function CardBody({
   highlight,
   chrome,
   chevronBleed,
+  seen,
 }: {
   model: ChatTradeCardModel;
   highlight: (text: string) => ReactNode;
   chrome: ReturnType<typeof directionChrome>;
   chevronBleed: boolean;
+  seen: boolean;
 }) {
   const hasThumbs = model.thumbs.length > 0;
   const hasFooter = Boolean(model.actionRow && model.actionRow.length > 0);
@@ -252,7 +252,7 @@ function CardBody({
       {hasThumbs ? (
         <div
           data-testid="chat-trade-card-images"
-          className="w-full px-2.5 py-2"
+          className="w-full px-2 pb-1 pt-0.5"
           {...(model.kind === 'complaint' ? { 'data-card-action': true } : {})}
         >
           <PhotoAlbum
@@ -265,15 +265,51 @@ function CardBody({
         </div>
       ) : null}
 
+      {model.placedByLine ? (
+        <p
+          data-testid="chat-trade-card-placed-by"
+          className={cx(
+            'px-2 pb-0.5 pt-0.5 text-[13px] font-body leading-snug',
+            bleed,
+            underChevron,
+            chrome.detailMuted,
+          )}
+        >
+          {highlight(model.placedByLine)}
+          {model.placedByDecline ? (
+            <>
+              {' '}
+              <button
+                type="button"
+                data-card-action
+                data-testid={model.placedByDecline.testId ?? 'chat-trade-card-decline'}
+                disabled={!model.placedByDecline.onClick}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  model.placedByDecline?.onClick?.();
+                }}
+                className={cx(
+                  'inline font-title tracking-tight',
+                  chrome.footerQuiet,
+                  !model.placedByDecline.onClick && 'opacity-60',
+                )}
+              >
+                {model.placedByDecline.label}
+              </button>
+            </>
+          ) : null}
+        </p>
+      ) : null}
+
       {hasNote ? (
         <div
           data-testid="chat-trade-card-note"
-          className={cx('relative px-2.5 py-2', bleed)}
+          className={cx('px-2 py-0.5', bleed)}
         >
           {note ? (
             <p
               className={cx(
-                'whitespace-pre-wrap break-words text-[15px] font-body tracking-tight leading-snug',
+                'whitespace-pre-wrap break-words text-name font-body tracking-tight leading-snug',
                 underChevron,
                 chrome.note,
               )}
@@ -286,32 +322,15 @@ function CardBody({
               <VoicePlayer src={model.noteVoiceUrl} durationMs={model.noteVoiceDurationMs} />
             </div>
           ) : null}
-          {/* Under chevron column, inset from the rim (chevron is right-1 / w-7). */}
-          <p
-            data-testid="chat-trade-card-time"
-            className={cx(
-              'absolute bottom-2 text-[11px] tabular-nums leading-none',
-              chevronBleed ? 'right-3' : 'right-2.5',
-              chrome.time,
-            )}
-          >
-            {timeAgo(model.createdAt)}
-          </p>
         </div>
-      ) : (
-        <p
-          data-testid="chat-trade-card-time"
-          className={cx(
-            // Clear bottom-right bubble radius (incoming rounded-br-2xl).
-            'px-2.5 pb-2.5 pt-2 text-right text-[11px] tabular-nums',
-            bleed,
-            hasThumbs && 'pt-0',
-            chrome.time,
-          )}
-        >
-          {timeAgo(model.createdAt)}
-        </p>
-      )}
+      ) : null}
+
+      <MessageTimeMeta
+        createdAt={model.createdAt}
+        seen={seen}
+        testId="chat-trade-card-time"
+        className={cx('px-2 pb-1 pt-0.5', bleed, underChevron, chrome.time)}
+      />
 
       {hasLinkActions ? (
         <div
@@ -329,7 +348,7 @@ function CardBody({
                   model.secondaryAction?.onClick?.();
                 }}
                 className={cx(
-                  'w-full px-2.5 py-2 text-center text-[13px] font-emphasis tracking-tight',
+                  'w-full px-2.5 py-[9px] text-center text-sm font-title tracking-tight',
                   chrome.link,
                 )}
               >
@@ -363,8 +382,7 @@ function CardBody({
                   action.onClick?.();
                 }}
                 className={cx(
-                  'px-2 py-2.5 text-center text-[12px] font-emphasis leading-tight tracking-tight',
-                  index > 0 && cx('border-l', chrome.footerBorder),
+                  'px-2 py-[9px] text-center text-sm font-title leading-tight tracking-tight',
                   accent ? chrome.footerAccent : chrome.footerQuiet,
                 )}
               >
@@ -383,11 +401,17 @@ export function ChatTradeCard({
   highlight = (text) => text,
   onOpen,
   selecting = false,
+  clusterTail = true,
+  seen = false,
 }: {
   model: ChatTradeCardModel;
   highlight?: (text: string) => ReactNode;
   onOpen?: () => void;
   selecting?: boolean;
+  /** WhatsApp last-of-run tail. Isolated cards default to tailed. */
+  clusterTail?: boolean;
+  /** Blue ticks beside time when the other shop has read this last outgoing. */
+  seen?: boolean;
 }) {
   const [albumIndex, setAlbumIndex] = useState<number | null>(null);
   const albumUrls = model.thumbs.map((url) => toAbsoluteMediaUrl(url)).filter(Boolean);
@@ -421,7 +445,7 @@ export function ChatTradeCard({
     const pulseClass = cx(
       MSG_BUBBLE_CLASS,
       'w-full px-2.5 py-2 text-left text-sm',
-      chatBubbleCorners(model.mine),
+      chatBubbleCorners(model.mine, { tail: clusterTail }),
       chrome.pulseShell,
       open && cx('cursor-pointer', chrome.hoverOpen),
     );
@@ -444,7 +468,7 @@ export function ChatTradeCard({
           </p>
         </div>
         {model.who ? (
-          <p className={cx('text-[11px] leading-tight', chrome.who)}>{highlight(model.who)}</p>
+          <p className={cx('text-meta leading-tight', chrome.who)}>{highlight(model.who)}</p>
         ) : null}
         {model.details.map((line, index) => (
           <p
@@ -476,7 +500,7 @@ export function ChatTradeCard({
                 to={model.action.to}
                 data-card-action
                 onClick={(event) => event.stopPropagation()}
-                className={cx('text-[13px] font-emphasis tracking-tight', chrome.link)}
+                className={cx('text-meta font-emphasis tracking-tight', chrome.link)}
                 style={{ color: chrome.linkColor }}
               >
                 {model.action.label}
@@ -489,7 +513,7 @@ export function ChatTradeCard({
                   event.stopPropagation();
                   model.action?.onClick?.();
                 }}
-                className={cx('text-[13px] font-emphasis tracking-tight', chrome.link)}
+                className={cx('text-meta font-emphasis tracking-tight', chrome.link)}
                 style={{ color: chrome.linkColor }}
               >
                 {model.action.label}
@@ -497,7 +521,11 @@ export function ChatTradeCard({
             ) : null}
           </div>
         ) : null}
-        <p className={cx('mt-1 text-right text-[11px]', chrome.time)}>{timeAgo(model.createdAt)}</p>
+        <MessageTimeMeta
+          createdAt={model.createdAt}
+          seen={seen}
+          className={cx('mt-1 text-meta', chrome.time)}
+        />
       </>
     );
     return (
@@ -563,8 +591,8 @@ export function ChatTradeCard({
           MSG_BUBBLE_CLASS,
           // No overflow-hidden: corner radius + clipped bleed/time/footer (BM-07).
           // Thumbs already clip inside PhotoAlbum.
-          'w-full text-sm',
-          chatBubbleCorners(model.mine),
+          'w-full min-w-[262px] max-w-full text-sm',
+          chatBubbleCorners(model.mine, { tail: clusterTail }),
           chrome.shell,
           open && 'cursor-pointer',
         )}
@@ -586,6 +614,7 @@ export function ChatTradeCard({
           highlight={highlight}
           chrome={chrome}
           chevronBleed={chevronBleed}
+          seen={seen}
         />
       </div>
       {album}

@@ -94,7 +94,7 @@ export function textInputChromeClass(
   const locked = opts?.locked === true;
   return [
     formControlWidthClass(className),
-    !hasMinH ? 'min-h-10' : '',
+    !hasMinH ? 'min-h-12' : '',
     !hasRounded ? 'rounded-xl' : '',
     !hasBorder ? 'border border-line' : '',
     locked

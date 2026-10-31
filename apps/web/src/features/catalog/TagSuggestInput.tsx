@@ -319,7 +319,7 @@ export function TagSuggestInput({
           id={inputId}
           value={query}
           data-testid={testId}
-          className="min-h-10 text-base"
+          className="min-h-12 text-base"
           placeholder={placeholder}
           autoComplete="off"
           enterKeyHint="done"

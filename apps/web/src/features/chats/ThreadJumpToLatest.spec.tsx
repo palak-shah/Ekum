@@ -15,8 +15,8 @@ describe('ThreadJumpToLatest', () => {
     render(<ThreadJumpToLatest visible onJump={onJump} />);
     const btn = screen.getByTestId('thread-jump-latest');
     expect(btn).toHaveAttribute('aria-label', 'Latest messages');
-    expect(btn.className).toMatch(/h-10/);
-    expect(btn.className).toMatch(/w-10/);
+    expect(btn.className).toMatch(/h-12/);
+    expect(btn.className).toMatch(/w-12/);
     await user.click(btn);
     expect(onJump).toHaveBeenCalledOnce();
   });

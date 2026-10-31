@@ -2237,7 +2237,7 @@ export function CollectionEditorPage() {
                 data-testid={`collection-order-mode-${mode}`}
                 className={cx(
                   'min-h-8 rounded-full px-3 text-sm font-emphasis tracking-tight',
-                  orderMode === mode ? 'bg-accent text-white' : 'bg-transparent text-muted',
+                  orderMode === mode ? 'bg-accent-soft text-accent-ink' : 'bg-transparent text-muted',
                 )}
                 onClick={() => setOrderMode(mode)}
               >
@@ -2340,7 +2340,7 @@ export function CollectionEditorPage() {
             <span
               className={cx(
                 'flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-[1.5px]',
-                applyToAll ? 'border-accent bg-accent text-white' : 'border-line bg-surface',
+                applyToAll ? 'border-accent bg-accent-soft text-accent-ink' : 'border-line bg-surface',
               )}
               aria-hidden
             >
