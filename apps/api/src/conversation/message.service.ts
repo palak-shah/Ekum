@@ -17,6 +17,7 @@ import {
   photoUrlsFromMessage,
   quotedDesignFromAlbum,
   quotedPhotoUrl,
+  orderReplyQuoteLabel,
   replyPhotoIndexFromMetadata,
   replyProductIdFromMetadata,
   type CrossChatFindItemView,
@@ -625,6 +626,7 @@ export class MessageService {
         type: parent.type,
         bodyPreview: this.replyBodyPreview(parent, reference, photoIndex, productId),
         available: true,
+        senderCompanyId: parent.senderCompanyId,
         photoIndex,
         photoUrl,
         productId,
@@ -648,15 +650,14 @@ export class MessageService {
       const quoted = quotedDesignFromAlbum(reference, productId);
       return quoted ? `Design · ${quoted.name}` : 'Design';
     }
+    const orderQuote = orderReplyQuoteLabel(reference);
+    if (orderQuote) return orderQuote;
     if (reference?.name) {
       if (reference.kind === 'collection') {
         return `Collection · ${reference.name}`;
       }
       if (reference.kind === 'product') {
         return `Design · ${reference.name}`;
-      }
-      if (reference.kind === 'order' || reference.kind === 'rate') {
-        return reference.name;
       }
     }
     if (message.type === MessageType.Photo) {

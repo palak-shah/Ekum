@@ -97,6 +97,61 @@ export async function acceptQuote(
   return res.json() as Promise<{ id: string; status: string; threadId: string }>;
 }
 
+export async function decideOrderLines(
+  request: APIRequestContext,
+  accessToken: string,
+  orderId: string,
+  body: {
+    items: Array<{
+      orderItemId: string;
+      action: 'confirm' | 'decline';
+      quantity?: number;
+      rate?: number;
+    }>;
+    note?: string;
+  },
+): Promise<{ id: string; status: string }> {
+  const res = await request.post(`${API_URL}/orders/${orderId}/lines/decide`, {
+    headers: { authorization: `Bearer ${accessToken}` },
+    data: body,
+  });
+  if (!res.ok()) {
+    throw new Error(`decide lines failed: ${res.status()} ${await res.text()}`);
+  }
+  return res.json() as Promise<{ id: string; status: string }>;
+}
+
+export async function addOrderNote(
+  request: APIRequestContext,
+  accessToken: string,
+  orderId: string,
+  note: string,
+): Promise<void> {
+  const res = await request.post(`${API_URL}/orders/${orderId}/notes`, {
+    headers: { authorization: `Bearer ${accessToken}` },
+    data: { note },
+  });
+  if (!res.ok()) {
+    throw new Error(`add note failed: ${res.status()} ${await res.text()}`);
+  }
+}
+
+export async function setLineQuantity(
+  request: APIRequestContext,
+  accessToken: string,
+  orderId: string,
+  items: Array<{ orderItemId: string; quantity: number }>,
+): Promise<{ id: string; status: string }> {
+  const res = await request.post(`${API_URL}/orders/${orderId}/lines/quantity`, {
+    headers: { authorization: `Bearer ${accessToken}` },
+    data: { items },
+  });
+  if (!res.ok()) {
+    throw new Error(`set line quantity failed: ${res.status()} ${await res.text()}`);
+  }
+  return res.json() as Promise<{ id: string; status: string }>;
+}
+
 export async function dispatchOrder(
   request: APIRequestContext,
   accessToken: string,

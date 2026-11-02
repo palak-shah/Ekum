@@ -1,7 +1,9 @@
 import { test, expect } from '@playwright/test';
 import {
   accessTokenFromPage,
+  addOrderNote,
   createOrder,
+  decideOrderLines,
   dispatchOrder,
   getOrder,
   quoteOrder,
@@ -229,6 +231,7 @@ test.describe('orders chrome @functional @release @orders', () => {
     const decline = dock.getByTestId('order-dock-decline');
     const confirm = dock.getByTestId('order-dock-confirm');
     await expect(decline).toBeVisible();
+    await expect(decline).toHaveClass(/border-accent/);
     await expect(confirm).toBeVisible();
     await expect(dock.getByTestId('order-send-quote')).toHaveCount(0);
     const declineBox = await decline.boundingBox();
@@ -378,7 +381,15 @@ test.describe('orders chrome @functional @release @orders', () => {
     await page.goto(`/orders/${order.id}`);
     await expect(page.getByRole('heading', { name: /#/ })).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText(/^Buying · /)).toBeVisible();
-    await expect(page.getByTestId('order-ticket-waiting')).toHaveText('Waiting: supplier');
+    await expect(page.getByText('Supplier', { exact: true })).toBeVisible();
+    const party = page.getByTestId('order-party-profile');
+    await expect(party).toHaveClass(/text-ink/);
+    await expect(party).not.toHaveClass(/text-accent/);
+    const partyBox = await party.boundingBox();
+    const supplierBox = await page.getByText('Supplier', { exact: true }).boundingBox();
+    expect(partyBox && supplierBox).toBeTruthy();
+    expect(supplierBox!.y).toBeGreaterThan(partyBox!.y);
+    await expect(page.getByTestId('order-ticket-waiting')).toHaveCount(0);
     await expect(page.getByTestId('order-ticket-progress')).toHaveCount(0);
     await expect(page.getByTestId('order-ticket-notes')).toBeVisible();
     await expect(page.getByTestId('order-ticket-notes').getByText('No notes yet.')).toBeVisible();
@@ -387,13 +398,33 @@ test.describe('orders chrome @functional @release @orders', () => {
     await expect(page.getByTestId('order-ticket-note-add')).toHaveText('Add');
     await expect(page.getByTestId('order-ticket-bill-total')).toHaveCount(0);
     await expect(page.getByTestId('order-timeline-more')).toContainText(/Timeline · /);
-    await expect(page.getByTestId('order-parent-items').getByText('Designs')).toBeVisible();
+    const timeline = page.getByTestId('order-timeline');
+    await expect(timeline.locator('li')).toHaveCount(0);
+    await page.getByTestId('order-timeline-more').click();
+    await expect(timeline.locator('li').first()).toBeVisible();
+    const designsCard = page.getByTestId('order-parent-items');
+    await expect(designsCard.getByText('Designs', { exact: true })).toBeVisible();
+    await expect(designsCard.getByTestId('order-ticket-unit-heading')).toHaveCount(0);
+    const caption = designsCard.getByTestId('order-designs-caption');
+    await expect(caption).toBeVisible();
+    const designsBox = await designsCard.getByText('Designs', { exact: true }).boundingBox();
+    const captionBox = await caption.boundingBox();
+    expect(designsBox && captionBox).toBeTruthy();
+    expect(captionBox!.x).toBeGreaterThan(designsBox!.x);
+    expect(Math.abs(captionBox!.y - designsBox!.y)).toBeLessThan(12);
     await expect(page.getByTestId('order-line-facts')).toHaveAttribute('data-density', 'ticket');
     await expect(page.getByTestId('order-note-forward')).toHaveCount(0);
     const dock = page.getByTestId('order-action-dock');
+    const chat = dock.getByTestId('order-open-chat');
+    await expect(chat).toHaveAttribute('aria-label', 'Chat');
     await expect(dock.getByTestId('order-dock-cancel')).toBeVisible();
+    const chatBox = await chat.boundingBox();
+    const cancelBox = await dock.getByTestId('order-dock-cancel').boundingBox();
+    expect(chatBox && cancelBox).toBeTruthy();
+    expect(chatBox!.x).toBeLessThan(cancelBox!.x);
     await expect(dock.getByTestId('order-dock-edit')).toBeVisible();
     await expect(dock.getByTestId('order-dock-accept-quote')).toHaveCount(0);
+    await expect(page.getByTestId('app-bottom-nav')).toBeHidden();
   });
 
   test('seller same chrome; buyer Accept quote stays on the dock', async ({ page }) => {
@@ -409,9 +440,34 @@ test.describe('orders chrome @functional @release @orders', () => {
     await loginAsRavi(page);
     await page.goto(`/orders/${order.id}`);
     await expect(page.getByText(/^Selling · /)).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText('Buyer', { exact: true })).toBeVisible();
+    await expect(page.getByTestId('order-party-profile')).toHaveClass(/text-ink/);
+    await expect(page.getByTestId('order-parent-items').getByTestId('order-ticket-unit-heading')).toHaveCount(
+      0,
+    );
+    const sellingCaption = page.getByTestId('order-designs-caption');
+    await expect(sellingCaption).toBeVisible();
+    const sellingDesigns = page.getByTestId('order-parent-items').getByText('Designs', { exact: true });
+    const sellingDesignsBox = await sellingDesigns.boundingBox();
+    const sellingCaptionBox = await sellingCaption.boundingBox();
+    expect(sellingDesignsBox && sellingCaptionBox).toBeTruthy();
+    expect(sellingCaptionBox!.x).toBeGreaterThan(sellingDesignsBox!.x);
     await expect(page.getByTestId('order-ticket-waiting')).toHaveCount(0);
     await expect(page.getByTestId('order-ticket-notes')).toBeVisible();
-    await expect(page.getByTestId('order-dock-confirm')).toBeVisible();
+    const dock = page.getByTestId('order-action-dock');
+    const sellerChat = dock.getByTestId('order-open-chat');
+    await expect(sellerChat).toHaveAttribute('aria-label', 'Chat');
+    await expect(dock.getByTestId('order-dock-confirm')).toBeVisible();
+    const sellerChatBox = await sellerChat.boundingBox();
+    const confirmBox = await dock.getByTestId('order-dock-confirm').boundingBox();
+    expect(sellerChatBox && confirmBox).toBeTruthy();
+    expect(sellerChatBox!.x).toBeLessThan(confirmBox!.x);
+    await expect(page.getByTestId('app-bottom-nav')).toBeHidden();
+    const timeline = page.getByTestId('order-timeline');
+    await expect(page.getByTestId('order-timeline-more')).toContainText(/Timeline · /);
+    await expect(timeline.locator('li')).toHaveCount(0);
+    await page.getByTestId('order-timeline-more').click();
+    await expect(timeline.locator('li').first()).toBeVisible();
 
     const sellerToken = await accessTokenFromPage(page);
     const detailed = await getOrder(page.request, sellerToken, order.id);
@@ -425,6 +481,10 @@ test.describe('orders chrome @functional @release @orders', () => {
     await loginAsMeena(page);
     await page.goto(`/orders/${order.id}`);
     await expect(page.getByTestId('order-dock-accept-quote')).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId('order-action-dock').getByTestId('order-open-chat')).toHaveAttribute(
+      'aria-label',
+      'Chat',
+    );
     await expect(page.getByTestId('order-ticket-waiting')).toHaveCount(0);
     await expect(page.getByTestId('app-bottom-nav')).toBeHidden();
   });
@@ -446,6 +506,117 @@ test.describe('orders chrome @functional @release @orders', () => {
     await expect(page.getByTestId('order-ticket-progress')).toContainText('sent', { timeout: 15_000 });
     await expect(page.getByTestId('order-ticket-progress')).toContainText('5 of');
     await expect(page.getByTestId('order-ticket-progress')).not.toContainText('/pc');
+    await expect(page.getByTestId('order-ticket-agreement')).toHaveCount(0);
+    await expect(page.getByText(/Confirmed by /)).toHaveCount(0);
+    await expect(page.getByText(/Quote accepted/)).toHaveCount(0);
+    await expect(page.getByTestId('order-shipments')).toContainText('Dispatches');
+    await expect(page.getByTestId('order-shipments')).toContainText('1 LR');
+    const waitDock = page.getByTestId('order-action-dock');
+    const waitChat = waitDock.getByTestId('order-open-chat');
+    await expect(waitChat).toHaveAttribute('aria-label', 'Chat');
+    await expect(page.getByTestId('order-ticket-waiting')).toHaveText('Waiting: supplier');
+    const waitChatBox = await waitChat.boundingBox();
+    const waitBox = await page.getByTestId('order-ticket-waiting').boundingBox();
+    expect(waitChatBox && waitBox).toBeTruthy();
+    expect(waitChatBox!.x).toBeLessThan(waitBox!.x);
+    await expect(page.getByTestId('order-dock-cancel')).toHaveCount(0);
+    await expect(page.getByTestId('app-bottom-nav')).toBeHidden();
+  });
+
+  test('Selling 1:1 Dispatches after part ship; Chat-only dock when complete', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await loginAsMeena(page);
+    const buyerToken = await accessTokenFromPage(page);
+    await loginAsRavi(page);
+    const sellerToken = await accessTokenFromPage(page);
+    const placed = await setupConfirmedOrder(page.request, buyerToken, sellerToken);
+    const detailed = await getOrder(page.request, sellerToken, placed.id);
+    await dispatchOrder(page.request, sellerToken, placed.id, {
+      items: [{ orderItemId: detailed.items[0]!.id, quantity: 5 }],
+    });
+
+    await loginAsRavi(page);
+    await page.goto(`/orders/${placed.id}`);
+    await expect(page.getByTestId('order-shipments')).toContainText('Dispatches', {
+      timeout: 15_000,
+    });
+    await expect(page.getByTestId('order-ticket-agreement')).toHaveCount(0);
+    await expect(page.getByText(/Confirmed by /)).toHaveCount(0);
+    await expect(page.getByText(/Quote accepted/)).toHaveCount(0);
+    await expect(page.getByTestId('order-shipments')).toContainText('1 LR');
+    await expect(page.getByTestId('order-action-dock').getByTestId('order-open-chat')).toHaveAttribute(
+      'aria-label',
+      'Chat',
+    );
+    await expect(page.getByTestId('order-dispatch-open')).toBeVisible();
+    await expect(page.getByTestId('app-bottom-nav')).toBeHidden();
+
+    const afterPart = await getOrder(page.request, sellerToken, placed.id);
+    await dispatchOrder(page.request, sellerToken, placed.id, {
+      items: afterPart.items
+        .filter((item) => (item.remainingQuantity ?? 0) > 0)
+        .map((item) => ({
+          orderItemId: item.id,
+          quantity: item.remainingQuantity ?? item.quantity,
+        })),
+    });
+
+    await page.reload();
+    await expect(page.getByTestId('order-action-dock').getByTestId('order-open-chat')).toHaveText(
+      /Chat with /,
+    );
+    await expect(page.getByTestId('order-dispatch-open')).toHaveCount(0);
+    await expect(page.getByTestId('app-bottom-nav')).toBeHidden();
+
+    await loginAsMeena(page);
+    await page.goto(`/orders/${placed.id}`);
+    await expect(page.getByText('Supplier', { exact: true })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId('order-action-dock').getByTestId('order-open-chat')).toHaveText(
+      /Chat with /,
+    );
+    await expect(page.getByTestId('order-dispatch-open')).toHaveCount(0);
+    await expect(page.getByTestId('app-bottom-nav')).toBeHidden();
+  });
+
+  test('confirm sheet note lands in Notes; 4th note hides behind more', async ({ page }) => {
+    test.setTimeout(90_000);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await loginAsMeena(page);
+    const buyerToken = await accessTokenFromPage(page);
+    await loginAsRavi(page);
+    const sellerToken = await accessTokenFromPage(page);
+    const order = await createOrder(page.request, buyerToken, {
+      sellerCompanyId: 'seed-company-ravi',
+      intent: 'order',
+      note: 'Place lining',
+      items: [{ productId: 'seed-prod-1', quantity: 20 }],
+    });
+    const detailed = await getOrder(page.request, sellerToken, order.id);
+    const first = detailed.items[0];
+    if (!first) throw new Error('expected items');
+    await decideOrderLines(page.request, sellerToken, order.id, {
+      items: [{ orderItemId: first.id, action: 'confirm', quantity: 20, rate: 120 }],
+      note: 'Will cut Friday',
+    });
+    await addOrderNote(page.request, buyerToken, order.id, 'Need extra lining');
+    await addOrderNote(page.request, sellerToken, order.id, 'Packed');
+
+    await loginAsMeena(page);
+    await page.goto(`/orders/${order.id}`);
+    const notes = page.getByTestId('order-ticket-notes');
+    await expect(notes).toBeVisible({ timeout: 15_000 });
+    await expect(notes.getByText('On confirm')).toBeVisible();
+    await expect(notes.getByText('Will cut Friday')).toBeVisible();
+    await expect(notes.getByTestId('order-notes-more')).toContainText('1 more note');
+    await expect(notes.getByText('Place lining')).toHaveCount(0);
+    await notes.getByTestId('order-notes-more').click();
+    await expect(notes.getByText('Place lining')).toBeVisible();
+    await expect(notes.getByText('View less')).toBeVisible();
+    await expect(
+      notes.getByTestId('order-ticket-note').filter({ hasText: 'Need extra lining' }),
+    ).toHaveClass(/bg-chat-out/);
   });
 
   test('buyer adds a ticket note with photo; + offers Voice', async ({ page }) => {

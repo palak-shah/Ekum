@@ -67,6 +67,29 @@ function isUniqueConflict(err: unknown): boolean {
   return code === 'P2002' || code === 'ALREADY_REPOSTED';
 }
 
+// #region agent log
+function agentLog(
+  hypothesisId: string,
+  location: string,
+  message: string,
+  data: Record<string, unknown>,
+): void {
+  fetch('http://127.0.0.1:7359/ingest/c3df85ff-1820-4af4-9a7f-aa6252617829', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '097f3c' },
+    body: JSON.stringify({
+      sessionId: '097f3c',
+      runId: 'pre-fix',
+      hypothesisId,
+      location,
+      message,
+      data,
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+}
+// #endregion
+
 
 @Injectable()
 export class CollectionPropagateService {
@@ -86,7 +109,15 @@ export class CollectionPropagateService {
       this.logger.warn(`collection.propagate skipped missing ${collectionId}`);
       return;
     }
-    if (isGeneralKind(source.kind)) return;
+    if (isGeneralKind(source.kind)) {
+      // #region agent log
+      agentLog('H5', 'collection-propagate.service.ts:propagate', 'skip general kind', {
+        collectionId,
+        kind: source.kind,
+      });
+      // #endregion
+      return;
+    }
     if (source.status !== CollectionStatus.Published) {
       await this.hideImmediateChildren(source.id);
       return;
@@ -96,10 +127,27 @@ export class CollectionPropagateService {
       select: { traderCompanyId: true },
       distinct: ['traderCompanyId'],
     });
+    // #region agent log
+    agentLog('H1', 'collection-propagate.service.ts:propagate', 'propagate start', {
+      collectionId,
+      millCompanyId: source.companyId,
+      allowForward: source.allowForward,
+      audience: source.audience,
+      createdAt: source.createdAt?.toISOString?.() ?? null,
+      traderIds: traders.map((row) => row.traderCompanyId),
+    });
+    // #endregion
     for (const row of traders) {
       try {
         await this.deliverToTrader(source, row.traderCompanyId);
       } catch (err) {
+        // #region agent log
+        agentLog('H1', 'collection-propagate.service.ts:propagate', 'deliver threw', {
+          collectionId,
+          traderCompanyId: row.traderCompanyId,
+          code: conflictCode(err) ?? 'failed',
+        });
+        // #endregion
         this.logger.warn(
           `auto-repost skipped ${source.id} for ${row.traderCompanyId}: ${conflictCode(err) ?? 'failed'}`,
         );
@@ -126,9 +174,28 @@ export class CollectionPropagateService {
   }
 
   private async deliverToTrader(source: SourceRow, traderCompanyId: string): Promise<void> {
-    if (traderCompanyId === source.companyId) return;
-    if (await this.companyOnSourceChain(source, traderCompanyId)) return;
-    if (!source.allowForward) return;
+    // #region agent log
+    const skip = (reason: string, extra: Record<string, unknown> = {}) => {
+      agentLog('H1', 'collection-propagate.service.ts:deliverToTrader', 'skip', {
+        reason,
+        sourceId: source.id,
+        traderCompanyId,
+        ...extra,
+      });
+    };
+    // #endregion
+    if (traderCompanyId === source.companyId) {
+      skip('self');
+      return;
+    }
+    if (await this.companyOnSourceChain(source, traderCompanyId)) {
+      skip('onSourceChain');
+      return;
+    }
+    if (!source.allowForward) {
+      skip('allowForwardOff');
+      return;
+    }
     const following = await this.prisma.follow.findUnique({
       where: {
         followerCompanyId_followedCompanyId: {
@@ -138,13 +205,20 @@ export class CollectionPropagateService {
       },
       select: { status: true },
     });
-    if (following?.status !== FollowStatus.Allowed) return;
+    if (following?.status !== FollowStatus.Allowed) {
+      skip('followNotAllowed', { followStatus: following?.status ?? null });
+      return;
+    }
     if (
       !canDiscoverCollection(traderCompanyId, source, {
         connected: false,
         following: true,
       })
     ) {
+      skip('notDiscoverable', {
+        audience: source.audience,
+        audienceCompanyIds: source.audienceCompanyIds,
+      });
       return;
     }
     const lanes = await this.prisma.tradeLane.findMany({
@@ -162,7 +236,10 @@ export class CollectionPropagateService {
           .filter((id) => id && id !== traderCompanyId && id !== source.companyId),
       ),
     ];
-    if (buyers.length === 0) return;
+    if (buyers.length === 0) {
+      skip('noBuyers');
+      return;
+    }
 
     const rootId = await resolveRepostRootId(this.prisma, source.id);
     const existing = await this.prisma.collection.findMany({
@@ -187,6 +264,17 @@ export class CollectionPropagateService {
     }
 
     if (survivor) {
+      // #region agent log
+      agentLog('H3', 'collection-propagate.service.ts:deliverToTrader', 'survivor reuse', {
+        sourceId: source.id,
+        traderCompanyId,
+        survivorId: survivor.id,
+        survivorStatus: survivor.status,
+        survivorAudience: survivor.audience,
+        survivorOrigin: survivor.repostOrigin,
+        buyers,
+      });
+      // #endregion
       const changed = await this.syncMembership(source, survivor.id, traderCompanyId, ownerUserId);
       await this.syncSelectedBuyers(survivor.id, buyers);
       if (changed) {
@@ -201,6 +289,15 @@ export class CollectionPropagateService {
       return earliest;
     }, null);
     if (linkStartedAt && source.createdAt && source.createdAt <= linkStartedAt) {
+      // #region agent log
+      agentLog('H2', 'collection-propagate.service.ts:deliverToTrader', 'future-only skip', {
+        sourceId: source.id,
+        traderCompanyId,
+        sourceCreatedAt: source.createdAt.toISOString(),
+        linkStartedAt: linkStartedAt.toISOString(),
+        buyers,
+      });
+      // #endregion
       return;
     }
 
@@ -232,6 +329,14 @@ export class CollectionPropagateService {
             ? RateVisibility.Visible
             : RateVisibility.OnRequest,
       });
+      // #region agent log
+      agentLog('H3', 'collection-propagate.service.ts:deliverToTrader', 'created hop', {
+        sourceId: source.id,
+        traderCompanyId,
+        hopId: created.id,
+        buyers,
+      });
+      // #endregion
     } catch (err) {
       if (!isUniqueConflict(err)) {
         throw err;
@@ -260,7 +365,18 @@ export class CollectionPropagateService {
   private async syncSelectedBuyers(destId: string, buyers: string[]): Promise<void> {
     if (buyers.length === 0) return;
     const dest = await this.prisma.collection.findUnique({ where: { id: destId } });
-    if (!dest || !canUnionAutomaticSelected(dest)) return;
+    if (!dest || !canUnionAutomaticSelected(dest)) {
+      // #region agent log
+      agentLog('H3', 'collection-propagate.service.ts:syncSelectedBuyers', 'union skipped', {
+        destId,
+        buyers,
+        destStatus: dest?.status ?? null,
+        destAudience: dest?.audience ?? null,
+        destOrigin: dest?.repostOrigin ?? null,
+      });
+      // #endregion
+      return;
+    }
     const next = mergeSelectedBuyers(dest.audienceCompanyIds, buyers);
     if (
       next.length === dest.audienceCompanyIds.length &&

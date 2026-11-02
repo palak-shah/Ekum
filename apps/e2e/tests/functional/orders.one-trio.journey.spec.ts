@@ -2,7 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import { accessTokenFromPage } from '../../helpers/orders';
 import { API_URL } from '../../helpers/env';
 import { loginAsKavita, loginAsMeena, loginAsRavi } from '../../helpers/persona';
-import { createDirectLink, resetTradeLanesToMe } from '../../helpers/tradeLanes';
+import { createDirectLink, grantPackAccess, resetTradeLanesToMe } from '../../helpers/tradeLanes';
 
 const KAVITA = 'seed-company-kavita';
 const MEENA = 'seed-company-meena';
@@ -133,6 +133,10 @@ test.describe('one Direct Link trio @functional @orders @chat', () => {
   test('trader mill Order for buyer + Direct Link uses one trio; Place does not clone it', async ({
     page,
   }) => {
+    await loginAsKavita(page);
+    const kavitaToken = await accessTokenFromPage(page);
+    await grantPackAccess(page.request, kavitaToken, MEENA);
+
     await loginAsMeena(page);
     const meenaToken = await accessTokenFromPage(page);
     await resetTradeLanesToMe(page.request, meenaToken, RAVI);
@@ -159,6 +163,10 @@ test.describe('one Direct Link trio @functional @orders @chat', () => {
   test('mixed own + mill splits on Direct Link and stays one I-handle without it', async ({
     page,
   }) => {
+    await loginAsKavita(page);
+    const kavitaToken = await accessTokenFromPage(page);
+    await grantPackAccess(page.request, kavitaToken, MEENA);
+
     await loginAsMeena(page);
     const meenaToken = await accessTokenFromPage(page);
     const ownId = await publishMeenaDesign(page, meenaToken);
@@ -179,9 +187,9 @@ test.describe('one Direct Link trio @functional @orders @chat', () => {
     expect(ownChat.type).toBe('direct');
 
     await loginAsKavita(page);
-    const kavitaToken = await accessTokenFromPage(page);
+    const millToken = await accessTokenFromPage(page);
     const millSelling = await page.request.get(`${API_URL}/orders?limit=20`, {
-      headers: await auth(page, kavitaToken),
+      headers: await auth(page, millToken),
     });
     expect(millSelling.ok()).toBeTruthy();
     const millList = (await millSelling.json()) as {

@@ -13,6 +13,10 @@ export function designSetToShortlist(product: ExploreProductPreviewView): Browse
     dispatchUnit: product.dispatchUnit ?? null,
     piecesPerPack: product.piecesPerPack ?? null,
     rate: product.rate ?? null,
+    ...(product.catalogCollectionId
+      ? { catalogCollectionId: product.catalogCollectionId }
+      : {}),
+    ...(product.catalogOrderMode ? { catalogOrderMode: product.catalogOrderMode } : {}),
   };
 }
 

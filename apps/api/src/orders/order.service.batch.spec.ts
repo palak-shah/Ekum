@@ -18,6 +18,8 @@ const stubTrail = {
   backfillFromOrder: async () => undefined,
 } as unknown as OrderTrailService;
 
+const stubAudit = { appendQty: async () => undefined } as never;
+
 describe('OrderService.createBatch', () => {
   it('splits lines by product owner and continues after one failure', async () => {
     const prisma = {
@@ -38,6 +40,7 @@ describe('OrderService.createBatch', () => {
       {} as JobQueue,
       {} as ThreadService,
       stubTrail,
+      stubAudit,
     );
 
     const create = vi
@@ -97,6 +100,7 @@ describe('OrderService.createBatch', () => {
       {} as JobQueue,
       {} as ThreadService,
       stubTrail,
+      stubAudit,
     );
 
     const create = vi.spyOn(service, 'create').mockResolvedValue({

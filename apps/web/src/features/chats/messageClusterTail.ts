@@ -14,7 +14,7 @@ export function messageClusterKey(message: {
 
 /**
  * WhatsApp last-of-run: tail on the last consecutive bubble from that side.
- * Centered system notices are skipped and do not break a run.
+ * Centered leave notices are skipped and do not break a run. Order tags cluster as actor bubbles.
  */
 export function messageHasClusterTail(
   messages: Array<{

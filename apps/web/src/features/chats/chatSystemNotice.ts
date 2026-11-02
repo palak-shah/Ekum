@@ -1,13 +1,17 @@
 import {
   ORDER_LIFECYCLE_KIND,
+  ORDER_NOTE_KIND,
   isOrderLifecycleMetadata,
+  isOrderNoteMetadata,
   orderChatActor,
   orderLifecycleTagCopy,
+  orderReplyQuoteLabel,
+  type MessageReplyPreview,
   type MessageView,
   type OrderLifecycleQtyChange,
 } from '@ekum/domain-types';
 
-/** Shared pill chrome for leave notices, order tags, and date chips. */
+/** Shared pill chrome for leave notices and date chips. */
 export const CHAT_SYSTEM_PILL_CLASS =
   'max-w-[90%] rounded-full bg-surface px-3 py-1 text-center text-[12px] font-body text-muted';
 
@@ -42,8 +46,19 @@ export function isOrderLifecycleNotice(message: {
   return isOrderLifecycleMetadata(metaOf(message));
 }
 
+/** Later order pulses: actor-side tagged bubble, not a centered pill. */
+export function isOrderTaggedUpdate(message: {
+  type: string;
+  metadata?: unknown;
+}): boolean {
+  if (message.type !== 'system') return false;
+  const meta = metaOf(message);
+  const kind = typeof meta?.kind === 'string' ? meta.kind : '';
+  return kind === ORDER_LIFECYCLE_KIND || kind === ORDER_NOTE_KIND;
+}
+
 /**
- * Plain leave / roster / order-lifecycle system lines (not order cards or pack asks).
+ * Plain leave / roster system lines (not order cards, pack asks, or order tags).
  * Rendered as a centered WhatsApp-style notice, not a chat bubble.
  */
 export function isChatSystemNotice(message: {
@@ -53,7 +68,7 @@ export function isChatSystemNotice(message: {
 }): boolean {
   if (message.type !== 'system') return false;
   const meta = metaOf(message);
-  if (meta?.kind === ORDER_LIFECYCLE_KIND) return true;
+  if (isOrderTaggedUpdate(message)) return false;
   if (message.referenceId) return false;
   if (!meta) return true;
   if (meta.kind === 'member_left' || meta.kind === 'company_left') return true;
@@ -64,6 +79,43 @@ export function isChatSystemNotice(message: {
 }
 
 /** Viewer-relative tag copy: You confirmed / {shop} confirmed. */
+export function orderTaggedUpdateText(message: MessageView): string | null {
+  const lifecycle = orderLifecycleNoticeText(message);
+  if (lifecycle) return lifecycle;
+  if (!isOrderNoteMetadata(metaOf(message))) return null;
+  const meta = metaOf(message);
+  const actor = orderChatActor({
+    mine: message.mine,
+    actorLabel: typeof meta?.actorLabel === 'string' ? meta.actorLabel : null,
+    partyName: message.reference?.counterpartName ?? null,
+  });
+  return `${actor} added a note`;
+}
+
+export function orderTagQuotePreview(message: MessageView): MessageReplyPreview | null {
+  if (!isOrderTaggedUpdate(message)) return null;
+  if (message.replyTo) {
+    const label =
+      orderReplyQuoteLabel({
+        kind: message.replyTo.type === 'rate' ? 'rate' : 'order',
+        name: message.replyTo.bodyPreview,
+        orderLabel: message.reference?.orderLabel ?? message.replyTo.bodyPreview,
+      }) ??
+      message.replyTo.bodyPreview ??
+      'Order';
+    return { ...message.replyTo, bodyPreview: label };
+  }
+  const livingId = orderLifecycleLivingMessageId(message);
+  const ref = message.reference;
+  return {
+    id: livingId ?? message.id,
+    type: 'order_card',
+    bodyPreview: orderReplyQuoteLabel(ref) ?? ref?.orderLabel ?? ref?.name ?? 'Order',
+    available: true,
+    photoUrl: ref?.image ?? null,
+  };
+}
+
 export function orderLifecycleNoticeText(message: MessageView): string | null {
   if (!isOrderLifecycleNotice(message)) return null;
   const meta = metaOf(message);

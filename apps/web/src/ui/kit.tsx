@@ -80,6 +80,10 @@ export function Button({
   );
 }
 
+/** Compact row CTA (Requests Allow, Direct Link Request share). Not kit Button (48px). */
+export const compactCta =
+  'inline-flex h-8 min-w-[4.75rem] shrink-0 items-center justify-center rounded-lg px-3 text-meta font-emphasis tracking-tight disabled:cursor-not-allowed disabled:opacity-45';
+
 /** Filter-rail chip — gray foam idle; selected is chip-on tint. */
 export function Chip({
   children,

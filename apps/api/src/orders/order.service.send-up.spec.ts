@@ -1,6 +1,6 @@
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
-import { OrderTradeMode } from '@ekum/domain-types';
+import { OrderLineStatus, OrderStatus, OrderTradeMode } from '@ekum/domain-types';
 import { OrderService } from './order.service';
 import type { PrismaService } from '../core/prisma/prisma.service';
 import type { OrderSerializer } from './order.serializer';
@@ -17,6 +17,8 @@ const stubTrail = {
   listForViewer: async () => [],
   backfillFromOrder: async () => undefined,
 } as unknown as OrderTrailService;
+
+const stubAudit = { appendQty: async () => undefined } as never;
 
 /** TradeLane mocks for sendUp / get mill desks (product added after Manage desk). */
 function tradeLaneMocks() {
@@ -57,6 +59,7 @@ function service(
         })),
       } as unknown as ThreadService),
     stubTrail,
+    stubAudit,
   );
 }
 
@@ -131,6 +134,7 @@ describe('OrderService.sendUp', () => {
       })),
     } as unknown as ThreadService;
     const trailAppend = vi.fn(async () => undefined);
+    const appendQty = vi.fn(async () => undefined);
     const prisma = {
       order: {
         findUnique: vi
@@ -144,6 +148,7 @@ describe('OrderService.sendUp', () => {
             downstreamOrderId: null,
             upstreamReleasedAt: null,
             items: [],
+            seller: { name: 'Ravi' },
           })
           .mockResolvedValueOnce({
             ...held,
@@ -164,6 +169,7 @@ describe('OrderService.sendUp', () => {
       },
       thread: { update: vi.fn(async () => ({})) },
       tradeLane: tradeLaneMocks(),
+      $transaction: async (fn: (tx: unknown) => Promise<unknown>) => fn(prisma),
     } as unknown as PrismaService;
     const svc = new OrderService(
       prisma,
@@ -174,6 +180,7 @@ describe('OrderService.sendUp', () => {
       {} as JobQueue,
       threads,
       { append: trailAppend, listForViewer: async () => [], backfillFromOrder: async () => undefined } as unknown as OrderTrailService,
+      { appendQty } as never,
     );
     vi.spyOn(svc, 'get').mockResolvedValue({ id: 'down-1', canSendUp: false } as never);
 
@@ -201,6 +208,13 @@ describe('OrderService.sendUp', () => {
     );
     expect(threads.ensureTradeThread).toHaveBeenCalledWith('trader', 'mill');
     expect(events.orderCreated).toHaveBeenCalledWith(expect.objectContaining({ orderId: 'up-1' }));
+    expect(appendQty).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orderId: 'up-1',
+        kind: 'mill_pass',
+        rows: [expect.objectContaining({ orderItemId: 'ui-1', qtyAfter: 8 })],
+      }),
+    );
   });
 
   it('hides held mill hops from the supplier list', async () => {
@@ -267,6 +281,10 @@ describe('OrderService.sendUp', () => {
       message: { findFirst: vi.fn(async () => null), findMany: vi.fn(async () => []) },
       paymentRequest: { findMany: vi.fn(async () => []) },
       orderCompanyNote: { findUnique: vi.fn(async () => null) },
+      companySettings: {
+        findUnique: vi.fn(async () => null),
+        findMany: vi.fn(async () => []),
+      },
       tradeLane: tradeLaneMocks(),
     } as unknown as PrismaService;
     const serializer = {
@@ -342,6 +360,10 @@ describe('OrderService.sendUp', () => {
       message: { findFirst: vi.fn(async () => null), findMany: vi.fn(async () => []) },
       paymentRequest: { findMany: vi.fn(async () => []) },
       orderCompanyNote: { findUnique: vi.fn(async () => null) },
+      companySettings: {
+        findUnique: vi.fn(async () => null),
+        findMany: vi.fn(async () => []),
+      },
       tradeLane: tradeLaneMocks(),
     } as unknown as PrismaService;
     const serializer = {
@@ -350,6 +372,129 @@ describe('OrderService.sendUp', () => {
     const svc = service(prisma, { serializer });
     const view = await svc.get('mill', up.id);
     expect(view.relatedOrders).toEqual([]);
+    expect(view.deskOrderId ?? null).toBeNull();
+  });
+
+  it('redirects the trader to the parent while the mill hop is held', async () => {
+    const up = {
+      id: 'seed-order-handle-up',
+      sellerCompanyId: 'mill',
+      buyerCompanyId: 'trader',
+      facilitatorCompanyId: null,
+      tradeMode: OrderTradeMode.Bilateral,
+      downstreamOrderId: 'seed-order-handle-down',
+      upstreamReleasedAt: null,
+      passHeldAt: null,
+      status: 'requested',
+      intent: 'order',
+      kind: 'standard',
+      items: [],
+      shipments: [],
+      buyer: { id: 'trader', name: 'Surat Silk House' },
+      seller: { id: 'mill', name: 'Ahmedabad Loom Co' },
+      createdByUser: null,
+      quotedByUser: null,
+      confirmedByUser: null,
+      deliveredByUser: null,
+      settledByUser: null,
+      updatedByUser: null,
+    };
+    const prisma = {
+      order: {
+        findUnique: vi.fn(async (args: { where: { id: string } }) => {
+          if (args.where.id === up.id) return up;
+          return {
+            id: 'seed-order-handle-down',
+            status: 'requested',
+            buyer: { name: 'Jaipur Emporium' },
+            seller: { name: 'Surat Silk House' },
+          };
+        }),
+        findMany: vi.fn(async () => []),
+      },
+      message: { findFirst: vi.fn(async () => null), findMany: vi.fn(async () => []) },
+      paymentRequest: { findMany: vi.fn(async () => []) },
+      orderCompanyNote: { findUnique: vi.fn(async () => null) },
+      companySettings: {
+        findUnique: vi.fn(async () => null),
+        findMany: vi.fn(async () => []),
+      },
+      tradeLane: tradeLaneMocks(),
+    } as unknown as PrismaService;
+    const serializer = {
+      toOrderView: vi.fn((order: { id: string }) => ({ id: order.id, direction: 'buying' })),
+    } as unknown as OrderSerializer;
+    const svc = service(prisma, { serializer });
+    const view = await svc.get('trader', up.id);
+    expect(view.deskOrderId).toBe('seed-order-handle-down');
+    expect(view.relatedOrders).toEqual([
+      expect.objectContaining({
+        id: 'seed-order-handle-down',
+        role: 'downstream',
+        buyerName: 'Jaipur Emporium',
+      }),
+    ]);
+  });
+
+  it('lets the trader stay on a released mill hop with the selling-order related row', async () => {
+    const up = {
+      id: 'seed-order-handle-up',
+      sellerCompanyId: 'mill',
+      buyerCompanyId: 'trader',
+      facilitatorCompanyId: null,
+      tradeMode: OrderTradeMode.Bilateral,
+      downstreamOrderId: 'seed-order-handle-down',
+      upstreamReleasedAt: new Date(),
+      passHeldAt: null,
+      status: 'requested',
+      intent: 'order',
+      kind: 'standard',
+      items: [],
+      shipments: [],
+      buyer: { id: 'trader', name: 'Surat Silk House' },
+      seller: { id: 'mill', name: 'Ahmedabad Loom Co' },
+      createdByUser: null,
+      quotedByUser: null,
+      confirmedByUser: null,
+      deliveredByUser: null,
+      settledByUser: null,
+      updatedByUser: null,
+    };
+    const prisma = {
+      order: {
+        findUnique: vi.fn(async (args: { where: { id: string } }) => {
+          if (args.where.id === up.id) return up;
+          return {
+            id: 'seed-order-handle-down',
+            status: 'requested',
+            buyer: { name: 'Jaipur Emporium' },
+            seller: { name: 'Surat Silk House' },
+          };
+        }),
+        findMany: vi.fn(async () => []),
+      },
+      message: { findFirst: vi.fn(async () => null), findMany: vi.fn(async () => []) },
+      paymentRequest: { findMany: vi.fn(async () => []) },
+      orderCompanyNote: { findUnique: vi.fn(async () => null) },
+      companySettings: {
+        findUnique: vi.fn(async () => null),
+        findMany: vi.fn(async () => []),
+      },
+      tradeLane: tradeLaneMocks(),
+    } as unknown as PrismaService;
+    const serializer = {
+      toOrderView: vi.fn((order: { id: string }) => ({ id: order.id, direction: 'buying' })),
+    } as unknown as OrderSerializer;
+    const svc = service(prisma, { serializer });
+    const view = await svc.get('trader', up.id);
+    expect(view.deskOrderId).toBeNull();
+    expect(view.relatedOrders).toEqual([
+      expect.objectContaining({
+        id: 'seed-order-handle-down',
+        role: 'downstream',
+        buyerName: 'Jaipur Emporium',
+      }),
+    ]);
   });
 
   it('does not show Related / Linked on the Manage parent for the end buyer', async () => {
@@ -384,6 +529,10 @@ describe('OrderService.sendUp', () => {
       message: { findFirst: vi.fn(async () => null), findMany: vi.fn(async () => []) },
       paymentRequest: { findMany: vi.fn(async () => []) },
       orderCompanyNote: { findUnique: vi.fn(async () => null) },
+      companySettings: {
+        findUnique: vi.fn(async () => null),
+        findMany: vi.fn(async () => []),
+      },
       tradeLane: tradeLaneMocks(),
     } as unknown as PrismaService;
     const serializer = {
@@ -443,6 +592,7 @@ describe('OrderService.millDecline', () => {
         notifyUserIdsForMessage: vi.fn(async () => ({ companyIds: [], userIds: [] })),
       } as unknown as ThreadService,
       { append: trailAppend, listForViewer: async () => [], backfillFromOrder: async () => undefined } as unknown as OrderTrailService,
+      stubAudit,
     );
     vi.spyOn(svc, 'get').mockResolvedValue({ id: 'down-1' } as never);
 
@@ -538,6 +688,7 @@ describe('OrderService.millDecline', () => {
         listForViewer: async () => [],
         backfillFromOrder: async () => undefined,
       } as unknown as OrderTrailService,
+      stubAudit,
     );
     vi.spyOn(svc, 'get').mockResolvedValue({ id: 'down-1' } as never);
 
@@ -557,6 +708,188 @@ describe('OrderService.millDecline', () => {
     );
     expect(trailAppend).toHaveBeenCalledWith(
       expect.objectContaining({ summary: 'You declined Ahmedabad Loom Co' }),
+    );
+  });
+});
+
+describe('OrderAudit hop vs parent ownership', () => {
+  it('writes mill_pass on the parent when mill qty passes through', async () => {
+    const appendQty = vi.fn(async () => undefined);
+    const mill = {
+      id: 'up-1',
+      downstreamOrderId: 'down-1',
+      upstreamReleasedAt: new Date('2026-11-01'),
+      passHeldAt: null,
+      sellerCompanyId: 'mill',
+      items: [
+        {
+          id: 'ui-1',
+          productId: 'p1',
+          sourceItemId: 'pi-1',
+          name: 'Cotton',
+          quantity: { toNumber: () => 8 },
+          rate: { toNumber: () => 120 },
+          lineStatus: OrderLineStatus.Confirmed,
+          confirmedQuantity: { toNumber: () => 8 },
+          confirmedRate: { toNumber: () => 120 },
+        },
+      ],
+      seller: { name: 'Ahmedabad Loom Co' },
+    };
+    const parent = {
+      id: 'down-1',
+      tradeMode: OrderTradeMode.Manage,
+      status: OrderStatus.Requested,
+      sellerCompanyId: 'trader',
+      buyerCompanyId: 'buyer',
+      seller: { name: 'Surat Silk House' },
+      items: [
+        {
+          id: 'pi-1',
+          productId: 'p1',
+          name: 'Cotton',
+          sku: 'CL-1',
+          unit: 'pc',
+          quantity: { toNumber: () => 10 },
+          lineStatus: OrderLineStatus.Open,
+          confirmedQuantity: null,
+          confirmedRate: null,
+        },
+      ],
+    };
+    const prisma = {
+      order: {
+        findUnique: vi.fn(async ({ where }: { where: { id: string } }) =>
+          where.id === 'up-1' ? mill : parent,
+        ),
+        update: vi.fn(async () => ({})),
+      },
+      orderItem: { update: vi.fn(async () => ({})) },
+      message: { findFirst: vi.fn(async () => null), create: vi.fn(async () => ({ id: 'm1' })) },
+      thread: { update: vi.fn(async () => ({})) },
+      $transaction: async (fn: (tx: unknown) => Promise<unknown>) => fn(prisma),
+    } as unknown as PrismaService;
+    const svc = service(prisma);
+    (svc as unknown as { orderAudit: { appendQty: typeof appendQty } }).orderAudit = {
+      appendQty,
+    };
+    vi.spyOn(
+      svc as unknown as { postOrderCard: (...args: unknown[]) => Promise<void> },
+      'postOrderCard',
+    ).mockResolvedValue(undefined);
+
+    await (
+      svc as unknown as {
+        passMillLinesToParent: (
+          millOrderId: string,
+          actorCompanyId: string,
+          userId: string,
+        ) => Promise<void>;
+      }
+    ).passMillLinesToParent('up-1', 'trader', 'u1');
+
+    expect(appendQty).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orderId: 'down-1',
+        kind: 'mill_pass',
+        rows: [expect.objectContaining({ orderItemId: 'pi-1', qtyBefore: 10, qtyAfter: 8 })],
+      }),
+    );
+  });
+
+  it('audits hop amended_removed on the mill order, not the parent', async () => {
+    const appendQty = vi.fn(async () => undefined);
+    const parent = {
+      id: 'down-1',
+      tradeMode: OrderTradeMode.Manage,
+      buyerCompanyId: 'buyer',
+      sellerCompanyId: 'trader',
+      buyer: { name: 'Jaipur Emporium' },
+      items: [
+        {
+          id: 'pi-1',
+          productId: 'p1',
+          name: 'Cotton',
+          sku: 'CL-1',
+          unit: 'pc',
+          quantity: { toNumber: () => 10 },
+          rate: null,
+          image: null,
+          images: [],
+          note: null,
+        },
+      ],
+    };
+    const hop = {
+      id: 'up-1',
+      status: OrderStatus.Requested,
+      passHeldAt: null,
+      sellerCompanyId: 'mill',
+      seller: { name: 'Ahmedabad Loom Co' },
+      items: [
+        {
+          id: 'ui-keep',
+          productId: 'p1',
+          name: 'Cotton',
+          sku: 'CL-1',
+          unit: 'pc',
+          quantity: { toNumber: () => 10 },
+        },
+        {
+          id: 'ui-drop',
+          productId: 'p2',
+          name: 'Lawn leftover',
+          sku: 'LL-1',
+          unit: 'pc',
+          quantity: { toNumber: () => 5 },
+        },
+      ],
+    };
+    const deleted: string[] = [];
+    const prisma = {
+      order: {
+        findUnique: vi.fn(async () => parent),
+        findMany: vi.fn(async () => [hop]),
+      },
+      orderItem: {
+        delete: vi.fn(async ({ where }: { where: { id: string } }) => {
+          deleted.push(where.id);
+          return {};
+        }),
+        update: vi.fn(async () => ({})),
+        create: vi.fn(async () => ({})),
+      },
+      product: { findUnique: vi.fn(async () => null) },
+      $transaction: async (fn: (tx: unknown) => Promise<unknown>) => fn(prisma),
+    } as unknown as PrismaService;
+    const svc = service(prisma);
+    (svc as unknown as { orderAudit: { appendQty: typeof appendQty } }).orderAudit = {
+      appendQty,
+    };
+
+    await (
+      svc as unknown as { passBuyerAmendToMills: (parentId: string) => Promise<void> }
+    ).passBuyerAmendToMills('down-1');
+
+    expect(deleted).toEqual(['ui-drop']);
+    expect(appendQty).toHaveBeenCalledWith(
+      expect.objectContaining({
+        orderId: 'up-1',
+        kind: 'amended_removed',
+        rows: [
+          expect.objectContaining({
+            orderItemId: 'ui-drop',
+            itemName: 'Lawn leftover',
+            sku: 'LL-1',
+            unit: 'pc',
+            qtyBefore: 5,
+            qtyAfter: 0,
+          }),
+        ],
+      }),
+    );
+    expect(appendQty).not.toHaveBeenCalledWith(
+      expect.objectContaining({ orderId: 'down-1', kind: 'amended_removed' }),
     );
   });
 });

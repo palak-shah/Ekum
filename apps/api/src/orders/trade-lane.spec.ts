@@ -82,6 +82,7 @@ describe('TradeLane place path', () => {
     });
     expect(laneRoutesDirect({ ticket: 'mill' })).toBe(true);
     expect(laneRoutesDirect({ ticket: 'me' })).toBe(false);
+    expect(laneRoutesDirect({ ticket: 'mill', millShareActive: false })).toBe(false);
     expect(laneRoutesDirect({ ticket: 'mill', behaviors: { directOrder: false } })).toBe(
       false,
     );

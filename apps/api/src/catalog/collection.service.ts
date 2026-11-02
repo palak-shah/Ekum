@@ -1474,5 +1474,20 @@ export class CollectionService {
 
   private async enqueuePropagate(collectionId: string): Promise<void> {
     await this.jobs.enqueue(JobType.CollectionPropagate, { collectionId });
+    // #region agent log
+    fetch('http://127.0.0.1:7359/ingest/c3df85ff-1820-4af4-9a7f-aa6252617829', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '097f3c' },
+      body: JSON.stringify({
+        sessionId: '097f3c',
+        runId: 'pre-fix',
+        hypothesisId: 'H5',
+        location: 'collection.service.ts:enqueuePropagate',
+        message: 'enqueued collection.propagate',
+        data: { collectionId },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
   }
 }

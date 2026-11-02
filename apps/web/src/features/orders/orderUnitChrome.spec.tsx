@@ -15,6 +15,27 @@ describe('orderUnitChrome', () => {
     expect(orderUnitSheetHeading('mtr', 'ordering')).toBe('Order in Mtrs');
   });
 
+  it('hides every unit header when hideHeadings, including mixed', () => {
+    render(
+      <OrderUnitGroups
+        items={[
+          { id: 'navy', unit: 'set' },
+          { id: 'chiffon', unit: 'mtr' },
+        ]}
+        unitOf={(item) => item.unit}
+        getKey={(item) => item.id}
+        role="ordering"
+        headingTestId="order-sheet-unit-heading"
+        hideHeadings
+      >
+        {(item) => <p>{item.id}</p>}
+      </OrderUnitGroups>,
+    );
+    expect(screen.queryByTestId('order-sheet-unit-heading')).toBeNull();
+    expect(screen.queryByText('Order in Sets')).toBeNull();
+    expect(screen.queryByText('Order in Mtrs')).toBeNull();
+  });
+
   it('always shows a unit header, even one family', () => {
     render(
       <OrderUnitGroups

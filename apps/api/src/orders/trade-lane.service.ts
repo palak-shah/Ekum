@@ -16,21 +16,18 @@ import { Prisma } from '@prisma/client';
 import { withPrismaField } from '../common/prisma-model-fields';
 import { PrismaService } from '../core/prisma/prisma.service';
 import { resolveTradePresence } from '../identity/trade-presence';
-import { ThreadService } from '../conversation/thread.service';
-import { FollowStatus } from '../discovery/follow-access';
+import { FollowStatus, isPackFollow } from '../discovery/follow-access';
 import {
   removeDirectLinkBuyer,
   unionDirectLinkBuyer,
 } from '../catalog/direct-link-repost-audience';
+import { millShareActive, millShareActiveSet } from './mill-share';
 import { DEFAULT_LANE_BEHAVIORS, effectivePathFromLane, laneBehaviorsFromJson } from './trade-lane';
 import { findAffectedDirectLinks, revokeAffectedDirectLinks } from './trade-lane-revoke';
 
 @Injectable()
 export class TradeLaneService {
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly threads: ThreadService,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   private async assertTrading(companyId: string): Promise<void> {
     const settings = await this.prisma.companySettings.findUnique({
@@ -68,7 +65,12 @@ export class TradeLaneService {
       orderBy: { updatedAt: 'desc' },
       take: 200,
     });
-    return rows.map((row) => this.toView(row));
+    const shareSet = await millShareActiveSet(
+      this.prisma,
+      traderCompanyId,
+      rows.map((row) => row.sellerCompanyId),
+    );
+    return rows.map((row) => this.toView(row, shareSet.has(row.sellerCompanyId)));
   }
 
   async create(traderCompanyId: string, dto: CreateTradeLaneDto): Promise<TradeLaneView> {
@@ -83,6 +85,7 @@ export class TradeLaneService {
       });
     }
     await this.assertFollows(traderCompanyId, dto.sellerCompanyId, 'mill');
+    await this.assertMillShare(traderCompanyId, dto.sellerCompanyId);
     await this.assertFollows(dto.buyerCompanyId, traderCompanyId, 'buyer');
 
     const behaviors: Prisma.InputJsonValue = {
@@ -121,19 +124,7 @@ export class TradeLaneService {
       millCompanyId: dto.sellerCompanyId,
       buyerCompanyId: dto.buyerCompanyId,
     });
-    const groupThreadId = await this.threads.ensureTradeLaneGroup(
-      traderCompanyId,
-      dto.sellerCompanyId,
-      dto.buyerCompanyId,
-      updated.groupThreadId,
-    );
-    if (groupThreadId !== updated.groupThreadId) {
-      await this.prisma.tradeLane.update({
-        where: { id: updated.id },
-        data: { groupThreadId },
-      });
-    }
-    return this.toView(updated);
+    return this.toView(updated, true);
   }
 
   async update(
@@ -205,7 +196,9 @@ export class TradeLaneService {
       },
       select: { ticket: true },
     });
-    return effectivePathFromLane(lane?.ticket);
+    if (effectivePathFromLane(lane?.ticket) !== 'direct') return 'handle';
+    const share = await millShareActive(this.prisma, traderCompanyId, sellerCompanyId);
+    return share ? 'direct' : 'handle';
   }
 
   async previewAffected(
@@ -217,7 +210,7 @@ export class TradeLaneService {
       actorCompanyId,
       counterpartCompanyId,
     );
-    return { lanes: rows.map((row) => this.toView(row)) };
+    return { lanes: rows.map((row) => this.toView(row, false)) };
   }
 
   async revokeAffected(actorCompanyId: string, counterpartCompanyId: string): Promise<void> {
@@ -238,7 +231,7 @@ export class TradeLaneService {
           followedCompanyId,
         },
       },
-      select: { status: true },
+      select: { status: true, accessKind: true },
     });
     if (row?.status !== FollowStatus.Allowed) {
       throw new BadRequestException({
@@ -251,18 +244,39 @@ export class TradeLaneService {
     }
   }
 
-  private toView(row: {
-    id: string;
-    traderCompanyId: string;
-    sellerCompanyId: string;
-    buyerCompanyId: string;
-    ticket: string;
-    reveal: boolean;
-    behaviors?: unknown;
-    updatedAt: Date;
-    seller: { id: string; name: string };
-    buyer: { id: string; name: string };
-  }): TradeLaneView {
+  private async assertMillShare(traderCompanyId: string, millCompanyId: string): Promise<void> {
+    const row = await this.prisma.follow.findUnique({
+      where: {
+        followerCompanyId_followedCompanyId: {
+          followerCompanyId: traderCompanyId,
+          followedCompanyId: millCompanyId,
+        },
+      },
+      select: { status: true, accessKind: true },
+    });
+    if (!isPackFollow(row)) {
+      throw new BadRequestException({
+        code: 'SHARE_REQUIRED',
+        message: 'Ask them to share collections first.',
+      });
+    }
+  }
+
+  private toView(
+    row: {
+      id: string;
+      traderCompanyId: string;
+      sellerCompanyId: string;
+      buyerCompanyId: string;
+      ticket: string;
+      reveal: boolean;
+      behaviors?: unknown;
+      updatedAt: Date;
+      seller: { id: string; name: string };
+      buyer: { id: string; name: string };
+    },
+    shareActive: boolean,
+  ): TradeLaneView {
     return {
       id: row.id,
       traderCompanyId: row.traderCompanyId,
@@ -274,6 +288,7 @@ export class TradeLaneService {
       reveal: row.reveal,
       behaviors: laneBehaviorsFromJson(row.behaviors),
       behaviorsEditable: false,
+      shareActive,
       updatedAt: row.updatedAt.toISOString(),
     };
   }

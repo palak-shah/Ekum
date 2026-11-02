@@ -2,30 +2,13 @@ import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ExploreProductPreviewView } from '@ekum/domain-types';
-import { DesignSheet, type DesignSheetProduct } from '@/features/browse/DesignSheet';
+import { DesignSheet } from '@/features/browse/DesignSheet';
+import { exploreProductToSheet } from '@/features/explore/exploreProductChrome';
 import { api, ApiError } from '@/lib/apiClient';
 import { useMyCompany } from '@/lib/queries';
 import { PageHeader } from '@/ui/PageHeader';
 import { useToast } from '@/ui/Toast';
 import { ErrorState, LoadingBlock } from '@/ui/kit';
-
-function toSheetProduct(data: ExploreProductPreviewView): DesignSheetProduct {
-  return {
-    id: data.id,
-    name: data.name,
-    images: data.images ?? [],
-    companyId: data.company.id,
-    companyName: data.company.name,
-    allowForward: data.allowForward !== false,
-    categories: data.categories ?? [],
-    description: data.description ?? null,
-    unit: data.unit ?? null,
-    dispatchUnit: data.dispatchUnit ?? null,
-    moq: data.moq ?? null,
-    rate: data.rate ?? null,
-    rateMax: data.rateMax ?? null,
-  };
-}
 
 /**
  * Deep-link / Explore open host for the shared DesignSheet (Back closes).
@@ -70,7 +53,7 @@ export function ExploreProductPage() {
   }
 
   const data = product.data;
-  const sheetProduct = toSheetProduct(data);
+  const sheetProduct = exploreProductToSheet(data);
   const isOwner = Boolean(me.data?.id && me.data.id === data.company.id);
 
   return (

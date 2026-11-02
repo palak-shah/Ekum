@@ -23,6 +23,7 @@ export function OrderUnitGroupedList<T>({
   headingTestId = 'order-ticket-unit-heading',
   testId = 'order-ticket-unit-groups',
   hideHeadingWhenSingle = false,
+  hideHeadings = false,
   children,
 }: {
   items: T[];
@@ -32,6 +33,7 @@ export function OrderUnitGroupedList<T>({
   headingTestId?: string;
   testId?: string;
   hideHeadingWhenSingle?: boolean;
+  hideHeadings?: boolean;
   children: (item: T) => ReactNode;
 }) {
   return (
@@ -44,6 +46,7 @@ export function OrderUnitGroupedList<T>({
       testId={testId}
       headingTestId={headingTestId}
       hideHeadingWhenSingle={hideHeadingWhenSingle}
+      hideHeadings={hideHeadings}
     >
       {(item) => children(item)}
     </OrderUnitGroups>

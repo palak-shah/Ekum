@@ -18,6 +18,8 @@ const stubTrail = {
   backfillFromOrder: async () => undefined,
 } as unknown as OrderTrailService;
 
+const stubAudit = { appendQty: async () => undefined } as never;
+
 describe('OrderService.createFromPack', () => {
   it('creates manage downstream and upstream per supplier', async () => {
     const prisma = {
@@ -35,6 +37,7 @@ describe('OrderService.createFromPack', () => {
           { id: 'p2', companyId: 's2', company: { name: 'Supplier Two' } },
         ]),
       },
+      follow: { findUnique: vi.fn(async () => ({ status: 'allowed', accessKind: 'pack' })) },
       tradeLane: {
         upsert: vi.fn(async () => ({})),
         findUnique: vi.fn(async () => null),
@@ -50,6 +53,7 @@ describe('OrderService.createFromPack', () => {
       {} as JobQueue,
       {} as ThreadService,
       stubTrail,
+      stubAudit,
     );
 
     const create = vi.spyOn(service, 'create').mockImplementation(async (actor, _user, dto, opts) => {
@@ -125,6 +129,7 @@ describe('OrderService.createFromPack', () => {
       {} as JobQueue,
       {} as ThreadService,
       stubTrail,
+      stubAudit,
     );
 
     await expect(
@@ -152,6 +157,7 @@ describe('OrderService.createFromPack', () => {
           { id: 'p1', companyId: 's1', company: { name: 'Supplier' } },
         ]),
       },
+      follow: { findUnique: vi.fn(async () => ({ status: 'allowed', accessKind: 'pack' })) },
       tradeLane: {
         upsert: vi.fn(async () => ({})),
         findUnique: vi.fn(async () => null),
@@ -170,6 +176,7 @@ describe('OrderService.createFromPack', () => {
       {} as JobQueue,
       {} as ThreadService,
       stubTrail,
+      stubAudit,
     );
     (service as unknown as { create: typeof create }).create = create;
 
@@ -198,6 +205,7 @@ describe('OrderService.createFromPack', () => {
           { id: 'p3', companyId: 'trader', company: { name: 'Trader Own' } },
         ]),
       },
+      follow: { findUnique: vi.fn(async () => ({ status: 'allowed', accessKind: 'pack' })) },
       tradeLane: {
         upsert: vi.fn(async () => ({})),
         findUnique: vi.fn(
@@ -222,6 +230,7 @@ describe('OrderService.createFromPack', () => {
       {} as JobQueue,
       {} as ThreadService,
       stubTrail,
+      stubAudit,
     );
 
     const create = vi.spyOn(service, 'create').mockImplementation(async (actor, _user, dto, opts) => {
@@ -290,6 +299,7 @@ describe('OrderService.createFromPack', () => {
           { id: 'p-other-mill', companyId: 's2', company: { name: 'Other Mill' } },
         ]),
       },
+      follow: { findUnique: vi.fn(async () => ({ status: 'allowed', accessKind: 'pack' })) },
       tradeLane: {
         upsert: vi.fn(async () => ({})),
         findUnique: vi.fn(async () => null),
@@ -305,6 +315,7 @@ describe('OrderService.createFromPack', () => {
       {} as JobQueue,
       {} as ThreadService,
       stubTrail,
+      stubAudit,
     );
 
     const create = vi.spyOn(service, 'create').mockImplementation(async (actor, _user, dto, opts) => {
@@ -350,6 +361,7 @@ describe('OrderService.createFromPack', () => {
           { id: 'p1', companyId: 's-direct', company: { name: 'Direct Mill' } },
         ]),
       },
+      follow: { findUnique: vi.fn(async () => ({ status: 'allowed', accessKind: 'pack' })) },
       tradeLane: {
         upsert: vi.fn(async () => ({})),
         findUnique: vi.fn(async () => ({
@@ -367,6 +379,7 @@ describe('OrderService.createFromPack', () => {
       {} as JobQueue,
       {} as ThreadService,
       stubTrail,
+      stubAudit,
     );
     vi.spyOn(service, 'create').mockImplementation(async (actor, _user, dto, opts) => {
       return {
@@ -415,6 +428,7 @@ describe('OrderService.createFromPack', () => {
       {} as JobQueue,
       {} as ThreadService,
       stubTrail,
+      stubAudit,
     );
 
     try {

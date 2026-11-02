@@ -65,12 +65,19 @@ export type FollowAccessKind = (typeof FollowAccessKind)[keyof typeof FollowAcce
 export interface FollowAskResult {
   following: boolean;
   pending: boolean;
+  /** Look stays; mill has a Share upgrade in Requests. */
+  packAskPending?: boolean;
 }
 
-/** Incoming pending follow (shop inbox). */
+export const followAskKindSchema = z.enum(['see', 'share']);
+export type FollowAskKind = z.infer<typeof followAskKindSchema>;
+
+/** Incoming pending follow or Share upgrade (shop inbox). */
 export interface FollowAskView {
   company: PublicCompanySummary;
   createdAt: string;
+  /** see = new follow; share = Pack upgrade while Look stays. */
+  kind?: FollowAskKind;
 }
 
 /** Shop list: allowed now, or stopped (still shown; they cannot see packs). */

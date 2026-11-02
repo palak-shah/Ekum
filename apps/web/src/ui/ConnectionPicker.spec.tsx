@@ -113,3 +113,49 @@ describe('ConnectionPicker empty network', () => {
     expect(screen.getByTestId('find-on-ekum-link')).toBeInTheDocument();
   });
 });
+
+describe('ConnectionPicker rowAction', () => {
+  it('does not select when Request share is shown', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    const onAction = vi.fn();
+    const row: ConnectionView = {
+      id: 'c1',
+      status: 'active',
+      createdAt: '2026-01-01',
+      canPause: false,
+      canResume: false,
+      canBlock: false,
+      canUnblock: false,
+      company: {
+        id: 'mill-look',
+        name: 'Ahmedabad Loom Co',
+        city: 'Ahmedabad',
+        verification: 'none',
+        logoUrl: null,
+      },
+    };
+    renderPicker(
+      <ConnectionPicker
+        mode="single"
+        embedded
+        findOnEkum={false}
+        connections={[row]}
+        value={null}
+        onChange={onChange}
+        rowAction={() => ({
+          selectable: false,
+          label: 'Request share',
+          onAction,
+        })}
+      />,
+    );
+    const ask = screen.getByRole('button', { name: 'Request share' });
+    expect(ask.className).toMatch(/bg-accent/);
+    expect(ask.className).toMatch(/h-8/);
+    await user.click(ask);
+    expect(onAction).toHaveBeenCalled();
+    expect(onChange).not.toHaveBeenCalled();
+    expect(screen.queryByText('Select')).toBeNull();
+  });
+});

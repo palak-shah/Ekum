@@ -75,7 +75,7 @@ async function publishCatalog(
     },
   });
   expect(publish.ok(), await publish.text()).toBeTruthy();
-  return catalog;
+  return { id: catalog.id, productIds };
 }
 
 async function raviAuth(page: Page) {
@@ -130,6 +130,30 @@ test.describe('catalog Order as whole @functional @catalog @orders', () => {
     const sheet = page.getByRole('dialog');
     await expect(sheet).toBeVisible({ timeout: 15_000 });
     await sheet.getByRole('button', { name: 'Order' }).click();
+    await expectCatalogHowMany(page, catalogName, [silk, cotton]);
+  });
+
+  test('explore product Order remaps exclusive whole-catalog member', async ({
+    page,
+    request,
+  }) => {
+    test.setTimeout(120_000);
+    const stamp = Date.now();
+    const catalogName = `Chat whole ${stamp}`;
+    const silk = `Chat silk ${stamp}`;
+    const cotton = `Chat cotton ${stamp}`;
+
+    const auth = await raviAuth(page);
+    const catalog = await publishCatalog(request, auth, {
+      name: catalogName,
+      orderMode: 'whole',
+      designNames: [silk, cotton],
+    });
+
+    await loginAsMeena(page);
+    await page.goto(`/explore/products/${catalog.productIds[0]}`);
+    await expect(page.getByTestId('explore-product-page')).toBeVisible({ timeout: 20_000 });
+    await page.getByTestId('explore-design-sheet-order').click();
     await expectCatalogHowMany(page, catalogName, [silk, cotton]);
   });
 

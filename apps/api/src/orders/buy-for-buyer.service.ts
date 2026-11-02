@@ -16,6 +16,7 @@ import {
   OrderStatus,
   OrderTradeMode,
   OrderTrailType,
+  OrderAuditKind,
   shortOrderLabel,
   type CreateForBuyerDto,
   type CreateForBuyerResult,
@@ -32,7 +33,9 @@ import { productCatalogStatusById } from '../catalog/leftover-offer';
 import { OrderSerializer } from './order.serializer';
 import { OrderService } from './order.service';
 import { OrderTrailService } from './order-trail.service';
+import { OrderAuditService, auditQtyNumber } from './order-audit.service';
 import { groupForBuyerLines } from './for-buyer-groups';
+import { millShareActive } from './mill-share';
 import { effectivePathFromLane, trioMillLaneWhere } from './trade-lane';
 import { phoneDigits, phoneVariants } from './order-invite-claim';
 
@@ -62,6 +65,7 @@ export class BuyForBuyerService {
     private readonly serializer: OrderSerializer,
     private readonly orders: OrderService,
     private readonly trail: OrderTrailService,
+    private readonly orderAudit: OrderAuditService,
   ) {}
 
   async create(
@@ -158,24 +162,63 @@ export class BuyForBuyerService {
           lineStatus: OrderLineStatus.Confirmed,
         };
       });
-      const order = await this.prisma.order.create({
-        data: {
-          kind: OrderKind.Standard,
-          intent: OrderIntent.Order,
-          status: OrderStatus.Confirmed,
-          tradeMode: OrderTradeMode.Bilateral,
-          buyerCompanyId: buyer.companyId,
-          sellerCompanyId: actorCompanyId,
-          createdByCompanyId: actorCompanyId,
-          createdByUserId: userId,
-          updatedByUserId: userId,
-          confirmedAt: now,
-          confirmedByCompanyId: actorCompanyId,
-          note: dto.note ?? null,
-          transporter: dto.transporter?.trim() || null,
-          items: { create: ownItems },
-        },
-        include: ORDER_INCLUDE,
+      const order = await this.prisma.$transaction(async (tx) => {
+        const created = await tx.order.create({
+          data: {
+            kind: OrderKind.Standard,
+            intent: OrderIntent.Order,
+            status: OrderStatus.Confirmed,
+            tradeMode: OrderTradeMode.Bilateral,
+            buyerCompanyId: buyer.companyId,
+            sellerCompanyId: actorCompanyId,
+            createdByCompanyId: actorCompanyId,
+            createdByUserId: userId,
+            updatedByUserId: userId,
+            confirmedAt: now,
+            confirmedByCompanyId: actorCompanyId,
+            note: dto.note ?? null,
+            transporter: dto.transporter?.trim() || null,
+            items: { create: ownItems },
+          },
+          include: ORDER_INCLUDE,
+        });
+        const placedRows = created.items.map((item) => ({
+          orderItemId: item.id,
+          itemName: item.name,
+          sku: item.sku,
+          unit: item.unit,
+          qtyBefore: null as number | null,
+          qtyAfter: (() => {
+            const n = auditQtyNumber(item.quantity);
+            return n != null && Number.isFinite(n) ? n : 0;
+          })(),
+        }));
+        await this.orderAudit.appendQty({
+          orderId: created.id,
+          statusAt: OrderStatus.Confirmed,
+          actorCompanyId,
+          actorCompanyName: seller.name,
+          actorUserId: userId,
+          kind: OrderAuditKind.Placed,
+          rows: placedRows,
+          keepSameQty: true,
+          tx,
+        });
+        await this.orderAudit.appendQty({
+          orderId: created.id,
+          statusAt: OrderStatus.Confirmed,
+          actorCompanyId,
+          actorCompanyName: seller.name,
+          actorUserId: userId,
+          kind: OrderAuditKind.Confirmed,
+          rows: placedRows.map((row) => ({
+            ...row,
+            qtyBefore: row.qtyAfter,
+          })),
+          keepSameQty: true,
+          tx,
+        });
+        return created;
       });
 
       const threadId = await this.threads.ensureTradeThread(buyer.companyId, actorCompanyId);
@@ -503,7 +546,9 @@ export class BuyForBuyerService {
       where: trioMillLaneWhere(traderCompanyId, millCompanyId, buyerCompanyId),
       select: { ticket: true },
     });
-    return effectivePathFromLane(lane?.ticket);
+    if (effectivePathFromLane(lane?.ticket) !== 'direct') return 'handle';
+    const millPack = await millShareActive(this.prisma, traderCompanyId, millCompanyId);
+    return millPack ? 'direct' : 'handle';
   }
 
   private async resolveBuyer(

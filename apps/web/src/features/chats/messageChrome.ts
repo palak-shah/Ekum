@@ -1,6 +1,9 @@
 /** Marks the painted bubble so MessageChrome can pad for the actions chevron. */
 export const MSG_BUBBLE_CLASS = 'ekum-msg-bubble';
 
+/** Jump-to-message wash lives on the bubble (`index.css` `.ekum-msg-flash .ekum-msg-bubble`). */
+export const MSG_FLASH_CLASS = 'ekum-msg-flash';
+
 /** Pad painted bubbles (not wrappers) so the chevron sits inside the fill. */
 export function messageChromeBubblePad(hasActions: boolean): string | undefined {
   // Chevron overlays the bubble (hover / while menu open) — no idle layout pad.

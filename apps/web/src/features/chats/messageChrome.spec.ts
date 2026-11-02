@@ -9,6 +9,7 @@ import {
   MESSAGE_ACTIONS_VERB_ORDER,
   MSG_BUBBLE_TIME_CLASS,
   MSG_BUBBLE_TIME_HUG_CLASS,
+  MSG_FLASH_CLASS,
   messageChromeBubblePad,
   resolveMessageLongPress,
 } from './messageChrome';
@@ -76,6 +77,17 @@ describe('message actions popover chrome', () => {
     const reply = src.indexOf('label="Reply"');
     expect(rail).toBeGreaterThan(-1);
     expect(rail).toBeLessThan(reply);
+  });
+});
+
+describe('jump highlight', () => {
+  it('washes the bubble with accent, not a focus ring on the row', () => {
+    expect(MSG_FLASH_CLASS).toBe('ekum-msg-flash');
+    const css = readFileSync(resolve(__dirname, '../../index.css'), 'utf8');
+    const block = css.slice(css.indexOf('@keyframes ekum-msg-flash'));
+    expect(block).toMatch(/ekum-accent/);
+    expect(block).not.toMatch(/ekum-focus-ring/);
+    expect(css).toMatch(/\.ekum-msg-flash \.ekum-msg-bubble/);
   });
 });
 

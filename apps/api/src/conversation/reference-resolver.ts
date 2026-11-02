@@ -2,6 +2,8 @@ import { Injectable } from '@nestjs/common';
 import type { Message } from '@prisma/client';
 import {
   MessageType,
+  ORDER_LIFECYCLE_KIND,
+  ORDER_NOTE_KIND,
   OrderLineStatus,
   OrderStatus,
   PaymentRequestStatus,
@@ -577,13 +579,17 @@ export class ReferenceResolver {
       .map((message) => message.referenceId as string);
   }
 
-  /** Legacy line-decision notices posted as system before order_card. */
+  /** Legacy line-decision notices + tagged order updates — resolve Order # / thumb. */
   private isOrderLineSystem(message: Message): boolean {
     if (message.type !== MessageType.System || !message.referenceId) {
       return false;
     }
     const meta = (message.metadata ?? {}) as Record<string, unknown>;
-    return meta.kind === 'order_lines';
+    return (
+      meta.kind === 'order_lines' ||
+      meta.kind === ORDER_LIFECYCLE_KIND ||
+      meta.kind === ORDER_NOTE_KIND
+    );
   }
 
   private orderLineSystemIds(messages: Message[]): string[] {

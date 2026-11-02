@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { NoteAttachField } from '@/features/voice/NoteAttachField';
 import type { NoteVoiceValue } from '@/features/voice/NoteVoiceField';
 import { VoicePlayer } from '@/features/voice/VoicePlayer';
@@ -7,7 +8,10 @@ import { explorePostedWhen } from '@/ui/cards';
 import { Button, Card, InlineNotice, Sheet, cx, listRowClass } from '@/ui/kit';
 import { ManagedImage } from '@/ui/ManagedImage';
 import { FwdIcon } from '@/ui/icons';
+import { DisclosureChevron } from './DisclosureChevron';
 import type { OrderTicketNote } from './orderTicketChrome';
+
+const TICKET_NOTES_VISIBLE = 3;
 
 export function OrderTicketNotes({
   notes,
@@ -49,6 +53,11 @@ export function OrderTicketNotes({
   onOpenNotePhotos: (urls: string[], index: number, caption: string) => void;
 }) {
   const canSubmit = Boolean(note.trim() || voice || images.length > 0);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const extra = Math.max(0, notes.length - TICKET_NOTES_VISIBLE);
+  const shown = moreOpen || extra === 0 ? notes : notes.slice(-TICKET_NOTES_VISIBLE);
+  const moreCue =
+    extra <= 0 ? null : extra === 1 ? '1 more note' : `${extra} more notes`;
   return (
     <>
       <Card className="flex flex-col gap-3" data-testid="order-ticket-notes">
@@ -60,12 +69,25 @@ export function OrderTicketNotes({
           <p className="text-sm text-muted">No notes yet.</p>
         ) : (
           <ul className="flex flex-col gap-2">
-            {notes.map((row) => (
+            {moreCue ? (
+              <li>
+                <button
+                  type="button"
+                  data-testid="order-notes-more"
+                  className="flex cursor-pointer items-center gap-0.5 py-1 text-sm font-emphasis text-muted"
+                  onClick={() => setMoreOpen((open) => !open)}
+                >
+                  {moreOpen ? 'View less' : moreCue}
+                  <DisclosureChevron open={moreOpen} />
+                </button>
+              </li>
+            ) : null}
+            {shown.map((row) => (
               <li
                 key={row.id}
                 className={cx(
                   'rounded-lg px-2.5 py-2 text-[13.5px] leading-snug text-ink',
-                  row.mine ? 'bg-accent/5' : 'bg-foam',
+                  row.mine ? 'bg-chat-out' : 'bg-foam',
                 )}
                 data-testid="order-ticket-note"
               >
@@ -73,6 +95,7 @@ export function OrderTicketNotes({
                   <b className="font-emphasis text-ink">{row.who}</b>
                   <span>{explorePostedWhen(row.at)}</span>
                 </div>
+                {row.cue ? <p className="mb-0.5 text-xs text-muted">{row.cue}</p> : null}
                 {row.note ? (
                   <p className="whitespace-pre-wrap text-ink">{row.note}</p>
                 ) : null}
@@ -138,7 +161,7 @@ export function OrderTicketNotes({
               data-testid="order-ticket-note-add"
               disabled={adding || !canSubmit}
               onClick={onAdd}
-              className="h-10 shrink-0 px-3.5"
+              className="h-9 shrink-0 px-3"
             >
               {adding ? 'Adding…' : 'Add'}
             </Button>

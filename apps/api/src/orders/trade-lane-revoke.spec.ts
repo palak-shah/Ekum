@@ -16,7 +16,7 @@ describe('trade-lane-revoke', () => {
     );
   });
 
-  it('closes only stored groupThreadId then deletes the lane', async () => {
+  it('keeps lanes and does not close the trio', async () => {
     const lanes = [
       {
         id: 'lane-1',
@@ -40,12 +40,8 @@ describe('trade-lane-revoke', () => {
     } as never;
     const result = await revokeAffectedDirectLinks(prisma, 'trader', 'mill');
     expect(result).toHaveLength(1);
-    expect(updateMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { id: { in: ['g1'] }, messagingClosedAt: null },
-      }),
-    );
-    expect(deleteMany).toHaveBeenCalledWith({ where: { id: { in: ['lane-1'] } } });
+    expect(updateMany).not.toHaveBeenCalled();
+    expect(deleteMany).not.toHaveBeenCalled();
   });
 
   it('is a no-op when no Direct Links remain (idempotent)', async () => {
@@ -58,6 +54,5 @@ describe('trade-lane-revoke', () => {
     expect(result).toEqual([]);
     expect(prisma.tradeLane.deleteMany).not.toHaveBeenCalled();
     expect(prisma.thread.updateMany).not.toHaveBeenCalled();
-    expect(prisma.order.updateMany).not.toHaveBeenCalled();
   });
 });

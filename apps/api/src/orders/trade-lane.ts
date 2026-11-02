@@ -73,11 +73,13 @@ export function laneBehaviorsFromJson(
   };
 }
 
-/** Next Place: Direct mill ticket when ticket=mill and directOrder is on (default). */
+/** Next Place: Direct mill ticket when ticket=mill, directOrder on, mill Share (Pack) on. */
 export function laneRoutesDirect(input: {
   ticket?: string | null;
   behaviors?: unknown;
+  millShareActive?: boolean;
 }): boolean {
+  if (input.millShareActive === false) return false;
   if (effectivePathFromLane(input.ticket) !== 'direct') return false;
   return laneBehaviorsFromJson(input.behaviors).directOrder;
 }

@@ -663,6 +663,8 @@ export interface MessageReplyPreview {
   type: string;
   bodyPreview: string | null;
   available: boolean;
+  /** Parent shop — client maps to You vs shop name. Never staff names. */
+  senderCompanyId?: string | null;
   /** Quoted shot in a photo album. */
   photoIndex?: number | null;
   photoUrl?: string | null;

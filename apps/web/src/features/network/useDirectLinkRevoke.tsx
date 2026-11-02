@@ -37,7 +37,7 @@ export function useDirectLinkRevoke(onConfirm: (companyId: string) => void, pend
         setCompanyId(null);
         setLanes([]);
       }}
-      title="Remove Direct link?"
+      title="Direct links will go off?"
       footer={
         <div className="flex flex-col gap-2">
           <Button
@@ -70,7 +70,7 @@ export function useDirectLinkRevoke(onConfirm: (companyId: string) => void, pend
       }
     >
       <div className="flex flex-col gap-2 pb-4">
-        <DirectLinkRevokeCopy />
+        <DirectLinkRevokeCopy mode="off" />
         <p className="text-xs text-muted">
           {lanes.map((lane) => `${lane.sellerName} · ${lane.buyerName}`).join(', ')}
         </p>

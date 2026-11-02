@@ -1,17 +1,16 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Avatar, cx } from '@/ui/kit';
-import { SEE_PACKS_ASK_LINE } from '@/features/company/seePacksCopy';
+import { Avatar, compactCta, cx } from '@/ui/kit';
+import { SEE_PACKS_ASK_LINE, SHARE_PACKS_ASK_LINE, SHARE_PACKS_ASK_SUBLINE } from '@/features/company/seePacksCopy';
 import {
-  defaultFollowAskGrants,
   followAskAllowDecision,
+  followAskGrantsForKind,
   FOLLOW_ASK_GRANT_OPTIONS,
   type FollowAskGrantId,
   type FollowAskGrants,
 } from './followAskDecide';
 
-export const compactCta =
-  'inline-flex h-8 min-w-[4.75rem] shrink-0 items-center justify-center rounded-lg px-3 text-meta font-emphasis tracking-tight disabled:cursor-not-allowed disabled:opacity-45';
+export { compactCta };
 
 /** Incoming ask: shop name + full-width why-line (never crush the sentence). */
 export function FollowAskHeader({
@@ -20,6 +19,7 @@ export function FollowAskHeader({
   avatarSize = 40,
   to,
   className,
+  kind = 'see',
 }: {
   name: string;
   logoUrl?: string | null;
@@ -27,6 +27,7 @@ export function FollowAskHeader({
   /** When set, the header is a shop link. */
   to?: string;
   className?: string;
+  kind?: 'see' | 'share';
 }) {
   const body = (
     <>
@@ -34,8 +35,13 @@ export function FollowAskHeader({
       <div className="min-w-0 flex-1">
         <p className="truncate text-name font-emphasis leading-snug text-ink">{name}</p>
         <p className="text-sm font-emphasis leading-snug text-ink" data-testid="follow-ask-why">
-          {SEE_PACKS_ASK_LINE}
+          {kind === 'share' ? SHARE_PACKS_ASK_LINE : SEE_PACKS_ASK_LINE}
         </p>
+        {kind === 'share' ? (
+          <p className="text-sm leading-snug text-muted" data-testid="follow-ask-subline">
+            {SHARE_PACKS_ASK_SUBLINE}
+          </p>
+        ) : null}
       </div>
     </>
   );
@@ -123,12 +129,14 @@ export function FollowAskDecideRow({
   disabled,
   onAllow,
   onDecline,
+  kind = 'see',
 }: {
   disabled?: boolean;
   onAllow: (decision: 'look' | 'pack') => void;
   onDecline: () => void;
+  kind?: 'see' | 'share';
 }) {
-  const [grants, setGrants] = useState<FollowAskGrants>(defaultFollowAskGrants);
+  const [grants, setGrants] = useState<FollowAskGrants>(() => followAskGrantsForKind(kind));
   const decision = followAskAllowDecision(grants);
 
   return (
@@ -137,6 +145,7 @@ export function FollowAskDecideRow({
         compact
         grants={grants}
         disabled={disabled}
+        locked={kind === 'share' ? ['see'] : undefined}
         onToggle={(id) => setGrants((prev) => ({ ...prev, [id]: !prev[id] }))}
       />
       <div className="flex gap-2">

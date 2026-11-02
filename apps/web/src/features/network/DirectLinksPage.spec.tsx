@@ -55,6 +55,7 @@ const lane = {
   reveal: true,
   behaviors: { directOrder: true, autoRepost: false },
   behaviorsEditable: false,
+  shareActive: true,
   updatedAt: new Date('2026-10-28').toISOString(),
 };
 
@@ -103,5 +104,68 @@ describe('Direct links create sheet', () => {
     expect(screen.getByTestId('paths-create-auto-repost')).toHaveTextContent(
       'New supplier posts go to this buyer',
     );
+  });
+
+  it('shows Request share instead of Select when the mill has not granted Share', async () => {
+    vi.mocked(api.get).mockImplementation(async (path: string) => {
+      if (path === '/trade-lanes') return [];
+      if (path === '/follows/following') {
+        return [
+          {
+            id: 'mill-look',
+            name: 'Surat Silk House',
+            city: 'Surat',
+            verification: 'none',
+            logoUrl: null,
+            sellCategories: [],
+            buyCategories: [],
+            accessKind: 'look',
+            packAskPending: false,
+          },
+        ];
+      }
+      if (path === '/follows/followers') return [];
+      return [];
+    });
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(screen.getByTestId('paths-new'));
+    const ask = await screen.findByRole('button', { name: 'Request share' });
+    expect(ask.className).toMatch(/bg-accent/);
+    expect(ask.className).toMatch(/h-8/);
+    expect(screen.queryByText('Select')).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Request share' }));
+    expect(api.post).toHaveBeenCalledWith('/follows/share-ask', { companyId: 'mill-look' });
+  });
+});
+
+describe('Direct links gray when Share is off', () => {
+  it('mutes the row and offers Request share', async () => {
+    vi.mocked(api.get).mockImplementation(async (path: string) => {
+      if (path === '/trade-lanes') return [{ ...lane, shareActive: false }];
+      if (path === '/follows/following') {
+        return [
+          {
+            id: 'mill',
+            name: 'Ahmedabad Loom Co',
+            city: 'Ahmedabad',
+            verification: 'none',
+            logoUrl: null,
+            sellCategories: [],
+            buyCategories: [],
+            accessKind: 'look',
+            packAskPending: false,
+          },
+        ];
+      }
+      return [];
+    });
+    renderPage();
+    const row = await screen.findByTestId('path-row-lane-1');
+    expect(row.querySelector('.text-muted')).toBeTruthy();
+    const ask = screen.getByTestId('path-request-share-lane-1');
+    expect(ask).toHaveTextContent('Request share');
+    expect(ask.className).toMatch(/bg-accent/);
+    expect(ask.className).toMatch(/h-8/);
   });
 });

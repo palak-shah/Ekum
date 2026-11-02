@@ -15,8 +15,15 @@ export function timelineUpdatedDot(type?: string | null, summary?: string | null
 export function timelineVisibleSlice<T>(
   newestFirst: T[],
   expanded: boolean,
+  collapseToHeader = false,
 ): { visible: T[]; hiddenCount: number } {
-  if (expanded || newestFirst.length <= 1) {
+  if (expanded) {
+    return { visible: newestFirst, hiddenCount: 0 };
+  }
+  if (collapseToHeader) {
+    return { visible: [], hiddenCount: newestFirst.length };
+  }
+  if (newestFirst.length <= 1) {
     return { visible: newestFirst, hiddenCount: 0 };
   }
   return {

@@ -6,6 +6,7 @@ import {
   nextOrderAction,
   orderChatEventLabel,
   orderLifecycleTagCopy,
+  orderReplyQuoteLabel,
   roleLabel,
 } from '@ekum/domain-types';
 
@@ -145,6 +146,18 @@ describe('roleLabel', () => {
     expect(roleLabel('buying')).toBe('You buy');
     expect(roleLabel('selling')).toBe('You sell');
     expect(roleLabel(null)).toBeNull();
+  });
+});
+
+describe('orderReplyQuoteLabel', () => {
+  it('prefers Order # over Quote / card body', () => {
+    expect(
+      orderReplyQuoteLabel({ kind: 'order', name: 'Quote', orderLabel: 'Order #15P1' }),
+    ).toBe('Order #15P1');
+    expect(orderReplyQuoteLabel({ kind: 'rate', name: 'Quote' })).toBe('Order');
+    expect(orderReplyQuoteLabel({ kind: 'order', name: 'Order #AB12 Requested' })).toBe(
+      'Order #AB12',
+    );
   });
 });
 

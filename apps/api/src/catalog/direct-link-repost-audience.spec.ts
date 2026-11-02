@@ -33,7 +33,7 @@ describe('direct-link-repost-audience', () => {
       collection: {
         findMany: vi.fn(async (args: { where?: { companyId?: string; audience?: string } }) => {
           if (args.where?.companyId === 'mill') return [{ id: 'POST-100' }];
-          return [{ id: 'POST-201', audienceCompanyIds: ['b1'] }];
+          return [{ id: 'POST-201', audienceCompanyIds: ['b1'], status: CollectionStatus.Published }];
         }),
         update,
       },
@@ -49,13 +49,45 @@ describe('direct-link-repost-audience', () => {
     });
   });
 
+  it('republishes a drafted automatic pack when the Direct Link is saved again', async () => {
+    const update = vi.fn(async () => ({}));
+    const prisma = {
+      collection: {
+        findMany: vi.fn(async (args: { where?: { companyId?: string } }) => {
+          if (args.where?.companyId === 'mill') return [{ id: 'POST-100' }];
+          return [
+            {
+              id: 'POST-201',
+              audienceCompanyIds: ['b1'],
+              status: CollectionStatus.Draft,
+            },
+          ];
+        }),
+        update,
+      },
+    };
+    await unionDirectLinkBuyer(prisma, {
+      traderCompanyId: 't1',
+      millCompanyId: 'mill',
+      buyerCompanyId: 'b1',
+    });
+    expect(update).toHaveBeenCalledWith({
+      where: { id: 'POST-201' },
+      data: {
+        audienceCompanyIds: ['b1'],
+        status: CollectionStatus.Published,
+        exploreActivityAt: expect.any(Date),
+      },
+    });
+  });
+
   it('drafts the automatic pack when the last buyer is removed', async () => {
     const update = vi.fn(async () => ({}));
     const prisma = {
       collection: {
         findMany: vi.fn(async (args: { where?: { companyId?: string; audience?: string } }) => {
           if (args.where?.companyId === 'mill') return [{ id: 'POST-100' }];
-          return [{ id: 'POST-201', audienceCompanyIds: ['b1'] }];
+          return [{ id: 'POST-201', audienceCompanyIds: ['b1'], status: CollectionStatus.Published }];
         }),
         update,
       },

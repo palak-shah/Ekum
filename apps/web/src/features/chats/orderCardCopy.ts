@@ -75,6 +75,15 @@ function resolveAction(
   );
 }
 
+/** Parent `#` on mill lots is View order — not a second line on the chat card. */
+function stripParentOrderHashNoise(note: string): string {
+  return note
+    .replace(/\s*\(for #[^)]+\)\s*$/i, '')
+    .replace(/^for order #\S+(?:\s+[—–-].*)?$/i, '')
+    .replace(/^part of order #\S+\s*/i, '')
+    .trim();
+}
+
 /** Living order/rate cards stay rich; lifecycle pulses are centered tags, not compact chips. */
 export function isRichOrderChatMessage(
   message: MessageView,
@@ -232,8 +241,6 @@ export function buildOrderCardCopy(
   }
 
   const lines: string[] = [];
-  const parentLabel =
-    typeof meta?.parentOrderLabel === 'string' ? meta.parentOrderLabel.trim() : '';
   if (ref?.itemCount != null) {
     // Quote cards: itemCount is this send (quoted + newly declined), not order total.
     const declined = asCount(meta?.declinedCount) ?? 0;
@@ -261,14 +268,13 @@ export function buildOrderCardCopy(
     }
   }
   const noteParts: string[] = [];
-  if (parentLabel) {
-    noteParts.push(`Part of ${parentLabel}`);
-  }
   if (body) {
-    const note = stripOrderChatBodyNoise(body, frozenActor);
+    const note = stripParentOrderHashNoise(stripOrderChatBodyNoise(body, frozenActor));
     const looksLikeDefault =
       !note ||
       /logged an order/i.test(note) ||
+      /^for order #/i.test(note) ||
+      /^part of order #/i.test(note) ||
       /^(confirmed|declined|dispatched|requested|cancelled|accepted quote|marked delivered|sent quote|updated lines|updated|asked for rates|settled|returned|raised a return)\b/i.test(
         note,
       ) ||

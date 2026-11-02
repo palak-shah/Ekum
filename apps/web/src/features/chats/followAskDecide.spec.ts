@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   defaultFollowAskGrants,
   followAskAllowDecision,
+  followAskGrantsForKind,
   FOLLOW_ASK_GRANT_OPTIONS,
 } from './followAskDecide';
 
@@ -19,5 +20,10 @@ describe('followAskDecide', () => {
   it('maps share to pack', () => {
     expect(followAskAllowDecision({ see: true, share: true })).toBe('pack');
     expect(followAskAllowDecision({ see: false, share: true })).toBe('pack');
+  });
+
+  it('Share upgrade starts with see and share on', () => {
+    expect(followAskGrantsForKind('share')).toEqual({ see: true, share: true });
+    expect(followAskAllowDecision(followAskGrantsForKind('share'))).toBe('pack');
   });
 });

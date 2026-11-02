@@ -13,7 +13,9 @@ import { PageHeader } from '@/ui/PageHeader';
 import { ListSearchRow, ListSquareButton } from '@/ui/ListSearchRow';
 import { ConnectionPicker } from '@/ui/ConnectionPicker';
 import { PlusIcon, TrashIcon } from '@/ui/icons';
-import { Button, EmptyState, LoadingBlock, SearchInput, Sheet } from '@/ui/kit';
+import { Button, compactCta, EmptyState, LoadingBlock, SearchInput, Sheet, cx } from '@/ui/kit';
+import { REQUEST_SHARE_LABEL } from '@/features/company/seePacksCopy';
+import { invalidateFollowCatalog } from './invalidateFollowCatalog';
 import { DirectLinkRevokeCopy } from './DirectLinkRevokeCopy';
 
 function actionErrorMessage(err: unknown, fallback: string): string {
@@ -76,7 +78,6 @@ export function DirectLinksPage() {
   const following = useQuery({
     queryKey: ['follows', 'following'],
     queryFn: () => api.get<CompanyCard[]>('/follows/following'),
-    enabled: createOpen,
   });
   const followers = useQuery({
     queryKey: ['follows', 'followers'],
@@ -96,6 +97,16 @@ export function DirectLinksPage() {
     onError: (err) => showToast(actionErrorMessage(err, 'Could not save.'), 'danger'),
   });
 
+  const requestShare = useMutation({
+    mutationFn: (companyId: string) =>
+      api.post('/follows/share-ask', { companyId }),
+    onSuccess: () => {
+      invalidateFollowCatalog(queryClient);
+      showToast('Asked. They’ll see it in Requests.');
+    },
+    onError: (err) => showToast(actionErrorMessage(err, 'Could not ask.'), 'danger'),
+  });
+
   const remove = useMutation({
     mutationFn: (id: string) => api.del<{ ok: true }>(`/trade-lanes/${id}`),
     onSuccess: () => {
@@ -107,6 +118,10 @@ export function DirectLinksPage() {
   });
 
   const rows = useMemo(() => lanes.data ?? [], [lanes.data]);
+  const millById = useMemo(() => {
+    const map = new Map((following.data ?? []).map((company) => [company.id, company]));
+    return map;
+  }, [following.data]);
   const millChoices = useMemo(
     () =>
       (following.data ?? [])
@@ -169,27 +184,55 @@ export function DirectLinksPage() {
             <span className="min-w-0 flex-1">Buyer</span>
             <span className="h-12 w-12 shrink-0" aria-hidden="true" />
           </div>
-          {rows.map((row) => (
-            <div
-              key={row.id}
-              className="flex items-center gap-2 border-b border-line px-4 py-3.5 last:border-b-0"
-              data-testid={`path-row-${row.id}`}
-            >
-              <p className="min-w-0 flex-1 text-sm font-emphasis leading-tight text-ink">
-                {row.sellerName}
-              </p>
-              <p className="min-w-0 flex-1 text-sm leading-tight text-ink">{row.buyerName}</p>
-              <button
-                type="button"
-                className="flex h-12 w-12 shrink-0 items-center justify-center text-danger"
-                aria-label="Remove Direct link"
-                data-testid={`path-remove-${row.id}`}
-                onClick={() => setRemoveId(row.id)}
+          {rows.map((row) => {
+            const live = row.shareActive !== false;
+            const mill = millById.get(row.sellerCompanyId);
+            const asked = mill?.packAskPending === true;
+            return (
+              <div
+                key={row.id}
+                className="flex items-center gap-2 border-b border-line px-4 py-3.5 last:border-b-0"
+                data-testid={`path-row-${row.id}`}
               >
-                <TrashIcon width={20} height={20} />
-              </button>
-            </div>
-          ))}
+                <p
+                  className={cx(
+                    'min-w-0 flex-1 text-sm font-emphasis leading-tight',
+                    live ? 'text-ink' : 'text-muted',
+                  )}
+                >
+                  {row.sellerName}
+                </p>
+                <p
+                  className={cx(
+                    'min-w-0 flex-1 text-sm leading-tight',
+                    live ? 'text-ink' : 'text-muted',
+                  )}
+                >
+                  {row.buyerName}
+                </p>
+                {!live ? (
+                  <button
+                    type="button"
+                    className={cx(compactCta, 'bg-accent text-on-accent')}
+                    data-testid={`path-request-share-${row.id}`}
+                    disabled={asked || requestShare.isPending}
+                    onClick={() => requestShare.mutate(row.sellerCompanyId)}
+                  >
+                    {asked ? 'Requested' : REQUEST_SHARE_LABEL}
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  className="flex h-12 w-12 shrink-0 items-center justify-center text-danger"
+                  aria-label="Remove Direct link"
+                  data-testid={`path-remove-${row.id}`}
+                  onClick={() => setRemoveId(row.id)}
+                >
+                  <TrashIcon width={20} height={20} />
+                </button>
+              </div>
+            );
+          })}
         </div>
       ) : null}
 
@@ -206,7 +249,13 @@ export function DirectLinksPage() {
             type="button"
             fullWidth
             data-testid="paths-create-save"
-            disabled={!millId || !buyerId || millId === buyerId || create.isPending}
+            disabled={
+              !millId ||
+              !buyerId ||
+              millId === buyerId ||
+              create.isPending ||
+              millById.get(millId)?.accessKind !== 'pack'
+            }
             loading={create.isPending}
             onClick={() => {
               if (!millId || !buyerId) return;
@@ -228,6 +277,21 @@ export function DirectLinksPage() {
             value={millId}
             onChange={setMillId}
             findOnEkum={false}
+            rowAction={(companyId) => {
+              const mill = millById.get(companyId);
+              if (mill?.accessKind === 'pack') {
+                return { selectable: true, label: millId === companyId ? 'Selected' : 'Select' };
+              }
+              if (mill?.packAskPending) {
+                return { selectable: false, label: 'Requested' };
+              }
+              return {
+                selectable: false,
+                label: REQUEST_SHARE_LABEL,
+                pending: requestShare.isPending,
+                onAction: () => requestShare.mutate(companyId),
+              };
+            }}
           />
           <ConnectionPicker
             mode="single"

@@ -34,6 +34,25 @@ describe('designSetToShortlist', () => {
       rate: 210,
     });
   });
+
+  it('keeps exclusive catalog stamps so Order remaps', () => {
+    expect(
+      designSetToShortlist({
+        ...preview,
+        catalogCollectionId: 'cat-1',
+        catalogOrderMode: 'whole',
+      }),
+    ).toMatchObject({
+      productId: 'p1',
+      catalogCollectionId: 'cat-1',
+      catalogOrderMode: 'whole',
+    });
+  });
+
+  it('omits catalog stamps when the design is not exclusive', () => {
+    expect(designSetToShortlist(preview)).not.toHaveProperty('catalogCollectionId');
+    expect(designSetToShortlist(preview)).not.toHaveProperty('catalogOrderMode');
+  });
 });
 
 describe('designSetOpenIds', () => {

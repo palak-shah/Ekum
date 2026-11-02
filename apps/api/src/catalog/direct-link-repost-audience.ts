@@ -40,7 +40,7 @@ async function automaticSelectedPacks(
   prisma: AudienceClient,
   traderCompanyId: string,
   millCompanyId: string,
-): Promise<Array<{ id: string; audienceCompanyIds: string[] }>> {
+): Promise<Array<{ id: string; audienceCompanyIds: string[]; status: string }>> {
   if (!prismaModelHasField('Collection', 'repostOrigin')) return [];
   const sourceIds = await millSourceIds(prisma, millCompanyId);
   if (sourceIds.length === 0) return [];
@@ -49,13 +49,13 @@ async function automaticSelectedPacks(
       companyId: traderCompanyId,
       repostOrigin: RepostOrigin.Automatic,
       audience: PublishAudience.Selected,
-      status: CollectionStatus.Published,
+      status: { not: CollectionStatus.Archived },
       OR: [
         { repostSourceCollectionId: { in: sourceIds } },
         { repostRootCollectionId: { in: sourceIds } },
       ],
     },
-    select: { id: true, audienceCompanyIds: true },
+    select: { id: true, audienceCompanyIds: true, status: true },
   });
   return rows;
 }
@@ -71,10 +71,16 @@ export async function unionDirectLinkBuyer(
   );
   for (const pack of packs) {
     const next = uniqueIds([...pack.audienceCompanyIds, input.buyerCompanyId]);
-    if (sameIdSet(pack.audienceCompanyIds, next)) continue;
+    const restore = pack.status === CollectionStatus.Draft && next.length > 0;
+    if (sameIdSet(pack.audienceCompanyIds, next) && !restore) continue;
     await prisma.collection.update({
       where: { id: pack.id },
-      data: { audienceCompanyIds: next },
+      data: {
+        audienceCompanyIds: next,
+        ...(restore
+          ? { status: CollectionStatus.Published, exploreActivityAt: new Date() }
+          : {}),
+      },
     });
   }
 }

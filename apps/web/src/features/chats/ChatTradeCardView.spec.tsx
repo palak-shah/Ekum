@@ -265,7 +265,7 @@ describe('ChatTradeCard section order', () => {
     expect(card.textContent).toContain('Please pack tight');
   });
 
-  it('shows mill-lot parent and For-order as the note under thumbs', () => {
+  it('shows a real mill note under thumbs, not a parent Order #', () => {
     render(
       <MemoryRouter>
         <ChatTradeCard
@@ -275,7 +275,7 @@ describe('ChatTradeCard section order', () => {
             who: null,
             details: ['1 design'],
             thumbs: ['https://img/a.jpg'],
-            note: 'Part of Order #DOWN\nFor order #HANDLE — mill lot',
+            note: 'Rush this lot',
             noteVoiceUrl: null,
             action: { label: 'View order →', to: '/orders/1', style: 'link' },
           })}
@@ -289,8 +289,9 @@ describe('ChatTradeCard section order', () => {
     expect(header).not.toHaveTextContent('Part of Order');
     expect(header).not.toHaveTextContent('For order');
     expect(images.compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(note).toHaveTextContent('Part of Order #DOWN');
-    expect(note).toHaveTextContent('For order #HANDLE — mill lot');
+    expect(note).toHaveTextContent('Rush this lot');
+    expect(note).not.toHaveTextContent('Part of Order');
+    expect(note).not.toHaveTextContent('For order');
   });
 
   it('puts Seen ticks beside the card time, not under View order', () => {
@@ -507,10 +508,13 @@ describe('ChatTradeCard section order', () => {
         />
       </MemoryRouter>,
     );
-    expect(screen.getByTestId('chat-trade-card-placed-by')).toHaveTextContent(
-      'Order placed by Jaipur Emporium.',
-    );
-    expect(screen.getByTestId('chat-trade-card-decline')).toHaveTextContent('Decline');
+    const placedBy = screen.getByTestId('chat-trade-card-placed-by');
+    expect(placedBy).toHaveTextContent('Order placed by Jaipur Emporium.');
+    const decline = screen.getByTestId('chat-trade-card-decline');
+    expect(decline).toHaveTextContent('Decline');
+    expect(decline.tagName).toBe('BUTTON');
+    expect(decline).toHaveClass('bg-foam');
+    expect(placedBy).toContainElement(decline);
     const actions = screen.getByTestId('chat-trade-card-actions');
     expect(actions).toHaveTextContent('View order →');
     expect(actions).not.toHaveTextContent('Decline');

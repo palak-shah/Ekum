@@ -8,6 +8,7 @@ import {
   orderLineBalanceRowClass,
   orderLineFactsWithThisLr,
   orderLineMoneyCue,
+  orderTicketLineQtyCopy,
   orderTicketLineRateCopy,
 } from './OrderLineFacts';
 
@@ -371,6 +372,16 @@ describe('orderLineBalance', () => {
     );
     expect(screen.getByTestId('order-line-facts')).toHaveAttribute('data-density', 'ticket');
     expect(screen.getByTestId('order-line-fact-qty')).toHaveTextContent('4 sets');
+    expect(
+      orderTicketLineQtyCopy({
+        quantity: 45,
+        requestedQuantity: 50,
+        shippedQuantity: 30,
+        remainingQuantity: 15,
+        unit: 'pc',
+        lineStatus: 'confirmed',
+      }),
+    ).toBe('30 of 45 pcs sent');
     expect(screen.queryByTestId('order-line-fact-price')).toBeNull();
     expect(screen.queryByTestId('order-line-fact-bill')).toBeNull();
     expect(orderTicketLineRateCopy({

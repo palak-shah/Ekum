@@ -382,6 +382,8 @@ export interface TradeLaneView {
   behaviors: TradeLaneBehaviors;
   /** Always false in this slice — defaults are shown ticked, not editable. */
   behaviorsEditable: boolean;
+  /** Mill granted shop-wide Share (Pack). False → gray row; Place is I-handle. */
+  shareActive: boolean;
   updatedAt: string;
 }
 

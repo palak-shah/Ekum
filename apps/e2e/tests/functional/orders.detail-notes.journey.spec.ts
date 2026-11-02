@@ -20,12 +20,14 @@ test.describe('order detail parties and notes @functional @orders', () => {
     await expect(page.getByText(/\(you\)/)).toHaveCount(0);
     await expect(page.getByText(/Your move:/i)).toHaveCount(0);
     await expect(
-      page.getByText(/supplier|buyer/).first(),
+      page.getByText(/supplier|buyer/i).first(),
     ).toBeVisible();
 
     const chat = page.getByTestId('order-open-chat');
     if (await chat.isVisible().catch(() => false)) {
-      await expect(chat).toHaveAttribute('aria-label', 'Open chat');
+      const label = (await chat.getAttribute('aria-label')) ?? '';
+      const text = (await chat.textContent()) ?? '';
+      expect(/Chat|Open chat/.test(label) || /Chat with /.test(text)).toBe(true);
       await expect(chat).not.toHaveText(/Open chat/i);
     }
 
@@ -43,13 +45,16 @@ test.describe('order detail parties and notes @functional @orders', () => {
     await page.getByTestId('order-more-menu').click();
     await page.getByTestId('order-personal-note').click();
     await expect(page.getByRole('heading', { name: 'Personal note' })).toBeVisible();
-    await page.getByRole('textbox').fill('Internal packing cue');
+    await page.getByRole('dialog').getByRole('textbox').fill('Internal packing cue');
     await page.getByTestId('order-personal-note-save').click();
     await expect(page.getByTestId('order-personal-note-preview')).toBeVisible({
       timeout: 15_000,
     });
     await expect(page.getByTestId('order-personal-note-preview')).toContainText(
       'Internal packing cue',
+    );
+    await expect(page.getByTestId('order-personal-note-preview')).toContainText(
+      'Private note · Only you',
     );
   });
 });

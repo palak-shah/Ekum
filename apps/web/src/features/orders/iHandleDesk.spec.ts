@@ -52,6 +52,7 @@ describe('iHandleDesk', () => {
 
   it('opens the parent ticket from a mill chat card', () => {
     expect(traderDeskOrderId({ id: 'mill-1', deskOrderId: 'meena-1' })).toBe('meena-1');
+    expect(traderDeskOrderId({ id: 'mill-1', deskOrderId: null })).toBe('mill-1');
     expect(traderDeskOrderId({ id: 'meena-1' })).toBe('meena-1');
   });
 

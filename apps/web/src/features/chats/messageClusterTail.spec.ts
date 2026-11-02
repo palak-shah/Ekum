@@ -47,7 +47,7 @@ describe('messageHasClusterTail', () => {
     expect(messageHasClusterTail(messages, 2)).toBe(true);
   });
 
-  it('skips order_lifecycle tags with an order reference and does not break a run', () => {
+  it('treats order_lifecycle as an actor bubble that can split a run', () => {
     const messages = [
       msg('a', true),
       {
@@ -57,6 +57,23 @@ describe('messageHasClusterTail', () => {
         type: 'system',
         referenceId: 'o1',
         metadata: { kind: 'order_lifecycle', event: 'lines_decided' },
+      },
+      msg('b', true),
+    ];
+    expect(messageHasClusterTail(messages, 0)).toBe(true);
+    expect(messageHasClusterTail(messages, 1)).toBe(true);
+    expect(messageHasClusterTail(messages, 2)).toBe(true);
+  });
+
+  it('clusters consecutive order tags on the same side', () => {
+    const messages = [
+      msg('a', true),
+      {
+        id: 't1',
+        mine: true,
+        senderCompanyId: 'us',
+        type: 'system',
+        metadata: { kind: 'order_lifecycle', event: 'order_dispatched' },
       },
       msg('b', true),
     ];

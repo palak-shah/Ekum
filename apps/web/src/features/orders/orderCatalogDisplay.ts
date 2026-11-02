@@ -18,6 +18,14 @@ export function ticketDisplayItems(items: OrderItemView[]): OrderItemView[] {
   });
 }
 
+export function ticketSupplyableItems(items: OrderItemView[]): OrderItemView[] {
+  return items.filter((item) => item.lineStatus !== 'declined');
+}
+
+export function ticketCantSupplyItems(items: OrderItemView[]): OrderItemView[] {
+  return items.filter((item) => item.lineStatus === 'declined');
+}
+
 export function catalogPeerProductIds(
   items: OrderItemView[],
   productId: string,

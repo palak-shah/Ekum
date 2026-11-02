@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { uploadAudio, uploadImage } from '@/lib/mediaUpload';
 import { ApiError } from '@/lib/apiClient';
 import { MEDIA_VARIANT } from '@ekum/domain-types';
+import { COMPOSER_SHELL_CLASS } from '@/ui/fieldFill';
 import { Button, TextArea, TextInput, cx } from '@/ui/kit';
 import { ManagedImage } from '@/ui/ManagedImage';
 import { CameraIcon, ImageIcon, MicIcon, PlusIcon } from '@/ui/icons';
@@ -36,7 +37,7 @@ type Props = {
   className?: string;
   /** Default textarea. `text` = single-line kit TextInput (Manual order no.). */
   control?: 'textarea' | 'text';
-  /** `composer` = chat-like + first, then field (ticket Notes). */
+  /** `composer` = chat well: + | field | Add inside `COMPOSER_SHELL_CLASS`. */
   layout?: 'labeled' | 'composer';
   /** Trailing control on the composer row (ticket Add). */
   endSlot?: ReactNode;
@@ -282,7 +283,10 @@ export function NoteAttachField({
   return (
     <div className="flex flex-col gap-2" ref={wrapRef} data-testid={testId}>
       {layout === 'composer' ? (
-        <div className="flex items-end gap-2">
+        <div
+          data-testid="note-attach-composer-shell"
+          className={cx('flex min-w-0 items-end gap-1 px-2 py-1.5', COMPOSER_SHELL_CLASS)}
+        >
           {plusMenu}
           {showComposer && control === 'text' ? (
             <TextInput
@@ -290,7 +294,10 @@ export function NoteAttachField({
               onChange={(event) => onNoteChange(event.target.value)}
               placeholder={placeholder}
               data-testid={inputTestId}
-              className={cx('min-w-0 flex-1', className)}
+              className={cx(
+                'min-w-0 flex-1 border-0 bg-transparent px-1 shadow-none focus:border-0 focus:bg-transparent',
+                className,
+              )}
             />
           ) : null}
           {showComposer && control === 'textarea' ? (
@@ -301,8 +308,8 @@ export function NoteAttachField({
               rows={rows}
               placeholder={placeholder}
               className={cx(
-                'ekum-no-scrollbar min-w-0 flex-1 resize-none overflow-y-auto',
-                rows <= 2 && '!h-12 !min-h-12 !max-h-12',
+                'ekum-no-scrollbar min-w-0 flex-1 resize-none overflow-y-auto border-0 bg-transparent px-1 py-2 shadow-none focus:border-0 focus:bg-transparent',
+                rows <= 2 && '!h-9 !min-h-9 !max-h-24',
                 className,
               )}
             />

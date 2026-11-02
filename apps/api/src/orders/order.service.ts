@@ -17,6 +17,7 @@ import {
   ProductStatus,
   OrderChatEvent,
   ORDER_LIFECYCLE_KIND,
+  ORDER_NOTE_KIND,
   inferOrderChatEvent,
   orderLifecycleTagCopy,
   OrderIntent,
@@ -56,6 +57,7 @@ import {
   type SettleOrderDto,
   type SetLineSupplyDto,
   type SetLineQuantityDto,
+  OrderAuditKind,
   type AddOrderNoteDto,
   type ForwardOrderNoteDto,
   TradeLaneTicket,
@@ -63,6 +65,7 @@ import {
 } from '@ekum/domain-types';
 import { claimParentItemId, matchParentItemId, shouldPassThrough, traderListHidesSubset, allReleasedSubsetsComplete } from './i-handle-desk';
 import { buyerSafePassThroughSummary } from './i-handle-soft-hide';
+import { millShareActive } from './mill-share';
 import { shouldRouteToTrio, effectivePathFromLane, isReleasedMillSubset, manageParentOpenChatThreadId, laneRoutesDirect, qtyChangeSummary, DEFAULT_LANE_BEHAVIORS, trioMillLaneWhere } from './trade-lane';
 import { millLaneVisibleToBuyer } from './mill-desk-visibility';
 import type { Env } from '../core/config/config.schema';
@@ -75,6 +78,7 @@ import { resolveTradePresence } from '../identity/trade-presence';
 import { productCatalogStatusById } from '../catalog/leftover-offer';
 import { OrderSerializer } from './order.serializer';
 import { OrderTrailService } from './order-trail.service';
+import { OrderAuditService, auditQtyNumber, type OrderAuditClient } from './order-audit.service';
 import { resolveNoteVoiceFields } from './note-voice';
 import { normalizeNoteImageUrls } from './note-images';
 import { TradeAccess } from './trade-access';
@@ -167,6 +171,7 @@ export class OrderService {
     private readonly jobs: JobQueue,
     private readonly threads: ThreadService,
     private readonly trail: OrderTrailService,
+    private readonly orderAudit: OrderAuditService,
   ) {}
 
   async create(
@@ -244,27 +249,40 @@ export class OrderService {
     const tradeMode = resolvedOpts.tradeMode ?? OrderTradeMode.Bilateral;
     const noteVoice = await this.noteVoiceCreateFields(actorCompanyId, dto);
     const noteImageUrls = normalizeNoteImageUrls(dto.noteImageUrls);
-    const order = await this.prisma.order.create({
-      data: {
-        kind: dto.kind,
-        intent,
-        status: OrderStatus.Requested,
-        tradeMode,
-        facilitatorCompanyId: resolvedOpts.facilitatorCompanyId ?? null,
-        downstreamOrderId: resolvedOpts.downstreamOrderId ?? null,
-        upstreamReleasedAt:
-          resolvedOpts.holdUntilSend && resolvedOpts.downstreamOrderId ? null : undefined,
-        buyerCompanyId,
-        sellerCompanyId: dto.sellerCompanyId,
-        createdByCompanyId: actorCompanyId,
-        createdByUserId: userId,
-        updatedByUserId: userId,
-        note: dto.note ?? null,
-        transporter: dto.transporter?.trim() || null,
-        ...noteVoice,
-        items: { create: items },
-      },
-      include: ORDER_RELATIONS,
+    const order = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.order.create({
+        data: {
+          kind: dto.kind,
+          intent,
+          status: OrderStatus.Requested,
+          tradeMode,
+          facilitatorCompanyId: resolvedOpts.facilitatorCompanyId ?? null,
+          downstreamOrderId: resolvedOpts.downstreamOrderId ?? null,
+          upstreamReleasedAt:
+            resolvedOpts.holdUntilSend && resolvedOpts.downstreamOrderId ? null : undefined,
+          buyerCompanyId,
+          sellerCompanyId: dto.sellerCompanyId,
+          createdByCompanyId: actorCompanyId,
+          createdByUserId: userId,
+          updatedByUserId: userId,
+          note: dto.note ?? null,
+          transporter: dto.transporter?.trim() || null,
+          ...noteVoice,
+          items: { create: items },
+        },
+        include: ORDER_RELATIONS,
+      });
+      await this.writeQtyAudit(
+        created,
+        actorCompanyId,
+        userId,
+        OrderAuditKind.Placed,
+        created.items.map((item) =>
+          this.auditItem(item, null, auditQtyNumber(item.quantity) ?? 0),
+        ),
+        { keepSameQty: true, at: created.createdAt, tx },
+      );
+      return created;
     });
 
     const held = Boolean(resolvedOpts.holdUntilSend && resolvedOpts.downstreamOrderId);
@@ -584,7 +602,14 @@ export class OrderService {
         },
         select: { ticket: true, behaviors: true },
       });
-      if (laneRoutesDirect({ ticket: lane?.ticket, behaviors: lane?.behaviors })) {
+      const millPack = await millShareActive(this.prisma, collection.companyId, sellerCompanyId);
+      if (
+        laneRoutesDirect({
+          ticket: lane?.ticket,
+          behaviors: lane?.behaviors,
+          millShareActive: millPack,
+        })
+      ) {
         directGroups.push([sellerCompanyId, group]);
       } else {
         handleItems.push(...group.items);
@@ -644,7 +669,6 @@ export class OrderService {
     const upstreams: OrderView[] = [];
     const directs: OrderView[] = [];
     const failures: CreateOrdersFromPackResult['failures'] = [];
-    const shortId = (downstream?.id ?? 'order').slice(-6).toUpperCase();
 
     for (const [sellerCompanyId, group] of handleGroups) {
       try {
@@ -659,7 +683,6 @@ export class OrderService {
           {
             sellerCompanyId,
             ...shared,
-            note: dto.note ? `${dto.note} (for #${shortId})` : `For order #${shortId}`,
             items: hopItems,
           },
           {
@@ -780,21 +803,68 @@ export class OrderService {
         allowForeignProducts: order.tradeMode === OrderTradeMode.Manage,
       },
     );
-    await this.prisma.order.update({
-      where: { id },
-      data: {
-        amendCount: { increment: 1 },
-        note: dto.note !== undefined ? dto.note : undefined,
-        transporter:
-          dto.transporter === undefined
-            ? undefined
-            : dto.transporter?.trim() || null,
-        items: {
-          deleteMany: {},
-          create: snapshots,
+    const snapshotProductIds = new Set(
+      snapshots
+        .map((row) => (typeof row.productId === 'string' ? row.productId : null))
+        .filter((productId): productId is string => Boolean(productId)),
+    );
+    const removedRows = order.items
+      .filter((item) => !item.productId || !snapshotProductIds.has(item.productId))
+      .map((item) => this.auditItem(item, auditQtyNumber(item.quantity) ?? 0, 0));
+    const oldByProduct = new Map(
+      order.items
+        .filter((item) => item.productId)
+        .map((item) => [item.productId as string, auditQtyNumber(item.quantity) ?? 0]),
+    );
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.order.update({
+        where: { id },
+        data: {
+          amendCount: { increment: 1 },
+          note: dto.note !== undefined ? dto.note : undefined,
+          transporter:
+            dto.transporter === undefined
+              ? undefined
+              : dto.transporter?.trim() || null,
+          items: {
+            deleteMany: {},
+            create: snapshots,
+          },
+          ...this.withActor(userId),
         },
-        ...this.withActor(userId),
-      },
+      });
+      const next = await tx.order.findUnique({
+        where: { id },
+        include: { items: true, buyer: true, seller: true },
+      });
+      const amendedItems = Array.isArray(next?.items) ? next.items : [];
+      if (amendedItems.length > 0) {
+        await this.writeQtyAudit(
+          next ?? order,
+          actorCompanyId,
+          userId,
+          OrderAuditKind.Amended,
+          amendedItems.map((item) =>
+            this.auditItem(
+              item,
+              item.productId ? (oldByProduct.get(item.productId) ?? null) : null,
+              auditQtyNumber(item.quantity) ?? 0,
+            ),
+          ),
+          { statusAt: OrderStatus.Requested, tx },
+        );
+      }
+      if (removedRows.length > 0) {
+        await this.writeQtyAudit(
+          order,
+          actorCompanyId,
+          userId,
+          OrderAuditKind.AmendedRemoved,
+          removedRows,
+          { statusAt: OrderStatus.Requested, tx },
+        );
+      }
     });
 
     const refreshed = await this.loadForParty(id, actorCompanyId);
@@ -1083,7 +1153,9 @@ export class OrderService {
       relatedOrders,
       millDesks,
       deskOrderId:
-        order.buyerCompanyId === actorCompanyId && order.downstreamOrderId
+        order.buyerCompanyId === actorCompanyId &&
+        order.downstreamOrderId &&
+        order.upstreamReleasedAt == null
           ? order.downstreamOrderId
           : null,
       needsQuotePass:
@@ -1238,12 +1310,12 @@ export class OrderService {
       });
     }
 
-    await this.prisma.$transaction([
-      this.prisma.orderItem.updateMany({
+    await this.prisma.$transaction(async (tx) => {
+      await tx.orderItem.updateMany({
         where: { id: { in: openIds } },
         data: { lineStatus: OrderLineStatus.Confirmed },
-      }),
-      this.prisma.order.update({
+      });
+      await tx.order.update({
         where: { id },
         data: {
           status: OrderStatus.Confirmed,
@@ -1253,11 +1325,25 @@ export class OrderService {
           ...this.firmInquiryData(order.intent),
           ...this.withActor(userId),
         },
-      }),
-    ]);
-    await this.stampConfirmedIfMissing(
-      order.items.filter((item) => openIds.includes(item.id)),
-    );
+      });
+      await this.stampConfirmedIfMissing(
+        order.items.filter((item) => openIds.includes(item.id)),
+        tx,
+      );
+      await this.writeQtyAudit(
+        order,
+        actorCompanyId,
+        userId,
+        OrderAuditKind.Confirmed,
+        order.items
+          .filter((item) => openIds.includes(item.id))
+          .map((item) => {
+            const qty = auditQtyNumber(item.quantity) ?? 0;
+            return this.auditItem(item, qty, qty);
+          }),
+        { keepSameQty: true, statusAt: OrderStatus.Confirmed, tx },
+      );
+    });
 
     const orderLabel = shortOrderLabel(id);
     const actorLabel = order.seller.name;
@@ -1323,12 +1409,12 @@ export class OrderService {
       });
     }
 
-    await this.prisma.$transaction([
-      this.prisma.orderItem.updateMany({
+    await this.prisma.$transaction(async (tx) => {
+      await tx.orderItem.updateMany({
         where: { id: { in: openWithRate.map((item) => item.id) } },
         data: { lineStatus: OrderLineStatus.Confirmed },
-      }),
-      this.prisma.order.update({
+      });
+      await tx.order.update({
         where: { id },
         data: {
           status: OrderStatus.Confirmed,
@@ -1338,9 +1424,20 @@ export class OrderService {
           ...this.firmInquiryData(order.intent),
           ...this.withActor(userId),
         },
-      }),
-    ]);
-    await this.stampConfirmedIfMissing(openWithRate);
+      });
+      await this.stampConfirmedIfMissing(openWithRate, tx);
+      await this.writeQtyAudit(
+        order,
+        actorCompanyId,
+        userId,
+        OrderAuditKind.Confirmed,
+        openWithRate.map((item) => {
+          const qty = auditQtyNumber(item.quantity) ?? 0;
+          return this.auditItem(item, qty, qty);
+        }),
+        { keepSameQty: true, statusAt: OrderStatus.Confirmed, tx },
+      );
+    });
 
     const orderLabel = shortOrderLabel(id);
     const actorLabel = order.buyer.name;
@@ -1433,31 +1530,39 @@ export class OrderService {
       });
     }
 
-    for (const line of lines) {
-      const item = byId.get(line.orderItemId)!;
-      if (line.unavailable) {
-        await this.prisma.orderItem.update({
+    const quotedQty: Array<ReturnType<OrderService['auditItem']>> = [];
+    await this.prisma.$transaction(async (tx) => {
+      for (const line of lines) {
+        const item = byId.get(line.orderItemId)!;
+        if (line.unavailable) {
+          await tx.orderItem.update({
+            where: { id: item.id },
+            data: { lineStatus: OrderLineStatus.Declined },
+          });
+          continue;
+        }
+        const nextQty = line.quantity ?? item.quantity.toNumber();
+        if (!Number.isFinite(nextQty) || nextQty < 1) {
+          throw new BadRequestException({
+            code: 'QTY_INVALID',
+            message: 'Offer quantity must be at least 1.',
+          });
+        }
+        const beforeQty = item.quantity.toNumber();
+        await tx.orderItem.update({
           where: { id: item.id },
-          data: { lineStatus: OrderLineStatus.Declined },
+          data: {
+            rate: line.rate!,
+            quantity: nextQty,
+            lineStatus: OrderLineStatus.Open,
+          },
         });
-        continue;
+        quotedQty.push(this.auditItem(item, beforeQty, nextQty));
       }
-      const nextQty = line.quantity ?? item.quantity.toNumber();
-      if (!Number.isFinite(nextQty) || nextQty < 1) {
-        throw new BadRequestException({
-          code: 'QTY_INVALID',
-          message: 'Offer quantity must be at least 1.',
-        });
-      }
-      await this.prisma.orderItem.update({
-        where: { id: item.id },
-        data: {
-          rate: line.rate!,
-          quantity: nextQty,
-          lineStatus: OrderLineStatus.Open,
-        },
+      await this.writeQtyAudit(order, actorCompanyId, userId, OrderAuditKind.Quoted, quotedQty, {
+        tx,
       });
-    }
+    });
 
     const billTotal = orderBillTotal(
       supplyable.map((line) => {
@@ -1583,97 +1688,109 @@ export class OrderService {
     const byId = new Map(order.items.map((item) => [item.id, item]));
     let confirmed = 0;
     let declined = 0;
+    const decidedQty: Array<ReturnType<OrderService['auditItem']>> = [];
     assertCatalogWholeDecisionTogether(order.items, dto.items);
     const decideItems = fanOutCatalogWholeLines(order.items, dto.items);
 
-    for (const line of decideItems) {
-      const item = byId.get(line.orderItemId);
-      if (!item) {
-        throw new NotFoundException({
-          code: 'INVALID_ITEM',
-          message: 'A line does not match this order.',
-        });
-      }
-      if (item.lineStatus !== OrderLineStatus.Open) {
-        throw new ConflictException({
-          code: 'LINE_NOT_OPEN',
-          message: 'Only open lines can be confirmed or declined.',
-        });
-      }
-      if (line.action === 'decline') {
-        await this.prisma.orderItem.update({
+    let nextStatus: string = order.status;
+    await this.prisma.$transaction(async (tx) => {
+      for (const line of decideItems) {
+        const item = byId.get(line.orderItemId);
+        if (!item) {
+          throw new NotFoundException({
+            code: 'INVALID_ITEM',
+            message: 'A line does not match this order.',
+          });
+        }
+        if (item.lineStatus !== OrderLineStatus.Open) {
+          throw new ConflictException({
+            code: 'LINE_NOT_OPEN',
+            message: 'Only open lines can be confirmed or declined.',
+          });
+        }
+        if (line.action === 'decline') {
+          await tx.orderItem.update({
+            where: { id: item.id },
+            data: { lineStatus: OrderLineStatus.Declined },
+          });
+          declined += 1;
+          continue;
+        }
+        const nextQty = line.quantity ?? item.quantity.toNumber();
+        if (!Number.isFinite(nextQty) || nextQty < 1) {
+          throw new BadRequestException({
+            code: 'QTY_INVALID',
+            message: 'Confirm quantity must be at least 1.',
+          });
+        }
+        const existingRate = item.rate != null ? item.rate.toNumber() : null;
+        const nextRate = line.rate ?? existingRate;
+        if (nextRate != null && (!Number.isFinite(nextRate) || nextRate <= 0)) {
+          throw new BadRequestException({
+            code: 'RATE_INVALID',
+            message: 'Rate must be more than 0 when set.',
+          });
+        }
+        const beforeQty = item.quantity.toNumber();
+        await tx.orderItem.update({
           where: { id: item.id },
-          data: { lineStatus: OrderLineStatus.Declined },
+          data: {
+            quantity: nextQty,
+            ...(nextRate != null ? { rate: nextRate } : {}),
+            lineStatus: OrderLineStatus.Confirmed,
+            ...(item.confirmedQuantity == null ? { confirmedQuantity: nextQty } : {}),
+            ...(item.confirmedRate == null && nextRate != null ? { confirmedRate: nextRate } : {}),
+          },
         });
-        declined += 1;
-        continue;
+        decidedQty.push(this.auditItem(item, beforeQty, nextQty));
+        confirmed += 1;
       }
-      const nextQty = line.quantity ?? item.quantity.toNumber();
-      if (!Number.isFinite(nextQty) || nextQty < 1) {
-        throw new BadRequestException({
-          code: 'QTY_INVALID',
-          message: 'Confirm quantity must be at least 1.',
+
+      const itemsAfter = await tx.orderItem.findMany({ where: { orderId: id } });
+      const stillOpen = itemsAfter.some((item) => item.lineStatus === OrderLineStatus.Open);
+      const anyConfirmed = itemsAfter.some(
+        (item) => item.lineStatus === OrderLineStatus.Confirmed,
+      );
+      const allDeclined = itemsAfter.every(
+        (item) => item.lineStatus === OrderLineStatus.Declined,
+      );
+      const firmInquiry = confirmed > 0 ? this.firmInquiryData(order.intent) : {};
+      if (allDeclined) {
+        nextStatus = OrderStatus.Declined;
+        await tx.order.update({
+          where: { id },
+          data: { status: OrderStatus.Declined, closedAt: new Date(), ...this.withActor(userId) },
+        });
+      } else if (!stillOpen && anyConfirmed) {
+        nextStatus = OrderStatus.Confirmed;
+        await tx.order.update({
+          where: { id },
+          data: {
+            status: OrderStatus.Confirmed,
+            confirmedAt: new Date(),
+            confirmedByCompanyId: actorCompanyId,
+            confirmedByUserId: userId,
+            ...firmInquiry,
+            ...this.withActor(userId),
+          },
+        });
+      } else if (Object.keys(firmInquiry).length > 0) {
+        await tx.order.update({
+          where: { id },
+          data: { ...firmInquiry, ...this.withActor(userId) },
         });
       }
-      // Rate is optional on Confirm — lock qty even when the bill is still empty.
-      const existingRate = item.rate != null ? item.rate.toNumber() : null;
-      const nextRate = line.rate ?? existingRate;
-      if (nextRate != null && (!Number.isFinite(nextRate) || nextRate <= 0)) {
-        throw new BadRequestException({
-          code: 'RATE_INVALID',
-          message: 'Rate must be more than 0 when set.',
-        });
-      }
-      await this.prisma.orderItem.update({
-        where: { id: item.id },
-        data: {
-          quantity: nextQty,
-          ...(nextRate != null ? { rate: nextRate } : {}),
-          lineStatus: OrderLineStatus.Confirmed,
-          ...(item.confirmedQuantity == null ? { confirmedQuantity: nextQty } : {}),
-          ...(item.confirmedRate == null && nextRate != null ? { confirmedRate: nextRate } : {}),
-        },
-      });
-      confirmed += 1;
-    }
+      await this.writeQtyAudit(
+        order,
+        actorCompanyId,
+        userId,
+        OrderAuditKind.Confirmed,
+        decidedQty,
+        { keepSameQty: true, statusAt: nextStatus, tx },
+      );
+    });
 
     const refreshed = await this.loadForParty(id, actorCompanyId);
-    const stillOpen = refreshed.items.some((item) => item.lineStatus === OrderLineStatus.Open);
-    const anyConfirmed = refreshed.items.some(
-      (item) => item.lineStatus === OrderLineStatus.Confirmed,
-    );
-    const allDeclined = refreshed.items.every(
-      (item) => item.lineStatus === OrderLineStatus.Declined,
-    );
-
-    let nextStatus: string = order.status;
-    const firmInquiry = confirmed > 0 ? this.firmInquiryData(order.intent) : {};
-    if (allDeclined) {
-      nextStatus = OrderStatus.Declined;
-      await this.prisma.order.update({
-        where: { id },
-        data: { status: OrderStatus.Declined, closedAt: new Date(), ...this.withActor(userId) },
-      });
-    } else if (!stillOpen && anyConfirmed) {
-      nextStatus = OrderStatus.Confirmed;
-      await this.prisma.order.update({
-        where: { id },
-        data: {
-          status: OrderStatus.Confirmed,
-          confirmedAt: new Date(),
-          confirmedByCompanyId: actorCompanyId,
-          confirmedByUserId: userId,
-          ...firmInquiry,
-          ...this.withActor(userId),
-        },
-      });
-    } else if (Object.keys(firmInquiry).length > 0) {
-      await this.prisma.order.update({
-        where: { id },
-        data: { ...firmInquiry, ...this.withActor(userId) },
-      });
-    }
-
     if (confirmed > 0) {
       await this.persistDecideLinesExtras(actorCompanyId, userId, id, dto);
     }
@@ -1829,57 +1946,87 @@ export class OrderService {
     const byId = new Map(order.items.map((item) => [item.id, item]));
     const shippedByItem = this.shippedTotals(order);
     const changed: Array<{ name: string; cantSupply: boolean }> = [];
+    const cantSupplyQty: Array<ReturnType<OrderService['auditItem']>> = [];
+    const restoredQty: Array<ReturnType<OrderService['auditItem']>> = [];
     const supplyItems = fanOutCatalogWholeLines(order.items, dto.items);
 
-    for (const line of supplyItems) {
-      const item = byId.get(line.orderItemId);
-      if (!item) {
-        throw new NotFoundException({
-          code: 'INVALID_ITEM',
-          message: 'A line does not match this order.',
-        });
-      }
-      const shipped = shippedByItem.get(item.id) ?? 0;
-
-      if (line.cantSupply) {
-        if (item.lineStatus === OrderLineStatus.Declined) continue;
-        if (
-          item.lineStatus !== OrderLineStatus.Confirmed &&
-          item.lineStatus !== OrderLineStatus.Dispatched
-        ) {
-          throw new ConflictException({
-            code: 'LINE_NOT_SUPPLYABLE',
-            message: 'Only confirmed designs can be marked Can’t supply.',
+    await this.prisma.$transaction(async (tx) => {
+      for (const line of supplyItems) {
+        const item = byId.get(line.orderItemId);
+        if (!item) {
+          throw new NotFoundException({
+            code: 'INVALID_ITEM',
+            message: 'A line does not match this order.',
           });
         }
-        // Cap agreed qty to what already left when some shipped — still Declined so
-        // the Can’t supply switch / Restore path stay honest (not silent Dispatched).
-        await this.prisma.orderItem.update({
-          where: { id: item.id },
-          data:
-            shipped > 0
-              ? { quantity: shipped, lineStatus: OrderLineStatus.Declined }
-              : { lineStatus: OrderLineStatus.Declined },
-        });
-        changed.push({ name: item.name, cantSupply: true });
-      } else {
-        if (item.lineStatus !== OrderLineStatus.Declined) continue;
-        const restoreQty =
-          item.confirmedQuantity != null
-            ? item.confirmedQuantity.toNumber()
-            : item.quantity.toNumber() > 0
-              ? item.quantity.toNumber()
-              : item.requestedQuantity.toNumber();
-        await this.prisma.orderItem.update({
-          where: { id: item.id },
-          data: {
-            quantity: restoreQty,
-            lineStatus: OrderLineStatus.Confirmed,
-          },
-        });
-        changed.push({ name: item.name, cantSupply: false });
+        const shipped = shippedByItem.get(item.id) ?? 0;
+
+        if (line.cantSupply) {
+          if (item.lineStatus === OrderLineStatus.Declined) continue;
+          if (
+            item.lineStatus !== OrderLineStatus.Confirmed &&
+            item.lineStatus !== OrderLineStatus.Dispatched
+          ) {
+            throw new ConflictException({
+              code: 'LINE_NOT_SUPPLYABLE',
+              message: 'Only confirmed designs can be marked Can’t supply.',
+            });
+          }
+          const beforeQty = item.quantity.toNumber();
+          await tx.orderItem.update({
+            where: { id: item.id },
+            data:
+              shipped > 0
+                ? { quantity: shipped, lineStatus: OrderLineStatus.Declined }
+                : { lineStatus: OrderLineStatus.Declined },
+          });
+          if (shipped > 0 && shipped !== beforeQty) {
+            cantSupplyQty.push(this.auditItem(item, beforeQty, shipped));
+          }
+          changed.push({ name: item.name, cantSupply: true });
+        } else {
+          if (item.lineStatus !== OrderLineStatus.Declined) continue;
+          const restoreQty =
+            item.confirmedQuantity != null
+              ? item.confirmedQuantity.toNumber()
+              : item.quantity.toNumber() > 0
+                ? item.quantity.toNumber()
+                : item.requestedQuantity.toNumber();
+          const beforeQty = item.quantity.toNumber();
+          await tx.orderItem.update({
+            where: { id: item.id },
+            data: {
+              quantity: restoreQty,
+              lineStatus: OrderLineStatus.Confirmed,
+            },
+          });
+          if (restoreQty !== beforeQty) {
+            restoredQty.push(this.auditItem(item, beforeQty, restoreQty));
+          }
+          changed.push({ name: item.name, cantSupply: false });
+        }
       }
-    }
+
+      if (changed.length < 1) {
+        return;
+      }
+      await this.writeQtyAudit(
+        order,
+        actorCompanyId,
+        userId,
+        OrderAuditKind.CantSupply,
+        cantSupplyQty,
+        { statusAt: order.status, tx },
+      );
+      await this.writeQtyAudit(
+        order,
+        actorCompanyId,
+        userId,
+        OrderAuditKind.Restored,
+        restoredQty,
+        { statusAt: order.status, tx },
+      );
+    });
 
     if (changed.length < 1) {
       return this.get(actorCompanyId, id);
@@ -2018,47 +2165,64 @@ export class OrderService {
     }> = [];
     const qtyItems = fanOutCatalogWholeLines(order.items, dto.items);
 
-    for (const line of qtyItems) {
-      const item = byId.get(line.orderItemId);
-      if (!item) {
-        throw new NotFoundException({
-          code: 'INVALID_ITEM',
-          message: 'A line does not match this order.',
+    await this.prisma.$transaction(async (tx) => {
+      for (const line of qtyItems) {
+        const item = byId.get(line.orderItemId);
+        if (!item) {
+          throw new NotFoundException({
+            code: 'INVALID_ITEM',
+            message: 'A line does not match this order.',
+          });
+        }
+        if (
+          item.lineStatus !== OrderLineStatus.Confirmed &&
+          item.lineStatus !== OrderLineStatus.Dispatched
+        ) {
+          throw new ConflictException({
+            code: 'LINE_NOT_EDITABLE',
+            message: 'Restore Can’t supply before changing quantity.',
+          });
+        }
+        const shipped = shippedByItem.get(item.id) ?? 0;
+        const nextQty = Math.floor(line.quantity);
+        if (nextQty < shipped) {
+          throw new ConflictException({
+            code: 'BELOW_SHIPPED',
+            message: 'Can’t go below shipped.',
+          });
+        }
+        const beforeQty = item.quantity.toNumber();
+        if (nextQty === beforeQty) continue;
+        const nextLineStatus =
+          shipped + 1e-9 >= nextQty ? OrderLineStatus.Dispatched : OrderLineStatus.Confirmed;
+        await tx.orderItem.update({
+          where: { id: item.id },
+          data: { quantity: nextQty, lineStatus: nextLineStatus },
+        });
+        changed.push({
+          name: item.name,
+          quantity: nextQty,
+          before: beforeQty,
+          orderItemId: item.id,
+          unit: (item as { unit?: string | null }).unit ?? 'pc',
         });
       }
-      if (
-        item.lineStatus !== OrderLineStatus.Confirmed &&
-        item.lineStatus !== OrderLineStatus.Dispatched
-      ) {
-        throw new ConflictException({
-          code: 'LINE_NOT_EDITABLE',
-          message: 'Restore Can’t supply before changing quantity.',
-        });
+
+      if (changed.length < 1) {
+        return;
       }
-      const shipped = shippedByItem.get(item.id) ?? 0;
-      const nextQty = Math.floor(line.quantity);
-      if (nextQty < shipped) {
-        throw new ConflictException({
-          code: 'BELOW_SHIPPED',
-          message: 'Can’t go below shipped.',
-        });
-      }
-      const beforeQty = item.quantity.toNumber();
-      if (nextQty === beforeQty) continue;
-      const nextLineStatus =
-        shipped + 1e-9 >= nextQty ? OrderLineStatus.Dispatched : OrderLineStatus.Confirmed;
-      await this.prisma.orderItem.update({
-        where: { id: item.id },
-        data: { quantity: nextQty, lineStatus: nextLineStatus },
-      });
-      changed.push({
-        name: item.name,
-        quantity: nextQty,
-        before: beforeQty,
-        orderItemId: item.id,
-        unit: (item as { unit?: string | null }).unit ?? 'pc',
-      });
-    }
+      await this.writeQtyAudit(
+        order,
+        actorCompanyId,
+        userId,
+        OrderAuditKind.SellerEdit,
+        changed.map((row) => {
+          const item = byId.get(row.orderItemId)!;
+          return this.auditItem(item, row.before, row.quantity);
+        }),
+        { statusAt: order.status, tx },
+      );
+    });
 
     if (changed.length < 1) {
       return this.get(actorCompanyId, id);
@@ -2653,23 +2817,36 @@ export class OrderService {
     const voice = await this.noteVoiceMetadata(actorCompanyId, dto);
     let asked = 0;
     let closedSum = 0;
-    for (const item of shippable) {
-      const shipped = shippedByItem.get(item.id) ?? 0;
-      const finalQty = finalByItem.has(item.id) ? finalByItem.get(item.id)! : shipped;
-      asked += item.requestedQuantity.toNumber();
-      closedSum += finalQty;
-      if (finalQty <= 0) {
-        await this.prisma.orderItem.update({
-          where: { id: item.id },
-          data: { quantity: 0, lineStatus: OrderLineStatus.Declined },
-        });
-      } else {
-        await this.prisma.orderItem.update({
-          where: { id: item.id },
-          data: { quantity: finalQty, lineStatus: OrderLineStatus.Dispatched },
-        });
+    const settleQty: Array<ReturnType<OrderService['auditItem']>> = [];
+    await this.prisma.$transaction(async (tx) => {
+      for (const item of shippable) {
+        const shipped = shippedByItem.get(item.id) ?? 0;
+        const finalQty = finalByItem.has(item.id) ? finalByItem.get(item.id)! : shipped;
+        asked += item.requestedQuantity.toNumber();
+        closedSum += finalQty;
+        const beforeQty = item.quantity.toNumber();
+        if (finalQty <= 0) {
+          await tx.orderItem.update({
+            where: { id: item.id },
+            data: { quantity: 0, lineStatus: OrderLineStatus.Declined },
+          });
+        } else {
+          await tx.orderItem.update({
+            where: { id: item.id },
+            data: { quantity: finalQty, lineStatus: OrderLineStatus.Dispatched },
+          });
+        }
+        settleQty.push(this.auditItem(item, beforeQty, finalQty));
       }
-    }
+      await this.writeQtyAudit(
+        order,
+        actorCompanyId,
+        userId,
+        OrderAuditKind.Settled,
+        settleQty,
+        { statusAt: order.status, tx },
+      );
+    });
 
     const now = new Date();
     const days = this.config.get('RETURN_WINDOW_DAYS', { infer: true });
@@ -2835,26 +3012,45 @@ export class OrderService {
     const patches = dto.items ?? [];
     const now = new Date();
     for (const up of upstreams) {
-      for (const item of up.items) {
-        const patch = patches.find(
-          (row) =>
-            (row.orderItemId && row.orderItemId === item.id) ||
-            (row.productId && row.productId === item.productId),
-        );
-        if (!patch) continue;
-        await this.prisma.orderItem.update({
-          where: { id: item.id },
-          data: {
-            ...(patch.quantity != null
-              ? { quantity: patch.quantity, requestedQuantity: patch.quantity }
-              : {}),
-            ...(patch.rate != null ? { rate: patch.rate } : {}),
-          },
+      const millQty: Array<ReturnType<OrderService['auditItem']>> = [];
+      await this.prisma.$transaction(async (tx) => {
+        for (const item of up.items) {
+          const patch = patches.find(
+            (row) =>
+              (row.orderItemId && row.orderItemId === item.id) ||
+              (row.productId && row.productId === item.productId),
+          );
+          if (!patch) continue;
+          if (patch.quantity != null) {
+            millQty.push(
+              this.auditItem(item, auditQtyNumber(item.quantity) ?? Number(item.quantity) ?? 0, patch.quantity),
+            );
+          }
+          await tx.orderItem.update({
+            where: { id: item.id },
+            data: {
+              ...(patch.quantity != null
+                ? { quantity: patch.quantity, requestedQuantity: patch.quantity }
+                : {}),
+              ...(patch.rate != null ? { rate: patch.rate } : {}),
+            },
+          });
+        }
+        await this.orderAudit.appendQty({
+          orderId: up.id,
+          statusAt: up.status,
+          actorCompanyId,
+          actorCompanyName: order.seller?.name ?? null,
+          actorUserId: userId,
+          kind: OrderAuditKind.MillPass,
+          rows: millQty,
+          at: now,
+          tx,
         });
-      }
-      await this.prisma.order.update({
-        where: { id: up.id },
-        data: { upstreamReleasedAt: now, updatedByUserId: userId },
+        await tx.order.update({
+          where: { id: up.id },
+          data: { upstreamReleasedAt: now, updatedByUserId: userId },
+        });
       });
       const millName = up.seller?.name?.trim() || 'mill';
       await this.trail.append({
@@ -3812,6 +4008,23 @@ export class OrderService {
       order.sellerCompanyId,
       order.id,
     );
+    const living = await this.prisma.message.findFirst({
+      where: {
+        threadId,
+        referenceId: order.id,
+        type: { in: [MessageType.OrderCard, MessageType.Rate] },
+      },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true },
+    });
+    const noteMeta: Record<string, unknown> = {
+      kind: ORDER_NOTE_KIND,
+      event: 'noted',
+      orderId: order.id,
+      actorLabel: shopName,
+      actorCompanyId,
+      ...(living?.id ? { livingMessageId: living.id } : {}),
+    };
     const posted = await this.prisma.message.create({
       data: {
         threadId,
@@ -3819,7 +4032,8 @@ export class OrderService {
         type: MessageType.System,
         body,
         referenceId: order.id,
-        metadata: { kind: 'order_note', event: 'noted', orderId: order.id },
+        replyToMessageId: living?.id ?? null,
+        metadata: noteMeta as Prisma.InputJsonValue,
       },
       select: { id: true },
     });
@@ -3833,7 +4047,7 @@ export class OrderService {
       actorCompanyId,
       body,
       MessageType.System,
-      { kind: 'order_note', event: 'noted', orderId: order.id },
+      noteMeta,
     );
   }
 
@@ -4014,6 +4228,7 @@ export class OrderService {
           type: MessageType.System,
           body: tag.body,
           referenceId: orderId,
+          replyToMessageId: messageId,
           metadata: tag.metadata as Prisma.InputJsonValue,
         },
         select: { id: true },
@@ -4560,12 +4775,12 @@ export class OrderService {
         (item) => item.lineStatus === OrderLineStatus.Open && item.rate != null,
       );
       if (openWithRate.length === 0) continue;
-      await this.prisma.$transaction([
-        this.prisma.orderItem.updateMany({
+      await this.prisma.$transaction(async (tx) => {
+        await tx.orderItem.updateMany({
           where: { id: { in: openWithRate.map((item) => item.id) } },
           data: { lineStatus: OrderLineStatus.Confirmed },
-        }),
-        this.prisma.order.update({
+        });
+        await tx.order.update({
           where: { id: up.id },
           data: {
             status: OrderStatus.Confirmed,
@@ -4574,8 +4789,9 @@ export class OrderService {
             confirmedByUserId: userId,
             ...this.withActor(userId),
           },
-        }),
-      ]);
+        });
+        await this.stampConfirmedIfMissing(openWithRate, tx);
+      });
       await this.trail.append({
         orderId: up.id,
         type: OrderTrailType.Confirmed,
@@ -4598,7 +4814,6 @@ export class OrderService {
           actorRole: 'buyer',
         },
       );
-      await this.stampConfirmedIfMissing(openWithRate);
     }
   }
 
@@ -4622,57 +4837,74 @@ export class OrderService {
     let qtyChanged = 0;
     const qtyPayload: Array<{ orderItemId: string; field: string; before: number; after: number }> =
       [];
-    for (const millItem of mill.items) {
-      const parentItemId = matchParentItemId(parent.items, millItem);
-      if (!parentItemId) continue;
-      const parentItem = parent.items.find((item) => item.id === parentItemId);
-      if (!parentItem) continue;
-      if (millItem.lineStatus === OrderLineStatus.Declined) {
-        if (parentItem.lineStatus === OrderLineStatus.Declined) continue;
-        await this.prisma.orderItem.update({
+    await this.prisma.$transaction(async (tx) => {
+      for (const millItem of mill.items) {
+        const parentItemId = matchParentItemId(parent.items, millItem);
+        if (!parentItemId) continue;
+        const parentItem = parent.items.find((item) => item.id === parentItemId);
+        if (!parentItem) continue;
+        if (millItem.lineStatus === OrderLineStatus.Declined) {
+          if (parentItem.lineStatus === OrderLineStatus.Declined) continue;
+          await tx.orderItem.update({
+            where: { id: parentItemId },
+            data: { lineStatus: OrderLineStatus.Declined },
+          });
+          declined += 1;
+          continue;
+        }
+        if (
+          millItem.lineStatus !== OrderLineStatus.Confirmed &&
+          millItem.lineStatus !== OrderLineStatus.Dispatched
+        ) {
+          continue;
+        }
+        const nextQty = millItem.quantity.toNumber();
+        const beforeQty = parentItem.quantity.toNumber();
+        const nextRate = millItem.rate != null ? millItem.rate.toNumber() : null;
+        await tx.orderItem.update({
           where: { id: parentItemId },
-          data: { lineStatus: OrderLineStatus.Declined },
+          data: {
+            quantity: millItem.quantity,
+            ...(nextRate != null ? { rate: millItem.rate } : {}),
+            lineStatus:
+              millItem.lineStatus === OrderLineStatus.Dispatched
+                ? OrderLineStatus.Dispatched
+                : OrderLineStatus.Confirmed,
+            ...(parentItem.confirmedQuantity == null
+              ? { confirmedQuantity: millItem.confirmedQuantity ?? millItem.quantity }
+              : {}),
+            ...(parentItem.confirmedRate == null && millItem.confirmedRate != null
+              ? { confirmedRate: millItem.confirmedRate }
+              : {}),
+          },
         });
-        declined += 1;
-        continue;
+        if (parentItem.lineStatus !== OrderLineStatus.Confirmed) confirmed += 1;
+        if (beforeQty !== nextQty) {
+          qtyChanged += 1;
+          qtyPayload.push({
+            orderItemId: parentItemId,
+            field: 'quantity',
+            before: beforeQty,
+            after: nextQty,
+          });
+        }
       }
-      if (
-        millItem.lineStatus !== OrderLineStatus.Confirmed &&
-        millItem.lineStatus !== OrderLineStatus.Dispatched
-      ) {
-        continue;
-      }
-      const nextQty = millItem.quantity.toNumber();
-      const beforeQty = parentItem.quantity.toNumber();
-      const nextRate = millItem.rate != null ? millItem.rate.toNumber() : null;
-      await this.prisma.orderItem.update({
-        where: { id: parentItemId },
-        data: {
-          quantity: millItem.quantity,
-          ...(nextRate != null ? { rate: millItem.rate } : {}),
-          lineStatus:
-            millItem.lineStatus === OrderLineStatus.Dispatched
-              ? OrderLineStatus.Dispatched
-              : OrderLineStatus.Confirmed,
-          ...(parentItem.confirmedQuantity == null
-            ? { confirmedQuantity: millItem.confirmedQuantity ?? millItem.quantity }
-            : {}),
-          ...(parentItem.confirmedRate == null && millItem.confirmedRate != null
-            ? { confirmedRate: millItem.confirmedRate }
-            : {}),
-        },
-      });
-      if (parentItem.lineStatus !== OrderLineStatus.Confirmed) confirmed += 1;
-      if (beforeQty !== nextQty) {
-        qtyChanged += 1;
-        qtyPayload.push({
-          orderItemId: parentItemId,
-          field: 'quantity',
-          before: beforeQty,
-          after: nextQty,
+      if (qtyPayload.length > 0 && parent.seller) {
+        await this.orderAudit.appendQty({
+          orderId: parent.id,
+          statusAt: parent.status,
+          actorCompanyId: parent.sellerCompanyId,
+          actorCompanyName: parent.seller.name,
+          actorUserId: userId,
+          kind: OrderAuditKind.MillPass,
+          rows: qtyPayload.map((row) => {
+            const item = parent.items.find((line) => line.id === row.orderItemId)!;
+            return this.auditItem(item, row.before, row.after);
+          }),
+          tx,
         });
       }
-    }
+    });
     if (confirmed === 0 && declined === 0 && qtyChanged === 0) return;
     const refreshed = await this.prisma.order.findUnique({
       where: { id: parent.id },
@@ -4894,7 +5126,7 @@ export class OrderService {
   private async passBuyerAmendToMills(parentId: string): Promise<void> {
     const parent = await this.prisma.order.findUnique({
       where: { id: parentId },
-      include: { items: true },
+      include: { items: true, buyer: true },
     });
     if (!parent || parent.tradeMode !== OrderTradeMode.Manage) return;
     const ups = await this.prisma.order.findMany({
@@ -4906,57 +5138,90 @@ export class OrderService {
       include: { items: true, seller: true },
     });
     for (const up of ups) {
+      const millAmendQty: Array<ReturnType<OrderService['auditItem']>> = [];
+      const millRemovedQty: Array<ReturnType<OrderService['auditItem']>> = [];
       const unusedParent = parent.items.map((item) => ({
         id: item.id,
         productId: item.productId,
         name: item.name,
       }));
       const claimed = new Set<string>();
-      for (const millItem of up.items) {
-        const parentItemId = claimParentItemId(unusedParent, millItem);
-        if (!parentItemId) {
-          await this.prisma.orderItem.delete({ where: { id: millItem.id } });
-          continue;
+      await this.prisma.$transaction(async (tx) => {
+        for (const millItem of up.items) {
+          const parentItemId = claimParentItemId(unusedParent, millItem);
+          if (!parentItemId) {
+            millRemovedQty.push(
+              this.auditItem(millItem, millItem.quantity.toNumber(), 0),
+            );
+            await tx.orderItem.delete({ where: { id: millItem.id } });
+            continue;
+          }
+          claimed.add(parentItemId);
+          const parentItem = parent.items.find((item) => item.id === parentItemId)!;
+          const beforeQty = millItem.quantity.toNumber();
+          const afterQty = parentItem.quantity.toNumber();
+          await tx.orderItem.update({
+            where: { id: millItem.id },
+            data: {
+              sourceItemId: parentItemId,
+              quantity: parentItem.quantity,
+              requestedQuantity: parentItem.quantity,
+              productId: parentItem.productId,
+              name: parentItem.name,
+            },
+          });
+          millAmendQty.push(this.auditItem(millItem, beforeQty, afterQty));
         }
-        claimed.add(parentItemId);
-        const parentItem = parent.items.find((item) => item.id === parentItemId)!;
-        await this.prisma.orderItem.update({
-          where: { id: millItem.id },
-          data: {
-            sourceItemId: parentItemId,
-            quantity: parentItem.quantity,
-            requestedQuantity: parentItem.quantity,
-            productId: parentItem.productId,
-            name: parentItem.name,
-          },
+        for (const parentItem of parent.items) {
+          if (claimed.has(parentItem.id) || !parentItem.productId) continue;
+          if (!unusedParent.some((row) => row.id === parentItem.id)) continue;
+          const productOwner = await tx.product.findUnique({
+            where: { id: parentItem.productId },
+            select: { companyId: true },
+          });
+          if (productOwner?.companyId !== up.sellerCompanyId) continue;
+          await tx.orderItem.create({
+            data: {
+              orderId: up.id,
+              productId: parentItem.productId,
+              name: parentItem.name,
+              sku: parentItem.sku,
+              rate: parentItem.rate,
+              unit: parentItem.unit,
+              image: parentItem.image,
+              images: parentItem.images,
+              quantity: parentItem.quantity,
+              requestedQuantity: parentItem.quantity,
+              lineStatus: OrderLineStatus.Open,
+              note: parentItem.note,
+              sourceItemId: parentItem.id,
+            },
+          });
+          millAmendQty.push(
+            this.auditItem(parentItem, null, parentItem.quantity.toNumber()),
+          );
+        }
+        await this.orderAudit.appendQty({
+          orderId: up.id,
+          statusAt: up.status,
+          actorCompanyId: parent.buyerCompanyId,
+          actorCompanyName: parent.buyer.name,
+          actorUserId: null,
+          kind: OrderAuditKind.Amended,
+          rows: millAmendQty,
+          tx,
         });
-      }
-      for (const parentItem of parent.items) {
-        if (claimed.has(parentItem.id) || !parentItem.productId) continue;
-        if (!unusedParent.some((row) => row.id === parentItem.id)) continue;
-        const productOwner = await this.prisma.product.findUnique({
-          where: { id: parentItem.productId },
-          select: { companyId: true },
+        await this.orderAudit.appendQty({
+          orderId: up.id,
+          statusAt: up.status,
+          actorCompanyId: parent.buyerCompanyId,
+          actorCompanyName: parent.buyer.name,
+          actorUserId: null,
+          kind: OrderAuditKind.AmendedRemoved,
+          rows: millRemovedQty,
+          tx,
         });
-        if (productOwner?.companyId !== up.sellerCompanyId) continue;
-        await this.prisma.orderItem.create({
-          data: {
-            orderId: up.id,
-            productId: parentItem.productId,
-            name: parentItem.name,
-            sku: parentItem.sku,
-            rate: parentItem.rate,
-            unit: parentItem.unit,
-            image: parentItem.image,
-            images: parentItem.images,
-            quantity: parentItem.quantity,
-            requestedQuantity: parentItem.quantity,
-            lineStatus: OrderLineStatus.Open,
-            note: parentItem.note,
-            sourceItemId: parentItem.id,
-          },
-        });
-      }
+      });
     }
   }
 
@@ -5217,22 +5482,41 @@ export class OrderService {
         mill.status === OrderStatus.Dispatched ||
         mill.status === OrderStatus.Delivered;
       if (!millDone) continue;
-      for (const millItem of mill.items) {
-        const parentItemId = matchParentItemId(parent.items, millItem);
-        if (!parentItemId) continue;
-        const qty = millItem.quantity.toNumber();
-        if (qty <= 0) {
-          await this.prisma.orderItem.update({
-            where: { id: parentItemId },
-            data: { quantity: 0, lineStatus: OrderLineStatus.Declined },
-          });
-        } else {
-          await this.prisma.orderItem.update({
-            where: { id: parentItemId },
-            data: { quantity: qty, lineStatus: OrderLineStatus.Dispatched },
+      const parentSettleQty: Array<ReturnType<OrderService['auditItem']>> = [];
+      await this.prisma.$transaction(async (tx) => {
+        for (const millItem of mill.items) {
+          const parentItemId = matchParentItemId(parent.items, millItem);
+          if (!parentItemId) continue;
+          const parentItem = parent.items.find((item) => item.id === parentItemId);
+          const qty = millItem.quantity.toNumber();
+          if (qty <= 0) {
+            await tx.orderItem.update({
+              where: { id: parentItemId },
+              data: { quantity: 0, lineStatus: OrderLineStatus.Declined },
+            });
+          } else {
+            await tx.orderItem.update({
+              where: { id: parentItemId },
+              data: { quantity: qty, lineStatus: OrderLineStatus.Dispatched },
+            });
+          }
+          if (parentItem) {
+            parentSettleQty.push(this.auditItem(parentItem, parentItem.quantity.toNumber(), qty));
+          }
+        }
+        if (parentSettleQty.length > 0) {
+          await this.orderAudit.appendQty({
+            orderId: parent.id,
+            statusAt: parent.status,
+            actorCompanyId: parent.sellerCompanyId,
+            actorCompanyName: parent.seller.name,
+            actorUserId: userId,
+            kind: OrderAuditKind.Settled,
+            rows: parentSettleQty,
+            tx,
           });
         }
-      }
+      });
     }
 
     const upsWithId = await this.prisma.order.findMany({
@@ -5365,7 +5649,6 @@ export class OrderService {
       bucket.push(item);
       groups.set(product.companyId, bucket);
     }
-    const shortId = downstreamId.slice(-6).toUpperCase();
     const parent = await this.prisma.order.findUnique({
       where: { id: downstreamId },
       select: { buyerCompanyId: true, items: { select: { id: true, productId: true, name: true } } },
@@ -5392,7 +5675,7 @@ export class OrderService {
             sellerCompanyId,
             kind: dto.kind,
             intent: dto.intent ?? OrderIntent.Order,
-            note: dto.note ? `${dto.note} (for #${shortId})` : `For order #${shortId}`,
+            note: dto.note,
             noteVoiceMediaId: dto.noteVoiceMediaId,
             noteVoiceDurationMs: dto.noteVoiceDurationMs,
             noteImageUrls: dto.noteImageUrls,
@@ -5519,7 +5802,9 @@ export class OrderService {
       },
       select: { ticket: true },
     });
-    return effectivePathFromLane(lane?.ticket);
+    if (effectivePathFromLane(lane?.ticket) !== 'direct') return 'handle';
+    const millPack = await millShareActive(this.prisma, traderCompanyId, sellerCompanyId);
+    return millPack ? 'direct' : 'handle';
   }
 
   /** Direct mill ticket Open chat is the trio; I-handle parent stays buyer↔trader 1:1. */
@@ -5664,6 +5949,7 @@ export class OrderService {
       rate?: { toNumber: () => number } | number | null;
       confirmedQuantity?: { toNumber: () => number } | number | null;
     }>,
+    db: Pick<Prisma.TransactionClient, 'orderItem'> = this.prisma,
   ): Promise<void> {
     for (const item of items) {
       if (item.confirmedQuantity != null) continue;
@@ -5677,7 +5963,7 @@ export class OrderService {
           : typeof item.rate === 'object' && 'toNumber' in item.rate
             ? item.rate.toNumber()
             : Number(item.rate);
-      await this.prisma.orderItem.update({
+      await db.orderItem.update({
         where: { id: item.id },
         data: {
           confirmedQuantity: qty,
@@ -5685,6 +5971,84 @@ export class OrderService {
         },
       });
     }
+  }
+
+  private actorShopName(
+    order: {
+      buyerCompanyId: string;
+      sellerCompanyId: string;
+      buyer: { name: string };
+      seller: { name: string };
+    },
+    actorCompanyId: string,
+  ): string {
+    if (actorCompanyId === order.buyerCompanyId) return order.buyer.name;
+    if (actorCompanyId === order.sellerCompanyId) return order.seller.name;
+    return order.seller.name;
+  }
+
+  private auditItem(
+    item: {
+      id: string;
+      name: string;
+      sku?: string | null;
+      unit?: string | null;
+    },
+    qtyBefore: number | null,
+    qtyAfter: number,
+  ) {
+    return {
+      orderItemId: item.id,
+      itemName: item.name,
+      sku: item.sku ?? null,
+      unit: item.unit ?? null,
+      qtyBefore,
+      qtyAfter,
+    };
+  }
+
+  private async writeQtyAudit(
+    order: {
+      id: string;
+      status: string;
+      manualOrderNo?: string | null;
+      buyerCompanyId: string;
+      sellerCompanyId: string;
+      buyer: { name: string };
+      seller: { name: string };
+    },
+    actorCompanyId: string,
+    userId: string | null,
+    kind: string,
+    rows: Array<{
+      orderItemId: string | null;
+      itemName: string;
+      sku?: string | null;
+      unit?: string | null;
+      qtyBefore: number | null;
+      qtyAfter: number;
+    }>,
+    opts: {
+      keepSameQty?: boolean;
+      statusAt?: string;
+      at?: Date;
+      actorCompanyName?: string;
+      tx?: OrderAuditClient;
+    } = {},
+  ): Promise<void> {
+    await this.orderAudit.appendQty({
+      orderId: order.id,
+      manualOrderNo: order.manualOrderNo ?? null,
+      statusAt: opts.statusAt ?? order.status,
+      actorCompanyId,
+      actorCompanyName: opts.actorCompanyName ?? this.actorShopName(order, actorCompanyId),
+      actorUserId: userId,
+      kind,
+      rows,
+      at: opts.at,
+      keepSameQty: opts.keepSameQty,
+      tx: opts.tx,
+    });
   }
 
   private async snapshotItems(

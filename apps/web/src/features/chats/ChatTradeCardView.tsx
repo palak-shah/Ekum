@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { useState, type CSSProperties, type ReactNode } from 'react';
 import { toAbsoluteMediaUrl } from '@/lib/mediaUrl';
 import { PhotoViewer } from '@/ui/PhotoViewer';
-import { cx } from '@/ui/kit';
+import { Chip, cx } from '@/ui/kit';
 import { KindIconBadge } from './KindIconBadge';
 import { PhotoAlbum } from './PhotoAlbum';
 import { VoicePlayer } from '@/features/voice/VoicePlayer';
@@ -266,39 +266,35 @@ function CardBody({
       ) : null}
 
       {model.placedByLine ? (
-        <p
+        <div
           data-testid="chat-trade-card-placed-by"
           className={cx(
-            'px-2 pb-0.5 pt-0.5 text-[13px] font-body leading-snug',
+            'flex flex-wrap items-center gap-x-2 gap-y-1 px-2 pb-0.5 pt-0.5',
             bleed,
             underChevron,
-            chrome.detailMuted,
           )}
         >
-          {highlight(model.placedByLine)}
+          <span className={cx('min-w-0 text-[13px] font-body leading-snug', chrome.detailMuted)}>
+            {highlight(model.placedByLine)}
+          </span>
           {model.placedByDecline ? (
-            <>
-              {' '}
-              <button
-                type="button"
-                data-card-action
+            <span
+              data-card-action
+              className={cx(!model.placedByDecline.onClick && 'opacity-60')}
+            >
+              <Chip
                 data-testid={model.placedByDecline.testId ?? 'chat-trade-card-decline'}
-                disabled={!model.placedByDecline.onClick}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  model.placedByDecline?.onClick?.();
-                }}
-                className={cx(
-                  'inline font-title tracking-tight',
-                  chrome.footerQuiet,
-                  !model.placedByDecline.onClick && 'opacity-60',
-                )}
+                onClick={
+                  model.placedByDecline.onClick
+                    ? () => model.placedByDecline?.onClick?.()
+                    : undefined
+                }
               >
                 {model.placedByDecline.label}
-              </button>
-            </>
+              </Chip>
+            </span>
           ) : null}
-        </p>
+        </div>
       ) : null}
 
       {hasNote ? (

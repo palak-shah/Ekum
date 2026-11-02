@@ -49,6 +49,27 @@ describe('OrderUnitGroupedList', () => {
     const groups = screen.getByTestId('order-ticket-unit-groups');
     expect(groups.textContent).toMatch(/Order in Sets.*navy.*Order in Mtrs.*chiffon/s);
   });
+
+  it('hides Order in Sets / Order in Mtrs titles when hideHeadings', () => {
+    render(
+      <OrderUnitGroupedList
+        items={[
+          { id: 'chiffon', unit: 'mtr' },
+          { id: 'navy', unit: 'set' },
+        ]}
+        unitOf={(item) => item.unit}
+        getKey={(item) => item.id}
+        hideHeadings
+      >
+        {(item) => <p>{item.id}</p>}
+      </OrderUnitGroupedList>,
+    );
+    expect(screen.queryByTestId('order-ticket-unit-heading')).toBeNull();
+    expect(screen.queryByText('Order in Sets')).toBeNull();
+    expect(screen.queryByText('Order in Mtrs')).toBeNull();
+    expect(screen.getByText('navy')).toBeTruthy();
+    expect(screen.getByText('chiffon')).toBeTruthy();
+  });
 });
 
 describe('OrderTicketQtySummary', () => {

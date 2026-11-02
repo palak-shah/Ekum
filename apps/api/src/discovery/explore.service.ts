@@ -669,6 +669,38 @@ export class ExploreService {
       ...withLiveDesigns(followedCollections).map((row) => this.toCollectionFeedRow(row)),
       ...followedProducts.map((row) => this.toProductFeedRow(row)),
     ].sort(byPostedAtDesc);
+    // #region agent log
+    {
+      const all = [...followedCollections, ...otherCollections];
+      const selected = all.filter((row) => row.audience === PublishAudience.Selected);
+      fetch('http://127.0.0.1:7359/ingest/c3df85ff-1820-4af4-9a7f-aa6252617829', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '097f3c' },
+        body: JSON.stringify({
+          sessionId: '097f3c',
+          runId: 'pre-fix',
+          hypothesisId: 'H4',
+          location: 'explore.service.ts:feed',
+          message: 'explore feed collections',
+          data: {
+            viewerCompanyId,
+            following: Boolean(query.following),
+            followedCollectionCount: followedCollections.length,
+            otherCollectionCount: otherCollections.length,
+            selectedHits: selected.map((row) => ({
+              id: row.id,
+              companyId: row.companyId,
+              name: row.name,
+              audienceIds: row.audienceCompanyIds,
+              origin: row.repostOrigin,
+              liveDesigns: row._count?.products ?? row.products?.length ?? 0,
+            })),
+          },
+          timestamp: Date.now(),
+        }),
+      }).catch(() => {});
+    }
+    // #endregion
     const otherRows = [
       ...withLiveDesigns(otherCollections).map((row) => this.toCollectionFeedRow(row)),
       ...otherProducts.map((row) => this.toProductFeedRow(row)),

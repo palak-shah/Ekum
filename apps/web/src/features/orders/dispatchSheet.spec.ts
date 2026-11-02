@@ -18,6 +18,7 @@ import {
   resizeDispatchLegs,
   seedDispatchLegsFromShipment,
   shipmentLegDisplayLines,
+  dispatchesHeadingCount,
   cantSupplyDispatchItems,
   lineDispatchOverBy,
   lineDispatchQty,
@@ -134,18 +135,29 @@ describe('dispatchSheet', () => {
       dispatchLineKindLine(line({ id: 'a', sku: 'EK-AB12', unit: 'mtr', remainingQuantity: 20 })),
     ).toBe('EK-AB12');
     expect(
-      dispatchLineCountLine(line({ id: 'a', requestedQuantity: 20, remainingQuantity: 8 })),
+      dispatchLineCountLine(line({ id: 'a', quantity: 20, remainingQuantity: 8 })),
     ).toBe('20 ordered · pending 8');
     expect(
       dispatchLineCountLine(
         line({
           id: 'a',
+          quantity: 45,
+          requestedQuantity: 50,
+          remainingQuantity: 15,
+        }),
+      ),
+    ).toBe('45 ordered · pending 15');
+    expect(
+      dispatchLineCountLine(
+        line({
+          id: 'a',
+          quantity: 20,
           requestedQuantity: 20,
           remainingQuantity: 2,
           shippedQuantity: 18,
         }),
       ),
-    ).toBe('dispatched 18 · pending 2');
+    ).toBe('20 ordered · pending 2');
     expect(dispatchLineKindLine(line({ id: 'a', sku: null, unit: null }))).toBeNull();
   });
 
@@ -233,5 +245,10 @@ describe('dispatchSheet', () => {
         ],
       }),
     ).toEqual(['LR · L1 · Bill INV-9', 'LR · L2']);
+  });
+
+  it('Dispatches heading counts LRs', () => {
+    expect(dispatchesHeadingCount(1)).toBe('1 LR');
+    expect(dispatchesHeadingCount(2)).toBe('2 LRs');
   });
 });

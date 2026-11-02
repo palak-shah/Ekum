@@ -107,6 +107,11 @@ export function shipmentPrimaryLabel(
   return fallback;
 }
 
+/** Selling ticket Dispatches heading: `1 LR` / `N LRs`. */
+export function dispatchesHeadingCount(n: number): string {
+  return n === 1 ? '1 LR' : `${n} LRs`;
+}
+
 /** Confirmed / dispatched lines still pending — remaining > 0. */
 export function shippableDispatchItems(items: OrderItemView[]): OrderItemView[] {
   return fulfillDispatchItems(items).filter((item) => item.remainingQuantity > 0);
@@ -249,13 +254,9 @@ export function dispatchLineKindLine(item: Pick<OrderItemView, 'sku' | 'unit'>):
 
 /** Ordered / shipped / pending — show dispatched when some already left. */
 export function dispatchLineCountLine(
-  item: Pick<OrderItemView, 'requestedQuantity' | 'remainingQuantity' | 'shippedQuantity'>,
+  item: Pick<OrderItemView, 'quantity' | 'remainingQuantity'>,
 ): string {
-  const shipped = item.shippedQuantity ?? 0;
-  if (shipped > 0) {
-    return `dispatched ${shipped} · pending ${item.remainingQuantity}`;
-  }
-  return `${item.requestedQuantity} ordered · pending ${item.remainingQuantity}`;
+  return `${item.quantity} ordered · pending ${item.remainingQuantity}`;
 }
 
 /** Quiet collapse cue for earlier LRs on Dispatch. */

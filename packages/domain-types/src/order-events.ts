@@ -255,8 +255,11 @@ export function orderChatEventHeadline(actor: string, event: string): string {
   }
 }
 
-/** Centered thread tag for later order pulses (not a second living card). */
+/** Thread tag for later order pulses (not a second living card). Actor-side bubble + Order # quote. */
 export const ORDER_LIFECYCLE_KIND = 'order_lifecycle';
+
+/** Ticket note pulse in the trade thread — same tagged-bubble chrome as lifecycle. */
+export const ORDER_NOTE_KIND = 'order_note';
 
 export type OrderLifecycleQtyChange = {
   count: number;
@@ -377,6 +380,31 @@ export function isOrderLifecycleMetadata(meta: unknown): meta is Record<string, 
       typeof meta === 'object' &&
       (meta as Record<string, unknown>).kind === ORDER_LIFECYCLE_KIND,
   );
+}
+
+export function isOrderNoteMetadata(meta: unknown): boolean {
+  return Boolean(
+    meta &&
+      typeof meta === 'object' &&
+      (meta as Record<string, unknown>).kind === ORDER_NOTE_KIND,
+  );
+}
+
+/** Order # on a quote / tag — never the living card body dump, never “Quote”. */
+export function orderReplyQuoteLabel(reference: {
+  kind?: string | null;
+  name?: string | null;
+  orderLabel?: string | null;
+} | null | undefined): string | null {
+  if (!reference) return null;
+  const orderLike = reference.kind === 'order' || reference.kind === 'rate';
+  const label = reference.orderLabel?.trim() || '';
+  if (/^(Order|Inquiry) #/i.test(label)) return label;
+  const name = reference.name?.trim() || '';
+  const fromName = name.match(/^(Order|Inquiry) #\S+/i);
+  if (fromName) return fromName[0]!;
+  if (orderLike) return label || 'Order';
+  return null;
 }
 
 /** Strip legacy role words / Order # so notes never reintroduce Seller/Buyer. */

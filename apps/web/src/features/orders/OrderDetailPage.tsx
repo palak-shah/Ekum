@@ -48,6 +48,8 @@ import {
   seedDispatchLegsFromShipment,
   shipmentLegDisplayLines,
   shipmentLegImageUrls,
+  shipmentPrimaryLabel,
+  dispatchesHeadingCount,
   fulfillDispatchItems,
   dispatchQtyAfterSelect,
   cantSupplyDispatchItems,
@@ -100,6 +102,8 @@ import {
   ClockIcon,
   CloseIcon,
   DocumentIcon,
+  LinkIcon,
+  LockIcon,
   MegaphoneIcon,
   MoreHorizontalIcon,
   PdfIcon,
@@ -118,14 +122,19 @@ import { type NoteVoiceValue } from '@/features/voice/NoteVoiceField';
 import { VoicePlayer } from '@/features/voice/VoicePlayer';
 import { orderPartyLines, partyLineShowsOpenChat } from '@/features/orders/orderPartyLines';
 import {
+  isBuyingBilateralTicket,
+  isSellingBilateralTicket,
   orderTicketCanForwardNotes,
   orderTicketForwardMills,
   orderTicketNotes,
   orderTicketProgress,
   orderTicketSubtitle,
   orderTicketWaitingCue,
+  traderSellingHop,
+  traderSellingHopCopy,
 } from '@/features/orders/orderTicketChrome';
 import { OrderTicketNotes } from '@/features/orders/OrderTicketNotes';
+import { DisclosureChevron } from '@/features/orders/DisclosureChevron';
 import {
   OrderLineFacts,
   OrderLineMoneyLine,
@@ -157,7 +166,9 @@ import { AmendOrderSheet } from '@/features/orders/AmendOrderSheet';
 import {
   catalogPeerProductIds,
   ticketBillItems,
+  ticketCantSupplyItems,
   ticketDisplayItems,
+  ticketSupplyableItems,
 } from '@/features/orders/orderCatalogDisplay';
 import { CantSupplySwitch } from '@/features/orders/CantSupplySwitch';
 import { TransporterField } from '@/features/orders/TransporterField';
@@ -206,6 +217,7 @@ import {
   TextInput,
   cx,
 } from '@/ui/kit';
+import { listSquareButtonClass } from '@/ui/ListSearchRow';
 import { COMPACT_QTY_INPUT_CLASS, COMPACT_SHEET_NUM_INPUT_CLASS, COMPACT_SHEET_RATE_INPUT_CLASS } from '@/ui/mobileOverflow';
 import { compactQtyFieldLabelClass } from '@/ui/designLineChrome';
 import {
@@ -225,6 +237,32 @@ import { ORDER_QTY_SCOPE_ATTR, orderQtyInputProps } from '@/features/orders/orde
 
 /** Compact full-width dock / mill send. */
 const COMPACT_SEND_CLASS = 'min-h-12 w-full px-3 text-sm';
+/** Prototype done bar: line-border ghost, not teal secondary. */
+const SELLING_CHAT_ONLY_CLASS =
+  'flex min-h-12 min-w-0 flex-1 items-center justify-center rounded-xl border border-line bg-surface px-4 text-base font-emphasis text-ink hover:bg-foam';
+
+function SellingDockChat({
+  to,
+  chatOnly,
+  counterpartName,
+}: {
+  to: string;
+  chatOnly: boolean;
+  counterpartName: string;
+}) {
+  if (chatOnly) {
+    return (
+      <Link to={to} data-testid="order-open-chat" className={SELLING_CHAT_ONLY_CLASS}>
+        Chat with {counterpartName}
+      </Link>
+    );
+  }
+  return (
+    <Link to={to} data-testid="order-open-chat" aria-label="Chat" className={listSquareButtonClass}>
+      <ChatIcon width={20} height={20} aria-hidden />
+    </Link>
+  );
+}
 /** Mill card Send / Decline — chip-sized, not a full-bleed bar. */
 const MILL_CARD_ACTION_CLASS = '!min-h-8 h-8 w-auto px-3 text-meta';
 
@@ -301,10 +339,11 @@ function TimelineHeader({
       data-testid="order-timeline-more"
       aria-expanded={expanded}
       aria-label={expanded ? 'Hide timeline details' : 'Show timeline details'}
-      className="mb-2 text-left text-xs font-body text-muted"
+      className="mb-2 flex items-center gap-0.5 text-left text-xs font-body text-muted"
       onClick={onToggle}
     >
       {label}
+      <DisclosureChevron open={expanded} />
     </button>
   );
 }
@@ -323,11 +362,14 @@ function TimelineDot({ warning }: { warning: boolean }) {
 function OrderTimeline({
   order,
   hidePriorQuotes = false,
+  collapseToHeader = false,
   onOpenNotePhotos,
 }: {
   order: OrderView;
   /** Buyer: one live quote + Edited. Seller keeps full quote history. */
   hidePriorQuotes?: boolean;
+  /** Selling 1:1: header only until tap. */
+  collapseToHeader?: boolean;
   onOpenNotePhotos?: (urls: string[], index: number, caption: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -338,7 +380,7 @@ function OrderTimeline({
       ? collapseQuotedTrailEvents(rawTrail)
       : { events: rawTrail, quoteEditCount: 0 };
     const trail = newestFirstTrail(trailAsc);
-    const { visible, hiddenCount } = timelineVisibleSlice(trail, expanded);
+    const { visible, hiddenCount } = timelineVisibleSlice(trail, expanded, collapseToHeader);
     const newest = trail[0];
     const newestHasExtras = Boolean(
       newest &&
@@ -350,7 +392,9 @@ function OrderTimeline({
           newest.at ||
           (hidePriorQuotes && newest.type === 'quoted' && quoteEditCount > 0)),
     );
-    const canExpand = hiddenCount > 0 || newestHasExtras || expanded;
+    const canExpand = collapseToHeader
+      ? trail.length > 0
+      : hiddenCount > 0 || newestHasExtras || expanded;
     return (
       <Card className="flex flex-col gap-0" data-testid="order-timeline">
         <TimelineHeader
@@ -437,7 +481,7 @@ function OrderTimeline({
     staff: order.timelineStaff,
   });
   const steps = newestFirstTrail(stepsAsc);
-  const { visible, hiddenCount } = timelineVisibleSlice(steps, expanded);
+  const { visible, hiddenCount } = timelineVisibleSlice(steps, expanded, collapseToHeader);
   const amended =
     order.amendCount > 0 ||
     (order.status === 'requested' &&
@@ -446,7 +490,9 @@ function OrderTimeline({
   const newestHasExtras = Boolean(
     newest && (newest.at || newest.staffLine || newest.detail || (newest.key === 'requested' && amended)),
   );
-  const canExpand = hiddenCount > 0 || newestHasExtras || expanded;
+  const canExpand = collapseToHeader
+    ? steps.length > 0
+    : hiddenCount > 0 || newestHasExtras || expanded;
 
   return (
     <Card className="flex flex-col gap-0" data-testid="order-timeline">
@@ -499,9 +545,19 @@ function OrderTimeline({
   );
 }
 
-function PartyShopName({ name, href }: { name: string; href: string | null }) {
+function PartyShopName({
+  name,
+  href,
+  ink = false,
+}: {
+  name: string;
+  href: string | null;
+  /** 1:1 ticket — shop name is a title, not a teal chip. */
+  ink?: boolean;
+}) {
+  const className = ink || !href ? 'font-emphasis text-ink' : 'font-emphasis text-accent';
   return href ? (
-    <Link to={href} data-testid="order-party-profile" className="font-emphasis text-accent">
+    <Link to={href} data-testid="order-party-profile" className={className}>
       {name}
     </Link>
   ) : (
@@ -1135,8 +1191,9 @@ export function OrderDetailPage() {
       api.post<OrderView>(`/orders/${id}/lines/quantity`, {
         items: [payload],
       }),
-    onSuccess: () => {
+    onSuccess: (updated) => {
       setLineFulfillError(null);
+      queryClient.setQueryData(['order', id], updated);
       refresh();
       showToast('Updated.');
     },
@@ -1607,7 +1664,18 @@ export function OrderDetailPage() {
   }
 
   const data = order.data;
+  const sellingOneToOne = isSellingBilateralTicket(data);
+  const buyingOneToOne = isBuyingBilateralTicket(data);
+  const oneToOneTicket = sellingOneToOne || buyingOneToOne;
   const ticketItems = ticketDisplayItems(data.items);
+  const designsCaption = ticketDesignsCaption(ticketItems);
+  const supplyableItems = oneToOneTicket ? ticketSupplyableItems(ticketItems) : ticketItems;
+  const cantSupplyItems = oneToOneTicket ? ticketCantSupplyItems(ticketItems) : [];
+  const chatTo = data.threadId
+    ? data.livingMessageId
+      ? `/chats/${data.threadId}?message=${encodeURIComponent(data.livingMessageId)}`
+      : `/chats/${data.threadId}`
+    : null;
   const lineGallery = orderItemGalleryUrls(data.items);
   const lineCaptions = orderItemGalleryCaptions(data.items);
   const lineDetails = orderItemGalleryDetails(data.items);
@@ -1664,9 +1732,221 @@ export function OrderDetailPage() {
   });
   const isInquiry = data.intent === 'inquiry';
   const idLabel = shortOrderLabel(data.id, { inquiry: isInquiry });
+  const ticketWaiting = orderTicketWaitingCue(data);
+  const hasPersonalNote = Boolean(
+    data.personalNote &&
+      (data.personalNote.note ||
+        data.personalNote.noteVoiceUrl ||
+        (data.personalNote.images?.length ?? 0) > 0),
+  );
+  const personalNotePreview = hasPersonalNote ? (
+    <button
+      type="button"
+      data-testid="order-personal-note-preview"
+      className="w-full rounded-xl border border-dashed border-line bg-foam px-3 py-2 text-left"
+      onClick={openPersonalNoteSheet}
+    >
+      <span className="mb-1 flex items-start gap-2">
+        <LockIcon width={15} height={15} className="mt-0.5 shrink-0 text-muted" aria-hidden />
+        <span className="min-w-0 flex-1">
+          <span className="mb-0.5 block text-[11.5px] font-emphasis uppercase tracking-wide text-muted">
+            Private note · Only you
+          </span>
+          {data.personalNote!.note ? (
+            <p className="line-clamp-2 text-sm text-ink">{data.personalNote!.note}</p>
+          ) : (
+            <p className="text-sm text-ink">Personal note</p>
+          )}
+        </span>
+      </span>
+      {data.personalNote!.noteVoiceUrl && data.personalNote!.noteVoiceDurationMs ? (
+        <div className="mt-1.5" onClick={(event) => event.stopPropagation()}>
+          <VoicePlayer
+            src={toAbsoluteMediaUrl(data.personalNote!.noteVoiceUrl)}
+            durationMs={data.personalNote!.noteVoiceDurationMs}
+          />
+        </div>
+      ) : null}
+      {(data.personalNote!.images?.length ?? 0) > 0 ? (
+        <div className="mt-1.5 flex gap-1.5" onClick={(event) => event.stopPropagation()}>
+          {data.personalNote!.images!.map((url, index) => (
+            <button
+              key={url}
+              type="button"
+              data-testid="order-personal-note-photo"
+              aria-label="View personal note photo"
+              className="h-12 w-12 shrink-0 overflow-hidden rounded-md bg-line/40"
+              onClick={() => openNotePhotos(data.personalNote!.images, index, 'Personal note')}
+            >
+              <ManagedImage
+                src={toAbsoluteMediaUrl(url)}
+                alt=""
+                variant={MEDIA_VARIANT.Thumbnail1}
+                className="h-full w-full object-cover"
+              />
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </button>
+  ) : null;
+  const renderFulfillLine = (item: OrderItemView) => {
+    const canEdit = sellerCanFulfillEdit(data);
+    const expanded = expandedLineId === item.id;
+    return (
+      <OrderLineFulfillExpand
+        item={item}
+        canEdit={canEdit}
+        expanded={expanded}
+        busy={setLineSupply.isPending || saveLineQty.isPending}
+        photo={
+          <OrderLinePhoto
+            item={item}
+            items={data.items}
+            onOpen={openPhotoViewer}
+            size="ticket"
+          />
+        }
+        onToggle={() => setExpandedLineId((prev) => (prev === item.id ? null : item.id))}
+        onCantSupply={(cantSupply) => {
+          setLineFulfillError(null);
+          setLineSupply.mutate({ orderItemId: item.id, cantSupply });
+        }}
+        onOpenQuote={
+          isSeller && data.status === 'requested' && confirmOnFace ? openLinesSheet : undefined
+        }
+        onSaveQty={(quantity) => {
+          setLineFulfillError(null);
+          saveLineQty.mutate({ orderItemId: item.id, quantity });
+        }}
+      />
+    );
+  };
+  const shipmentsCard =
+    data.shipments.length > 0 ? (
+      <Card className="flex flex-col gap-3 text-sm" data-testid="order-shipments">
+        {oneToOneTicket ? (
+          <div className="flex items-baseline justify-between gap-8">
+            <p className="font-emphasis text-ink">Dispatches</p>
+            <p className="text-xs font-body text-muted">
+              {dispatchesHeadingCount(data.shipments.length)}
+            </p>
+          </div>
+        ) : (
+          <p className="font-emphasis text-ink">Shipments</p>
+        )}
+        {data.shipments.map((shipment) => {
+          const legLines = shipmentLegDisplayLines(shipment);
+          const meta = [shipment.transporter?.trim(), formatDate(shipment.dispatchedAt)]
+            .filter(Boolean)
+            .join(' · ');
+          return (
+            <div key={shipment.id} className="border-t border-line pt-2 first:border-0 first:pt-0">
+              {oneToOneTicket ? (
+                <div className="flex items-baseline justify-between gap-8">
+                  <p className="font-emphasis text-ink">{shipmentPrimaryLabel(shipment)}</p>
+                  {meta ? (
+                    <p className="shrink-0 text-right text-[12.5px] text-muted">{meta}</p>
+                  ) : null}
+                </div>
+              ) : (
+                <>
+                  {legLines.length > 0 ? (
+                    legLines.map((line) => (
+                      <p key={line} className="font-emphasis text-ink">
+                        {line}
+                      </p>
+                    ))
+                  ) : (
+                    <p className="font-emphasis text-ink">Dispatch</p>
+                  )}
+                </>
+              )}
+              <LegPhotoThumbs
+                images={shipmentLegImageUrls(shipment)}
+                testId={`order-shipment-lr-photos-${shipment.id}`}
+              />
+              {!oneToOneTicket && shipment.transporter ? (
+                <p className="text-muted">Transporter · {shipment.transporter}</p>
+              ) : null}
+              <div className="mt-1 flex flex-col gap-0.5" data-testid="order-shipment-lines">
+                {shipment.items.map((line) => (
+                  <p
+                    key={`${shipment.id}-${line.orderItemId}`}
+                    className={cx(
+                      'text-ink',
+                      oneToOneTicket && 'flex justify-between gap-8',
+                    )}
+                  >
+                    <span className="font-emphasis">{line.name}</span>
+                    <span className="font-title tabular-nums"> × {line.quantity}</span>
+                  </p>
+                ))}
+              </div>
+              {!oneToOneTicket ? (
+                <p className="mt-1 text-[12px] text-muted">Sent {formatDate(shipment.dispatchedAt)}</p>
+              ) : null}
+              <div className="mt-1.5 flex items-center gap-0.5">
+                {data.status !== 'settled' && data.direction === 'selling' ? (
+                  <button
+                    type="button"
+                    data-testid="order-shipment-edit"
+                    className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted"
+                    aria-label="Edit dispatch"
+                    onClick={() => openEditShipment(shipment)}
+                  >
+                    <PencilIcon width={18} height={18} />
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  data-testid="order-shipment-pdf"
+                  className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted"
+                  aria-label="Packing list PDF"
+                  onClick={() => openPackingSlipSheet(shipment)}
+                >
+                  <PdfIcon width={18} height={18} />
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </Card>
+    ) : null;
+  const complaintsCard =
+    openOrderComplaints.length > 0 ? (
+      <Card className="flex flex-col gap-2" data-testid="order-open-complaints">
+        <p className="text-xs font-body text-muted">Open complaints</p>
+        {openOrderComplaints.map((row) => (
+          <div
+            key={row.id}
+            className="flex items-start justify-between gap-3 border-t border-line/70 pt-2 first:border-t-0 first:pt-0"
+          >
+            <div className="min-w-0">
+              <p className="truncate text-sm font-emphasis text-ink">{row.subject}</p>
+              <StatusPill status={row.status} />
+            </div>
+            <button
+              type="button"
+              data-testid="order-complaint-resolve"
+              disabled={resolveComplaint.isPending}
+              className="shrink-0 text-sm font-emphasis text-accent disabled:opacity-45"
+              onClick={() => resolveComplaint.mutate(row.id)}
+            >
+              Resolve
+            </button>
+          </div>
+        ))}
+      </Card>
+    ) : null;
 
   return (
-    <div className={cx('flex flex-col gap-4', actionDock.kind !== 'none' && BOTTOM_DOCK_CLEARANCE_CLASS)}>
+    <div
+      className={cx(
+        'flex flex-col gap-4',
+        (oneToOneTicket || actionDock.kind !== 'none') && BOTTOM_DOCK_CLEARANCE_CLASS,
+      )}
+    >
       <PageHeader
         title={idLabel}
         subtitle={orderTicketSubtitle(data)}
@@ -1743,57 +2023,7 @@ export function OrderDetailPage() {
         }
       />
 
-      {data.personalNote &&
-      (data.personalNote.note ||
-        data.personalNote.noteVoiceUrl ||
-        (data.personalNote.images?.length ?? 0) > 0) ? (
-        <button
-          type="button"
-          data-testid="order-personal-note-preview"
-          className="w-full rounded-xl bg-foam px-3 py-2 text-left"
-          onClick={openPersonalNoteSheet}
-        >
-          {data.personalNote.note ? (
-            <p className="line-clamp-2 text-sm font-emphasis text-ink">{data.personalNote.note}</p>
-          ) : (
-            <p className="text-sm font-emphasis text-ink">Personal note</p>
-          )}
-          {data.personalNote.noteVoiceUrl && data.personalNote.noteVoiceDurationMs ? (
-            <div className="mt-1.5" onClick={(event) => event.stopPropagation()}>
-              <VoicePlayer
-                src={toAbsoluteMediaUrl(data.personalNote.noteVoiceUrl)}
-                durationMs={data.personalNote.noteVoiceDurationMs}
-              />
-            </div>
-          ) : null}
-          {(data.personalNote.images?.length ?? 0) > 0 ? (
-            <div
-              className="mt-1.5 flex gap-1.5"
-              onClick={(event) => event.stopPropagation()}
-            >
-              {data.personalNote.images!.map((url, index) => (
-                <button
-                  key={url}
-                  type="button"
-                  data-testid="order-personal-note-photo"
-                  aria-label="View personal note photo"
-                  className="h-12 w-12 shrink-0 overflow-hidden rounded-md bg-line/40"
-                  onClick={() =>
-                    openNotePhotos(data.personalNote!.images, index, 'Personal note')
-                  }
-                >
-                  <ManagedImage
-                    src={toAbsoluteMediaUrl(url)}
-                    alt=""
-                    variant={MEDIA_VARIANT.Thumbnail1}
-                    className="h-full w-full object-cover"
-                  />
-                </button>
-              ))}
-            </div>
-          ) : null}
-        </button>
-      ) : null}
+      {!oneToOneTicket ? personalNotePreview : null}
 
       <Card className="flex flex-col gap-1 text-sm">
         <div className="flex flex-col gap-1">
@@ -1811,16 +2041,15 @@ export function OrderDetailPage() {
                   Boolean(data.facilitatorCompanyId) &&
                   companyId === data.facilitatorCompanyId),
             };
-            const chatTo = data.threadId
-              ? data.livingMessageId
-                ? `/chats/${data.threadId}?message=${encodeURIComponent(data.livingMessageId)}`
-                : `/chats/${data.threadId}`
-              : null;
+            const stackedParty = oneToOneTicket || Boolean(traderSellingHop(data));
             return orderPartyLines(partyCtx).map((line) => {
               const showChat =
-                Boolean(chatTo) && partyLineShowsOpenChat(line, partyCtx);
+                !oneToOneTicket &&
+                Boolean(chatTo) &&
+                partyLineShowsOpenChat(line, partyCtx);
               const logoUrl =
                 line.companyId === data.counterpart.id ? data.counterpart.logoUrl : null;
+              const roleLabel = line.label === 'supplier' ? 'Supplier' : 'Buyer';
               return (
                 <div
                   key={line.label}
@@ -1832,13 +2061,26 @@ export function OrderDetailPage() {
                       imageUrl={logoUrl}
                       size={48}
                     />
-                    <p className="min-w-0 flex-1 leading-5 text-muted">
-                      {line.label} ·{' '}
-                      <PartyShopName
-                        name={line.name}
-                        href={partyCompanyHref(line.you, line.companyId)}
-                      />
-                    </p>
+                    {stackedParty ? (
+                      <p className="min-w-0 flex-1 leading-5">
+                        <PartyShopName
+                          name={line.name}
+                          href={partyCompanyHref(line.you, line.companyId)}
+                          ink={oneToOneTicket}
+                        />
+                        <span className="mt-0.5 block text-sm font-body text-muted">
+                          {roleLabel}
+                        </span>
+                      </p>
+                    ) : (
+                      <p className="min-w-0 flex-1 leading-5 text-muted">
+                        {line.label} ·{' '}
+                        <PartyShopName
+                          name={line.name}
+                          href={partyCompanyHref(line.you, line.companyId)}
+                        />
+                      </p>
+                    )}
                   </div>
                   {showChat && chatTo ? (
                     <Link
@@ -1855,13 +2097,13 @@ export function OrderDetailPage() {
             });
           })()}
         </div>
-        {orderTicketWaitingCue(data) ? (
+        {!oneToOneTicket && ticketWaiting ? (
           <p
             data-testid="order-ticket-waiting"
             className="flex items-center gap-1.5 pt-1 text-sm text-muted"
           >
             <ClockIcon width={14} height={14} className="shrink-0" aria-hidden />
-            {orderTicketWaitingCue(data)}
+            {ticketWaiting}
           </p>
         ) : null}
         {data.tradeMode === 'direct' &&
@@ -1869,13 +2111,43 @@ export function OrderDetailPage() {
         companyId === data.facilitatorCompanyId ? (
           <p className="pt-1 text-sm font-emphasis text-accent">Shared</p>
         ) : null}
-        {(data.status === 'confirmed' || data.status === 'part_shipped') &&
+        {!oneToOneTicket &&
+        (data.status === 'confirmed' || data.status === 'part_shipped') &&
         (data.confirmedByName || data.confirmedByRole) ? (
-          <p className="pt-1 text-muted">
+          <p className="pt-1 text-muted" data-testid="order-ticket-agreement">
             {agreementStepLabel(data.confirmedByRole, data.confirmedByName)}
           </p>
         ) : null}
       </Card>
+
+      {oneToOneTicket ? personalNotePreview : null}
+
+      {(() => {
+        const hop = traderSellingHop(data);
+        if (!hop) return null;
+        const copy = traderSellingHopCopy(hop.buyerName, hop.id);
+        const hash = shortOrderLabel(hop.id).replace(/^Order /, '');
+        return (
+          <Link
+            to={`/orders/${hop.id}`}
+            data-testid="order-trader-selling-hop"
+            aria-label={copy.title}
+            className="flex items-center gap-3 rounded-xl border border-line bg-surface px-3 py-3"
+          >
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center text-muted" title="Through you">
+              <LinkIcon width={18} height={18} aria-hidden />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm leading-5 text-ink">
+                For <b className="font-emphasis">{hop.buyerName}</b>
+                {` · your selling order ${hash}`}
+              </span>
+              <span className="mt-0.5 block text-xs text-muted">{copy.detail}</span>
+            </span>
+            <ChevronRightIcon width={18} height={18} className="shrink-0 text-muted" aria-hidden />
+          </Link>
+        );
+      })()}
 
       {(() => {
         const progress = orderTicketProgress(data);
@@ -1995,9 +2267,13 @@ export function OrderDetailPage() {
                     <p className="text-sm font-emphasis text-ink">
                       {desk.sellerName}
                       {!desk.held && !millDropped ? (
-                        <span className="ml-1.5 text-xs font-emphasis text-accent">
+                        <Link
+                          to={`/orders/${desk.upstreamOrderId}`}
+                          data-testid={`order-mill-hop-link-${desk.upstreamOrderId}`}
+                          className="ml-1.5 text-xs font-emphasis text-accent"
+                        >
                           {shortOrderLabel(desk.upstreamOrderId)}
-                        </span>
+                        </Link>
                       ) : null}
                     </p>
                     <p className="text-xs text-muted">
@@ -2291,56 +2567,51 @@ export function OrderDetailPage() {
       {showOrderParentItemsList(data.millDesks) ? (
       <Card className="flex flex-col gap-2" data-testid="order-parent-items">
         {lineFulfillError ? <InlineNotice message={lineFulfillError} /> : null}
-        <div>
+        <div
+          className={
+            oneToOneTicket ? 'flex items-baseline justify-between gap-8' : undefined
+          }
+        >
           <p className="text-sm font-emphasis text-ink">Designs</p>
-          {ticketDesignsCaption(ticketItems) ? (
-            <p className="text-xs font-body text-muted">{ticketDesignsCaption(ticketItems)}</p>
+          {designsCaption ? (
+            <p
+              className={cx(
+                'text-xs font-body text-muted',
+                oneToOneTicket && 'text-right',
+              )}
+              data-testid="order-designs-caption"
+            >
+              {designsCaption}
+            </p>
           ) : null}
         </div>
         <OrderTicketBillBlock items={ticketBillItems(data.items)} showBill={data.showBillTotal === true}>
         <OrderUnitGroupedList
-          items={ticketItems}
+          items={supplyableItems}
           unitOf={(item) => item.unit}
           getKey={(item) => item.id}
-          hideHeadingWhenSingle
+          hideHeadingWhenSingle={!oneToOneTicket}
+          hideHeadings={oneToOneTicket}
         >
-          {(item) => {
-          const canEdit = sellerCanFulfillEdit(data);
-          const expanded = expandedLineId === item.id;
-          return (
-            <OrderLineFulfillExpand
-              item={item}
-              canEdit={canEdit}
-              expanded={expanded}
-              busy={setLineSupply.isPending || saveLineQty.isPending}
-              photo={
-                <OrderLinePhoto
-                  item={item}
-                  items={data.items}
-                  onOpen={openPhotoViewer}
-                  size="ticket"
-                />
-              }
-              onToggle={() =>
-                setExpandedLineId((prev) => (prev === item.id ? null : item.id))
-              }
-              onCantSupply={(cantSupply) => {
-                setLineFulfillError(null);
-                setLineSupply.mutate({ orderItemId: item.id, cantSupply });
-              }}
-              onOpenQuote={
-                isSeller && data.status === 'requested' && confirmOnFace
-                  ? openLinesSheet
-                  : undefined
-              }
-              onSaveQty={(quantity) => {
-                setLineFulfillError(null);
-                saveLineQty.mutate({ orderItemId: item.id, quantity });
-              }}
-            />
-          );
-          }}
+          {renderFulfillLine}
         </OrderUnitGroupedList>
+        {cantSupplyItems.length > 0 ? (
+          <details className="group mt-1" data-testid="order-cant-supply-more">
+            <summary className="flex cursor-pointer list-none items-center gap-0.5 py-1 text-sm font-emphasis text-accent [&::-webkit-details-marker]:hidden">
+              {cantSupplyItems.length} can&apos;t supply
+              <DisclosureChevron />
+            </summary>
+            <OrderUnitGroupedList
+              items={cantSupplyItems}
+              unitOf={(item) => item.unit}
+              getKey={(item) => item.id}
+              hideHeadingWhenSingle={!oneToOneTicket}
+              hideHeadings={oneToOneTicket}
+            >
+              {renderFulfillLine}
+            </OrderUnitGroupedList>
+          </details>
+        ) : null}
         </OrderTicketBillBlock>
       </Card>
       ) : null}
@@ -2351,31 +2622,9 @@ export function OrderDetailPage() {
         </p>
       ) : null}
 
-      {openOrderComplaints.length > 0 ? (
-        <Card className="flex flex-col gap-2" data-testid="order-open-complaints">
-          <p className="text-xs font-body text-muted">Open complaints</p>
-          {openOrderComplaints.map((row) => (
-            <div
-              key={row.id}
-              className="flex items-start justify-between gap-3 border-t border-line/70 pt-2 first:border-t-0 first:pt-0"
-            >
-              <div className="min-w-0">
-                <p className="truncate text-sm font-emphasis text-ink">{row.subject}</p>
-                <StatusPill status={row.status} />
-              </div>
-              <button
-                type="button"
-                data-testid="order-complaint-resolve"
-                disabled={resolveComplaint.isPending}
-                className="shrink-0 text-sm font-emphasis text-accent disabled:opacity-45"
-                onClick={() => resolveComplaint.mutate(row.id)}
-              >
-                Resolve
-              </button>
-            </div>
-          ))}
-        </Card>
-      ) : null}
+      {oneToOneTicket ? shipmentsCard : null}
+
+      {!oneToOneTicket ? complaintsCard : null}
 
       <OrderTicketNotes
         notes={orderTicketNotes(data, companyId ?? '')}
@@ -2418,8 +2667,11 @@ export function OrderDetailPage() {
       <OrderTimeline
         order={data}
         hidePriorQuotes={isBuyer}
+        collapseToHeader={oneToOneTicket}
         onOpenNotePhotos={openNotePhotos}
       />
+
+      {oneToOneTicket ? complaintsCard : null}
 
       {(() => {
         const ref = data.manualRef;
@@ -2458,65 +2710,7 @@ export function OrderDetailPage() {
         );
       })()}
 
-      {data.shipments.length > 0 ? (
-        <Card className="flex flex-col gap-3 text-sm">
-          <p className="font-emphasis text-ink">Shipments</p>
-          {data.shipments.map((shipment) => {
-            const legLines = shipmentLegDisplayLines(shipment);
-            return (
-            <div key={shipment.id} className="border-t border-line pt-2 first:border-0 first:pt-0">
-              {legLines.length > 0 ? (
-                legLines.map((line) => (
-                  <p key={line} className="font-emphasis text-ink">
-                    {line}
-                  </p>
-                ))
-              ) : (
-                <p className="font-emphasis text-ink">Dispatch</p>
-              )}
-              <LegPhotoThumbs
-                images={shipmentLegImageUrls(shipment)}
-                testId={`order-shipment-lr-photos-${shipment.id}`}
-              />
-              {shipment.transporter ? (
-                <p className="text-muted">Transporter · {shipment.transporter}</p>
-              ) : null}
-              <div className="mt-1 flex flex-col gap-0.5" data-testid="order-shipment-lines">
-                {shipment.items.map((line) => (
-                  <p key={`${shipment.id}-${line.orderItemId}`} className="text-ink">
-                    <span className="font-emphasis">{line.name}</span>
-                    <span className="font-title tabular-nums"> × {line.quantity}</span>
-                  </p>
-                ))}
-              </div>
-              <p className="mt-1 text-[12px] text-muted">Sent {formatDate(shipment.dispatchedAt)}</p>
-              <div className="mt-1.5 flex items-center gap-0.5">
-                {data.status !== 'settled' && data.direction === 'selling' ? (
-                  <button
-                    type="button"
-                    data-testid="order-shipment-edit"
-                    className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted"
-                    aria-label="Edit dispatch"
-                    onClick={() => openEditShipment(shipment)}
-                  >
-                    <PencilIcon width={18} height={18} />
-                  </button>
-                ) : null}
-                <button
-                  type="button"
-                  data-testid="order-shipment-pdf"
-                  className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted"
-                  aria-label="Packing list PDF"
-                  onClick={() => openPackingSlipSheet(shipment)}
-                >
-                  <PdfIcon width={18} height={18} />
-                </button>
-              </div>
-            </div>
-            );
-          })}
-        </Card>
-      ) : null}
+      {!oneToOneTicket ? shipmentsCard : null}
 
       <div className="flex flex-col gap-2">
         {data.canSendUp && !(data.millDesks && data.millDesks.length > 0) ? (
@@ -2560,14 +2754,25 @@ export function OrderDetailPage() {
         ) : null}
       </div>
 
-      {actionDock.kind !== 'none' ? (
+      {oneToOneTicket || actionDock.kind !== 'none' ? (
         <BottomTradeDock testId="order-action-dock" aboveAppNav={false}>
+          {oneToOneTicket && chatTo ? (
+            <SellingDockChat
+              to={chatTo}
+              chatOnly={actionDock.kind === 'none' && !ticketWaiting}
+              counterpartName={buyingOneToOne ? data.sellerName : data.buyerName}
+            />
+          ) : null}
           {actionDock.kind === 'buy' ? (
             <>
               {actionDock.declineLogged ? (
                 <Button
-                  variant="ghost"
-                  className="!min-h-12 shrink-0 px-2 text-sm"
+                  variant={oneToOneTicket ? 'secondary' : 'ghost'}
+                  className={
+                    oneToOneTicket
+                      ? '!min-h-12 shrink-0 px-2.5 text-sm'
+                      : '!min-h-12 shrink-0 px-2 text-sm'
+                  }
                   data-testid="order-dock-decline"
                   disabled={act.isPending}
                   onClick={() => act.mutate('cancel')}
@@ -2613,8 +2818,12 @@ export function OrderDetailPage() {
           ) : actionDock.kind === 'requested' ? (
             <>
               <Button
-                variant="ghost"
-                className="!min-h-12 shrink-0 px-2 text-sm"
+                variant={oneToOneTicket ? 'secondary' : 'ghost'}
+                className={
+                  oneToOneTicket
+                    ? '!min-h-12 shrink-0 px-2.5 text-sm'
+                    : '!min-h-12 shrink-0 px-2 text-sm'
+                }
                 data-testid={actionDock.sendOrder ? 'order-mill-decline-all' : 'order-dock-decline'}
                 disabled={act.isPending || actionWithNote.isPending || millDecline.isPending}
                 onClick={() => {
@@ -2661,7 +2870,7 @@ export function OrderDetailPage() {
                 </Button>
               ) : null}
             </>
-          ) : (
+          ) : actionDock.kind === 'fulfill' ? (
             <>
               {actionDock.settle ? (
                 <Button
@@ -2690,7 +2899,16 @@ export function OrderDetailPage() {
                 </Button>
               ) : null}
             </>
-          )}
+          ) : null}
+          {oneToOneTicket && actionDock.kind === 'none' && ticketWaiting ? (
+            <p
+              data-testid="order-ticket-waiting"
+              className="flex min-w-0 flex-1 items-center justify-center gap-1.5 px-2 text-sm text-muted"
+            >
+              <ClockIcon width={14} height={14} className="shrink-0" aria-hidden />
+              {ticketWaiting}
+            </p>
+          ) : null}
         </BottomTradeDock>
       ) : null}
 

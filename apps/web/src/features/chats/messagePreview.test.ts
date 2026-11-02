@@ -45,8 +45,8 @@ describe('inCardSenderLine', () => {
     expect(inCardSenderLine(message({ mine: true, actor: null }), 'Surat Silk House')).toBeNull();
   });
 
-  it('shows business name on incoming cards', () => {
-    expect(inCardSenderLine(message({ mine: false }), 'Jaipur Emporium')).toBe('Jaipur Emporium');
+  it('omits shop name on incoming cards (wash + avatar)', () => {
+    expect(inCardSenderLine(message({ mine: false }), 'Jaipur Emporium')).toBeNull();
   });
 });
 

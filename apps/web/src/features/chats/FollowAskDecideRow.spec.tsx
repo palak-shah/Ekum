@@ -36,6 +36,23 @@ describe('FollowAskDecideRow', () => {
     expect(screen.getByRole('button', { name: 'Allow' })).toBeDisabled();
   });
 
+  it('locks See and defaults Share on for an all-collections Share ask', async () => {
+    const user = userEvent.setup();
+    const onAllow = vi.fn();
+    render(
+      <FollowAskDecideRow kind="share" onAllow={onAllow} onDecline={() => undefined} />,
+    );
+    const see = screen.getByRole('checkbox', { name: 'They can see my collections' });
+    const share = screen.getByRole('checkbox', { name: 'They can share my collections' });
+    expect(see).toHaveAttribute('aria-checked', 'true');
+    expect(see).toHaveAttribute('aria-disabled', 'true');
+    expect(share).toHaveAttribute('aria-checked', 'true');
+    await user.click(see);
+    expect(see).toHaveAttribute('aria-checked', 'true');
+    await user.click(screen.getByRole('button', { name: 'Allow' }));
+    expect(onAllow).toHaveBeenCalledWith('pack');
+  });
+
   it('Declines', async () => {
     const user = userEvent.setup();
     const onDecline = vi.fn();

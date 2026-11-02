@@ -50,6 +50,7 @@ interface Captured {
   shipmentCreate: Record<string, unknown> | null;
   trailAppends: Record<string, unknown>[];
   companyNoteUpsert: Record<string, unknown> | null;
+  auditAppends: Record<string, unknown>[];
 }
 
 interface Options {
@@ -89,6 +90,9 @@ interface Options {
       lineStatus: string;
       rate?: { toNumber: () => number } | null;
       name?: string;
+      productId?: string | null;
+      sku?: string | null;
+      unit?: string | null;
     }[];
     shipments?: {
       items: { orderItemId: string; quantity: { toNumber: () => number } }[];
@@ -134,6 +138,7 @@ function makeService(options: Options) {
     shipmentCreate: null,
     trailAppends: [],
     companyNoteUpsert: null,
+    auditAppends: [],
   };
   const trail = {
     append: async (input: Record<string, unknown>) => {
@@ -163,6 +168,9 @@ function makeService(options: Options) {
   const prisma = {
     collection: {
       findMany: async () => [],
+    },
+    companySettings: {
+      findUnique: async () => null,
     },
     product: {
       findMany: async (args?: { where?: { id?: { in?: string[] }; companyId?: string } }) => {
@@ -227,10 +235,27 @@ function makeService(options: Options) {
         captured.updateData = args.data;
         captured.orderUpdates.push(args.data);
         if (orderState) {
+          const nestedItems = (
+            args.data.items as { create?: Record<string, unknown>[] } | undefined
+          )?.create;
           orderState = {
             ...orderState,
             status: String(args.data.status ?? orderState.status),
             ...args.data,
+            ...(nestedItems
+              ? {
+                  items: nestedItems.map((row, index) => ({
+                    id: `new-${index}`,
+                    productId: row.productId,
+                    name: row.name ?? row.productId,
+                    sku: row.sku ?? null,
+                    unit: row.unit ?? null,
+                    quantity: { toNumber: () => Number(row.quantity) },
+                    requestedQuantity: { toNumber: () => Number(row.quantity) },
+                    lineStatus: OrderLineStatus.Open,
+                  })),
+                }
+              : {}),
           } as typeof orderState;
         }
         return {
@@ -246,6 +271,7 @@ function makeService(options: Options) {
       },
     },
     orderItem: {
+      findMany: async () => orderState?.items ?? [],
       update: async (args: { where: { id: string }; data: Record<string, unknown> }) => {
         captured.itemUpdates.push(args.data);
         if (orderState) {
@@ -485,6 +511,11 @@ function makeService(options: Options) {
       jobs,
       threads,
       trail,
+      {
+        appendQty: async (input: Record<string, unknown>) => {
+          captured.auditAppends.push(input);
+        },
+      } as never,
     ),
     captured,
     prisma,
@@ -763,6 +794,64 @@ describe('OrderService.create snapshots', () => {
     });
   });
 
+  it('audits a dropped amend design as amended_removed without a new live line', async () => {
+    const { service, captured } = makeService({
+      products: [
+        {
+          id: 'p1',
+          name: 'Silk Saree',
+          sku: 'S1',
+          rate: { toNumber: () => 100 },
+          unit: 'mtr',
+          images: [],
+        },
+        {
+          id: 'p2',
+          name: 'Cotton Lawn',
+          sku: 'CL-1',
+          rate: { toNumber: () => 50 },
+          unit: 'pc',
+          images: [],
+        },
+      ],
+      order: {
+        id: 'o1',
+        status: OrderStatus.Requested,
+        intent: OrderIntent.Order,
+        kind: OrderKind.Standard,
+        buyerCompanyId: 'buyer',
+        sellerCompanyId: 'seller',
+        items: [
+          { ...openItem('oi1', 10), productId: 'p1', name: 'Silk Saree', sku: 'S1', unit: 'mtr' },
+          { ...openItem('oi2', 7), productId: 'p2', name: 'Cotton Lawn', sku: 'CL-1', unit: 'pc' },
+        ],
+      },
+    });
+    await service.amend('buyer', 'u1', 'o1', {
+      items: [{ productId: 'p1', quantity: 10, images: [] }],
+    });
+    const created = (
+      captured.updateData?.items as { create?: Array<{ productId?: string }> } | undefined
+    )?.create;
+    expect(created?.map((row) => row.productId)).toEqual(['p1']);
+    expect(captured.auditAppends).toContainEqual(
+      expect.objectContaining({
+        orderId: 'o1',
+        kind: 'amended_removed',
+        rows: [
+          expect.objectContaining({
+            orderItemId: 'oi2',
+            itemName: 'Cotton Lawn',
+            sku: 'CL-1',
+            unit: 'pc',
+            qtyBefore: 7,
+            qtyAfter: 0,
+          }),
+        ],
+      }),
+    );
+  });
+
   it('rejects a line referencing a product not sold by the seller', async () => {
     const { service } = makeService({ products: [] });
     const dto = {
@@ -946,6 +1035,7 @@ describe('OrderService quote + accept (partial)', () => {
       type: 'system',
       referenceId: 'o1',
       body: 'Seller updated quote',
+      replyToMessageId: 'quote-msg',
       metadata: expect.objectContaining({
         kind: 'order_lifecycle',
         event: 'quote_sent',
@@ -1254,6 +1344,7 @@ describe('OrderService lifecycle action cards', () => {
     expect(captured.messageCreate).toMatchObject({
       type: 'system',
       body: 'Buyer accepted quote',
+      replyToMessageId: 'quote-msg',
       metadata: expect.objectContaining({
         kind: 'order_lifecycle',
         event: 'quote_accepted',
@@ -1313,6 +1404,44 @@ describe('OrderService lifecycle action cards', () => {
         partial: true,
       }),
       body: expect.stringContaining('dispatched part'),
+    });
+  });
+
+  it('tags dispatch to the living card', async () => {
+    const { service, captured } = makeService({
+      sellerQuoted: true,
+      order: {
+        id: 'o1',
+        status: OrderStatus.Confirmed,
+        buyerCompanyId: 'buyer',
+        sellerCompanyId: 'seller',
+        items: [
+          {
+            id: 'oi1',
+            name: 'A',
+            quantity: { toNumber: () => 10 },
+            requestedQuantity: { toNumber: () => 10 },
+            lineStatus: OrderLineStatus.Confirmed,
+            rate: { toNumber: () => 100 },
+          },
+        ],
+        shipments: [],
+      },
+    });
+    await service.dispatch('seller', 'u1', 'o1', {
+      items: [{ orderItemId: 'oi1', quantity: 10 }],
+      lrNumber: 'LR-9',
+    });
+    expect(captured.messageUpdate).toBeTruthy();
+    expect(captured.messageCreate).toMatchObject({
+      type: 'system',
+      replyToMessageId: 'quote-msg',
+      body: expect.stringMatching(/dispatched/i),
+      metadata: expect.objectContaining({
+        kind: 'order_lifecycle',
+        event: 'order_dispatched',
+        livingMessageId: 'quote-msg',
+      }),
     });
   });
 });
@@ -1655,6 +1784,11 @@ describe('OrderService notes', () => {
       type: 'system',
       body: 'Buyer added a note',
       referenceId: 'o1',
+      replyToMessageId: 'quote-msg',
+      metadata: expect.objectContaining({
+        kind: 'order_note',
+        livingMessageId: 'quote-msg',
+      }),
     });
     expect(captured.messageUpdate).toBeNull();
   });

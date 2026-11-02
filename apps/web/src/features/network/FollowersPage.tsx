@@ -151,9 +151,11 @@ export function FollowersPage() {
                   name={ask.company.name}
                   logoUrl={ask.company.logoUrl}
                   to={`/company/${ask.company.id}`}
+                  kind={ask.kind === 'share' ? 'share' : 'see'}
                 />
                 <FollowAskDecideRow
                   disabled={decide.isPending}
+                  kind={ask.kind === 'share' ? 'share' : 'see'}
                   onAllow={(decision) =>
                     decide.mutate({ followerCompanyId: ask.company.id, decision })
                   }

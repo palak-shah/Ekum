@@ -657,6 +657,8 @@ model Follow {
   status            String   @default("allowed")
   /// look | pack — null while pending. Shop-facing only.
   accessKind        String?
+  /// Look already granted; mill has a Requests row to Allow Share (Pack).
+  packAskPending    Boolean  @default(false)
   createdAt         DateTime @default(now())
 
   follower Company @relation("Follower", fields: [followerCompanyId], references: [id], onDelete: Cascade)
@@ -902,6 +904,7 @@ model Order {
   items         OrderItem[]
   shipments     OrderShipment[]
   trailEvents      OrderTrailEvent[]
+  audits           OrderAudit[]
   returns          Return[]
   complaints       Complaint[]
   paymentRequests  PaymentRequest[]
@@ -963,6 +966,38 @@ model OrderTrailEvent {
 
   @@index([orderId, at])
   @@index([actorCompanyId])
+}
+
+/// Append-only qty edits for one live Order. One row = one line change. Report without JSON.
+model OrderAudit {
+  id               String   @id @default(cuid())
+  orderId          String
+  /// Line id at write time. Not a FK — keep it if the line is later replaced.
+  orderItemId      String?
+  /// Snapshots for export (do not read live item/company at report time).
+  manualOrderNo    String?
+  itemName         String
+  sku              String?
+  unit             String?
+  actorCompanyName String?
+  /// placed | amended | amended_removed | quoted | confirmed | seller_edit | mill_pass | cant_supply | restored | settled
+  kind             String
+  /// Plain words: "Seller changed qty · 50 → 45"
+  summary          String
+  qtyBefore        Decimal? @db.Decimal(12, 2)
+  qtyAfter         Decimal  @db.Decimal(12, 2)
+  qtyDelta         Decimal? @db.Decimal(12, 2)
+  /// Order.status at save (before any reopen).
+  statusAt         String
+  at               DateTime @default(now())
+  actorCompanyId   String?
+  actorUserId      String?
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId, at])
+  @@index([kind])
+  @@index([orderItemId])
 }
 
 /// Line snapshot. requestedQuantity is the buyer ask; quantity is the current

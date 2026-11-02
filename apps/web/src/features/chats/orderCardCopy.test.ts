@@ -120,7 +120,7 @@ describe('buildOrderCardCopy', () => {
     expect(copy.lines).toEqual([]);
   });
 
-  it('names the parent ticket on a mill lot card', () => {
+  it('omits parent Order # from a mill lot card', () => {
     const msg = orderCardMessage({
       id: 'm2',
       mine: true,
@@ -137,10 +137,10 @@ describe('buildOrderCardCopy', () => {
     });
     const copy = buildOrderCardCopy(msg, msg.reference);
     expect(copy.lines).not.toContain('Part of Order #A1B2');
-    expect(copy.note).toBe('Part of Order #A1B2');
+    expect(copy.note).toBeNull();
   });
 
-  it('puts mill-lot parent and For-order body in the note, not the header', () => {
+  it('drops For-order parent hash and keeps a real mill note', () => {
     const msg = orderCardMessage({
       id: 'm-lot',
       mine: true,
@@ -159,7 +159,27 @@ describe('buildOrderCardCopy', () => {
     });
     const copy = buildOrderCardCopy(msg, msg.reference);
     expect(copy.lines).toEqual(['1 design']);
-    expect(copy.note).toBe('Part of Order #DOWN\nFor order #HANDLE — mill lot');
+    expect(copy.note).toBeNull();
+  });
+
+  it('keeps a typed mill note after stripping (for #)', () => {
+    const msg = orderCardMessage({
+      id: 'm-note',
+      mine: true,
+      body: 'Rush this lot (for #DOWN)',
+      metadata: {
+        event: OrderChatEvent.OrderRequested,
+        actorLabel: 'You',
+        parentOrderLabel: 'Order #DOWN',
+      },
+      reference: orderRef({
+        id: 'mill-1',
+        event: OrderChatEvent.OrderRequested,
+        actorLabel: 'You',
+      }),
+    });
+    const copy = buildOrderCardCopy(msg, msg.reference);
+    expect(copy.note).toBe('Rush this lot');
   });
 
   it('splits quoted vs can’t supply from this send, not the whole order', () => {

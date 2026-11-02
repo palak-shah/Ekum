@@ -1,12 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import type { OrderView } from '@ekum/domain-types';
 import {
+  isBuyingBilateralTicket,
+  isSellingBilateralTicket,
   orderTicketCanForwardNotes,
+  orderTicketNoteCue,
   orderTicketNotes,
   orderTicketProgress,
   orderTicketProgressCopy,
   orderTicketSubtitle,
   orderTicketWaitingCue,
+  traderSellingHop,
+  traderSellingHopCopy,
 } from './orderTicketChrome';
 
 function line(partial: {
@@ -93,6 +98,14 @@ describe('orderTicketChrome', () => {
         }),
       ),
     ).toBe('5 of 12 sets sent');
+    expect(
+      orderTicketProgressCopy(
+        order({
+          status: 'part_shipped',
+          items: [line({ quantity: 45, shippedQuantity: 30, remainingQuantity: 15, unit: 'pc' })],
+        }),
+      ),
+    ).toBe('30 of 45 pcs sent');
     const over = orderTicketProgress(
       order({
         status: 'part_shipped',
@@ -214,5 +227,228 @@ describe('orderTicketChrome', () => {
     expect(orderTicketCanForwardNotes(order({ tradeMode: 'direct', direction: 'buying' }))).toBe(
       false,
     );
+  });
+
+  it('Notes include confirm/dispatch sheet notes with a quiet cue', () => {
+    const ticket = order({
+      direction: 'buying',
+      status: 'part_shipped',
+    });
+    ticket.note = null;
+    ticket.buyerCompanyId = 'buyer';
+    ticket.sellerCompanyId = 'seller';
+    ticket.trail = [
+      {
+        id: 'c1',
+        type: 'confirmed',
+        at: '2026-09-08T00:00:00.000Z',
+        who: 'Surat Silk House',
+        summary: 'Confirmed',
+        detail: null,
+        note: 'Will cut Friday',
+        noteVoiceUrl: null,
+        noteVoiceDurationMs: null,
+        noteImageUrls: [],
+        mine: false,
+        forwarded: false,
+      },
+      {
+        id: 'd1',
+        type: 'dispatched',
+        at: '2026-09-09T00:00:00.000Z',
+        who: 'Surat Silk House',
+        summary: 'Dispatched',
+        detail: null,
+        note: 'LR 44',
+        noteVoiceUrl: null,
+        noteVoiceDurationMs: null,
+        noteImageUrls: [],
+        mine: false,
+        forwarded: false,
+      },
+      {
+        id: 'n1',
+        type: 'noted',
+        at: '2026-09-10T00:00:00.000Z',
+        who: 'You',
+        summary: 'Note',
+        detail: null,
+        note: 'Thanks',
+        noteVoiceUrl: null,
+        noteVoiceDurationMs: null,
+        noteImageUrls: [],
+        mine: true,
+        forwarded: false,
+      },
+    ];
+    const listed = orderTicketNotes(ticket, 'buyer');
+    expect(listed.map((row) => row.note)).toEqual(['Will cut Friday', 'LR 44', 'Thanks']);
+    expect(listed[0]?.cue).toBe('On confirm');
+    expect(listed[1]?.cue).toBe('On dispatch');
+    expect(listed[2]?.cue).toBeNull();
+    expect(listed[0]?.mine).toBe(false);
+    expect(listed[2]?.mine).toBe(true);
+    expect(orderTicketNoteCue('settled')).toBe('On settle');
+  });
+
+  it('Notes include quote and amend sheet notes; personal notes stay out', () => {
+    const ticket = order({
+      direction: 'buying',
+      status: 'requested',
+      note: null,
+    });
+    ticket.buyerCompanyId = 'buyer';
+    ticket.sellerCompanyId = 'seller';
+    ticket.personalNote = {
+      note: 'Pack later — only me',
+      noteVoiceUrl: null,
+      noteVoiceDurationMs: null,
+      images: [],
+    };
+    ticket.trail = [
+      {
+        id: 'a1',
+        type: 'updated',
+        at: '2026-09-08T00:00:00.000Z',
+        who: 'You',
+        summary: 'Amended',
+        detail: null,
+        note: 'Drop the navy',
+        noteVoiceUrl: null,
+        noteVoiceDurationMs: null,
+        noteImageUrls: [],
+        mine: true,
+        forwarded: false,
+      },
+      {
+        id: 'q1',
+        type: 'quoted',
+        at: '2026-09-09T00:00:00.000Z',
+        who: 'Surat Silk House',
+        summary: 'Quote',
+        detail: null,
+        note: 'Rate holds 3 days',
+        noteVoiceUrl: null,
+        noteVoiceDurationMs: null,
+        noteImageUrls: [],
+        mine: false,
+        forwarded: false,
+      },
+    ];
+    const listed = orderTicketNotes(ticket, 'buyer');
+    expect(listed.map((row) => row.note)).toEqual(['Drop the navy', 'Rate holds 3 days']);
+    expect(listed.some((row) => row.note?.includes('Pack later'))).toBe(false);
+    expect(listed[0]?.cue).toBeNull();
+    expect(listed[1]?.cue).toBeNull();
+  });
+
+  it('isSellingBilateralTicket is selling 1:1 only', () => {
+    expect(isSellingBilateralTicket(order({ direction: 'selling' }))).toBe(true);
+    expect(isSellingBilateralTicket(order({ direction: 'buying' }))).toBe(false);
+    expect(
+      isSellingBilateralTicket(order({ direction: 'selling', tradeMode: 'direct' })),
+    ).toBe(false);
+    expect(
+      isSellingBilateralTicket(order({ direction: 'selling', tradeMode: 'manage' })),
+    ).toBe(false);
+    const withDesks = order({ direction: 'selling' });
+    withDesks.millDesks = [
+      {
+        upstreamOrderId: 'up1',
+        sellerCompanyId: 'mill',
+        sellerName: 'Surat Silk House',
+        held: false,
+        passHeld: false,
+        reveal: false,
+        revealThreadId: null,
+        millThreadId: null,
+        status: 'requested',
+        itemIds: ['i1'],
+        confirmedCount: 0,
+        declinedCount: 0,
+        millQuoted: false,
+        lines: [],
+      },
+    ];
+    expect(isSellingBilateralTicket(withDesks)).toBe(false);
+    expect(
+      isSellingBilateralTicket(
+        order({
+          direction: 'selling',
+          linkedMills: [{ name: 'Surat Silk House', orderId: 'up1' }],
+        }),
+      ),
+    ).toBe(false);
+  });
+
+  it('isBuyingBilateralTicket is buying 1:1 only', () => {
+    expect(isBuyingBilateralTicket(order({ direction: 'buying' }))).toBe(true);
+    expect(isBuyingBilateralTicket(order({ direction: 'selling' }))).toBe(false);
+    expect(
+      isBuyingBilateralTicket(order({ direction: 'buying', tradeMode: 'direct' })),
+    ).toBe(false);
+    expect(
+      isBuyingBilateralTicket(order({ direction: 'buying', tradeMode: 'manage' })),
+    ).toBe(false);
+    const millHop = order({ direction: 'buying' });
+    millHop.downstreamOrderId = 'order-ameya-iinb';
+    expect(isBuyingBilateralTicket(millHop)).toBe(false);
+    const withDesks = order({ direction: 'buying' });
+    withDesks.millDesks = [
+      {
+        upstreamOrderId: 'up1',
+        sellerCompanyId: 'mill',
+        sellerName: 'Surat Silk House',
+        held: false,
+        passHeld: false,
+        reveal: false,
+        revealThreadId: null,
+        millThreadId: null,
+        status: 'requested',
+        itemIds: ['i1'],
+        confirmedCount: 0,
+        declinedCount: 0,
+        millQuoted: false,
+        lines: [],
+      },
+    ];
+    expect(isBuyingBilateralTicket(withDesks)).toBe(false);
+  });
+
+  it('selling hop is trader mill hop only — mill and parent skip it', () => {
+    const millHop = order({ direction: 'buying' });
+    millHop.relatedOrders = [
+      {
+        id: 'order-ameya-iinb',
+        role: 'downstream',
+        status: 'requested',
+        sellerName: 'Surat Silk House',
+        buyerName: 'Ameyaa',
+      },
+    ];
+    expect(traderSellingHop(millHop)).toEqual({
+      id: 'order-ameya-iinb',
+      buyerName: 'Ameyaa',
+    });
+    expect(traderSellingHopCopy('Ameyaa', 'order-ameya-iinb')).toEqual({
+      title: 'For Ameyaa · your selling order #IINB',
+      detail: 'Dispatch goes straight to Ameyaa',
+    });
+
+    const millSeller = order({ direction: 'selling' });
+    millSeller.relatedOrders = millHop.relatedOrders;
+    expect(traderSellingHop(millSeller)).toBeNull();
+
+    const parent = order({ direction: 'selling', tradeMode: 'manage' });
+    parent.relatedOrders = [
+      {
+        id: 'up-1',
+        role: 'upstream',
+        status: 'requested',
+        sellerName: 'Ethonique',
+        buyerName: 'Surat Silk House',
+      },
+    ];
+    expect(traderSellingHop(parent)).toBeNull();
   });
 });

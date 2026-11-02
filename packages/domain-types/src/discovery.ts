@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { cursorPageQuerySchema } from './common';
-import type { PublicCompanySummary } from './access';
+import type { FollowAccessKind, PublicCompanySummary } from './access';
 import type { ProductView } from './catalog';
 
 /**
@@ -100,6 +100,10 @@ export interface CompanyCard {
   logoUrl: string | null;
   sellCategories: string[];
   buyCategories: string[];
+  /** Present on GET /follows/following — mill Share (Pack) for Direct Links. */
+  accessKind?: FollowAccessKind;
+  /** Present on GET /follows/following — mill has not Allowed Share yet. */
+  packAskPending?: boolean;
 }
 
 export interface CollectionCard {

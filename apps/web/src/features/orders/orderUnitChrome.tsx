@@ -45,6 +45,7 @@ export function OrderUnitGroups<T>({
   lineTestId,
   lineClassName = 'px-3 py-2.5',
   hideHeadingWhenSingle = false,
+  hideHeadings = false,
   children,
 }: {
   items: T[];
@@ -58,13 +59,15 @@ export function OrderUnitGroups<T>({
   lineClassName?: string;
   /** Ticket Designs caption already names the one family. */
   hideHeadingWhenSingle?: boolean;
+  /** 1:1 Designs — unit already sits on each line. */
+  hideHeadings?: boolean;
   children: (item: T, index: number, last: boolean) => ReactNode;
 }) {
   const groups = groupHowManyByOrderUnit(items, unitOf);
   const lastIndex = items.length - 1;
   let index = 0;
   const headingId = headingTestId ?? 'order-sheet-unit-heading';
-  const showHeadings = !(hideHeadingWhenSingle && groups.length <= 1);
+  const showHeadings = !hideHeadings && !(hideHeadingWhenSingle && groups.length <= 1);
 
   return (
     <div

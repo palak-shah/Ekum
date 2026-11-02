@@ -82,7 +82,7 @@ import { useVoiceRecorder } from '@/features/voice/useVoiceRecorder';
 import type { VoiceRecording } from '@/features/voice/useVoiceRecorder';
 import { stopAllVoicePlayback } from '@/features/voice/voicePlayback';
 import { Avatar, Button, ErrorState, InlineNotice, LoadingBlock, SearchInput, Sheet, TextArea, TextInput, cx } from '@/ui/kit';
-import { COMPOSER_SHELL_CLASS } from '@/ui/fieldFill';
+import { THREAD_COMPOSER_CONTROL_CLASS, THREAD_COMPOSER_SHELL_CLASS } from '@/ui/fieldFill';
 import { ListSearchRow, ListSquareButton } from '@/ui/ListSearchRow';
 import { MoreActionsSheet, type MoreActionItem } from '@/ui/MoreActionsSheet';
 import {
@@ -146,7 +146,8 @@ import {
   primaryAcceptQuoteMessageId,
 } from './orderCardCopy';
 import { chatTypeMeta, inCardSenderLine, outboundMessageLabel } from './messagePreview';
-import { showGroupSenderThumb } from './groupSenderThumb';
+import { reserveIncomingSenderThumb, showGroupSenderThumb } from './groupSenderThumb';
+import { replyQuoteFromLabel } from './replyQuoteFrom';
 import { threadVisibilityLabel, threadVisibilitySubtitle } from './threadVisibilityLabel';
 import { PhotoAlbum } from './PhotoAlbum';
 import { buildChatTradeCard, buildCollectionTradeCard, buildDesignTradeCard } from './chatTradeCard';
@@ -156,6 +157,7 @@ import {
   MESSAGE_ACTIONS_REACTION_RAIL_CLASS,
   MESSAGE_ACTIONS_ROW_CLASS,
   MSG_BUBBLE_CLASS,
+  MSG_FLASH_CLASS,
   messageChromeBubblePad,
   resolveMessageLongPress,
 } from './messageChrome';
@@ -166,14 +168,16 @@ import { MessageBubbleChevronPadContext } from './messageBubbleChevronPad';
 import { chatBubbleCorners } from './chatBubbleCorners';
 import { paymentCardTitle } from './paymentCardCopy';
 import { ChatTradeCard } from './ChatTradeCardView';
+import { ReplyQuote } from './ReplyQuote';
 import { ChatComplaintSheet } from './ChatComplaintSheet';
 import {
   CHAT_SYSTEM_PILL_CLASS,
   isChatSystemNotice,
-  isOrderLifecycleNotice,
+  isOrderTaggedUpdate,
   orderLifecycleLivingMessageId,
-  orderLifecycleNoticeText,
   orderLifecycleOrderId,
+  orderTagQuotePreview,
+  orderTaggedUpdateText,
 } from './chatSystemNotice';
 import { threadDateChip } from './threadDateChip';
 import { inboxThreadAvatarUrl } from './inboxThreadAvatar';
@@ -2301,12 +2305,32 @@ export function ThreadPage() {
                 index > 0 ? ordered[index - 1]!.createdAt : null,
                 message.createdAt,
               );
-              const showThumb =
+              const reserveThumb =
                 !systemNotice &&
-                showGroupSenderThumb({
+                reserveIncomingSenderThumb({
                   isGroup: detail.type === 'group',
                   incoming: !message.mine,
                 });
+              const showThumb =
+                reserveThumb &&
+                showGroupSenderThumb({
+                  isGroup: detail.type === 'group',
+                  incoming: !message.mine,
+                  clusterTail,
+                });
+              const quotedFrom = message.replyTo
+                ? replyQuoteFromLabel({
+                    senderCompanyId: message.replyTo.senderCompanyId,
+                    viewerCompanyId: companyId,
+                    shopName:
+                      detail.participants?.find(
+                        (row) => row.companyId === message.replyTo?.senderCompanyId,
+                      )?.company.name ??
+                      (detail.counterpart?.id === message.replyTo.senderCompanyId
+                        ? detail.counterpart.name
+                        : (detail.type === 'direct' ? detail.counterpart?.name : null) ?? null),
+                  })
+                : undefined;
               return (
               <div key={message.id}>
                 {dateChip ? (
@@ -2317,9 +2341,6 @@ export function ThreadPage() {
                     <p className={CHAT_SYSTEM_PILL_CLASS}>{dateChip}</p>
                   </div>
                 ) : null}
-              <div
-                className={showThumb ? 'flex items-end gap-1.5' : undefined}
-              >
                 {firstUnreadId === message.id && openVisit && openVisit.unreadCount > 0 ? (
                   <div
                     className="mb-2.5 flex items-center gap-2 py-1"
@@ -2334,22 +2355,29 @@ export function ThreadPage() {
                     <span className="h-px flex-1 bg-line" />
                   </div>
                 ) : null}
-                {showThumb ? (
-                  <Avatar
-                    name={
-                      detail.participants?.find((row) => row.companyId === message.senderCompanyId)
-                        ?.company.name ??
-                      detail.counterpart?.name ??
-                      'Business'
-                    }
-                    imageUrl={
-                      detail.participants?.find((row) => row.companyId === message.senderCompanyId)
-                        ?.company.logoUrl ??
-                      detail.counterpart?.logoUrl ??
-                      null
-                    }
-                    size={28}
-                  />
+              <div
+                className={reserveThumb ? 'flex items-end gap-1.5' : undefined}
+              >
+                {reserveThumb ? (
+                  showThumb ? (
+                    <Avatar
+                      name={
+                        detail.participants?.find((row) => row.companyId === message.senderCompanyId)
+                          ?.company.name ??
+                        detail.counterpart?.name ??
+                        'Business'
+                      }
+                      imageUrl={
+                        detail.participants?.find((row) => row.companyId === message.senderCompanyId)
+                          ?.company.logoUrl ??
+                        detail.counterpart?.logoUrl ??
+                        null
+                      }
+                      size={28}
+                    />
+                  ) : (
+                    <span className="h-7 w-7 shrink-0" aria-hidden />
+                  )
                 ) : null}
                 <TimelineItem
                   message={message}
@@ -2393,11 +2421,12 @@ export function ThreadPage() {
                   selected={selectedIds.has(message.id)}
                   highlighted={highlightId === message.id}
                   onJumpToLivingCard={
-                    isOrderLifecycleNotice(message)
+                    isOrderTaggedUpdate(message)
                       ? () => {
                           const orderId = orderLifecycleOrderId(message);
                           const livingId =
                             orderLifecycleLivingMessageId(message) ??
+                            message.replyTo?.id ??
                             (orderId ? livingOrderCardId(ordered, orderId) : null);
                           if (livingId) {
                             void jumpToMessage(livingId);
@@ -2430,6 +2459,7 @@ export function ThreadPage() {
                       : undefined
                   }
                   clusterTail={clusterTail}
+                  replyFromLabel={quotedFrom}
                   seen={Boolean(seenOnLast && lastOutgoing?.id === message.id)}
                   actions={
                     canCompose && !selecting && !systemNotice
@@ -2570,7 +2600,7 @@ export function ThreadPage() {
 
       {canCompose && !selecting ? (
         <form
-          className="flex shrink-0 flex-col gap-1.5 border-t border-line/70 bg-surface px-0 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]"
+          className="flex shrink-0 flex-col gap-1.5 border-t border-line/70 px-0 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]"
           onSubmit={(event) => {
             event.preventDefault();
             sendText();
@@ -2590,7 +2620,18 @@ export function ThreadPage() {
                 />
               ) : null}
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-emphasis text-accent">Replying to</p>
+                <p className="text-sm font-emphasis text-accent">
+                  {replyQuoteFromLabel({
+                    senderCompanyId: replyTo.senderCompanyId,
+                    viewerCompanyId: companyId,
+                    shopName:
+                      detail.participants?.find((row) => row.companyId === replyTo.senderCompanyId)
+                        ?.company.name ??
+                      (detail.counterpart?.id === replyTo.senderCompanyId
+                        ? detail.counterpart.name
+                        : (detail.type === 'direct' ? detail.counterpart?.name : null) ?? null),
+                  })}
+                </p>
                 <p className="truncate text-sm text-ink">
                   {replyComposerLabel(replyTo, replyPhotoIndex, replyProductId)}
                 </p>
@@ -2614,7 +2655,7 @@ export function ThreadPage() {
             </p>
           ) : null}
           {pendingVoice ? (
-            <div className={cx('flex min-w-0 flex-1 items-center gap-2 px-2 py-1.5', COMPOSER_SHELL_CLASS)}>
+            <div className={cx('flex min-w-0 flex-1 items-center gap-2 px-2 py-1.5', THREAD_COMPOSER_SHELL_CLASS)}>
               <VoicePlayer
                 src={pendingVoice.previewUrl}
                 durationMs={pendingVoice.durationMs}
@@ -2626,7 +2667,7 @@ export function ThreadPage() {
                 data-testid="chat-voice-discard"
                 disabled={uploadingVoice}
                 onClick={discardPendingVoice}
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-muted hover:bg-foam hover:text-ink disabled:opacity-40"
+                className={cx(THREAD_COMPOSER_CONTROL_CLASS, 'text-muted hover:bg-foam hover:text-ink disabled:opacity-40')}
               >
                 ×
               </button>
@@ -2636,7 +2677,7 @@ export function ThreadPage() {
                 data-testid="chat-voice-send"
                 disabled={uploadingVoice || send.isPending}
                 onClick={() => void sendPendingVoice()}
-                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-accent text-on-accent disabled:opacity-40"
+                className={cx(THREAD_COMPOSER_CONTROL_CLASS, 'bg-accent text-on-accent disabled:opacity-40')}
               >
                 <SendIcon width={18} height={18} />
               </button>
@@ -2650,13 +2691,13 @@ export function ThreadPage() {
               onPick={pickMention}
             />
           ) : null}
-          <div className={cx('flex min-w-0 flex-1 items-end gap-2 px-2 py-1.5', COMPOSER_SHELL_CLASS)}>
+          <div className={cx('flex min-w-0 flex-1 items-end gap-2 px-2 py-1.5', THREAD_COMPOSER_SHELL_CLASS)}>
             <button
               type="button"
               aria-label="Attach"
               data-testid="chat-attach"
               onClick={openAttach}
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-accent hover:bg-foam"
+              className={cx(THREAD_COMPOSER_CONTROL_CLASS, 'text-accent hover:bg-foam')}
             >
               <PlusIcon width={20} height={20} />
             </button>
@@ -2721,7 +2762,7 @@ export function ThreadPage() {
                 aria-label="Send"
                 data-testid="chat-send"
                 disabled={send.isPending}
-                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-accent text-on-accent disabled:opacity-40"
+                className={cx(THREAD_COMPOSER_CONTROL_CLASS, 'bg-accent text-on-accent disabled:opacity-40')}
               >
                 <SendIcon width={18} height={18} />
               </button>
@@ -2732,7 +2773,8 @@ export function ThreadPage() {
                 data-testid="chat-voice"
                 disabled={uploadingVoice || send.isPending}
                 className={cx(
-                  'flex h-9 w-9 shrink-0 touch-none items-center justify-center rounded-xl text-white disabled:opacity-40',
+                  THREAD_COMPOSER_CONTROL_CLASS,
+                  'touch-none text-white disabled:opacity-40',
                   voiceRecorder.recording ? 'bg-danger' : 'bg-accent',
                 )}
                 onPointerDown={(e) => void onVoicePointerDown(e)}
@@ -3359,49 +3401,6 @@ function InCardActor({ message, label }: { message: MessageView; label: string }
   );
 }
 
-function ReplyQuote({
-  preview,
-  mine,
-  onJump,
-}: {
-  preview: NonNullable<MessageView['replyTo']>;
-  /** Kept for call sites; both directions use ink-on-bubble reply chrome. */
-  mine: boolean;
-  onJump?: () => void;
-}) {
-  void mine;
-  const className = cx(
-    'mb-1.5 w-full rounded-lg border-l-2 border-accent bg-surface/80 px-2 py-1.5 text-left text-sm text-muted',
-    onJump && 'hover:bg-canvas active:bg-canvas',
-  );
-  const thumb = preview.photoUrl ? toAbsoluteMediaUrl(preview.photoUrl) : null;
-  const body = (
-    <span className="flex items-center gap-2">
-      {thumb ? (
-        <ManagedImage src={thumb} alt="" variant={MEDIA_VARIANT.Thumbnail1} className="h-9 w-9 shrink-0 rounded-md object-cover" />
-      ) : null}
-      <span className="min-w-0 flex-1">
-        <p className="font-emphasis text-accent">Reply</p>
-        <p className="truncate">{preview.bodyPreview ?? 'Message'}</p>
-      </span>
-    </span>
-  );
-  if (!onJump) {
-    return <div className={className}>{body}</div>;
-  }
-  return (
-    <button
-      type="button"
-      className={className}
-      onClick={(event) => {
-        event.stopPropagation();
-        onJump();
-      }}
-    >
-      {body}
-    </button>
-  );
-}
 
 type MessageActions = {
   onReply?: () => void;
@@ -3670,9 +3669,8 @@ function MessageChrome({
   return (
     <div
       className={cx(
-        'flex w-full items-end gap-2 rounded-2xl',
+        'flex w-full items-end gap-2',
         mine ? 'justify-end' : 'justify-start',
-        highlighted && 'ekum-msg-flash',
       )}
     >
       {selecting ? (
@@ -3696,6 +3694,7 @@ function MessageChrome({
         data-testid={canSwipeReply ? `message-swipe-${messageId}` : undefined}
         className={cx(
           'relative touch-pan-y group',
+          highlighted && MSG_FLASH_CLASS,
           messageChromeBubblePad(bubbleChevronPad),
           className,
         )}
@@ -3838,6 +3837,7 @@ function TimelineItem({
   onToggleSelect,
   onQuotePhoto,
   clusterTail = true,
+  replyFromLabel,
   seen = false,
   actions,
 }: {
@@ -3879,27 +3879,20 @@ function TimelineItem({
   onToggleSelect?: () => void;
   onQuotePhoto?: (index: number) => void;
   clusterTail?: boolean;
+  replyFromLabel?: string;
   seen?: boolean;
   actions?: MessageActions;
 }) {
   const navigate = useNavigate();
   if (isChatSystemNotice(message)) {
-    const text =
-      orderLifecycleNoticeText(message) ?? (message.body?.trim() || 'Notice');
-    const jump = isOrderLifecycleNotice(message) && !selecting ? onJumpToLivingCard : undefined;
+    const text = message.body?.trim() || 'Notice';
     const pill = <p className={CHAT_SYSTEM_PILL_CLASS}>{text}</p>;
     return (
       <div
         className="flex w-full justify-center py-1.5"
         data-testid={`chat-system-notice-${message.id}`}
       >
-        {jump ? (
-          <button type="button" onClick={jump} aria-label={text} className="max-w-[90%]">
-            {pill}
-          </button>
-        ) : (
-          pill
-        )}
+        {pill}
       </div>
     );
   }
@@ -3967,7 +3960,8 @@ function TimelineItem({
   const isLegacyOrderNotice =
     message.type === 'system' &&
     Boolean(ref?.id) &&
-    (ref?.kind === 'order' || meta?.kind === 'order_lines');
+    (ref?.kind === 'order' || meta?.kind === 'order_lines') &&
+    !isOrderTaggedUpdate(message);
   const isCard =
     message.type === 'order_card' ||
     message.type === 'rate' ||
@@ -4013,7 +4007,12 @@ function TimelineItem({
             ) : null}
             {reply ? (
               <div className="px-3">
-                <ReplyQuote preview={reply} mine={false} onJump={onJumpToReply} />
+                <ReplyQuote
+                  preview={reply}
+                  mine={false}
+                  fromLabel={replyFromLabel}
+                  onJump={onJumpToReply}
+                />
               </div>
             ) : null}
             <PhotoAlbum
@@ -4066,7 +4065,12 @@ function TimelineItem({
             ) : null}
             {reply ? (
               <div className="px-3">
-                <ReplyQuote preview={reply} mine={false} onJump={onJumpToReply} />
+                <ReplyQuote
+                  preview={reply}
+                  mine={false}
+                  fromLabel={replyFromLabel}
+                  onJump={onJumpToReply}
+                />
               </div>
             ) : null}
             <a
@@ -4135,7 +4139,14 @@ function TimelineItem({
           {inCardSenderLine(message, senderLabel) ? (
             <InCardActor message={message} label={senderLabel} />
           ) : null}
-          {reply ? <ReplyQuote preview={reply} mine={false} onJump={onJumpToReply} /> : null}
+          {reply ? (
+            <ReplyQuote
+              preview={reply}
+              mine={false}
+              fromLabel={replyFromLabel}
+              onJump={onJumpToReply}
+            />
+          ) : null}
           <div className="min-w-0">
             <VoicePlayer src={message.body} durationMs={durationMs} />
           </div>
@@ -4183,7 +4194,7 @@ function TimelineItem({
     } else if (names.length > 1) {
       model.primary = `${names.length} designs`;
     }
-    model.who = isGroup ? senderLabel.trim() || null : null;
+    model.who = message.mine ? inCardSenderLine(message, senderLabel) : null;
     model.details = [
       ...(askLine ? [askLine] : []),
       ...model.details.filter((line) => line !== askLine),
@@ -4276,7 +4287,7 @@ function TimelineItem({
     if (typeof meta.collectionName === 'string' && meta.collectionName.trim()) {
       model.primary = meta.collectionName.trim();
     }
-    model.who = isGroup ? senderLabel.trim() || null : null;
+    model.who = message.mine ? inCardSenderLine(message, senderLabel) : null;
     model.details = [
       ...(askLine ? [askLine] : []),
       ...model.details.filter((line) => line !== askLine),
@@ -4395,6 +4406,10 @@ function TimelineItem({
   }
 
   if (!isCard) {
+    const tagged = isOrderTaggedUpdate(message);
+    const taggedQuote = tagged ? orderTagQuotePreview(message) : null;
+    const quote = taggedQuote ?? reply;
+    const taggedLine = tagged ? orderTaggedUpdateText(message) : null;
     return (
       <MessageChrome
         messageId={message.id}
@@ -4420,11 +4435,21 @@ function TimelineItem({
           ) : (
             <>
               <InCardActor message={message} label={senderLabel} />
-              {reply ? (
-                <ReplyQuote preview={reply} mine={message.mine} onJump={onJumpToReply} />
+              {quote ? (
+                <ReplyQuote
+                  preview={quote}
+                  mine={message.mine}
+                  fromLabel={replyFromLabel}
+                  onJump={onJumpToReply ?? onJumpToLivingCard}
+                  orderTag={tagged}
+                />
               ) : null}
               <p className="overflow-hidden whitespace-pre-wrap break-words">
-                {message.body?.trim() ? hl(message.body) : 'Message'}
+                {tagged
+                  ? hl(taggedLine || message.body?.trim() || 'Order update')
+                  : message.body?.trim()
+                    ? hl(message.body)
+                    : 'Message'}
                 {message.editedAt ? (
                   <span className="text-meta text-muted"> Edited</span>
                 ) : null}
@@ -4504,7 +4529,12 @@ function TimelineItem({
       >
         <div className="flex flex-col gap-0.5">
           {reply ? (
-            <ReplyQuote preview={reply} mine={message.mine} onJump={onJumpToReply} />
+            <ReplyQuote
+              preview={reply}
+              mine={message.mine}
+              fromLabel={replyFromLabel}
+              onJump={onJumpToReply}
+            />
           ) : null}
           <ChatTradeCard
             model={tradeCard}
@@ -4541,7 +4571,12 @@ function TimelineItem({
     >
       <div className="flex flex-col gap-0.5">
         {reply ? (
-          <ReplyQuote preview={reply} mine={message.mine} onJump={onJumpToReply} />
+          <ReplyQuote
+            preview={reply}
+            mine={message.mine}
+            fromLabel={replyFromLabel}
+            onJump={onJumpToReply}
+          />
         ) : null}
         <div
           className={cx(

@@ -1,6 +1,6 @@
-import type { OrderView } from '@ekum/domain-types';
+import { shortOrderLabel, type OrderView } from '@ekum/domain-types';
 import { explorePostedWhen } from '@/ui/cards';
-import { isIHandleSellingParent } from './iHandleDesk';
+import { isIHandleSellingParent, isTraderMillHop } from './iHandleDesk';
 import { orderNeedsYouLabel } from './tradeNeedsYouLabel';
 import {
   tradeListDispatchInPlay,
@@ -9,6 +9,31 @@ import {
 } from './tradeListShipLine';
 
 const TICKET_DONE = new Set(['dispatched', 'settled', 'delivered', 'declined', 'cancelled']);
+
+/** Selling 1:1 bilateral ticket — not Direct, not I-handle, no mill desks. */
+export function isSellingBilateralTicket(
+  order: Pick<OrderView, 'direction' | 'tradeMode' | 'millDesks' | 'linkedMills'>,
+): boolean {
+  if (order.direction !== 'selling') return false;
+  if (order.tradeMode !== 'bilateral') return false;
+  if (isIHandleSellingParent(order)) return false;
+  if (order.millDesks && order.millDesks.length > 0) return false;
+  return true;
+}
+
+/** Buying 1:1 bilateral ticket — not Direct, not I-handle mill hop, no mill desks. */
+export function isBuyingBilateralTicket(
+  order: Pick<
+    OrderView,
+    'direction' | 'tradeMode' | 'millDesks' | 'downstreamOrderId'
+  >,
+): boolean {
+  if (order.direction !== 'buying') return false;
+  if (order.tradeMode !== 'bilateral') return false;
+  if (isTraderMillHop(order)) return false;
+  if (order.millDesks && order.millDesks.length > 0) return false;
+  return true;
+}
 
 /** Header subtitle: Buying · 3h ago · SSH-114 */
 export function orderTicketSubtitle(order: OrderView): string {
@@ -65,7 +90,18 @@ export type OrderTicketNote = {
   noteVoiceDurationMs: number | null;
   noteImageUrls: string[];
   forwarded: boolean;
+  /** Quiet cue when the body came from a sheet, not a free note. */
+  cue?: string | null;
 };
+
+export function orderTicketNoteCue(type: string): string | null {
+  if (type === 'confirmed') return 'On confirm';
+  if (type === 'dispatched' || type === 'part_shipped' || type === 'dispatch_edited') {
+    return 'On dispatch';
+  }
+  if (type === 'settled') return 'On settle';
+  return null;
+}
 
 function placeTimeAuthorYou(order: OrderView, viewerCompanyId: string): boolean {
   if (order.createdBySeller === true) return viewerCompanyId === order.sellerCompanyId;
@@ -76,7 +112,19 @@ function placeTimeShopName(order: OrderView): string {
   return order.createdBySeller === true ? order.sellerName : order.buyerName;
 }
 
-/** Hop-scoped Notes: place-time snapshot + later `noted` trail (not quote/dispatch). */
+function trailNoteHasBody(step: {
+  note?: string | null;
+  noteVoiceUrl?: string | null;
+  noteImageUrls?: string[] | null;
+}): boolean {
+  return (
+    Boolean(step.note?.trim()) ||
+    Boolean(step.noteVoiceUrl) ||
+    (step.noteImageUrls?.length ?? 0) > 0
+  );
+}
+
+/** Hop-scoped Notes: place-time + any trail row with a body (not only `noted`). */
 export function orderTicketNotes(order: OrderView, viewerCompanyId: string): OrderTicketNote[] {
   const notes: OrderTicketNote[] = [];
   const requested = (order.trail ?? []).find((step) => step.type === 'requested');
@@ -97,15 +145,12 @@ export function orderTicketNotes(order: OrderView, viewerCompanyId: string): Ord
       noteVoiceDurationMs: order.noteVoiceDurationMs,
       noteImageUrls: placeImages,
       forwarded: false,
+      cue: null,
     });
   }
   for (const step of order.trail ?? []) {
-    if (step.type !== 'noted') continue;
-    const hasBody =
-      Boolean(step.note?.trim()) ||
-      Boolean(step.noteVoiceUrl) ||
-      (step.noteImageUrls?.length ?? 0) > 0;
-    if (!hasBody) continue;
+    if (step.type === 'requested') continue;
+    if (!trailNoteHasBody(step)) continue;
     const mine = step.mine === true;
     notes.push({
       id: step.id,
@@ -117,9 +162,10 @@ export function orderTicketNotes(order: OrderView, viewerCompanyId: string): Ord
       noteVoiceDurationMs: step.noteVoiceDurationMs,
       noteImageUrls: step.noteImageUrls ?? [],
       forwarded: step.forwarded === true,
+      cue: step.type === 'noted' ? null : orderTicketNoteCue(step.type),
     });
   }
-  return notes;
+  return notes.sort((a, b) => a.at.localeCompare(b.at));
 }
 
 /** I-handle trader desk only — Direct / mill seller / end buyer never Forward. */
@@ -139,4 +185,27 @@ export function orderTicketForwardMills(
   return (order.millDesks ?? [])
     .filter((desk) => !desk.held)
     .map((desk) => ({ orderId: desk.upstreamOrderId, name: desk.sellerName }));
+}
+
+/** Released mill hop: trader (buyer of the mill) → parent selling order. */
+export function traderSellingHop(
+  order: Pick<OrderView, 'direction' | 'relatedOrders'>,
+): { id: string; buyerName: string } | null {
+  if (order.direction !== 'buying') return null;
+  const down = (order.relatedOrders ?? []).find(
+    (row) => row.role === 'downstream' && Boolean(row.buyerName),
+  );
+  if (!down?.buyerName) return null;
+  return { id: down.id, buyerName: down.buyerName };
+}
+
+export function traderSellingHopCopy(
+  buyerName: string,
+  orderId: string,
+): { title: string; detail: string } {
+  const hash = shortOrderLabel(orderId).replace(/^Order /, '');
+  return {
+    title: `For ${buyerName} · your selling order ${hash}`,
+    detail: `Dispatch goes straight to ${buyerName}`,
+  };
 }

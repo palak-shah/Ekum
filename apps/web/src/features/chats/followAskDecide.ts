@@ -24,6 +24,11 @@ export function defaultFollowAskGrants(): FollowAskGrants {
   ) as FollowAskGrants;
 }
 
+export function followAskGrantsForKind(kind: 'see' | 'share'): FollowAskGrants {
+  if (kind === 'share') return { see: true, share: true };
+  return defaultFollowAskGrants();
+}
+
 /** Checked grants → decide. Share (pack) wins over see (look). None → Allow stays off. */
 export function followAskAllowDecision(
   grants: Record<string, boolean>,

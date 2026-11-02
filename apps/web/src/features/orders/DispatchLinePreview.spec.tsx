@@ -43,6 +43,24 @@ describe('DispatchLinePreview', () => {
     expect(screen.queryByTestId('order-line-money-info')).toBeNull();
   });
 
+  it('Ordered is live quantity after seller edit 50→45', () => {
+    render(
+      <DispatchLinePreview
+        item={{
+          ...base,
+          quantity: 45,
+          requestedQuantity: 50,
+          remainingQuantity: 15,
+          shippedQuantity: 30,
+        }}
+        thisLrControl={stepper(15)}
+      />,
+    );
+    expect(screen.getByTestId('order-dispatch-preview-ordered')).toHaveTextContent('45');
+    expect(screen.getByTestId('order-dispatch-preview-ordered')).not.toHaveTextContent('50');
+    expect(screen.getByTestId('order-dispatch-preview-shipped')).toHaveTextContent('30');
+  });
+
   it('puts leftover/extra at the name, live with This LR', () => {
     const { rerender } = render(
       <DispatchLineRemainder item={base} thisLrQty={0} includeThisLr={false} />,

@@ -302,9 +302,11 @@ export function ChatsPage() {
                         name={ask.company.name}
                         logoUrl={ask.company.logoUrl}
                         avatarSize={48}
+                        kind={ask.kind === 'share' ? 'share' : 'see'}
                       />
                       <FollowAskDecideRow
                         disabled={decideAsk.isPending}
+                        kind={ask.kind === 'share' ? 'share' : 'see'}
                         onAllow={(decision) =>
                           decideAsk.mutate({ followerCompanyId: ask.company.id, decision })
                         }

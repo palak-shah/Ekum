@@ -203,17 +203,17 @@ function catalogWhoLine(
     senderCompanyId: message.senderCompanyId,
   });
   if (share.endsWith('forwarded')) return share;
-  if (!isGroup) return null;
+  void isGroup;
   if (message.mine) return inCardSenderLine(message, senderLabel);
-  return senderLabel.trim() || null;
+  return null;
 }
 
 function orderWhoLine(message: MessageView, senderLabel: string, isGroup: boolean): string | null {
-  if (!isGroup) return null;
+  void isGroup;
   if (message.mine) {
     return inCardSenderLine(message, senderLabel);
   }
-  return senderLabel.trim() || null;
+  return null;
 }
 
 function compactOrderDetails(
@@ -581,12 +581,7 @@ export function buildChatTradeCard(
     return {
       kind: 'complaint',
       primary: ref?.name?.trim() || message.body?.trim() || 'Complaint',
-      who:
-        options.isGroup
-          ? message.mine
-            ? inCardSenderLine(message, senderLabel)
-            : senderLabel.trim() || null
-          : null,
+      who: message.mine ? inCardSenderLine(message, senderLabel) : null,
       details: card.orderLine ? [card.orderLine] : [],
       note: card.detail || undefined,
       thumbs,

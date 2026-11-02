@@ -30,6 +30,14 @@ export class FollowController {
     return this.follows.follow(companyId, dto.companyId);
   }
 
+  @Post('share-ask')
+  requestShare(
+    @CurrentCompanyId() companyId: string,
+    @Body(new ZodValidationPipe(followSchema)) dto: FollowDto,
+  ) {
+    return this.follows.requestShare(companyId, dto.companyId);
+  }
+
   @Post('decide')
   decide(
     @CurrentCompanyId() companyId: string,

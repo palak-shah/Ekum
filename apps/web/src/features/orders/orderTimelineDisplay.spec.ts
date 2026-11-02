@@ -30,6 +30,19 @@ describe('timelineVisibleSlice', () => {
     expect(timelineVisibleSlice(rows, true).visible).toEqual(rows);
     expect(timelineVisibleSlice(rows, true).hiddenCount).toBe(0);
   });
+
+  it('collapseToHeader hides every row until expanded', () => {
+    const rows = [{ id: 'c' }, { id: 'b' }];
+    expect(timelineVisibleSlice(rows, false, true)).toEqual({
+      visible: [],
+      hiddenCount: 2,
+    });
+    expect(timelineVisibleSlice([{ id: 'c' }], false, true)).toEqual({
+      visible: [],
+      hiddenCount: 1,
+    });
+    expect(timelineVisibleSlice(rows, true, true).visible).toEqual(rows);
+  });
 });
 
 describe('timelineUpdatedDot', () => {

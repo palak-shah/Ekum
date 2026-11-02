@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AccessModule } from '../access/access.module';
 import { CatalogModule } from '../catalog/catalog.module';
+import { ConversationModule } from '../conversation/conversation.module';
 import { FollowController } from './follow.controller';
 import { ExploreController } from './explore.controller';
 import { SearchController } from './search.controller';
@@ -15,7 +16,7 @@ import { DiscoverySerializer } from './discovery.serializer';
  * (VisibilityService + contact-safe summaries) and Catalog (product serialization).
  */
 @Module({
-  imports: [AccessModule, CatalogModule],
+  imports: [AccessModule, CatalogModule, ConversationModule],
   controllers: [FollowController, ExploreController, SearchController],
   providers: [FollowService, ExploreService, SearchService, DiscoverySerializer],
 })

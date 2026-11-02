@@ -77,4 +77,26 @@ describe('NoteAttachField', () => {
     ).toBeInTheDocument();
     expect(block.querySelector('textarea')).toBeInTheDocument();
   });
+
+  it('composer puts + inside the chat field well', () => {
+    render(
+      <NoteAttachField
+        label="Note"
+        layout="composer"
+        collapseEmpty={false}
+        note=""
+        onNoteChange={vi.fn()}
+        voice={null}
+        onVoiceChange={vi.fn()}
+        images={[]}
+        onImagesChange={vi.fn()}
+        testId="order-ticket-note-attach"
+        endSlot={<button type="button">Add</button>}
+      />,
+    );
+    const shell = screen.getByTestId('note-attach-composer-shell');
+    expect(shell).toContainElement(screen.getByTestId('note-attach-plus'));
+    expect(shell.querySelector('textarea')).toBeInTheDocument();
+    expect(shell).toContainElement(screen.getByRole('button', { name: 'Add' }));
+  });
 });

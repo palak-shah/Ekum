@@ -1,6 +1,11 @@
 import type { OrderItemView } from '@ekum/domain-types';
 import { describe, expect, it } from 'vitest';
-import { ticketBillItems, ticketDisplayItems } from './orderCatalogDisplay';
+import {
+  ticketBillItems,
+  ticketCantSupplyItems,
+  ticketDisplayItems,
+  ticketSupplyableItems,
+} from './orderCatalogDisplay';
 
 function line(over: Partial<OrderItemView> & { id: string; name: string }): OrderItemView {
   return {
@@ -39,6 +44,17 @@ describe('ticketDisplayItems', () => {
       line({ id: 'b', name: 'Cotton', sourceItemId: 'parent' }),
     ]);
     expect(rows.map((row) => row.name)).toEqual(['Silk', 'Cotton']);
+  });
+});
+
+describe('ticket supplyable vs cant supply', () => {
+  it('splits declined lines off the main list', () => {
+    const rows = [
+      line({ id: 'a', name: 'Silk', lineStatus: 'confirmed' }),
+      line({ id: 'b', name: 'Cotton', lineStatus: 'declined' }),
+    ];
+    expect(ticketSupplyableItems(rows).map((row) => row.id)).toEqual(['a']);
+    expect(ticketCantSupplyItems(rows).map((row) => row.id)).toEqual(['b']);
   });
 });
 

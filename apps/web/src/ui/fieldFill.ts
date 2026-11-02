@@ -23,3 +23,14 @@ export const SELECT_FIELD_CLASS = [
 
 /** Chat Message / share composer well — inner textarea stays transparent. */
 export const COMPOSER_SHELL_CLASS = `rounded-2xl border border-line ${FIELD_IDLE_FILL_CLASS}`;
+
+/**
+ * Thread composer only — full white pill on the chat wallpaper so send/mic
+ * are not clipped. Ticket Notes / Share keep COMPOSER_SHELL_CLASS (grey).
+ */
+export const THREAD_COMPOSER_SHELL_CLASS =
+  'rounded-full border border-line overflow-visible bg-surface';
+
+/** + / mic / send inside the thread pill — not kit 48px. */
+export const THREAD_COMPOSER_CONTROL_CLASS =
+  'flex h-9 w-9 shrink-0 items-center justify-center rounded-full';

@@ -3,15 +3,17 @@ import { describe, expect, it, vi } from 'vitest';
 import { TradeLaneTicket } from '@ekum/domain-types';
 import { TradeLaneService } from './trade-lane.service';
 import type { PrismaService } from '../core/prisma/prisma.service';
-import type { ThreadService } from '../conversation/thread.service';
 
-function allowedFollowPrisma() {
+function allowedFollowPrisma(accessKind: 'look' | 'pack' = 'pack') {
   return {
     companySettings: {
       findUnique: vi.fn(async () => ({ tradeDefaults: { tradingEnabled: true } })),
     },
     follow: {
-      findUnique: vi.fn(async () => ({ status: 'allowed' })),
+      findUnique: vi.fn(async () => ({ status: 'allowed', accessKind })),
+      findMany: vi.fn(async () =>
+        accessKind === 'pack' ? [{ followedCompanyId: 'mill' }] : [],
+      ),
     },
   };
 }
@@ -36,7 +38,7 @@ describe('TradeLaneService', () => {
       },
       tradeLane: { findFirst: vi.fn(async () => existing) },
     } as unknown as PrismaService;
-    const service = new TradeLaneService(prisma, {} as ThreadService);
+    const service = new TradeLaneService(prisma);
     await expect(service.update('trader', 'lane-1', { reveal: true })).rejects.toBeInstanceOf(
       BadRequestException,
     );
@@ -47,7 +49,7 @@ describe('TradeLaneService', () => {
       ...allowedFollowPrisma(),
       tradeLane: { findMany: vi.fn(async () => []) },
     } as unknown as PrismaService;
-    const service = new TradeLaneService(prisma, {} as ThreadService);
+    const service = new TradeLaneService(prisma);
     await service.list('trader', {});
     expect(prisma.tradeLane.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -56,7 +58,7 @@ describe('TradeLaneService', () => {
     );
   });
 
-  it('creates from follow graph with mill ticket and group on', async () => {
+  it('creates from follow graph with mill ticket and no trio', async () => {
     const prisma = {
       ...allowedFollowPrisma(),
       tradeLane: {
@@ -77,23 +79,15 @@ describe('TradeLaneService', () => {
       },
       collection: { findMany: vi.fn(async () => []) },
     } as unknown as PrismaService;
-    const ensureTradeLaneGroup = vi.fn(async () => 'trio-1');
-    const service = new TradeLaneService(prisma, {
-      ensureTradeLaneGroup,
-    } as unknown as ThreadService);
+    const service = new TradeLaneService(prisma);
     const view = await service.create('trader', {
       sellerCompanyId: 'mill',
       buyerCompanyId: 'buyer',
     });
     expect(view.ticket).toBe('mill');
     expect(view.reveal).toBe(true);
-    expect(ensureTradeLaneGroup).toHaveBeenCalledWith('trader', 'mill', 'buyer', null);
-    expect(prisma.tradeLane.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { id: 'lane-new' },
-        data: { groupThreadId: 'trio-1' },
-      }),
-    );
+    expect(view.shareActive).toBe(true);
+    expect(prisma.tradeLane.update).not.toHaveBeenCalled();
     expect(prisma.tradeLane.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         create: expect.objectContaining({
@@ -104,37 +98,16 @@ describe('TradeLaneService', () => {
     );
   });
 
-  it('reuses the existing trio instead of opening another group', async () => {
+  it('rejects create when mill has not granted Share', async () => {
     const prisma = {
-      ...allowedFollowPrisma(),
-      tradeLane: {
-        upsert: vi.fn(async () => ({
-          id: 'lane-new',
-          traderCompanyId: 'trader',
-          sellerCompanyId: 'mill',
-          buyerCompanyId: 'buyer',
-          ticket: TradeLaneTicket.Mill,
-          reveal: true,
-          groupThreadId: 'trio-1',
-          behaviors: { directOrder: true, autoRepost: false },
-          updatedAt: new Date('2026-10-28'),
-          seller: { id: 'mill', name: 'Mill Co' },
-          buyer: { id: 'buyer', name: 'Buyer Co' },
-        })),
-        update: vi.fn(async () => ({})),
-      },
-      collection: { findMany: vi.fn(async () => []) },
+      ...allowedFollowPrisma('look'),
     } as unknown as PrismaService;
-    const ensureTradeLaneGroup = vi.fn(async () => 'trio-1');
-    const service = new TradeLaneService(prisma, {
-      ensureTradeLaneGroup,
-    } as unknown as ThreadService);
-    await service.create('trader', {
-      sellerCompanyId: 'mill',
-      buyerCompanyId: 'buyer',
+    const service = new TradeLaneService(prisma);
+    await expect(
+      service.create('trader', { sellerCompanyId: 'mill', buyerCompanyId: 'buyer' }),
+    ).rejects.toMatchObject({
+      response: { code: 'SHARE_REQUIRED', message: 'Ask them to share collections first.' },
     });
-    expect(ensureTradeLaneGroup).toHaveBeenCalledWith('trader', 'mill', 'buyer', 'trio-1');
-    expect(prisma.tradeLane.update).not.toHaveBeenCalled();
   });
 
   it('rejects create when mill is not followed', async () => {
@@ -144,11 +117,62 @@ describe('TradeLaneService', () => {
       },
       follow: { findUnique: vi.fn(async () => null) },
     } as unknown as PrismaService;
-    const service = new TradeLaneService(prisma, {} as ThreadService);
+    const service = new TradeLaneService(prisma);
     await expect(
       service.create('trader', { sellerCompanyId: 'mill', buyerCompanyId: 'buyer' }),
     ).rejects.toMatchObject({
       response: { message: 'Follow that supplier first.' },
     });
+  });
+
+  it('lists gray shareActive false when mill Share is off', async () => {
+    const prisma = {
+      ...allowedFollowPrisma('look'),
+      tradeLane: {
+        findMany: vi.fn(async () => [
+          {
+            id: 'lane-1',
+            traderCompanyId: 'trader',
+            sellerCompanyId: 'mill',
+            buyerCompanyId: 'buyer',
+            ticket: TradeLaneTicket.Mill,
+            reveal: true,
+            behaviors: { directOrder: true, autoRepost: false },
+            updatedAt: new Date('2026-10-31'),
+            seller: { id: 'mill', name: 'Mill Co' },
+            buyer: { id: 'buyer', name: 'Buyer Co' },
+          },
+        ]),
+      },
+    } as unknown as PrismaService;
+    const service = new TradeLaneService(prisma);
+    const views = await service.list('trader', {});
+    expect(views[0]?.shareActive).toBe(false);
+  });
+
+  it('routes Place I-handle when the mill ticket exists but Share is off', async () => {
+    const prisma = {
+      tradeLane: {
+        findUnique: vi.fn(async () => ({ ticket: TradeLaneTicket.Mill })),
+      },
+      follow: {
+        findUnique: vi.fn(async () => ({ status: 'allowed', accessKind: 'look' })),
+      },
+    } as unknown as PrismaService;
+    const service = new TradeLaneService(prisma);
+    await expect(service.pathForPair('trader', 'mill', 'buyer')).resolves.toBe('handle');
+  });
+
+  it('routes Place Direct when mill Share is on', async () => {
+    const prisma = {
+      tradeLane: {
+        findUnique: vi.fn(async () => ({ ticket: TradeLaneTicket.Mill })),
+      },
+      follow: {
+        findUnique: vi.fn(async () => ({ status: 'allowed', accessKind: 'pack' })),
+      },
+    } as unknown as PrismaService;
+    const service = new TradeLaneService(prisma);
+    await expect(service.pathForPair('trader', 'mill', 'buyer')).resolves.toBe('direct');
   });
 });

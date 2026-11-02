@@ -17,6 +17,7 @@ import { ReturnService } from './return.service';
 import { ComplaintService } from './complaint.service';
 import { OrderSerializer } from './order.serializer';
 import { OrderTrailService } from './order-trail.service';
+import { OrderAuditService } from './order-audit.service';
 import { TradeAccess } from './trade-access';
 
 /**
@@ -46,6 +47,7 @@ import { TradeAccess } from './trade-access';
     PaymentService,
     OrderSerializer,
     OrderTrailService,
+    OrderAuditService,
     TradeAccess,
   ],
 })

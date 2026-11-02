@@ -1,6 +1,5 @@
 import { TradeLaneTicket } from '@ekum/domain-types';
 import type { Prisma } from '@prisma/client';
-import { removeDirectLinkBuyersForLanes } from '../catalog/direct-link-repost-audience';
 
 export type RevokeLaneRow = {
   id: string;
@@ -48,30 +47,13 @@ export async function findAffectedDirectLinks(
 }
 
 /**
- * Close only each lane's stored trio, then delete the lane.
- * Existing orders, 1:1 chats, and other groups are untouched.
+ * Share / follow change: keep Direct Links. They gray until mill Pack returns.
+ * Trader × still deletes a lane in TradeLaneService.remove.
  */
 export async function revokeAffectedDirectLinks(
   prisma: Prisma.TransactionClient,
   actorCompanyId: string,
   counterpartCompanyId: string,
 ): Promise<RevokeLaneRow[]> {
-  const lanes = await findAffectedDirectLinks(prisma, actorCompanyId, counterpartCompanyId);
-  const closedAt = new Date();
-  const threadIds = [
-    ...new Set(lanes.map((lane) => lane.groupThreadId).filter((id): id is string => Boolean(id))),
-  ];
-  if (threadIds.length > 0) {
-    await prisma.thread.updateMany({
-      where: { id: { in: threadIds }, messagingClosedAt: null },
-      data: { messagingClosedAt: closedAt },
-    });
-  }
-  if (lanes.length > 0) {
-    await prisma.tradeLane.deleteMany({
-      where: { id: { in: lanes.map((lane) => lane.id) } },
-    });
-    await removeDirectLinkBuyersForLanes(prisma, lanes);
-  }
-  return lanes;
+  return findAffectedDirectLinks(prisma, actorCompanyId, counterpartCompanyId);
 }

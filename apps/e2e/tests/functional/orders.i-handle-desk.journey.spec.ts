@@ -57,6 +57,11 @@ test.describe('I-handle desk @functional @orders', () => {
     await page.goto(`/orders/${created.id}`);
     await expect(page.getByRole('button', { name: /Send to / })).toBeVisible({ timeout: 15_000 });
     await expect(page.locator('[data-testid^="order-mill-decline-"]')).toBeVisible();
+    const heldMillId = view.millDesks[0]?.upstreamOrderId;
+    expect(heldMillId).toBeTruthy();
+    await page.goto(`/orders/${heldMillId}`);
+    await expect(page).toHaveURL(new RegExp(`/orders/${created.id}`));
+    await expect(page.getByRole('button', { name: /Send to / })).toBeVisible({ timeout: 15_000 });
     await page.getByRole('button', { name: /Send to / }).click();
     await expect(page.getByText('Sent.')).toBeVisible({ timeout: 15_000 });
     await expect(page.getByRole('button', { name: /Send to / })).toHaveCount(0);
@@ -76,5 +81,32 @@ test.describe('I-handle desk @functional @orders', () => {
     const found = (await findRes.json()) as { results: Array<{ id: string }> };
     expect(found.results.some((row) => row.id === created.id)).toBe(true);
     expect(found.results.some((row) => row.id === millId)).toBe(false);
+
+    const millRes = await page.request.get(`${API_URL}/orders/${millId}`, {
+      headers: { authorization: `Bearer ${raviToken}` },
+    });
+    expect(millRes.ok()).toBeTruthy();
+    const millHop = (await millRes.json()) as {
+      deskOrderId?: string | null;
+      direction?: string;
+      relatedOrders?: Array<{ role: string; buyerName: string | null }>;
+    };
+    expect(millHop.deskOrderId ?? null).toBeNull();
+    expect(millHop.direction).toBe('buying');
+    expect(millHop.relatedOrders?.some((row) => row.role === 'downstream' && row.buyerName)).toBe(
+      true,
+    );
+
+    await page.goto(`/orders/${created.id}`);
+    await page.getByTestId(`order-mill-hop-link-${millId}`).click();
+    await expect(page).toHaveURL(new RegExp(`/orders/${millId}$`));
+    const hop = page.getByTestId('order-trader-selling-hop');
+    await expect(hop).toBeVisible({ timeout: 15_000 });
+    await expect(page).toHaveURL(new RegExp(`/orders/${millId}$`));
+    await expect(page.getByText('Supplier', { exact: true })).toBeVisible();
+    await expect(hop).toContainText('your selling order');
+    await expect(hop).toContainText('Dispatch goes straight to');
+    await hop.click();
+    await expect(page).toHaveURL(new RegExp(`/orders/${created.id}$`));
   });
 });

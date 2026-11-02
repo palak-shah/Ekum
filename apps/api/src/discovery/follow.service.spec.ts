@@ -71,11 +71,12 @@ describe('FollowService.follow', () => {
     const { service, create } = setup({
       target: { id: 'target' },
       blocked: false,
-      existing: { status: 'allowed' },
+      existing: { status: 'allowed', packAskPending: false },
     });
     await expect(service.follow('me', 'target')).resolves.toEqual({
       following: true,
       pending: false,
+      packAskPending: false,
     });
     expect(create).not.toHaveBeenCalled();
   });
@@ -100,20 +101,18 @@ describe('FollowService.follow', () => {
     expect(create).not.toHaveBeenCalled();
     expect(update).toHaveBeenCalledWith({
       where: { id: 'f-stop' },
-      data: { status: 'pending', accessKind: null },
+      data: { status: 'pending', accessKind: null, packAskPending: false },
     });
   });
 });
 
 describe('FollowService.unfollow', () => {
-  it('deletes the follow row and affected Direct Links in one transaction', async () => {
+  it('deletes the follow row and keeps Direct Links', async () => {
     const deleteMany = vi.fn(async () => ({ count: 1 }));
-    const findMany = vi.fn(async () => []);
     const prisma = {
       follow: { deleteMany },
-      tradeLane: { findMany, deleteMany: vi.fn(async () => ({ count: 0 })) },
-      thread: { updateMany: vi.fn(async () => ({ count: 0 })) },
-      $transaction: async (fn: (tx: unknown) => Promise<unknown>) => fn(prisma),
+      message: { create: vi.fn() },
+      thread: { update: vi.fn() },
     } as unknown as PrismaService;
     const service = new FollowService(
       prisma,
@@ -127,7 +126,6 @@ describe('FollowService.unfollow', () => {
     expect(deleteMany).toHaveBeenCalledWith({
       where: { followerCompanyId: 'me', followedCompanyId: 'shop' },
     });
-    expect(findMany).toHaveBeenCalled();
   });
 });
 
@@ -186,15 +184,13 @@ describe('FollowService.decide', () => {
         findUnique: async () => ({
           id: 'f2',
           status: 'allowed',
+          packAskPending: false,
           followerCompanyId: 'me',
           followedCompanyId: 'shop',
         }),
         delete: del,
         update,
       },
-      tradeLane: { findMany: vi.fn(async () => []), deleteMany: vi.fn(async () => ({ count: 0 })) },
-      thread: { updateMany: vi.fn(async () => ({ count: 0 })) },
-      $transaction: async (fn: (tx: unknown) => Promise<unknown>) => fn(prisma),
     } as unknown as PrismaService;
     const service = new FollowService(
       prisma,
@@ -205,7 +201,7 @@ describe('FollowService.decide', () => {
     expect(del).not.toHaveBeenCalled();
     expect(update).toHaveBeenCalledWith({
       where: { id: 'f2' },
-      data: { status: 'stopped', accessKind: null },
+      data: { status: 'stopped', accessKind: null, packAskPending: false },
     });
   });
 
@@ -231,7 +227,63 @@ describe('FollowService.decide', () => {
     await expect(service.decide('shop', 'me', 'look')).resolves.toEqual({ ok: true });
     expect(update).toHaveBeenCalledWith({
       where: { id: 'f3' },
-      data: { status: 'allowed', accessKind: 'look' },
+      data: { status: 'allowed', accessKind: 'look', packAskPending: false },
+    });
+  });
+
+  it('grants Pack on a Share upgrade without dropping Look', async () => {
+    const update = vi.fn(async () => ({}));
+    const prisma = {
+      follow: {
+        findUnique: async () => ({
+          id: 'f-share',
+          status: 'allowed',
+          packAskPending: true,
+          accessKind: 'look',
+          followerCompanyId: 'trader',
+          followedCompanyId: 'mill',
+        }),
+        update,
+        delete: vi.fn(),
+      },
+    } as unknown as PrismaService;
+    const service = new FollowService(
+      prisma,
+      {} as VisibilityService,
+      {} as DiscoverySerializer,
+    );
+    await expect(service.decide('mill', 'trader', 'pack')).resolves.toEqual({ ok: true });
+    expect(update).toHaveBeenCalledWith({
+      where: { id: 'f-share' },
+      data: { accessKind: 'pack', packAskPending: false },
+    });
+  });
+
+  it('clears a Share upgrade on Decline and keeps Look', async () => {
+    const update = vi.fn(async () => ({}));
+    const prisma = {
+      follow: {
+        findUnique: async () => ({
+          id: 'f-share',
+          status: 'allowed',
+          packAskPending: true,
+          accessKind: 'look',
+          followerCompanyId: 'trader',
+          followedCompanyId: 'mill',
+        }),
+        update,
+        delete: vi.fn(),
+      },
+    } as unknown as PrismaService;
+    const service = new FollowService(
+      prisma,
+      {} as VisibilityService,
+      {} as DiscoverySerializer,
+    );
+    await expect(service.decide('mill', 'trader', 'deny')).resolves.toEqual({ ok: true });
+    expect(update).toHaveBeenCalledWith({
+      where: { id: 'f-share' },
+      data: { packAskPending: false },
     });
   });
 });
@@ -278,5 +330,73 @@ describe('FollowService.listFollowers', () => {
         where: { followedCompanyId: 'shop', status: { in: ['allowed', 'stopped'] } },
       }),
     );
+  });
+});
+
+describe('FollowService.requestShare', () => {
+  it('sets packAskPending while Look stays', async () => {
+    const update = vi.fn(async () => ({}));
+    const prisma = {
+      company: { findUnique: async () => ({ id: 'mill' }) },
+      follow: {
+        findUnique: async () => ({
+          id: 'f-look',
+          status: 'allowed',
+          accessKind: 'look',
+          packAskPending: false,
+        }),
+        update,
+      },
+    } as unknown as PrismaService;
+    const visibility = { isBlocked: async () => false } as unknown as VisibilityService;
+    const service = new FollowService(prisma, visibility, {} as DiscoverySerializer);
+    await expect(service.requestShare('trader', 'mill')).resolves.toEqual({
+      following: true,
+      pending: false,
+      packAskPending: true,
+    });
+    expect(update).toHaveBeenCalledWith({
+      where: { id: 'f-look' },
+      data: { packAskPending: true },
+    });
+  });
+});
+
+describe('FollowService.listAsks', () => {
+  it('includes Share upgrades with kind share', async () => {
+    const findMany = vi.fn(async () => [
+      {
+        status: 'allowed',
+        packAskPending: true,
+        createdAt: new Date('2026-10-31T00:00:00.000Z'),
+        follower: { id: 'c1', name: 'Yash', city: 'Ahmedabad', verification: 'none', logoUrl: null, sellCategories: [], buyCategories: [] },
+      },
+    ]);
+    const toCompanyCard = vi.fn((company: { id: string }) => ({
+      id: company.id,
+      name: 'Yash',
+      city: 'Ahmedabad',
+      verification: 'none',
+      logoUrl: null,
+    }));
+    const prisma = { follow: { findMany } } as unknown as PrismaService;
+    const service = new FollowService(
+      prisma,
+      {} as VisibilityService,
+      { toCompanyCard } as unknown as DiscoverySerializer,
+    );
+    await expect(service.listAsks('mill')).resolves.toEqual([
+      {
+        company: {
+          id: 'c1',
+          name: 'Yash',
+          city: 'Ahmedabad',
+          verification: 'none',
+          logoUrl: null,
+        },
+        createdAt: '2026-10-31T00:00:00.000Z',
+        kind: 'share',
+      },
+    ]);
   });
 });

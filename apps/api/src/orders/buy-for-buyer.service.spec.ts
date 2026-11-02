@@ -33,8 +33,27 @@ function connectedPrisma(extra: Record<string, unknown> = {}) {
       findUnique: vi.fn(async () => ({ status: ConnectionStatus.Active })),
     },
     tradeLane: { findFirst: vi.fn(async () => null) },
+    follow: { findUnique: vi.fn(async () => null) },
+    companySettings: { findUnique: vi.fn(async () => null) },
     ...extra,
   };
+}
+
+function withAuditPrisma(prisma: PrismaService): PrismaService {
+  const merged: Record<string, unknown> = {
+    follow: { findUnique: vi.fn(async () => ({ status: 'allowed', accessKind: 'pack' })) },
+    companySettings: { findUnique: vi.fn(async () => null) },
+    ...prisma,
+  };
+  if (typeof merged.$transaction !== 'function') {
+    merged.$transaction = async (ops: unknown) => {
+      if (typeof ops === 'function') {
+        return (ops as (tx: unknown) => Promise<unknown>)(merged);
+      }
+      return Promise.all(ops as Promise<unknown>[]);
+    };
+  }
+  return merged as PrismaService;
 }
 
 function makeSvc(
@@ -43,7 +62,15 @@ function makeSvc(
   events: DomainEvents = {} as DomainEvents,
   orders: OrderService = { create: vi.fn() } as unknown as OrderService,
 ) {
-  return new BuyForBuyerService(prisma, threads, events, serializer(), orders, trail());
+  return new BuyForBuyerService(
+    withAuditPrisma(prisma),
+    threads,
+    events,
+    serializer(),
+    orders,
+    trail(),
+    { appendQty: async () => undefined } as never,
+  );
 }
 
 describe('BuyForBuyerService', () => {
@@ -303,12 +330,13 @@ describe('BuyForBuyerService', () => {
     } as unknown as DomainEvents;
     const trailSvc = trail();
     const svc = new BuyForBuyerService(
-      prisma,
+      withAuditPrisma(prisma),
       threads,
       events,
       serializer(),
       { create: vi.fn() } as unknown as OrderService,
       trailSvc,
+      { appendQty: async () => undefined } as never,
     );
     const result = await svc.create('seller', 'u1', {
       buyerCompanyId: 'buyer',

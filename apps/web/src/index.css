@@ -158,12 +158,11 @@ select:focus-visible {
 
 @keyframes ekum-msg-flash {
   0%,
-  100% {
-    box-shadow: 0 0 0 0 transparent;
+  22% {
+    box-shadow: 0 0 0 8px color-mix(in srgb, var(--ekum-accent) 14%, transparent);
   }
-  15%,
-  70% {
-    box-shadow: 0 0 0 3px var(--ekum-focus-ring);
+  100% {
+    box-shadow: 0 0 0 8px transparent;
   }
 }
 
@@ -178,8 +177,9 @@ select:focus-visible {
   animation: ekum-sheet 220ms ease-out;
 }
 
-.ekum-msg-flash {
-  animation: ekum-msg-flash 1.4s ease-out;
+.ekum-msg-flash .ekum-msg-bubble {
+  overflow: visible;
+  animation: ekum-msg-flash 1.2s ease-out;
 }
 
 /* WhatsApp cluster tail — last consecutive bubble from that side only. */

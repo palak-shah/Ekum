@@ -118,12 +118,13 @@ export function outboundMessageLabel(message: MessageView): string {
   return message.actor?.name?.trim() || 'You';
 }
 
-/** Minimal in-card sender: teammate on outgoing; business name on incoming. */
+/** Minimal in-card sender: teammate on outgoing; incoming uses wash + avatar. */
 export function inCardSenderLine(message: MessageView, partyLabel: string): string | null {
+  void partyLabel;
   if (message.mine) {
     return message.actor?.name?.trim() || null;
   }
-  return partyLabel.trim() || null;
+  return null;
 }
 
 /** Action-aware one-line preview for the chats inbox. */

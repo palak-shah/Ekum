@@ -25,6 +25,8 @@ const stubTrail = {
   backfillFromOrder: async () => undefined,
 } as unknown as OrderTrailService;
 
+const stubAudit = { appendQty: async () => undefined } as never;
+
 function Decimal(n: number) {
   return { toNumber: () => n };
 }
@@ -96,6 +98,7 @@ describe('OrderService.flipTicket', () => {
       {} as JobQueue,
       {} as ThreadService,
       stubTrail,
+      stubAudit,
     );
 
     vi.spyOn(service as never, 'loadForParty').mockResolvedValue(parent as never);
@@ -164,6 +167,7 @@ describe('OrderService.flipTicket', () => {
       {} as JobQueue,
       {} as ThreadService,
       stubTrail,
+      stubAudit,
     );
     vi.spyOn(service as never, 'loadForParty').mockResolvedValue(parent as never);
     vi.spyOn(service as never, 'hasSellerQuote').mockResolvedValue(false);

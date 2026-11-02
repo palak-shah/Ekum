@@ -1,9 +1,13 @@
 import { test, expect } from '@playwright/test';
 import {
   accessTokenFromPage,
+  acceptQuote,
+  createOrder,
   dispatchOrder,
   editShipment,
   getOrder,
+  quoteOrder,
+  setLineQuantity,
   setupConfirmedOrder,
 } from '../../helpers/orders';
 import { loginAsMeena, loginAsRavi } from '../../helpers/persona';
@@ -86,8 +90,12 @@ test.describe('order fulfillment @functional @release @orders', () => {
     await loginAsRavi(page);
     await page.goto(`/orders/${orderId}`);
     await expect(page.getByText('Part shipped').first()).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByTestId('order-line-fact-shipped').first()).toBeVisible();
-    await expect(page.getByTestId('order-line-fact-balance').first()).toBeVisible();
+    await expect(page.getByTestId('order-line-facts').first()).toHaveAttribute(
+      'data-density',
+      'ticket',
+    );
+    await expect(page.getByTestId('order-line-fact-qty').first()).toContainText('sent');
+    await expect(page.getByTestId('order-line-ship-bar').first()).toBeVisible();
     await expect(page.getByTestId('order-settle-open')).toBeVisible();
 
     await page.getByTestId('order-settle-open').click();
@@ -195,6 +203,47 @@ test.describe('order fulfillment @functional @release @orders', () => {
     });
   });
 
+  test('seller qty 50→45 is live ordered qty on ticket and Dispatch', async ({ page }) => {
+    test.setTimeout(90_000);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await loginAsMeena(page);
+    const meenaToken = await accessTokenFromPage(page);
+    await loginAsRavi(page);
+    const raviToken = await accessTokenFromPage(page);
+    const placed = await createOrder(page.request, meenaToken, {
+      sellerCompanyId: 'seed-company-ravi',
+      intent: 'order',
+      items: [{ productId: 'seed-prod-1', quantity: 50 }],
+    });
+    const detailed = await getOrder(page.request, raviToken, placed.id);
+    const first = detailed.items[0];
+    if (!first) throw new Error('expected order items');
+    await quoteOrder(page.request, raviToken, placed.id, [
+      { orderItemId: first.id, rate: 120, quantity: 50 },
+    ]);
+    await acceptQuote(page.request, meenaToken, placed.id);
+    await dispatchOrder(page.request, raviToken, placed.id, {
+      items: [{ orderItemId: first.id, quantity: 30 }],
+    });
+    await setLineQuantity(page.request, raviToken, placed.id, [
+      { orderItemId: first.id, quantity: 45 },
+    ]);
+
+    await loginAsRavi(page);
+    await page.goto(`/orders/${placed.id}`);
+    await expect(page.getByTestId('order-ticket-progress')).toContainText('30 of 45', {
+      timeout: 15_000,
+    });
+    await expect(page.getByTestId('order-line-fact-qty').first()).toContainText('30 of 45');
+    await expect(page.getByTestId('order-ticket-qty-total')).toContainText('45');
+    await expect(page.getByTestId('order-ticket-qty-total')).not.toContainText('50');
+    await page.getByTestId('order-dispatch-open').click();
+    const dispatchSheet = page.getByRole('dialog');
+    await expect(dispatchSheet.getByRole('heading', { name: 'Dispatch', exact: true })).toBeVisible();
+    await expect(dispatchSheet.getByTestId('order-dispatch-preview-ordered')).toContainText('45');
+    await expect(dispatchSheet.getByTestId('order-dispatch-preview-ordered')).not.toContainText('50');
+  });
+
   test('line expand edits Ordered qty and Can’t supply — no Last LR', async ({ page }) => {
     test.setTimeout(90_000);
     await loginAsMeena(page);
@@ -231,9 +280,9 @@ test.describe('order fulfillment @functional @release @orders', () => {
 
     await expect(page.getByTestId('order-line-expand')).toBeVisible();
     await page.getByTestId('order-line-cant-supply-toggle').click();
-    await expect(page.getByTestId('order-line-cant-supply').first()).toBeVisible({
-      timeout: 15_000,
-    });
+    await expect(page.getByTestId('order-cant-supply-more')).toBeVisible({ timeout: 15_000 });
+    await page.getByTestId('order-cant-supply-more').locator('summary').click();
+    await expect(page.getByTestId('order-line-cant-supply').first()).toBeVisible();
   });
 
   test('ticket ⋯ Order form PDF — both parties, Open/Share, no Show buyer', async ({ page }) => {

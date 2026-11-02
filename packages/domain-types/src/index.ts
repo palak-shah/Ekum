@@ -19,6 +19,7 @@ export * from './catalog-whole-group';
 export * from './trade-needs-you';
 export * from './order-timeline';
 export * from './order-trail';
+export * from './order-audit';
 export * from './order-events';
 export * from './broadcast';
 export * from './referral';

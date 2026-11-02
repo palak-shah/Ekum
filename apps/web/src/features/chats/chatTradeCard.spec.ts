@@ -54,7 +54,7 @@ describe('buildOrderTradeCard slots', () => {
     expect(model.thumbs).toHaveLength(1);
   });
 
-  it('shows shop who only in a group thread', () => {
+  it('omits incoming shop who in a group thread (avatar says who)', () => {
     const message = orderMessage();
     const model = buildOrderTradeCard(
       message,
@@ -64,7 +64,7 @@ describe('buildOrderTradeCard slots', () => {
       {},
       true,
     );
-    expect(model.who).toBe('Jaipur Emporium');
+    expect(model.who).toBeNull();
   });
 
   it('omits logged an order from details', () => {
@@ -75,7 +75,7 @@ describe('buildOrderTradeCard slots', () => {
     expect(model.details.some((line) => /logged an order/i.test(line))).toBe(false);
   });
 
-  it('puts mill-lot parent and For-order body under thumbs as the note', () => {
+  it('omits mill-lot parent hashes from the chat card note', () => {
     const message = orderMessage({
       body: 'For order #HANDLE — mill lot',
       metadata: {
@@ -96,7 +96,7 @@ describe('buildOrderTradeCard slots', () => {
     });
     const model = buildOrderTradeCard(message, message.reference, 'Surat Silk House', false);
     expect(model.details).toEqual(['1 design']);
-    expect(model.note).toBe('Part of Order #DOWN\nFor order #HANDLE — mill lot');
+    expect(model.note).toBeUndefined();
     expect(model.thumbs).toEqual(['https://example.com/a.jpg']);
   });
 

@@ -5,7 +5,7 @@ import { EXPLORE_BUSINESSES_SEARCH_HREF } from '@/features/explore/exploreDiscov
 import { FindInExploreLink } from '@/ui/FindInExploreLink';
 import { uniqueConnectionsByCompany } from '@/ui/uniqueConnections';
 import { ChevronRightIcon } from '@/ui/icons';
-import { Avatar, Button, SearchInput, Sheet, cx } from '@/ui/kit';
+import { Avatar, Button, compactCta, SearchInput, Sheet, cx } from '@/ui/kit';
 
 type SingleProps = {
   mode: 'single';
@@ -36,6 +36,13 @@ type CommonProps = {
   onMessageFound?: (companyId: string) => void;
   /** Find on Ekum finished with zero hits. */
   onFindMissChange?: (miss: boolean) => void;
+  /** Direct Link mill: Request share when Share is off. */
+  rowAction?: (companyId: string) => {
+    selectable: boolean;
+    label: string;
+    onAction?: () => void;
+    pending?: boolean;
+  };
 };
 
 export type ConnectionPickerProps = CommonProps & (SingleProps | MultiProps);
@@ -114,16 +121,19 @@ export function ConnectionPicker(props: ConnectionPickerProps) {
         <div className="flex flex-col gap-1.5">
           {filtered.map((connection) => {
             const selected = selectedIds.has(connection.company.id);
-            return (
-              <button
-                key={connection.company.id}
-                type="button"
-                onClick={() => toggle(connection.company.id)}
-                className={cx(
-                  'flex items-center gap-3 rounded-xl border px-3 py-2.5 text-left',
-                  selected ? 'border-accent bg-accent/5' : 'border-line bg-surface',
-                )}
-              >
+            const action = props.rowAction?.(connection.company.id);
+            const selectable = action?.selectable !== false;
+            const cta =
+              action?.label ??
+              (props.mode === 'single'
+                ? selected
+                  ? 'Selected'
+                  : 'Select'
+                : selected
+                  ? 'Selected'
+                  : 'Add');
+            const body = (
+              <>
                 <Avatar
                   name={connection.company.name}
                   imageUrl={connection.company.logoUrl}
@@ -133,15 +143,37 @@ export function ConnectionPicker(props: ConnectionPickerProps) {
                   <p className="truncate text-sm font-emphasis text-ink">{connection.company.name}</p>
                   <p className="truncate text-xs text-muted">{connection.company.city}</p>
                 </div>
-                <span className="shrink-0 text-xs text-muted">
-                  {props.mode === 'single'
-                    ? selected
-                      ? 'Selected'
-                      : 'Select'
-                    : selected
-                      ? 'Selected'
-                      : 'Add'}
-                </span>
+              </>
+            );
+            const rowClass = cx(
+              'flex items-center gap-3 rounded-xl border px-3 py-2.5 text-left',
+              selected && selectable ? 'border-accent bg-accent/5' : 'border-line bg-surface',
+            );
+            if (!selectable) {
+              return (
+                <div key={connection.company.id} className={rowClass}>
+                  {body}
+                  <button
+                    type="button"
+                    className={cx(compactCta, 'bg-accent text-on-accent')}
+                    disabled={action?.pending || !action?.onAction}
+                    data-testid={`picker-request-${connection.company.id}`}
+                    onClick={() => action?.onAction?.()}
+                  >
+                    {cta}
+                  </button>
+                </div>
+              );
+            }
+            return (
+              <button
+                key={connection.company.id}
+                type="button"
+                onClick={() => toggle(connection.company.id)}
+                className={rowClass}
+              >
+                {body}
+                <span className="shrink-0 text-xs text-muted">{cta}</span>
               </button>
             );
           })}
