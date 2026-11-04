@@ -164,7 +164,7 @@ import { orderBillTotal } from '@/features/orders/orderLineBilling';
 import { catalogRateDisplayUnit } from '@/lib/catalogRate';
 import { AmendOrderSheet } from '@/features/orders/AmendOrderSheet';
 import {
-  catalogPeerProductIds,
+  catalogPeerOrderItemIds,
   ticketBillItems,
   ticketCantSupplyItems,
   ticketDisplayItems,
@@ -175,11 +175,13 @@ import { TransporterField } from '@/features/orders/TransporterField';
 import { rememberTransporter } from '@/features/orders/transporterMemory';
 import { dispatchTransporterPrefill } from '@/features/orders/dispatchTransporterPrefill';
 import {
+  BUYER_TALKS_TO_YOU,
   itemsForMill,
+  leftoverYouHasDeclined,
+  leftoverYouHasRemaining,
+  leftoverYouItems,
   millCue,
-  millDeskCardClass,
   millDeskDropped,
-  millFromToCells,
   millLineForParent,
   actorSellsThisOrder,
   orderActionDock,
@@ -187,7 +189,18 @@ import {
   showMillSendAll,
   showOrderParentItemsList,
   showSellerConfirmOnDesk,
+  showYouFulfilmentCard,
+  hideManagePartyCard,
+  millFulfilmentOpenSubtitle,
+  millFulfilmentWaitLabel,
+  millHopAcceptWaitLabel,
+  millCardLineRateCaption,
+  millCardLineProgressCaption,
+  deskChatTargets,
+  isTraderMillHop,
 } from '@/features/orders/iHandleDesk';
+import { FulfilmentDeskCard } from '@/features/orders/FulfilmentDeskCard';
+import { OrderTradeSummary } from '@/features/orders/OrderTradeSummary';
 import {
   parseQuoteRateDraft,
   quoteRateNumber,
@@ -216,6 +229,7 @@ import {
   TextArea,
   TextInput,
   cx,
+  listRowClass,
 } from '@/ui/kit';
 import { listSquareButtonClass } from '@/ui/ListSearchRow';
 import { COMPACT_QTY_INPUT_CLASS, COMPACT_SHEET_NUM_INPUT_CLASS, COMPACT_SHEET_RATE_INPUT_CLASS } from '@/ui/mobileOverflow';
@@ -245,11 +259,28 @@ function SellingDockChat({
   to,
   chatOnly,
   counterpartName,
+  onPick,
 }: {
-  to: string;
+  to?: string;
   chatOnly: boolean;
   counterpartName: string;
+  /** Multi-party desk: open who-to-chat sheet instead of a direct link. */
+  onPick?: () => void;
 }) {
+  if (onPick) {
+    return (
+      <button
+        type="button"
+        data-testid="order-open-chat"
+        aria-label="Chat"
+        className={listSquareButtonClass}
+        onClick={onPick}
+      >
+        <ChatIcon width={20} height={20} aria-hidden />
+      </button>
+    );
+  }
+  if (!to) return null;
   if (chatOnly) {
     return (
       <Link to={to} data-testid="order-open-chat" className={SELLING_CHAT_ONLY_CLASS}>
@@ -805,6 +836,7 @@ export function OrderDetailPage() {
   const [noteViewerUrls, setNoteViewerUrls] = useState<string[] | null>(null);
   const [noteViewerCaption, setNoteViewerCaption] = useState<string | null>(null);
   const [orderMenuOpen, setOrderMenuOpen] = useState(false);
+  const [deskChatPickerOpen, setDeskChatPickerOpen] = useState(false);
   const [complaintAgainstOpen, setComplaintAgainstOpen] = useState(false);
   const [complaintTargets, setComplaintTargets] = useState<ComplaintAgainstTarget[]>([]);
   const [ticketNote, setTicketNote] = useState('');
@@ -935,9 +967,15 @@ export function OrderDetailPage() {
   });
 
   const millHold = useMutation({
-    mutationFn: (body: { upstreamOrderId: string; held: boolean }) =>
-      api.post<OrderView>(`/orders/${id}/mill-hold`, body),
-    onSuccess: refresh,
+    mutationFn: (body: { parentOrderId: string; upstreamOrderId: string; held: boolean }) =>
+      api.post<OrderView>(`/orders/${body.parentOrderId}/mill-hold`, {
+        upstreamOrderId: body.upstreamOrderId,
+        held: body.held,
+      }),
+    onSuccess: (_view, vars) => {
+      refresh();
+      showToast(vars.held ? 'Pass-through held' : 'Pass-through resumed');
+    },
     onError: (err) => showToast(actionErrorMessage(err, 'Could not update.'), 'danger'),
   });
 
@@ -979,8 +1017,8 @@ export function OrderDetailPage() {
     const notes: Record<string, string> = {};
     for (const item of items) {
       if (item.productId) {
-        qty[item.productId] = String(item.quantity);
-        notes[item.productId] = item.note ?? '';
+        qty[item.id] = String(item.quantity);
+        notes[item.id] = item.note ?? '';
       }
     }
     setAmendQty(qty);
@@ -994,13 +1032,13 @@ export function OrderDetailPage() {
   const amendOrder = useMutation({
     mutationFn: () => {
       const items = (order.data?.items ?? [])
-        .filter((item) => item.productId && !amendRemoved.has(item.productId))
+        .filter((item) => item.productId && !amendRemoved.has(item.id))
         .map((item) => {
-          const pid = item.productId!;
-          const lineNote = (amendLineNotes[pid] ?? item.note ?? '').trim();
+          const lineNote = (amendLineNotes[item.id] ?? item.note ?? '').trim();
           return {
-            productId: pid,
-            quantity: Number(amendQty[pid] || item.quantity),
+            orderItemId: item.id,
+            productId: item.productId!,
+            quantity: Number(amendQty[item.id] || item.quantity),
             images: [] as string[],
             ...(lineNote ? { note: lineNote } : {}),
           };
@@ -1037,13 +1075,23 @@ export function OrderDetailPage() {
   });
 
   const dispatchLines = useMemo(
-    () => ticketDisplayItems(fulfillDispatchItems(order.data?.items ?? [])),
-    [order.data?.items],
+    () =>
+      ticketDisplayItems(
+        fulfillDispatchItems(
+          leftoverYouItems(order.data?.items ?? [], order.data?.millDesks),
+        ),
+      ),
+    [order.data?.items, order.data?.millDesks],
   );
 
   const declinedDispatchItems = useMemo(
-    () => ticketDisplayItems(cantSupplyDispatchItems(order.data?.items ?? [])),
-    [order.data?.items],
+    () =>
+      ticketDisplayItems(
+        cantSupplyDispatchItems(
+          leftoverYouItems(order.data?.items ?? [], order.data?.millDesks),
+        ),
+      ),
+    [order.data?.items, order.data?.millDesks],
   );
 
   const dispatchTally = useMemo(
@@ -1540,7 +1588,9 @@ export function OrderDetailPage() {
   };
 
   const openDispatchSheet = () => {
-    const lines = fulfillDispatchItems(order.data?.items ?? []);
+    const lines = fulfillDispatchItems(
+      leftoverYouItems(order.data?.items ?? [], order.data?.millDesks),
+    );
     setEditingShipmentId(null);
     setPriorListOpen(false);
     setShipOn(defaultDispatchOn(lines));
@@ -1628,10 +1678,8 @@ export function OrderDetailPage() {
     const data = order.data;
     if (!data) return 'none';
     const isSeller = actorSellsThisOrder(data.sellerCompanyId, companyId);
-    const hasRemaining = data.items.some((item) => item.remainingQuantity > 0);
-    const hasDeclinedToRestore = data.items.some(
-      (item) => item.lineStatus === 'declined',
-    );
+    const hasRemaining = leftoverYouHasRemaining(data.items, data.millDesks);
+    const hasDeclinedToRestore = leftoverYouHasDeclined(data.items, data.millDesks);
     const openForDispatch =
       data.status === 'confirmed' || data.status === 'part_shipped';
     return orderActionDock({
@@ -1643,6 +1691,7 @@ export function OrderDetailPage() {
       canAmend: data.canAmend === true,
       canAcceptQuote: data.canAcceptQuote === true,
       createdBySeller: data.createdBySeller === true,
+      isTraderMillHop: isTraderMillHop(data),
       openForDispatch,
       hasRemaining,
       hasDeclinedToRestore,
@@ -1700,6 +1749,14 @@ export function OrderDetailPage() {
   };
   const isSeller = actorSellsThisOrder(data.sellerCompanyId, companyId);
   const isBuyer = data.direction === 'buying';
+  const manageDeskNoParty = hideManagePartyCard(data.direction, data.millDesks);
+  const manageDeskChatTargets = manageDeskNoParty
+    ? deskChatTargets({
+        buyerName: data.buyerName || data.counterpart?.name || 'Buyer',
+        buyerThreadId: data.threadId,
+        millDesks: data.millDesks,
+      })
+    : [];
   const millSendPatches = (desk: (typeof data.millDesks)[number]) =>
     itemsForMill(data.items, desk)
       .map((item) => ({
@@ -1708,13 +1765,13 @@ export function OrderDetailPage() {
         rate: quoteRateNumber(millRate[item.id]) ?? undefined,
       }))
       .filter((row) => row.productId);
-  const hasRemaining = data.items.some((item) => item.remainingQuantity > 0);
-  const hasDeclinedToRestore = data.items.some(
-    (item) => item.lineStatus === 'declined',
-  );
+  const youItems = leftoverYouItems(ticketDisplayItems(data.items), data.millDesks);
+  const hasRemaining = leftoverYouHasRemaining(data.items, data.millDesks);
+  const hasDeclinedToRestore = leftoverYouHasDeclined(data.items, data.millDesks);
   const openForDispatch =
     data.status === 'confirmed' || data.status === 'part_shipped';
   const confirmOnFace = showSellerConfirmOnDesk(data.millDesks);
+  const traderMillHop = isTraderMillHop(data);
   const actionDock = orderActionDock({
     isSeller,
     status: data.status,
@@ -1724,6 +1781,7 @@ export function OrderDetailPage() {
     canAmend: data.canAmend === true,
     canAcceptQuote: data.canAcceptQuote === true,
     createdBySeller: data.createdBySeller === true,
+    isTraderMillHop: traderMillHop,
     openForDispatch,
     hasRemaining,
     hasDeclinedToRestore,
@@ -1733,6 +1791,15 @@ export function OrderDetailPage() {
   const isInquiry = data.intent === 'inquiry';
   const idLabel = shortOrderLabel(data.id, { inquiry: isInquiry });
   const ticketWaiting = orderTicketWaitingCue(data);
+  const millHopAcceptWait =
+    traderMillHop && data.status === 'requested'
+      ? millHopAcceptWaitLabel(data.sellerName || data.counterpart?.name || 'supplier')
+      : null;
+  const showMillHopChat = traderMillHop && Boolean(chatTo);
+  const millHopCanCancel =
+    traderMillHop &&
+    data.createdBySeller !== true &&
+    (data.status === 'requested' || data.status === 'confirmed');
   const hasPersonalNote = Boolean(
     data.personalNote &&
       (data.personalNote.note ||
@@ -1940,11 +2007,22 @@ export function OrderDetailPage() {
       </Card>
     ) : null;
 
+  const showManageDeskChat = manageDeskNoParty && manageDeskChatTargets.length > 0;
+  const showManageDeskWait =
+    manageDeskNoParty && actionDock.kind === 'none' && Boolean(ticketWaiting);
+  const showOrderDock =
+    oneToOneTicket ||
+    actionDock.kind !== 'none' ||
+    showManageDeskChat ||
+    showManageDeskWait ||
+    showMillHopChat ||
+    Boolean(millHopAcceptWait);
+
   return (
     <div
       className={cx(
         'flex flex-col gap-4',
-        (oneToOneTicket || actionDock.kind !== 'none') && BOTTOM_DOCK_CLEARANCE_CLASS,
+        showOrderDock && BOTTOM_DOCK_CLEARANCE_CLASS,
       )}
     >
       <PageHeader
@@ -2017,6 +2095,43 @@ export function OrderDetailPage() {
                   testId: 'order-complaint',
                   onClick: () => void openComplaintFromOrder(),
                 },
+                ...(traderMillHop &&
+                data.downstreamOrderId &&
+                !data.deskOrderId
+                  ? [
+                      {
+                        id: 'mill-pass-hold',
+                        label: data.passHeld ? 'Resume' : 'Hold',
+                        icon: <LockIcon width={20} height={20} />,
+                        testId: data.passHeld ? 'order-mill-resume' : 'order-mill-hold',
+                        disabled: millHold.isPending,
+                        onClick: () => {
+                          setOrderMenuOpen(false);
+                          millHold.mutate({
+                            parentOrderId: data.downstreamOrderId!,
+                            upstreamOrderId: data.id,
+                            held: !data.passHeld,
+                          });
+                        },
+                      },
+                    ]
+                  : []),
+                ...(millHopCanCancel
+                  ? [
+                      {
+                        id: 'mill-hop-cancel',
+                        label: isInquiry ? 'Cancel inquiry' : 'Cancel',
+                        icon: <CloseIcon width={20} height={20} />,
+                        testId: 'order-mill-hop-cancel',
+                        onClick: () => {
+                          setOrderMenuOpen(false);
+                          setActionNote('');
+                          setActionNoteVoice(null);
+                          setActionNoteOpen('cancel');
+                        },
+                      },
+                    ]
+                  : []),
               ]}
             />
           </div>
@@ -2025,6 +2140,7 @@ export function OrderDetailPage() {
 
       {!oneToOneTicket ? personalNotePreview : null}
 
+      {!manageDeskNoParty ? (
       <Card className="flex flex-col gap-1 text-sm">
         <div className="flex flex-col gap-1">
           {(() => {
@@ -2045,6 +2161,7 @@ export function OrderDetailPage() {
             return orderPartyLines(partyCtx).map((line) => {
               const showChat =
                 !oneToOneTicket &&
+                !traderMillHop &&
                 Boolean(chatTo) &&
                 partyLineShowsOpenChat(line, partyCtx);
               const logoUrl =
@@ -2097,7 +2214,7 @@ export function OrderDetailPage() {
             });
           })()}
         </div>
-        {!oneToOneTicket && ticketWaiting ? (
+        {!oneToOneTicket && !traderMillHop && ticketWaiting ? (
           <p
             data-testid="order-ticket-waiting"
             className="flex items-center gap-1.5 pt-1 text-sm text-muted"
@@ -2119,6 +2236,7 @@ export function OrderDetailPage() {
           </p>
         ) : null}
       </Card>
+      ) : null}
 
       {oneToOneTicket ? personalNotePreview : null}
 
@@ -2171,6 +2289,16 @@ export function OrderDetailPage() {
         );
       })()}
 
+      {data.millDesks && data.millDesks.length > 0 ? (
+        <>
+          <OrderTradeSummary
+            buyerName={data.buyerName || data.counterpart?.name || 'Buyer'}
+            millDesks={data.millDesks}
+            includeMillNames={isSeller}
+          />
+        </>
+      ) : null}
+
       {data.millDesks && data.millDesks.length > 0
         ? data.millDesks.map((desk) => {
             const rows = itemsForMill(data.items, desk);
@@ -2178,40 +2306,24 @@ export function OrderDetailPage() {
             const millDropped = millDeskDropped(desk);
             if (isBuyer) {
               return (
-                <Card
+                <FulfilmentDeskCard
                   key={desk.upstreamOrderId}
-                  className={cx('flex flex-col gap-3', millDeskCardClass(millDropped))}
-                  data-testid={
+                  title={desk.sellerName}
+                  subtitle={
+                    millDropped
+                      ? 'Declined'
+                      : cue ?? `${rows.length} design${rows.length === 1 ? '' : 's'}`
+                  }
+                  hopOrderId={!desk.held && !millDropped ? desk.upstreamOrderId : null}
+                  hopLinked={false}
+                  status={!desk.held && !millDropped ? desk.status : null}
+                  dropped={millDropped}
+                  testId={
                     millDropped
                       ? `order-mill-declined-${desk.upstreamOrderId}`
                       : `order-buyer-mill-${desk.upstreamOrderId}`
                   }
                 >
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <p className="text-sm font-emphasis text-ink">
-                        {desk.sellerName}
-                        {!desk.held && !millDropped ? (
-                          <span className="ml-1.5 text-xs font-emphasis text-accent">
-                            {shortOrderLabel(desk.upstreamOrderId)}
-                          </span>
-                        ) : null}
-                      </p>
-                      <p className="text-xs text-muted">
-                        {millDropped
-                          ? 'Declined'
-                          : cue ?? `${rows.length} design${rows.length === 1 ? '' : 's'}`}
-                      </p>
-                    </div>
-                    {!desk.held && !millDropped ? (
-                      <StatusPill
-                        status={desk.status === 'requested' ? 'requested' : desk.status}
-                        label={tradeListStatusLabel(
-                          desk.status === 'requested' ? 'requested' : desk.status,
-                        )}
-                      />
-                    ) : null}
-                  </div>
                   <OrderTicketBillBlock items={rows} showBill={desk.showBillTotal === true}>
                   <OrderUnitGroupedList
                     items={rows}
@@ -2253,97 +2365,41 @@ export function OrderDetailPage() {
                     }}
                   </OrderUnitGroupedList>
                   </OrderTicketBillBlock>
-                </Card>
+                </FulfilmentDeskCard>
               );
             }
+            const millOpenable = !desk.held && !millDropped;
             return (
-              <Card
+              <FulfilmentDeskCard
                 key={desk.upstreamOrderId}
-                className={cx('flex flex-col gap-3', millDeskCardClass(millDropped))}
-                data-testid={millDropped ? `order-mill-declined-${desk.upstreamOrderId}` : undefined}
+                title={desk.sellerName}
+                subtitle={
+                  millDropped
+                    ? 'Declined'
+                    : desk.held
+                      ? cue ?? `${rows.length} design${rows.length === 1 ? '' : 's'}`
+                      : desk.passHeld
+                        ? 'Held'
+                        : cue ?? `${rows.length} design${rows.length === 1 ? '' : 's'}`
+                }
+                hopOrderId={millOpenable ? desk.upstreamOrderId : null}
+                hopLinked={millOpenable}
+                hopLinkTestId={`order-mill-hop-link-${desk.upstreamOrderId}`}
+                status={millOpenable ? desk.status : null}
+                dropped={millDropped}
+                openRow={millOpenable}
+                openSubtitle={
+                  millOpenable
+                    ? millFulfilmentOpenSubtitle(
+                        desk.upstreamOrderId,
+                        millFulfilmentWaitLabel(desk),
+                      )
+                    : null
+                }
+                showTitleOrderId={false}
+                showStatus={false}
+                testId={millDropped ? `order-mill-declined-${desk.upstreamOrderId}` : undefined}
               >
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <p className="text-sm font-emphasis text-ink">
-                      {desk.sellerName}
-                      {!desk.held && !millDropped ? (
-                        <Link
-                          to={`/orders/${desk.upstreamOrderId}`}
-                          data-testid={`order-mill-hop-link-${desk.upstreamOrderId}`}
-                          className="ml-1.5 text-xs font-emphasis text-accent"
-                        >
-                          {shortOrderLabel(desk.upstreamOrderId)}
-                        </Link>
-                      ) : null}
-                    </p>
-                    <p className="text-xs text-muted">
-                      {millDropped
-                        ? 'Declined'
-                        : desk.passHeld
-                          ? 'Held'
-                          : cue ?? `${rows.length} design${rows.length === 1 ? '' : 's'}`}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    {desk.millThreadId && !desk.held && !millDropped ? (
-                      <Link
-                        to={`/chats/${desk.millThreadId}`}
-                        data-testid={`order-mill-open-chat-${desk.upstreamOrderId}`}
-                        aria-label={`Open chat with ${desk.sellerName}`}
-                        className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-accent hover:bg-foam"
-                      >
-                        <ChatIcon width={20} height={20} />
-                      </Link>
-                    ) : null}
-                    {!desk.held && !millDropped ? (
-                      <StatusPill
-                        status={desk.status === 'requested' ? 'requested' : desk.status}
-                        label={tradeListStatusLabel(
-                          desk.status === 'requested' ? 'requested' : desk.status,
-                        )}
-                      />
-                    ) : null}
-                    {!desk.held && !millDropped ? (
-                      <details className="relative">
-                        <summary className="cursor-pointer list-none px-1 text-lg leading-none text-muted">
-                          ⋯
-                        </summary>
-                        <div className="absolute right-0 z-20 mt-1 min-w-[9rem] rounded-xl border border-line bg-surface p-1 shadow-sm">
-                          <button
-                            type="button"
-                            className="block w-full rounded-lg px-3 py-2 text-left text-sm text-ink hover:bg-foam"
-                            disabled={millHold.isPending}
-                            onClick={() =>
-                              millHold.mutate({
-                                upstreamOrderId: desk.upstreamOrderId,
-                                held: !desk.passHeld,
-                              })
-                            }
-                          >
-                            {desk.passHeld ? `Resume ${desk.sellerName}` : `Hold ${desk.sellerName}`}
-                          </button>
-                        </div>
-                      </details>
-                    ) : null}
-                  </div>
-                </div>
-                {!desk.held && desk.millQuoted ? (
-                  <div className="grid grid-cols-[minmax(0,1fr)_4.5rem_4.5rem] items-end gap-2 border-t border-line pt-2">
-                    <p className={compactQtyFieldLabelClass}>Design</p>
-                    <p className={cx(compactQtyFieldLabelClass, 'text-center')}>
-                      From
-                      <span className="mt-0.5 block truncate normal-case tracking-normal text-muted">
-                        {desk.sellerName}
-                      </span>
-                    </p>
-                    <p className={cx(compactQtyFieldLabelClass, 'text-center')}>
-                      To
-                      <span className="mt-0.5 block truncate normal-case tracking-normal text-muted">
-                        {data.counterpart.name}
-                      </span>
-                    </p>
-                  </div>
-                ) : null}
                 {desk.held ? (
                   <div className="flex flex-col gap-2 border-t border-line pt-2">
                     {rows.length > 1 ? (
@@ -2372,56 +2428,93 @@ export function OrderDetailPage() {
                       />
                     ) : null}
                     <div
-                      className="grid grid-cols-[minmax(0,1fr)_4.5rem_7rem] gap-x-2 gap-y-0"
+                      className="flex flex-col"
+                      data-testid="order-mill-held-lines"
                       {...{ [ORDER_QTY_SCOPE_ATTR]: '' }}
                     >
-                      <p className={cx(compactQtyFieldLabelClass, 'pb-2')}>Design</p>
-                      <p className={cx(compactQtyFieldLabelClass, 'pb-2 text-center')}>Qty</p>
-                      <p className={cx(compactQtyFieldLabelClass, 'pb-2 text-center')}>Rate</p>
-                      {rows.map((item) => {
+                      <div
+                        className="flex items-end gap-2 pb-1"
+                        data-testid="order-mill-held-field-labels"
+                        aria-hidden
+                      >
+                        <div className="min-w-0 flex-1" />
+                        <div className="flex shrink-0 gap-1.5">
+                          <p
+                            className={cx(
+                              compactQtyFieldLabelClass,
+                              'w-12 text-center',
+                            )}
+                          >
+                            Qty
+                          </p>
+                          <p
+                            className={cx(
+                              compactQtyFieldLabelClass,
+                              'w-16 text-center',
+                            )}
+                          >
+                            Rate
+                          </p>
+                        </div>
+                      </div>
+                      {rows.map((item, index) => {
                         const cantSupply = item.lineStatus === 'declined';
                         return (
-                        <div
-                          key={item.id}
-                          className={cx(
-                            'col-span-3 grid grid-cols-subgrid items-center gap-x-2 border-t border-line pt-3',
-                            quoteCantSupplyRowClass(cantSupply),
-                          )}
-                          data-testid={cantSupply ? 'order-line-cant-supply' : undefined}
-                        >
-                          <OrderLineCantSupplyFace
-                            item={item}
-                            items={data.items}
-                            cantSupply={cantSupply}
-                            onOpen={openPhotoViewer}
-                          />
-                          <TextInput
-                            inputMode="numeric"
-                            pattern="[0-9]*"
-                            autoComplete="off"
-                            className={COMPACT_SHEET_NUM_INPUT_CLASS}
-                            value={millQty[item.id] ?? String(item.quantity)}
-                            onChange={(e) =>
-                              setMillQty((prev) => ({ ...prev, [item.id]: e.target.value }))
+                          <div
+                            key={item.id}
+                            className={cx(
+                              'flex items-center gap-2 py-2',
+                              index > 0 && 'border-t border-line',
+                              quoteCantSupplyRowClass(cantSupply),
+                            )}
+                            data-testid={
+                              cantSupply
+                                ? 'order-line-cant-supply'
+                                : 'order-mill-held-line'
                             }
-                            aria-label={`Quantity for ${item.name}`}
-                            {...orderQtyInputProps(item.id === rows[rows.length - 1]?.id)}
-                          />
-                          <TextInput
-                            inputMode="decimal"
-                            className={COMPACT_SHEET_RATE_INPUT_CLASS}
-                            value={
-                              millRate[item.id] ?? (item.rate != null ? String(item.rate) : '')
-                            }
-                            onChange={(e) =>
-                              setMillRate((prev) => ({
-                                ...prev,
-                                [item.id]: sanitizeQuoteRateInput(e.target.value),
-                              }))
-                            }
-                            aria-label={`Rate for ${item.name}`}
-                          />
-                        </div>
+                          >
+                            <OrderLineCantSupplyFace
+                              item={item}
+                              items={data.items}
+                              cantSupply={cantSupply}
+                              onOpen={openPhotoViewer}
+                              className="min-w-0 flex-1"
+                            />
+                            <div className="flex shrink-0 items-center gap-1.5">
+                              <TextInput
+                                inputMode="numeric"
+                                pattern="[0-9]*"
+                                autoComplete="off"
+                                className={cx(COMPACT_SHEET_NUM_INPUT_CLASS, '!w-12 !max-w-12')}
+                                value={millQty[item.id] ?? String(item.quantity)}
+                                onChange={(e) =>
+                                  setMillQty((prev) => ({
+                                    ...prev,
+                                    [item.id]: e.target.value,
+                                  }))
+                                }
+                                aria-label={`Quantity for ${item.name}`}
+                                data-testid={`order-mill-held-qty-${item.id}`}
+                                {...orderQtyInputProps(item.id === rows[rows.length - 1]?.id)}
+                              />
+                              <TextInput
+                                inputMode="decimal"
+                                className={cx(COMPACT_SHEET_RATE_INPUT_CLASS, '!w-16 !max-w-16')}
+                                value={
+                                  millRate[item.id] ??
+                                  (item.rate != null ? String(item.rate) : '')
+                                }
+                                onChange={(e) =>
+                                  setMillRate((prev) => ({
+                                    ...prev,
+                                    [item.id]: sanitizeQuoteRateInput(e.target.value),
+                                  }))
+                                }
+                                aria-label={`Rate for ${item.name}`}
+                                data-testid={`order-mill-held-rate-${item.id}`}
+                              />
+                            </div>
+                          </div>
                         );
                       })}
                     </div>
@@ -2437,24 +2530,19 @@ export function OrderDetailPage() {
                   >
                     {(item) => {
                     const millLine = millLineForParent(desk, item.id);
-                    const cells = desk.millQuoted
-                      ? millFromToCells({
-                          millQuoted: true,
-                          millDeclined: millLine?.millDeclined ?? false,
-                          millRate: millLine?.millRate ?? null,
-                          millQuantity: millLine?.millQuantity ?? null,
-                          buyerQuoted: data.hasSellerQuote === true,
-                          buyerRate: item.rate,
-                          buyerQuantity: item.quantity,
-                          unit:
-                            catalogRateDisplayUnit({
-                              unit: item.unit,
-                              dispatchUnit: item.dispatchUnit,
-                            }) ?? item.unit,
-                          formatAmount: rateAmount,
-                          formatUnitSuffix: (u) => rateUnitSuffix(u),
-                        })
-                      : null;
+                    const buyerName =
+                      data.buyerName || data.counterpart?.name || 'buyer';
+                    const progress = millCardLineProgressCaption({
+                      shipped: item.shippedQuantity ?? 0,
+                      quantity: millLine?.millQuantity ?? item.quantity,
+                      buyerName,
+                    });
+                    const rateCaption = millCardLineRateCaption({
+                      buyRate: millLine?.millRate ?? null,
+                      sellRate: item.rate,
+                      unitSuffix: rateUnitSuffix(item.unit, item.dispatchUnit),
+                      formatAmount: (rate) => rateAmount(rate),
+                    });
                     const cantSupply = item.lineStatus === 'declined';
                     const extra = orderLineOverShipped(item);
                     const showPending = !cantSupply && orderLineShowsPending(item);
@@ -2465,12 +2553,9 @@ export function OrderDetailPage() {
                       <TicketLineWash
                         item={item}
                         className={cx(
-                          'rounded-xl px-2 pt-3',
+                          'flex w-full items-start gap-3 rounded-xl px-2 pt-3',
                           !cantSupply && orderLineBalanceRowClass(item),
                           quoteCantSupplyRowClass(cantSupply),
-                          cells
-                            ? 'grid grid-cols-[minmax(0,1fr)_4.5rem_4.5rem] items-center gap-2'
-                            : 'flex w-full items-center gap-3',
                         )}
                         data-testid={
                           cantSupply
@@ -2491,25 +2576,23 @@ export function OrderDetailPage() {
                           cantSupply={cantSupply}
                           onOpen={openPhotoViewer}
                           soldAs={false}
-                          ticketLayout={!cells}
+                          ticketLayout
                         >
-                          {!cells ? <OrderLineFacts layout="ticket" item={item} /> : null}
+                          <p
+                            className="mt-0.5 text-xs text-muted"
+                            data-testid="order-mill-line-progress"
+                          >
+                            {progress}
+                          </p>
+                          {rateCaption ? (
+                            <p
+                              className="mt-0.5 text-xs text-muted"
+                              data-testid="order-mill-line-buy-sell"
+                            >
+                              {rateCaption}
+                            </p>
+                          ) : null}
                         </OrderLineCantSupplyFace>
-                        {cells ? (
-                          <>
-                            <RateFigure
-                              amount={cells.fromAmount}
-                              unit={cells.fromUnit}
-                              qtyPrefix={cells.fromQtyPrefix || undefined}
-                              muted={cantSupply}
-                            />
-                            <RateFigure
-                              amount={cells.toAmount}
-                              unit={cells.toUnit}
-                              muted={cantSupply || !data.hasSellerQuote}
-                            />
-                          </>
-                        ) : null}
                       </TicketLineWash>
                     );
                     }}
@@ -2558,10 +2641,74 @@ export function OrderDetailPage() {
                     Open group chat
                   </Button>
                 ) : null}
-              </Card>
+              </FulfilmentDeskCard>
             );
           })
         : null}
+
+      {showYouFulfilmentCard({
+        millDesks: data.millDesks,
+        leftoverCount: youItems.length,
+        youFulfilmentOrderId: data.youFulfilmentOrderId,
+      }) ? (
+        <FulfilmentDeskCard
+          title={BUYER_TALKS_TO_YOU}
+          subtitle={
+            isSeller && data.youFulfilmentOrderId
+              ? null
+              : `${youItems.length} design${youItems.length === 1 ? '' : 's'}`
+          }
+          hopOrderId={isSeller ? data.youFulfilmentOrderId : null}
+          hopLinked={Boolean(isSeller && data.youFulfilmentOrderId)}
+          hopLinkTestId="order-you-hop-link"
+          status={isSeller ? data.youFulfilment?.status ?? null : null}
+          youIdentity
+          openRow={Boolean(isSeller && data.youFulfilmentOrderId)}
+          openSubtitle={`${youItems.length} design${youItems.length === 1 ? '' : 's'}`}
+          testId="order-you-items"
+        >
+          {lineFulfillError && !data.youFulfilmentOrderId ? (
+            <InlineNotice message={lineFulfillError} />
+          ) : null}
+          {youItems.length > 0 ? (
+            <OrderUnitGroupedList
+              items={youItems}
+              unitOf={(item) => item.unit}
+              getKey={(item) => item.id}
+              hideHeadingWhenSingle
+            >
+              {data.youFulfilmentOrderId || !isSeller
+                ? (item) => {
+                    const cantSupply = item.lineStatus === 'declined';
+                    return (
+                      <TicketLineWash
+                        item={item}
+                        className={cx(
+                          'flex w-full items-center gap-3 rounded-xl px-1 pt-3',
+                          !cantSupply && orderLineBalanceRowClass(item),
+                          quoteCantSupplyRowClass(cantSupply),
+                        )}
+                        data-testid={cantSupply ? 'order-line-cant-supply' : undefined}
+                      >
+                        <OrderLineCantSupplyFace
+                          className="min-w-0 flex-1"
+                          item={item}
+                          items={data.items}
+                          cantSupply={cantSupply}
+                          onOpen={openPhotoViewer}
+                          soldAs={false}
+                          ticketLayout
+                        >
+                          <OrderLineFacts layout="ticket" item={item} />
+                        </OrderLineCantSupplyFace>
+                      </TicketLineWash>
+                    );
+                  }
+                : renderFulfillLine}
+            </OrderUnitGroupedList>
+          ) : null}
+        </FulfilmentDeskCard>
+      ) : null}
 
       {/* Mill desks already list every design (trader + Reveal-On buyer). No second aggregate card. */}
       {showOrderParentItemsList(data.millDesks) ? (
@@ -2629,6 +2776,9 @@ export function OrderDetailPage() {
       <OrderTicketNotes
         notes={orderTicketNotes(data, companyId ?? '')}
         canForward={orderTicketCanForwardNotes(data)}
+        audienceCue={
+          manageDeskNoParty ? 'You and the buyer see these' : 'Both sides see these'
+        }
         note={ticketNote}
         onNoteChange={setTicketNote}
         voice={ticketNoteVoice}
@@ -2754,13 +2904,33 @@ export function OrderDetailPage() {
         ) : null}
       </div>
 
-      {oneToOneTicket || actionDock.kind !== 'none' ? (
+      {showOrderDock ? (
         <BottomTradeDock testId="order-action-dock" aboveAppNav={false}>
           {oneToOneTicket && chatTo ? (
             <SellingDockChat
               to={chatTo}
               chatOnly={actionDock.kind === 'none' && !ticketWaiting}
               counterpartName={buyingOneToOne ? data.sellerName : data.buyerName}
+            />
+          ) : showManageDeskChat ? (
+            manageDeskChatTargets.length === 1 ? (
+              <SellingDockChat
+                to={`/chats/${manageDeskChatTargets[0]!.threadId}`}
+                chatOnly={false}
+                counterpartName={manageDeskChatTargets[0]!.name}
+              />
+            ) : (
+              <SellingDockChat
+                chatOnly={false}
+                counterpartName="Chat"
+                onPick={() => setDeskChatPickerOpen(true)}
+              />
+            )
+          ) : showMillHopChat && chatTo ? (
+            <SellingDockChat
+              to={chatTo}
+              chatOnly={false}
+              counterpartName={data.sellerName || data.counterpart?.name || 'Chat'}
             />
           ) : null}
           {actionDock.kind === 'buy' ? (
@@ -2900,7 +3070,17 @@ export function OrderDetailPage() {
               ) : null}
             </>
           ) : null}
-          {oneToOneTicket && actionDock.kind === 'none' && ticketWaiting ? (
+          {millHopAcceptWait ? (
+            <p
+              data-testid="order-ticket-waiting"
+              className="flex min-w-0 flex-1 items-center justify-center gap-1.5 px-2 text-sm text-muted"
+            >
+              <ClockIcon width={14} height={14} className="shrink-0" aria-hidden />
+              {millHopAcceptWait}
+            </p>
+          ) : (oneToOneTicket || showManageDeskWait) &&
+            actionDock.kind === 'none' &&
+            ticketWaiting ? (
             <p
               data-testid="order-ticket-waiting"
               className="flex min-w-0 flex-1 items-center justify-center gap-1.5 px-2 text-sm text-muted"
@@ -2911,6 +3091,36 @@ export function OrderDetailPage() {
           ) : null}
         </BottomTradeDock>
       ) : null}
+
+      <Sheet
+        open={deskChatPickerOpen}
+        onClose={() => setDeskChatPickerOpen(false)}
+        title="Who to chat"
+      >
+        <div className="flex flex-col" data-testid="order-desk-chat-picker">
+          {manageDeskChatTargets.map((target) => (
+            <button
+              key={target.id}
+              type="button"
+              className={cx(listRowClass, 'flex w-full items-center gap-3 px-1 py-3 text-left')}
+              data-testid={`order-desk-chat-${target.role}-${target.id}`}
+              onClick={() => {
+                setDeskChatPickerOpen(false);
+                navigate(`/chats/${target.threadId}`);
+              }}
+            >
+              <Avatar name={target.name} size={48} />
+              <span className="min-w-0 flex-1 leading-5">
+                <span className="block font-emphasis text-ink">{target.name}</span>
+                <span className="mt-0.5 block text-sm text-muted">
+                  {target.role === 'buyer' ? 'Buyer' : 'Supplier'}
+                </span>
+              </span>
+              <ChevronRightIcon width={18} height={18} className="shrink-0 text-muted" aria-hidden />
+            </button>
+          ))}
+        </div>
+      </Sheet>
 
       <Sheet
         open={linesOpen}
@@ -3975,32 +4185,32 @@ export function OrderDetailPage() {
         title={isInquiry ? 'Edit inquiry' : 'Edit order'}
         items={ticketDisplayItems(data.items ?? [])}
         qty={amendQty}
-        onQty={(productId, next) =>
+        onQty={(orderItemId, next) =>
           setAmendQty((prev) => {
             const patch = next == null ? '' : String(next);
             const nextQty = { ...prev };
-            for (const id of catalogPeerProductIds(data.items ?? [], productId)) {
-              nextQty[id] = patch;
+            for (const peerId of catalogPeerOrderItemIds(data.items ?? [], orderItemId)) {
+              nextQty[peerId] = patch;
             }
             return nextQty;
           })
         }
         removed={amendRemoved}
-        onToggleRemoved={(productId) =>
+        onToggleRemoved={(orderItemId) =>
           setAmendRemoved((prev) => {
             const next = new Set(prev);
-            const peers = catalogPeerProductIds(data.items ?? [], productId);
-            const removing = !next.has(productId);
-            for (const id of peers) {
-              if (removing) next.add(id);
-              else next.delete(id);
+            const peers = catalogPeerOrderItemIds(data.items ?? [], orderItemId);
+            const removing = !next.has(orderItemId);
+            for (const peerId of peers) {
+              if (removing) next.add(peerId);
+              else next.delete(peerId);
             }
             return next;
           })
         }
         lineNotes={amendLineNotes}
-        onLineNote={(productId, value) =>
-          setAmendLineNotes((prev) => ({ ...prev, [productId]: value }))
+        onLineNote={(orderItemId, value) =>
+          setAmendLineNotes((prev) => ({ ...prev, [orderItemId]: value }))
         }
         transporter={amendTransporter}
         onTransporter={setAmendTransporter}

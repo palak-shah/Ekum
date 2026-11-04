@@ -63,7 +63,20 @@ import {
   TradeLaneTicket,
   showBillTotalOnOrders,
 } from '@ekum/domain-types';
-import { claimParentItemId, matchParentItemId, shouldPassThrough, traderListHidesSubset, allReleasedSubsetsComplete } from './i-handle-desk';
+import {
+  claimParentItemId,
+  isTraderOwnedFulfilmentHop,
+  matchParentItemId,
+  millMappedParentItemIds,
+  shouldPassThrough,
+  traderListHidesSubset,
+  allReleasedSubsetsComplete,
+  parentHasPendingFulfilmentLines,
+  hopMappedParentItemIds,
+  isHopAttributableShipment,
+  mapHopShipmentItemsToParent,
+  trimHopShipmentItemsToFinal,
+} from './i-handle-desk';
 import { buyerSafePassThroughSummary } from './i-handle-soft-hide';
 import { millShareActive } from './mill-share';
 import { shouldRouteToTrio, effectivePathFromLane, isReleasedMillSubset, manageParentOpenChatThreadId, laneRoutesDirect, qtyChangeSummary, DEFAULT_LANE_BEHAVIORS, trioMillLaneWhere } from './trade-lane';
@@ -83,7 +96,7 @@ import { resolveNoteVoiceFields } from './note-voice';
 import { normalizeNoteImageUrls } from './note-images';
 import { TradeAccess } from './trade-access';
 import { DomainEvents } from '../events/events.module';
-import { isHeldFromSupplier } from './orderHold';
+import { isBuyerHiddenYouHop, isHeldFromSupplier } from './orderHold';
 import {
   assertCatalogWholeDecisionTogether,
   assertEqualWholeCatalogQuantities,
@@ -132,6 +145,11 @@ type CreateOrderOptions = {
   skipLanePlace?: boolean;
   /** Trader/supplier logging How many each for this buyer (not the actor). */
   onBehalfBuyerCompanyId?: string;
+  /**
+   * Override Order.createdByCompanyId (You fulfilment hop looks buyer-placed
+   * so Confirm works as ordinary Selling 1:1, not a logged ticket).
+   */
+  createdByCompanyId?: string;
   /** Persist hop `sourceItemId` from dto items (never from public Place). */
   allowSourceItemIds?: boolean;
   /** From-pack whole catalog — stamp every line in this create. */
@@ -262,7 +280,7 @@ export class OrderService {
             resolvedOpts.holdUntilSend && resolvedOpts.downstreamOrderId ? null : undefined,
           buyerCompanyId,
           sellerCompanyId: dto.sellerCompanyId,
-          createdByCompanyId: actorCompanyId,
+          createdByCompanyId: resolvedOpts.createdByCompanyId ?? actorCompanyId,
           createdByUserId: userId,
           updatedByUserId: userId,
           note: dto.note ?? null,
@@ -682,7 +700,9 @@ export class OrderService {
           userId,
           {
             sellerCompanyId,
-            ...shared,
+            kind: shared.kind,
+            intent: shared.intent,
+            transporter: shared.transporter,
             items: hopItems,
           },
           {
@@ -701,6 +721,20 @@ export class OrderService {
           message: exceptionMessage(err, 'Could not place the upstream order.'),
         });
       }
+    }
+
+    if (downstream && upstreams.length > 0 && unusedParent.length > 0) {
+      const youHop = await this.spawnTraderOwnedFulfilmentHop({
+        traderCompanyId: collection.companyId,
+        userId,
+        parentId: downstream.id,
+        buyerCompanyId: actorCompanyId,
+        kind: shared.kind,
+        intent: shared.intent,
+        leftoverParentItems: unusedParent,
+        parentItems: downstream.items,
+      });
+      if (youHop) upstreams.push(youHop);
     }
 
     for (const [sellerCompanyId, group] of directGroups) {
@@ -780,9 +814,28 @@ export class OrderService {
     }
 
     const inquiry = order.intent === OrderIntent.Inquiry;
+    const liveById = new Map(order.items.map((item) => [item.id, item]));
+    const retainedIds = new Set<string>();
+    for (const item of dto.items) {
+      if (!item.orderItemId) continue;
+      if (retainedIds.has(item.orderItemId)) {
+        throw new BadRequestException({
+          code: 'DUPLICATE_ORDER_ITEM',
+          message: 'Each design line can only appear once.',
+        });
+      }
+      if (!liveById.has(item.orderItemId)) {
+        throw new BadRequestException({
+          code: 'INVALID_ORDER_ITEM',
+          message: 'That design isn’t on this ticket.',
+        });
+      }
+      retainedIds.add(item.orderItemId);
+    }
+
     await assertExclusiveWholeCatalogComplete(
       this.prisma,
-      dto.items.map((item) => item.productId).filter((id): id is string => Boolean(id)),
+      dto.items.map((item) => item.productId).filter((pid): pid is string => Boolean(pid)),
     );
     const snapshots = await this.snapshotItems(
       {
@@ -803,19 +856,35 @@ export class OrderService {
         allowForeignProducts: order.tradeMode === OrderTradeMode.Manage,
       },
     );
-    const snapshotProductIds = new Set(
-      snapshots
-        .map((row) => (typeof row.productId === 'string' ? row.productId : null))
-        .filter((productId): productId is string => Boolean(productId)),
+    if (snapshots.length !== dto.items.length) {
+      throw new BadRequestException({
+        code: 'INVALID_ITEM',
+        message: 'One or more designs could not be saved.',
+      });
+    }
+
+    const removedItems = order.items.filter((item) => !retainedIds.has(item.id));
+    const removedRows = removedItems.map((item) =>
+      this.auditItem(item, auditQtyNumber(item.quantity) ?? 0, 0),
     );
-    const removedRows = order.items
-      .filter((item) => !item.productId || !snapshotProductIds.has(item.productId))
-      .map((item) => this.auditItem(item, auditQtyNumber(item.quantity) ?? 0, 0));
-    const oldByProduct = new Map(
-      order.items
-        .filter((item) => item.productId)
-        .map((item) => [item.productId as string, auditQtyNumber(item.quantity) ?? 0]),
+    const oldQtyByItemId = new Map(
+      order.items.map((item) => [item.id, auditQtyNumber(item.quantity) ?? 0]),
     );
+
+    type LinedSnapshot = {
+      orderItemId?: string;
+      snapshot: (typeof snapshots)[number];
+      productId: string;
+    };
+    const lined: LinedSnapshot[] = dto.items.map((item, index) => ({
+      orderItemId: item.orderItemId,
+      snapshot: snapshots[index]!,
+      productId: item.productId,
+    }));
+
+    if (order.tradeMode === OrderTradeMode.Manage) {
+      await this.assertAmendNewLinesHaveFulfilmentHome(order, lined);
+    }
 
     await this.prisma.$transaction(async (tx) => {
       await tx.order.update({
@@ -827,31 +896,76 @@ export class OrderService {
             dto.transporter === undefined
               ? undefined
               : dto.transporter?.trim() || null,
-          items: {
-            deleteMany: {},
-            create: snapshots,
-          },
           ...this.withActor(userId),
         },
       });
+
+      const amendedAudit: Array<ReturnType<OrderService['auditItem']>> = [];
+      for (const row of lined) {
+        if (!row.orderItemId) continue;
+        const before = liveById.get(row.orderItemId)!;
+        await tx.orderItem.update({
+          where: { id: row.orderItemId },
+          data: {
+            productId: row.snapshot.productId ?? undefined,
+            name: row.snapshot.name,
+            sku: row.snapshot.sku ?? undefined,
+            rate: row.snapshot.rate ?? undefined,
+            unit: row.snapshot.unit ?? undefined,
+            image: row.snapshot.image ?? undefined,
+            images: row.snapshot.images ?? [],
+            quantity: row.snapshot.quantity,
+            requestedQuantity: row.snapshot.requestedQuantity,
+            note: row.snapshot.note ?? null,
+          },
+        });
+        amendedAudit.push(
+          this.auditItem(
+            before,
+            oldQtyByItemId.get(row.orderItemId) ?? null,
+            Number(row.snapshot.quantity),
+          ),
+        );
+      }
+
+      const createdParentIds: string[] = [];
+      for (const row of lined) {
+        if (row.orderItemId) continue;
+        const created = await tx.orderItem.create({
+          data: {
+            orderId: id,
+            ...row.snapshot,
+            lineStatus: OrderLineStatus.Open,
+          } as Prisma.OrderItemUncheckedCreateInput,
+        });
+        createdParentIds.push(created.id);
+        amendedAudit.push(this.auditItem(created, null, Number(row.snapshot.quantity)));
+      }
+
+      if (removedItems.length > 0) {
+        await tx.orderItem.deleteMany({
+          where: { id: { in: removedItems.map((item) => item.id) } },
+        });
+      }
+
       const next = await tx.order.findUnique({
         where: { id },
         include: { items: true, buyer: true, seller: true },
       });
-      const amendedItems = Array.isArray(next?.items) ? next.items : [];
-      if (amendedItems.length > 0) {
+      if (!next) {
+        throw new NotFoundException({
+          code: 'ORDER_NOT_FOUND',
+          message: 'Order not found.',
+        });
+      }
+
+      if (amendedAudit.length > 0) {
         await this.writeQtyAudit(
-          next ?? order,
+          next,
           actorCompanyId,
           userId,
           OrderAuditKind.Amended,
-          amendedItems.map((item) =>
-            this.auditItem(
-              item,
-              item.productId ? (oldByProduct.get(item.productId) ?? null) : null,
-              auditQtyNumber(item.quantity) ?? 0,
-            ),
-          ),
+          amendedAudit,
           { statusAt: OrderStatus.Requested, tx },
         );
       }
@@ -864,6 +978,15 @@ export class OrderService {
           removedRows,
           { statusAt: OrderStatus.Requested, tx },
         );
+      }
+
+      if (order.tradeMode === OrderTradeMode.Manage) {
+        await this.syncHopsAfterBuyerAmend(tx, {
+          parent: next,
+          deletedParentIds: new Set(removedItems.map((item) => item.id)),
+          newlyCreatedParentIds: new Set(createdParentIds),
+          actorCompanyId,
+        });
       }
     });
 
@@ -878,9 +1001,9 @@ export class OrderService {
             ? item.quantity.toNumber()
             : Number(item.quantity),
       })),
-      snapshots.map((row) => ({
-        productId: typeof row.productId === 'string' ? row.productId : null,
-        quantity: Number(row.quantity),
+      refreshed.items.map((item) => ({
+        productId: item.productId,
+        quantity: Number(item.quantity),
       })),
     );
     const summary = amendTrailSummary(change);
@@ -918,7 +1041,6 @@ export class OrderService {
       order.buyerCompanyId,
       order.sellerCompanyId,
     );
-    await this.passBuyerAmendToMills(id);
     return {
       ...(await this.toOrderView(refreshed, actorCompanyId, threadId)),
       canAmend: true,
@@ -1123,6 +1245,13 @@ export class OrderService {
       order = await this.loadForParty(id, actorCompanyId, true);
     }
     const millDesks = await this.buildMillDesks(order, actorCompanyId);
+    const youFulfilment =
+      order.tradeMode === OrderTradeMode.Manage &&
+      order.sellerCompanyId === actorCompanyId &&
+      !order.downstreamOrderId
+        ? await this.findYouFulfilment(order.id, order.sellerCompanyId)
+        : null;
+    const youFulfilmentOrderId = youFulfilment?.id ?? null;
     const firstReveal = millDesks.find((desk) => desk.reveal && desk.revealThreadId)?.revealThreadId;
     const threadId = await this.threadIdForOpenChat(order, firstReveal);
     const view = await this.toOrderView(order, actorCompanyId, threadId);
@@ -1152,6 +1281,8 @@ export class OrderService {
       personalNote,
       relatedOrders,
       millDesks,
+      youFulfilmentOrderId,
+      youFulfilment,
       deskOrderId:
         order.buyerCompanyId === actorCompanyId &&
         order.downstreamOrderId &&
@@ -2330,18 +2461,35 @@ export class OrderService {
     }
 
     const shippedByItem = this.shippedTotals(order);
-    const candidates = fanOutCatalogWholeLines(
-      order.items,
+    const millOwned = new Set<string>();
+    if (order.tradeMode === OrderTradeMode.Manage && !order.downstreamOrderId) {
+      const hops = await this.prisma.order.findMany({
+        where: { downstreamOrderId: order.id },
+        select: { items: { select: { sourceItemId: true } } },
+      });
+      for (const id of millMappedParentItemIds(hops)) millOwned.add(id);
+    }
+    if (dto.items?.some((line) => millOwned.has(line.orderItemId))) {
+      throw new ForbiddenException({
+        code: 'NOT_ALLOWED',
+        message: 'Dispatch mill or You lots from their own ticket.',
+      });
+    }
+    const requestedLines =
       dto.items ??
-        order.items
-          .filter((item) => item.lineStatus === OrderLineStatus.Confirmed)
-          .map((item) => {
-            const shipped = shippedByItem.get(item.id) ?? 0;
-            const remaining = item.quantity.toNumber() - shipped;
-            return { orderItemId: item.id, quantity: remaining };
-          })
-          .filter((line) => line.quantity > 0),
-    );
+      order.items
+        .filter((item) => item.lineStatus === OrderLineStatus.Confirmed)
+        .filter((item) => !millOwned.has(item.id))
+        .map((item) => {
+          const shipped = shippedByItem.get(item.id) ?? 0;
+          const remaining = item.quantity.toNumber() - shipped;
+          return { orderItemId: item.id, quantity: remaining };
+        })
+        .filter((line) => line.quantity > 0);
+    const expanded = fanOutCatalogWholeLines(order.items, requestedLines);
+    const candidates = millOwned.size
+      ? expanded.filter((line) => !millOwned.has(line.orderItemId))
+      : expanded;
 
     if (candidates.length < 1) {
       throw new BadRequestException({
@@ -2748,6 +2896,7 @@ export class OrderService {
         lrNumber,
       },
     );
+    await this.passMillEditShipmentToParent(orderId, actorCompanyId, userId);
     return this.emitAndGet(actorCompanyId, orderId, nextStatus);
   }
 
@@ -2998,6 +3147,8 @@ export class OrderService {
         downstreamOrderId: id,
         upstreamReleasedAt: null,
         status: OrderStatus.Requested,
+        // You fulfilment hop is silent-released; never Send to self.
+        sellerCompanyId: { not: actorCompanyId },
         ...(dto.upstreamOrderId ? { id: dto.upstreamOrderId } : {}),
       },
       include: { items: true, seller: true },
@@ -3630,6 +3781,7 @@ export class OrderService {
   /**
    * One living order/rate message per order in the trade thread.
    * Later lifecycle events update that row instead of appending cards.
+   * You fulfilment hops stay silent — pass-through updates the Manage parent card.
    */
   private async postOrderCard(
     buyerCompanyId: string,
@@ -3639,6 +3791,23 @@ export class OrderService {
     orderId: string,
     metadata: Record<string, unknown>,
   ): Promise<string> {
+    const hop = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      select: {
+        buyerCompanyId: true,
+        sellerCompanyId: true,
+        downstreamOrderId: true,
+      },
+    });
+    if (hop?.downstreamOrderId) {
+      const parent = await this.prisma.order.findUnique({
+        where: { id: hop.downstreamOrderId },
+        select: { buyerCompanyId: true, sellerCompanyId: true },
+      });
+      if (parent && isTraderOwnedFulfilmentHop(hop, parent)) {
+        return '';
+      }
+    }
     return this.upsertOrderThreadMessage(
       buyerCompanyId,
       sellerCompanyId,
@@ -3867,6 +4036,12 @@ export class OrderService {
     const order = await this.loadForParty(id, actorCompanyId);
     this.assertCanForwardNotes(order, actorCompanyId);
     const source = await this.loadForwardSource(order, noteId);
+    if (source.alreadyForwarded) {
+      throw new BadRequestException({
+        code: 'NOTE_ALREADY_FORWARDED',
+        message: 'This note was already forwarded. Write a new note to forward again.',
+      });
+    }
     const targetId = await this.resolveForwardTargetId(order, actorCompanyId, dto.millOrderId);
     const target = await this.loadForParty(targetId, actorCompanyId);
     await this.trail.append({
@@ -3881,6 +4056,9 @@ export class OrderService {
       noteImageUrls: source.noteImageUrls,
       payload: { forwarded: true, fromOrderId: order.id, sourceEventId: noteId },
     });
+    if (source.trailEventId) {
+      await this.markNoteForwarded(source.trailEventId, source.payload);
+    }
     await this.prisma.order.update({
       where: { id: target.id },
       data: this.withActor(userId),
@@ -3913,6 +4091,27 @@ export class OrderService {
     }
   }
 
+  private trailPayloadRecord(
+    payload: unknown,
+  ): Record<string, unknown> {
+    if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
+      return payload as Record<string, unknown>;
+    }
+    return {};
+  }
+
+  private async markNoteForwarded(
+    trailEventId: string,
+    existing: Record<string, unknown>,
+  ): Promise<void> {
+    await this.prisma.orderTrailEvent.update({
+      where: { id: trailEventId },
+      data: {
+        payload: { ...existing, forwarded: true },
+      },
+    });
+  }
+
   private async loadForwardSource(
     order: {
       id: string;
@@ -3928,18 +4127,25 @@ export class OrderService {
     noteVoiceUrl: string | null;
     noteVoiceDurationMs: number | null;
     noteImageUrls: string[];
+    trailEventId: string | null;
+    payload: Record<string, unknown>;
+    alreadyForwarded: boolean;
   }> {
     if (noteId === 'place') {
       const requested = await this.prisma.orderTrailEvent.findFirst({
         where: { orderId: order.id, type: OrderTrailType.Requested },
         orderBy: { at: 'asc' },
       });
+      const payload = this.trailPayloadRecord(requested?.payload);
       return {
         note: order.note,
         noteVoiceMediaId: order.noteVoiceMediaId,
         noteVoiceUrl: order.noteVoiceUrl,
         noteVoiceDurationMs: order.noteVoiceDurationMs,
         noteImageUrls: requested?.noteImageUrls ?? [],
+        trailEventId: requested?.id ?? null,
+        payload,
+        alreadyForwarded: payload.forwarded === true,
       };
     }
     const event = await this.prisma.orderTrailEvent.findUnique({ where: { id: noteId } });
@@ -3952,12 +4158,16 @@ export class OrderService {
         message: 'That is not a ticket note.',
       });
     }
+    const payload = this.trailPayloadRecord(event.payload);
     return {
       note: event.note,
       noteVoiceMediaId: event.noteVoiceMediaId,
       noteVoiceUrl: event.noteVoiceUrl,
       noteVoiceDurationMs: event.noteVoiceDurationMs,
       noteImageUrls: event.noteImageUrls ?? [],
+      trailEventId: event.id,
+      payload,
+      alreadyForwarded: payload.forwarded === true,
     };
   }
 
@@ -4568,7 +4778,31 @@ export class OrderService {
     ) {
       throw new NotFoundException({ code: 'NOT_FOUND', message: 'Order not found.' });
     }
+    if (order.downstreamOrderId && order.buyerCompanyId === actorCompanyId) {
+      const parent = await this.prisma.order.findUnique({
+        where: { id: order.downstreamOrderId },
+        select: { buyerCompanyId: true, sellerCompanyId: true },
+      });
+      if (isBuyerHiddenYouHop(order, parent, actorCompanyId)) {
+        throw new NotFoundException({ code: 'NOT_FOUND', message: 'Order not found.' });
+      }
+    }
     return order;
+  }
+
+  private async findYouFulfilment(
+    parentId: string,
+    parentSellerCompanyId: string,
+  ): Promise<{ id: string; status: string } | null> {
+    const hop = await this.prisma.order.findFirst({
+      where: {
+        downstreamOrderId: parentId,
+        sellerCompanyId: parentSellerCompanyId,
+        status: { not: OrderStatus.Cancelled },
+      },
+      select: { id: true, status: true },
+    });
+    return hop ? { id: hop.id, status: hop.status } : null;
   }
 
   private async linkedMillsByParent(
@@ -4590,8 +4824,11 @@ export class OrderService {
       where: { downstreamOrderId: { in: manageIds } },
       include: { seller: true },
     });
+    const parentSellerById = new Map(rows.map((row) => [row.id, row.sellerCompanyId]));
     for (const up of ups) {
       if (!up.downstreamOrderId) continue;
+      // You fulfilment hop shares the parent seller — not a mill strip chip.
+      if (up.sellerCompanyId === parentSellerById.get(up.downstreamOrderId)) continue;
       const list = byParent.get(up.downstreamOrderId) ?? [];
       list.push({
         name: up.seller.name,
@@ -4620,6 +4857,7 @@ export class OrderService {
       )
       .map((row) => row.id);
     if (manageIds.length === 0) return new Set();
+    const parentSellerById = new Map(rows.map((row) => [row.id, row.sellerCompanyId]));
     const ups = await this.prisma.order.findMany({
       where: {
         downstreamOrderId: { in: manageIds },
@@ -4627,9 +4865,14 @@ export class OrderService {
       },
       select: { id: true, downstreamOrderId: true, sellerCompanyId: true },
     });
-    const millQuoted = await this.orderIdsWithSellerQuote(ups);
+    const millUps = ups.filter(
+      (up) =>
+        up.downstreamOrderId &&
+        up.sellerCompanyId !== parentSellerById.get(up.downstreamOrderId),
+    );
+    const millQuoted = await this.orderIdsWithSellerQuote(millUps);
     const parents = new Set<string>();
-    for (const up of ups) {
+    for (const up of millUps) {
       if (millQuoted.has(up.id) && up.downstreamOrderId) parents.add(up.downstreamOrderId);
     }
     return parents;
@@ -4653,7 +4896,7 @@ export class OrderService {
     if (!isTrader && !isBuyer) {
       return [];
     }
-    const ups = await this.prisma.order.findMany({
+    const upsAll = await this.prisma.order.findMany({
       where: {
         downstreamOrderId: order.id,
         status: { not: OrderStatus.Cancelled },
@@ -4661,6 +4904,8 @@ export class OrderService {
       },
       include: { seller: true, items: true },
     });
+    // You fulfilment hop (seller = trader) is not a mill card.
+    const ups = upsAll.filter((up) => up.sellerCompanyId !== order.sellerCompanyId);
     const quoted = await this.orderIdsWithSellerQuote(ups);
     const millSellerIds = [...new Set(ups.map((up) => up.sellerCompanyId))];
     const millSettings = millSellerIds.length
@@ -5111,6 +5356,181 @@ export class OrderService {
     );
   }
 
+  /**
+   * Hop editShipment → rebuild this hop’s qty-only parent shipments.
+   * Never call passMillDispatchToParent (that always creates and would double-count).
+   */
+  private async passMillEditShipmentToParent(
+    hopOrderId: string,
+    _actorCompanyId: string,
+    userId: string,
+  ): Promise<void> {
+    const hop = await this.prisma.order.findUnique({
+      where: { id: hopOrderId },
+      include: {
+        items: true,
+        seller: true,
+        shipments: { include: { items: true }, orderBy: { dispatchedAt: 'asc' } },
+      },
+    });
+    if (!hop || !shouldPassThrough(hop)) return;
+    await this.passMillLinesToParent(hopOrderId, hop.sellerCompanyId, userId);
+    const parent = await this.prisma.order.findUnique({
+      where: { id: hop.downstreamOrderId! },
+      include: {
+        items: true,
+        seller: true,
+        shipments: { include: { items: true } },
+      },
+    });
+    if (!parent || parent.tradeMode !== OrderTradeMode.Manage) return;
+
+    const mappedParentIds = hopMappedParentItemIds(hop.items);
+    if (mappedParentIds.size === 0) return;
+
+    const attributableIds = parent.shipments
+      .filter((ship) => isHopAttributableShipment(ship.items, mappedParentIds))
+      .map((ship) => ship.id);
+
+    await this.prisma.$transaction(async (tx) => {
+      if (attributableIds.length > 0) {
+        await tx.orderShipmentItem.deleteMany({
+          where: { shipmentId: { in: attributableIds } },
+        });
+        await tx.orderShipment.deleteMany({
+          where: { id: { in: attributableIds } },
+        });
+      }
+      for (const hopShip of hop.shipments) {
+        const mapped = mapHopShipmentItemsToParent(
+          hopShip.items.map((line) => ({
+            orderItemId: line.orderItemId,
+            quantity: line.quantity.toNumber(),
+          })),
+          hop.items,
+          parent.items,
+        );
+        if (mapped.length === 0) continue;
+        await tx.orderShipment.create({
+          data: {
+            orderId: parent.id,
+            dispatchedAt: hopShip.dispatchedAt,
+            dispatchedByUserId: userId,
+            items: {
+              create: mapped.map((line) => ({
+                orderItemId: line.orderItemId,
+                quantity: line.quantity,
+              })),
+            },
+          },
+        });
+      }
+    });
+
+    const parentAfter = await this.prisma.order.findUnique({
+      where: { id: parent.id },
+      include: { items: true, shipments: { include: { items: true } } },
+    });
+    if (!parentAfter) return;
+    const shippedByItem = this.shippedTotals(parentAfter);
+    const shippable = parentAfter.items.filter(
+      (item) => item.lineStatus !== OrderLineStatus.Declined,
+    );
+    const allOut = shippable.every((item) => {
+      if (item.lineStatus === OrderLineStatus.Open) return false;
+      const shipped = shippedByItem.get(item.id) ?? 0;
+      return shipped + 1e-9 >= item.quantity.toNumber();
+    });
+    const remaining = shippable.reduce((sum, item) => {
+      const shipped = shippedByItem.get(item.id) ?? 0;
+      return sum + Math.max(0, item.quantity.toNumber() - shipped);
+    }, 0);
+    const shippedTotal = shippable.reduce(
+      (sum, item) => sum + (shippedByItem.get(item.id) ?? 0),
+      0,
+    );
+
+    let parentStatus = parentAfter.status;
+    if (
+      parentAfter.status === OrderStatus.Settled ||
+      parentAfter.status === OrderStatus.Cancelled ||
+      parentAfter.status === OrderStatus.Declined ||
+      parentAfter.status === OrderStatus.Delivered
+    ) {
+      // Terminal — do not reopen from hop edit.
+    } else if (allOut && remaining <= 0 && shippedTotal > 0) {
+      parentStatus = OrderStatus.Dispatched;
+      const days = this.config.get('RETURN_WINDOW_DAYS', { infer: true });
+      const closesAt = days > 0 ? new Date(Date.now() + days * DAY_MS) : null;
+      await this.prisma.order.update({
+        where: { id: parent.id },
+        data: {
+          status: OrderStatus.Dispatched,
+          dispatchedAt: parentAfter.dispatchedAt ?? new Date(),
+          returnWindowClosesAt: closesAt,
+          closedAt: parentAfter.closedAt ?? new Date(),
+          ...this.withActor(userId),
+        },
+      });
+    } else if (shippedTotal > 0 && remaining > 0) {
+      parentStatus = OrderStatus.PartShipped;
+      await this.prisma.order.update({
+        where: { id: parent.id },
+        data: {
+          status: OrderStatus.PartShipped,
+          dispatchedAt: null,
+          closedAt: null,
+          returnWindowClosesAt: null,
+          ...this.withActor(userId),
+        },
+      });
+    } else if (shippedTotal <= 0) {
+      const anyConfirmed = shippable.some(
+        (item) =>
+          item.lineStatus === OrderLineStatus.Confirmed ||
+          item.lineStatus === OrderLineStatus.Dispatched,
+      );
+      parentStatus = anyConfirmed ? OrderStatus.Confirmed : parentAfter.status;
+      if (parentStatus === OrderStatus.Confirmed) {
+        await this.prisma.order.update({
+          where: { id: parent.id },
+          data: {
+            status: OrderStatus.Confirmed,
+            dispatchedAt: null,
+            closedAt: null,
+            returnWindowClosesAt: null,
+            ...this.withActor(userId),
+          },
+        });
+      }
+    }
+
+    const summary = `${parent.seller.name} edited dispatch`;
+    await this.trail.append({
+      orderId: parent.id,
+      type: OrderTrailType.DispatchEdited,
+      actorCompanyId: parent.sellerCompanyId,
+      actorUserId: userId,
+      summary,
+      detail: 'Dispatch edited',
+    });
+    await this.postOrderCard(
+      parent.buyerCompanyId,
+      parent.sellerCompanyId,
+      parent.sellerCompanyId,
+      summary,
+      parent.id,
+      {
+        status: parentStatus,
+        event: OrderChatEvent.OrderDispatchEdited,
+        orderLabel: shortOrderLabel(parent.id),
+        actorLabel: parent.seller.name,
+        actorRole: 'seller',
+        partial: parentStatus === OrderStatus.PartShipped,
+      },
+    );
+  }
+
   private async upstreamSellerNames(order: {
     id: string;
     tradeMode: string;
@@ -5123,63 +5543,239 @@ export class OrderService {
     return ups.map((up) => up.seller.name).filter((name) => Boolean(name?.trim()));
   }
 
-  private async passBuyerAmendToMills(parentId: string): Promise<void> {
-    const parent = await this.prisma.order.findUnique({
-      where: { id: parentId },
-      include: { items: true, buyer: true },
+  /**
+   * New amend lines must land on an existing fulfilment hop (or a new held mill hop).
+   * Never silently leave trader-owned lines unassigned; never backfill a You hop.
+   */
+  private async assertAmendNewLinesHaveFulfilmentHome(
+    parent: {
+      id: string;
+      buyerCompanyId: string;
+      sellerCompanyId: string;
+    },
+    lined: Array<{ orderItemId?: string; productId: string }>,
+  ): Promise<void> {
+    const newProductIds = [
+      ...new Set(
+        lined.filter((row) => !row.orderItemId).map((row) => row.productId),
+      ),
+    ];
+    if (newProductIds.length === 0) return;
+    const products = await this.prisma.product.findMany({
+      where: { id: { in: newProductIds } },
+      select: { id: true, companyId: true },
     });
-    if (!parent || parent.tradeMode !== OrderTradeMode.Manage) return;
-    const ups = await this.prisma.order.findMany({
+    const ownerByProduct = new Map(products.map((row) => [row.id, row.companyId]));
+    const hops = await this.prisma.order.findMany({
       where: {
-        downstreamOrderId: parentId,
+        downstreamOrderId: parent.id,
         status: OrderStatus.Requested,
-        passHeldAt: null,
+      },
+      select: {
+        id: true,
+        buyerCompanyId: true,
+        sellerCompanyId: true,
+        downstreamOrderId: true,
+        passHeldAt: true,
+      },
+    });
+    const youHop = hops.find((hop) => isTraderOwnedFulfilmentHop(hop, parent));
+    const millSellerIds = new Set(
+      hops
+        .filter((hop) => !isTraderOwnedFulfilmentHop(hop, parent))
+        .map((hop) => hop.sellerCompanyId),
+    );
+    for (const productId of newProductIds) {
+      const owner = ownerByProduct.get(productId);
+      if (!owner) {
+        throw new BadRequestException({
+          code: 'INVALID_ITEM',
+          message: 'One or more designs could not be found.',
+        });
+      }
+      if (owner === parent.sellerCompanyId) {
+        if (!youHop) {
+          throw new BadRequestException({
+            code: 'NO_YOU_HOP',
+            message:
+              'That leftover design needs a You selling ticket. Keep mill designs only, or cancel and place again.',
+          });
+        }
+        if (youHop.passHeldAt) {
+          throw new BadRequestException({
+            code: 'HOP_HELD',
+            message: 'Resume the You ticket before adding leftover designs.',
+          });
+        }
+        continue;
+      }
+      // Mill-owned: existing hop (incl. held) or we spawn a new held hop in sync.
+      if (millSellerIds.has(owner)) continue;
+      // No hop yet — spawn allowed in syncHopsAfterBuyerAmend.
+    }
+  }
+
+  /**
+   * Keep hop `sourceItemId` stable. Prefer existing mapping; claim only true orphans.
+   * Held hops: delete mapped lines for removed parents + sync qty on retained; never release / never add.
+   */
+  private async syncHopsAfterBuyerAmend(
+    tx: Prisma.TransactionClient,
+    input: {
+      parent: {
+        id: string;
+        tradeMode: string;
+        buyerCompanyId: string;
+        sellerCompanyId: string;
+        buyer: { name: string };
+        items: Array<{
+          id: string;
+          productId: string | null;
+          name: string;
+          sku: string | null;
+          rate: Prisma.Decimal | null;
+          unit: string | null;
+          image: string | null;
+          images: string[];
+          quantity: Prisma.Decimal;
+          note: string | null;
+        }>;
+      };
+      deletedParentIds: Set<string>;
+      newlyCreatedParentIds: Set<string>;
+      actorCompanyId: string;
+    },
+  ): Promise<void> {
+    const { parent, deletedParentIds, newlyCreatedParentIds } = input;
+    if (parent.tradeMode !== OrderTradeMode.Manage) return;
+
+    const ups = await tx.order.findMany({
+      where: {
+        downstreamOrderId: parent.id,
+        status: OrderStatus.Requested,
       },
       include: { items: true, seller: true },
     });
+
+    const parentById = new Map(parent.items.map((item) => [item.id, item]));
+    const productIds = [
+      ...new Set(
+        parent.items
+          .map((item) => item.productId)
+          .filter((pid): pid is string => Boolean(pid)),
+      ),
+    ];
+    const products = productIds.length
+      ? await tx.product.findMany({
+          where: { id: { in: productIds } },
+          select: { id: true, companyId: true },
+        })
+      : [];
+    const ownerByProduct = new Map(products.map((row) => [row.id, row.companyId]));
+
+    const claimedAcrossHops = new Set<string>();
+    const millOwnersWithHop = new Set(
+      ups
+        .filter((up) => !isTraderOwnedFulfilmentHop(up, parent))
+        .map((up) => up.sellerCompanyId),
+    );
+
     for (const up of ups) {
+      const held = up.passHeldAt != null;
       const millAmendQty: Array<ReturnType<OrderService['auditItem']>> = [];
       const millRemovedQty: Array<ReturnType<OrderService['auditItem']>> = [];
+      const claimed = new Set<string>();
       const unusedParent = parent.items.map((item) => ({
         id: item.id,
         productId: item.productId,
         name: item.name,
       }));
-      const claimed = new Set<string>();
-      await this.prisma.$transaction(async (tx) => {
-        for (const millItem of up.items) {
-          const parentItemId = claimParentItemId(unusedParent, millItem);
-          if (!parentItemId) {
-            millRemovedQty.push(
-              this.auditItem(millItem, millItem.quantity.toNumber(), 0),
-            );
-            await tx.orderItem.delete({ where: { id: millItem.id } });
-            continue;
-          }
-          claimed.add(parentItemId);
-          const parentItem = parent.items.find((item) => item.id === parentItemId)!;
+
+      for (const millItem of up.items) {
+        const mappedId = millItem.sourceItemId;
+        if (mappedId && deletedParentIds.has(mappedId)) {
+          millRemovedQty.push(
+            this.auditItem(millItem, millItem.quantity.toNumber(), 0),
+          );
+          await tx.orderItem.delete({ where: { id: millItem.id } });
+          continue;
+        }
+
+        if (mappedId && parentById.has(mappedId)) {
+          // Valid sourceItemId always wins — never replace with product/name claim.
+          const parentItem = parentById.get(mappedId)!;
+          claimed.add(mappedId);
+          claimedAcrossHops.add(mappedId);
           const beforeQty = millItem.quantity.toNumber();
           const afterQty = parentItem.quantity.toNumber();
           await tx.orderItem.update({
             where: { id: millItem.id },
             data: {
-              sourceItemId: parentItemId,
+              sourceItemId: mappedId,
               quantity: parentItem.quantity,
               requestedQuantity: parentItem.quantity,
               productId: parentItem.productId,
               name: parentItem.name,
             },
           });
+          // Drop from orphan-claim pool.
+          const idx = unusedParent.findIndex((row) => row.id === mappedId);
+          if (idx >= 0) unusedParent.splice(idx, 1);
           millAmendQty.push(this.auditItem(millItem, beforeQty, afterQty));
+          continue;
         }
+
+        if (held) {
+          // Held: do not rematch orphans or invent mappings.
+          continue;
+        }
+
+        // Legacy orphan only — claimParentItemId fallback.
+        const parentItemId = claimParentItemId(unusedParent, millItem);
+        if (!parentItemId) {
+          millRemovedQty.push(
+            this.auditItem(millItem, millItem.quantity.toNumber(), 0),
+          );
+          await tx.orderItem.delete({ where: { id: millItem.id } });
+          continue;
+        }
+        claimed.add(parentItemId);
+        claimedAcrossHops.add(parentItemId);
+        const parentItem = parentById.get(parentItemId)!;
+        const beforeQty = millItem.quantity.toNumber();
+        const afterQty = parentItem.quantity.toNumber();
+        await tx.orderItem.update({
+          where: { id: millItem.id },
+          data: {
+            sourceItemId: parentItemId,
+            quantity: parentItem.quantity,
+            requestedQuantity: parentItem.quantity,
+            productId: parentItem.productId,
+            name: parentItem.name,
+          },
+        });
+        millAmendQty.push(this.auditItem(millItem, beforeQty, afterQty));
+      }
+
+      if (!held) {
         for (const parentItem of parent.items) {
-          if (claimed.has(parentItem.id) || !parentItem.productId) continue;
-          if (!unusedParent.some((row) => row.id === parentItem.id)) continue;
-          const productOwner = await tx.product.findUnique({
-            where: { id: parentItem.productId },
-            select: { companyId: true },
-          });
-          if (productOwner?.companyId !== up.sellerCompanyId) continue;
+          if (claimed.has(parentItem.id) || claimedAcrossHops.has(parentItem.id)) {
+            continue;
+          }
+          if (!parentItem.productId) continue;
+          const owner = ownerByProduct.get(parentItem.productId);
+          if (owner !== up.sellerCompanyId) continue;
+          // Only attach brand-new parent lines (or leftover unmapped) — never steal.
+          if (
+            !newlyCreatedParentIds.has(parentItem.id) &&
+            !unusedParent.some((row) => row.id === parentItem.id)
+          ) {
+            continue;
+          }
+          claimed.add(parentItem.id);
+          claimedAcrossHops.add(parentItem.id);
+          const idx = unusedParent.findIndex((row) => row.id === parentItem.id);
+          if (idx >= 0) unusedParent.splice(idx, 1);
           await tx.orderItem.create({
             data: {
               orderId: up.id,
@@ -5201,27 +5797,75 @@ export class OrderService {
             this.auditItem(parentItem, null, parentItem.quantity.toNumber()),
           );
         }
-        await this.orderAudit.appendQty({
-          orderId: up.id,
-          statusAt: up.status,
-          actorCompanyId: parent.buyerCompanyId,
-          actorCompanyName: parent.buyer.name,
-          actorUserId: null,
-          kind: OrderAuditKind.Amended,
-          rows: millAmendQty,
-          tx,
-        });
-        await this.orderAudit.appendQty({
-          orderId: up.id,
-          statusAt: up.status,
-          actorCompanyId: parent.buyerCompanyId,
-          actorCompanyName: parent.buyer.name,
-          actorUserId: null,
-          kind: OrderAuditKind.AmendedRemoved,
-          rows: millRemovedQty,
-          tx,
-        });
+      }
+
+      await this.orderAudit.appendQty({
+        orderId: up.id,
+        statusAt: up.status,
+        actorCompanyId: parent.buyerCompanyId,
+        actorCompanyName: parent.buyer.name,
+        actorUserId: null,
+        kind: OrderAuditKind.Amended,
+        rows: millAmendQty,
+        tx,
       });
+      await this.orderAudit.appendQty({
+        orderId: up.id,
+        statusAt: up.status,
+        actorCompanyId: parent.buyerCompanyId,
+        actorCompanyName: parent.buyer.name,
+        actorUserId: null,
+        kind: OrderAuditKind.AmendedRemoved,
+        rows: millRemovedQty,
+        tx,
+      });
+    }
+
+    // Spawn held mill hops for newly added mill-owned lines with no hop yet.
+    const newByOwner = new Map<string, typeof parent.items>();
+    for (const parentItem of parent.items) {
+      if (!newlyCreatedParentIds.has(parentItem.id) || !parentItem.productId) continue;
+      if (claimedAcrossHops.has(parentItem.id)) continue;
+      const owner = ownerByProduct.get(parentItem.productId);
+      if (!owner || owner === parent.sellerCompanyId) continue;
+      if (millOwnersWithHop.has(owner)) continue;
+      const bucket = newByOwner.get(owner) ?? [];
+      bucket.push(parentItem);
+      newByOwner.set(owner, bucket);
+    }
+    for (const [millId, lines] of newByOwner) {
+      if (millId === parent.buyerCompanyId) continue;
+      await this.upsertTradeLane(parent.sellerCompanyId, millId, parent.buyerCompanyId);
+      await tx.order.create({
+        data: {
+          kind: OrderKind.Standard,
+          intent: OrderIntent.Order,
+          status: OrderStatus.Requested,
+          tradeMode: OrderTradeMode.Manage,
+          downstreamOrderId: parent.id,
+          upstreamReleasedAt: null,
+          buyerCompanyId: parent.sellerCompanyId,
+          sellerCompanyId: millId,
+          createdByCompanyId: parent.sellerCompanyId,
+          items: {
+            create: lines.map((line) => ({
+              productId: line.productId,
+              name: line.name,
+              sku: line.sku,
+              rate: line.rate,
+              unit: line.unit,
+              image: line.image,
+              images: line.images,
+              quantity: line.quantity,
+              requestedQuantity: line.quantity,
+              lineStatus: OrderLineStatus.Open,
+              note: line.note,
+              sourceItemId: line.id,
+            })),
+          },
+        },
+      });
+      millOwnersWithHop.add(millId);
     }
   }
 
@@ -5286,6 +5930,8 @@ export class OrderService {
       include: { buyer: true, seller: true },
     });
     for (const up of upstreams) {
+      // You fulfilment hop is linked via youFulfilmentOrderId — not Related mills.
+      if (up.sellerCompanyId === order.sellerCompanyId) continue;
       related.push({
         id: up.id,
         role: 'upstream',
@@ -5482,6 +6128,7 @@ export class OrderService {
         mill.status === OrderStatus.Dispatched ||
         mill.status === OrderStatus.Delivered;
       if (!millDone) continue;
+      const mappedParentIds = hopMappedParentItemIds(mill.items);
       const parentSettleQty: Array<ReturnType<OrderService['auditItem']>> = [];
       await this.prisma.$transaction(async (tx) => {
         for (const millItem of mill.items) {
@@ -5516,6 +6163,58 @@ export class OrderService {
             tx,
           });
         }
+
+        // G-006: trim hop-attributable parent shipment items so shipped ≤ Final.
+        const parentShipRows = await tx.orderShipment.findMany({
+          where: { orderId: parent.id },
+          include: { items: true },
+        });
+        const liveShips = parentShipRows.map((ship) => ({
+          id: ship.id,
+          dispatchedAt: ship.dispatchedAt,
+          items: ship.items.map((line) => ({
+            id: line.id,
+            orderItemId: line.orderItemId,
+            quantity: line.quantity.toNumber(),
+          })),
+        }));
+        const emptyShipmentIds = new Set<string>();
+        for (const millItem of mill.items) {
+          const parentItemId = matchParentItemId(parent.items, millItem);
+          if (!parentItemId) continue;
+          const finalQty = Math.max(0, millItem.quantity.toNumber());
+          const updates = trimHopShipmentItemsToFinal(
+            liveShips,
+            mappedParentIds,
+            parentItemId,
+            finalQty,
+          );
+          for (const row of updates) {
+            if (row.delete) {
+              await tx.orderShipmentItem.delete({ where: { id: row.shipmentItemId } });
+            } else {
+              await tx.orderShipmentItem.update({
+                where: { id: row.shipmentItemId },
+                data: { quantity: row.quantity },
+              });
+            }
+            for (const ship of liveShips) {
+              const idx = ship.items.findIndex((line) => line.id === row.shipmentItemId);
+              if (idx < 0) continue;
+              if (row.delete) {
+                ship.items.splice(idx, 1);
+                if (ship.items.length === 0) emptyShipmentIds.add(ship.id);
+              } else {
+                ship.items[idx]!.quantity = row.quantity;
+              }
+            }
+          }
+        }
+        if (emptyShipmentIds.size > 0) {
+          await tx.orderShipment.deleteMany({
+            where: { id: { in: [...emptyShipmentIds] } },
+          });
+        }
       });
     }
 
@@ -5531,13 +6230,22 @@ export class OrderService {
           : up.status,
     }));
 
-    if (!allReleasedSubsetsComplete(subsetStates)) {
-      const parentAfter = await this.prisma.order.findUnique({
-        where: { id: parent.id },
-        include: { items: true, shipments: { include: { items: true } } },
-      });
-      if (!parentAfter) return;
-      const shippedByItem = this.shippedTotals(parentAfter);
+    const parentAfter = await this.prisma.order.findUnique({
+      where: { id: parent.id },
+      include: { items: true, shipments: { include: { items: true } } },
+    });
+    if (!parentAfter) return;
+    const shippedByItem = this.shippedTotals(parentAfter);
+    const pendingLines = parentHasPendingFulfilmentLines(
+      parentAfter.items.map((item) => ({
+        id: item.id,
+        lineStatus: item.lineStatus,
+        quantity: item.quantity.toNumber(),
+      })),
+      shippedByItem,
+    );
+
+    if (!allReleasedSubsetsComplete(subsetStates) || pendingLines) {
       const shippable = parentAfter.items.filter(
         (item) => item.lineStatus !== OrderLineStatus.Declined,
       );
@@ -5651,13 +6359,27 @@ export class OrderService {
     }
     const parent = await this.prisma.order.findUnique({
       where: { id: downstreamId },
-      select: { buyerCompanyId: true, items: { select: { id: true, productId: true, name: true } } },
+      select: {
+        buyerCompanyId: true,
+        items: {
+          select: {
+            id: true,
+            productId: true,
+            name: true,
+            quantity: true,
+            unit: true,
+            images: true,
+            note: true,
+          },
+        },
+      },
     });
     const unusedParent = (parent?.items ?? []).map((item) => ({
       id: item.id,
       productId: item.productId,
       name: item.name,
     }));
+    let millHopCount = 0;
     for (const [sellerCompanyId, items] of groups) {
       try {
         if (parent) {
@@ -5675,17 +6397,102 @@ export class OrderService {
             sellerCompanyId,
             kind: dto.kind,
             intent: dto.intent ?? OrderIntent.Order,
-            note: dto.note,
-            noteVoiceMediaId: dto.noteVoiceMediaId,
-            noteVoiceDurationMs: dto.noteVoiceDurationMs,
-            noteImageUrls: dto.noteImageUrls,
             items: hopItems,
           },
           { downstreamOrderId: downstreamId, holdUntilSend: true, allowSourceItemIds: true },
         );
+        millHopCount += 1;
       } catch {
         // Phase A: downstream stays; trader retries upstream later.
       }
+    }
+    if (parent && millHopCount > 0 && unusedParent.length > 0) {
+      await this.spawnTraderOwnedFulfilmentHop({
+        traderCompanyId: handlerCompanyId,
+        userId,
+        parentId: downstreamId,
+        buyerCompanyId: parent.buyerCompanyId,
+        kind: dto.kind ?? OrderKind.Standard,
+        intent: dto.intent ?? OrderIntent.Order,
+        leftoverParentItems: unusedParent,
+        parentItems: parent.items.map((item) => ({
+          id: item.id,
+          productId: item.productId,
+          name: item.name,
+          quantity: Number(item.quantity),
+          unit: item.unit,
+          images: item.images,
+          note: item.note,
+        })),
+      });
+    }
+  }
+
+  /**
+   * Mixed I-handle: leftover trader-owned parent lines → one linked Selling hop.
+   * Same buyer + seller as the Manage parent; bilateral; silent-released (no Send).
+   */
+  private async spawnTraderOwnedFulfilmentHop(input: {
+    traderCompanyId: string;
+    userId: string;
+    parentId: string;
+    buyerCompanyId: string;
+    kind: CreateOrderDto['kind'];
+    intent: NonNullable<CreateOrderDto['intent']>;
+    leftoverParentItems: Array<{ id: string; productId: string | null; name?: string | null }>;
+    parentItems: Array<{
+      id: string;
+      productId: string | null;
+      name?: string | null;
+      quantity: number;
+      unit?: string | null;
+      images?: string[];
+      note?: string | null;
+    }>;
+  }): Promise<OrderView | null> {
+    if (input.leftoverParentItems.length === 0) return null;
+    const leftoverIds = new Set(input.leftoverParentItems.map((row) => row.id));
+    const hopItems: CreateOrderDto['items'] = input.parentItems
+      .filter((item) => leftoverIds.has(item.id) && item.productId)
+      .map((item) => ({
+        productId: item.productId!,
+        quantity: item.quantity,
+        ...(item.unit
+          ? { unit: item.unit as NonNullable<CreateOrderDto['items'][number]['unit']> }
+          : {}),
+        name: item.name ?? undefined,
+        images: item.images ?? [],
+        note: item.note ?? undefined,
+        sourceItemId: item.id,
+      }));
+    if (hopItems.length === 0) return null;
+    try {
+      const hop = await this.create(
+        input.traderCompanyId,
+        input.userId,
+        {
+          sellerCompanyId: input.traderCompanyId,
+          kind: input.kind,
+          intent: input.intent,
+          items: hopItems,
+        },
+        {
+          onBehalfBuyerCompanyId: input.buyerCompanyId,
+          createdByCompanyId: input.buyerCompanyId,
+          downstreamOrderId: input.parentId,
+          holdUntilSend: true,
+          allowSourceItemIds: true,
+          skipLanePlace: true,
+        },
+      );
+      // Silent release — pass-through works; no mill announce / living card.
+      await this.prisma.order.update({
+        where: { id: hop.id },
+        data: { upstreamReleasedAt: new Date() },
+      });
+      return hop;
+    } catch {
+      return null;
     }
   }
 

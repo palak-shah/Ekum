@@ -54,6 +54,7 @@ export const collectionCardInclude = {
     include: {
       product: {
         select: {
+          id: true,
           images: true,
           companyId: true,
           name: true,

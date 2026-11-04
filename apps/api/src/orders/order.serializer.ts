@@ -121,7 +121,10 @@ export class OrderSerializer {
     } else if (
       order.status === OrderStatus.PartShipped &&
       shippedTotal > 0 &&
-      remaining <= 0
+      remaining <= 0 &&
+      // Open lines (e.g. held mill subset on mixed Manage) still need fulfilment —
+      // do not promote to Dispatched just because confirmed/dispatched lines are out.
+      !items.some((item) => item.lineStatus === OrderLineStatus.Open)
     ) {
       // Last qty out (or qty already matches shipped) — complete, not Part shipped.
       status = OrderStatus.Dispatched;
@@ -136,8 +139,9 @@ export class OrderSerializer {
       status === OrderStatus.Settled ||
       status === OrderStatus.Dispatched ||
       status === OrderStatus.Delivered;
+    const hasOpenLines = items.some((item) => item.lineStatus === OrderLineStatus.Open);
     const partiallyShipped =
-      !fulfillmentDone && shippedTotal > 0 && remaining > 0;
+      !fulfillmentDone && shippedTotal > 0 && (remaining > 0 || hasOpenLines);
 
     return {
       id: order.id,
@@ -147,6 +151,7 @@ export class OrderSerializer {
       tradeMode: order.tradeMode ?? 'bilateral',
       facilitatorCompanyId: order.facilitatorCompanyId ?? null,
       downstreamOrderId: order.downstreamOrderId ?? null,
+      passHeld: order.passHeldAt != null,
       relatedOrders: [],
       amendCount: order.amendCount ?? 0,
       direction: buying ? OrderDirection.Buying : OrderDirection.Selling,

@@ -38,6 +38,7 @@ vi.mock('@/lib/apiClient', () => ({
               companyId: 'mill',
               audience: 'followers',
               name: 'Silk',
+              images: [],
             },
           ],
         };
@@ -45,6 +46,7 @@ vi.mock('@/lib/apiClient', () => ({
       if (path === '/connections') return [];
       if (path === '/broadcasts/lists') return [];
       if (path === '/settings') return { tradeDefaults: {} };
+      if (path === '/collections') return [];
       return {};
     }),
     post: vi.fn(async () => ({ allowedProductIds: ['p1'], blocked: [] })),
@@ -75,6 +77,7 @@ const collection: CollectionCard = {
   showSourceShops: false,
   sourceShopNames: [],
   viewerReposted: false,
+  repostEligibleCount: 1,
   company: {
     id: 'mill',
     name: 'Ahmedabad Loom Co',
@@ -99,6 +102,27 @@ function wrap(ui: React.ReactNode) {
 describe('ExploreFeedActions', () => {
   beforeEach(() => {
     navigate.mockClear();
+    vi.mocked(api.get).mockImplementation(async (path: string) => {
+      if (path.startsWith('/explore/collections/')) {
+        return {
+          id: 'col-1',
+          products: [
+            {
+              id: 'p1',
+              companyId: 'mill',
+              audience: 'followers',
+              name: 'Silk',
+              images: [],
+            },
+          ],
+        };
+      }
+      if (path === '/connections') return [];
+      if (path === '/broadcasts/lists') return [];
+      if (path === '/settings') return { tradeDefaults: {} };
+      if (path === '/collections') return [];
+      return {};
+    });
     vi.mocked(api.post).mockImplementation(async () => ({
       allowedProductIds: ['p1'],
       blocked: [],
@@ -154,7 +178,7 @@ describe('ExploreFeedActions', () => {
     expect(screen.getByTestId('explore-feed-share')).toBeEnabled();
   });
 
-  it('shows done Repost icon when viewer already reposted — not gray; no sheet', async () => {
+  it('shows done Repost icon when viewer already reposted — not gray; toast; no sheet', async () => {
     const user = userEvent.setup();
     wrap(<ExploreFeedActions collection={{ ...collection, viewerReposted: true }} />);
     const repost = screen.getByTestId('explore-feed-repost');
@@ -164,14 +188,35 @@ describe('ExploreFeedActions', () => {
     expect(repost).not.toBeDisabled();
     await user.click(repost);
     expect(screen.queryByRole('heading', { name: 'Repost' })).toBeNull();
+    expect(screen.getByText('You already reposted this.')).toBeTruthy();
   });
 
-  it('grays out Repost when forward is locked; other actions stay enabled', () => {
-    wrap(<ExploreFeedActions collection={{ ...collection, allowForward: false }} />);
-    expect(screen.getByTestId('explore-feed-repost')).toBeDisabled();
-    expect(screen.getByTestId('explore-feed-message')).toBeEnabled();
+  it('grays out Repost when zero designs are eligible; Share stays on; tap does not open sheet', async () => {
+    const user = userEvent.setup();
+    wrap(
+      <ExploreFeedActions
+        collection={{ ...collection, allowForward: true, repostEligibleCount: 0 }}
+      />,
+    );
+    const repost = screen.getByTestId('explore-feed-repost');
+    expect(repost).toHaveAttribute('aria-disabled', 'true');
     expect(screen.getByTestId('explore-feed-share')).toBeEnabled();
+    expect(screen.getByTestId('explore-feed-message')).toBeEnabled();
     expect(screen.getByTestId('explore-feed-bookmark')).toBeEnabled();
+    await user.click(repost);
+    expect(screen.queryByRole('heading', { name: 'Repost' })).toBeNull();
+    expect(
+      screen.getByText("You don't have permission to repost these designs."),
+    ).toBeTruthy();
+  });
+
+  it('keeps Repost on when some designs are eligible', () => {
+    wrap(
+      <ExploreFeedActions
+        collection={{ ...collection, productCount: 8, repostEligibleCount: 3 }}
+      />,
+    );
+    expect(screen.getByTestId('explore-feed-repost')).toBeEnabled();
   });
 
   it('keeps actions enabled while Selecting', () => {
@@ -183,7 +228,7 @@ describe('ExploreFeedActions', () => {
     expect(screen.getByTestId('explore-feed-bookmark')).toBeEnabled();
   });
 
-  it('puts skip why in the quiet i — pack category does not unlock Curate', async () => {
+  it('groups zero eligible members as unavailable — no Ask, no Repost CTA', async () => {
     const user = userEvent.setup();
     vi.mocked(api.post).mockImplementation(async () => ({
       allowedProductIds: [],
@@ -191,10 +236,90 @@ describe('ExploreFeedActions', () => {
     }));
     wrap(<ExploreFeedActions collection={collection} />);
     await user.click(screen.getByTestId('explore-feed-repost'));
-    expect(await screen.findByTestId('repost-skip-summary')).toHaveTextContent('skipped');
-    await user.click(screen.getByTestId('repost-skip-info'));
-    expect(screen.getByTestId('repost-skip-info-body')).toHaveTextContent(
-      'These designs aren’t listed for adding to a collection. A pack category doesn’t unlock that.',
+    expect(await screen.findByTestId('repost-unavailable-summary')).toHaveTextContent(
+      '1 design unavailable',
     );
+    expect(screen.getByTestId('repost-unavailable-summary')).toHaveTextContent(
+      "These designs haven't been individually published for adding to other collections.",
+    );
+    expect(screen.queryByTestId('repost-publish')).toBeNull();
+    expect(screen.queryByTestId('curate-blocked-ask')).toBeNull();
+  });
+
+  it('lists mixed packs with skipped designs collapsed', async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.get).mockImplementation(async (path: string) => {
+      if (path.startsWith('/explore/collections/')) {
+        return {
+          id: 'col-1',
+          products: [
+            { id: 'p1', companyId: 'mill', audience: 'followers', name: 'Silk', images: [] },
+            { id: 'p2', companyId: 'mill', audience: 'followers', name: 'Cotton', images: [] },
+          ],
+        };
+      }
+      if (path === '/connections') return [];
+      if (path === '/broadcasts/lists') return [];
+      if (path === '/settings') return { tradeDefaults: {} };
+      if (path === '/collections') return [];
+      return {};
+    });
+    vi.mocked(api.post).mockImplementation(async () => ({
+      allowedProductIds: ['p1'],
+      blocked: [{ productId: 'p2', code: 'NOT_DISCOVERABLE' }],
+    }));
+    wrap(
+      <ExploreFeedActions collection={{ ...collection, productCount: 2, repostEligibleCount: 1 }} />,
+    );
+    await user.click(screen.getByTestId('explore-feed-repost'));
+    expect(await screen.findByTestId('repost-eligible-list')).toHaveTextContent('Silk');
+    expect(screen.getByTestId('repost-skipped-toggle')).toHaveTextContent('Skipped designs (1)');
+    expect(screen.queryByTestId('curate-blocked-list')).toBeNull();
+    await user.click(screen.getByTestId('repost-skipped-toggle'));
+    expect(screen.getByTestId('curate-blocked-list')).toHaveTextContent('Cotton');
+    expect(screen.getByTestId('repost-publish')).toBeTruthy();
+    expect(screen.getByTestId('curate-skip-info')).toBeTruthy();
+  });
+
+  it('hides Who and Repost when pack preview has no designs', async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.get).mockImplementation(async (path: string) => {
+      if (path.startsWith('/explore/collections/')) {
+        return { id: 'col-1', products: [] };
+      }
+      if (path === '/connections') return [];
+      if (path === '/broadcasts/lists') return [];
+      if (path === '/settings') return { tradeDefaults: {} };
+      if (path === '/collections') return [];
+      return {};
+    });
+    wrap(<ExploreFeedActions collection={collection} />);
+    await user.click(screen.getByTestId('explore-feed-repost'));
+    expect(await screen.findByTestId('repost-unavailable-summary')).toHaveTextContent(
+      'These designs can’t go in a collection yet.',
+    );
+    expect(screen.queryByTestId('repost-publish')).toBeNull();
+    expect(screen.queryByTestId('repost-name')).toBeNull();
+    expect(screen.queryByText('Who can see this?')).toBeNull();
+  });
+
+  it('hides Who and Repost when pack preview fails', async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.get).mockImplementation(async (path: string) => {
+      if (path.startsWith('/explore/collections/')) {
+        throw new Error('not found');
+      }
+      if (path === '/connections') return [];
+      if (path === '/broadcasts/lists') return [];
+      if (path === '/settings') return { tradeDefaults: {} };
+      if (path === '/collections') return [];
+      return {};
+    });
+    wrap(<ExploreFeedActions collection={collection} />);
+    await user.click(screen.getByTestId('explore-feed-repost'));
+    expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't load these designs.");
+    expect(screen.queryByTestId('repost-publish')).toBeNull();
+    expect(screen.queryByTestId('repost-name')).toBeNull();
+    expect(screen.queryByText('Who can see this?')).toBeNull();
   });
 });

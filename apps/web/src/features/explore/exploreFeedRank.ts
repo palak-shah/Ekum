@@ -111,7 +111,7 @@ export function buildRankedPostFeed(
   const filtered = options?.buyingFeed ? rows.filter((row) => row.tier > 0) : rows;
   const seenMap = options?.seenMap;
 
-  return filtered.sort((a, b) => {
+  const ranked = filtered.sort((a, b) => {
     const tierDelta = b.tier - a.tier;
     if (tierDelta !== 0) return tierDelta;
 
@@ -125,4 +125,20 @@ export function buildRankedPostFeed(
     // Prefer packs over designs on equal activity so a fresh album wins ties.
     return (a.kind === 'collection' ? 0 : 1) - (b.kind === 'collection' ? 0 : 1);
   });
+
+  if (!options?.buyingFeed || !viewerCompanyId) return ranked;
+  return pinOwnLead(ranked, (row) =>
+    row.kind === 'collection'
+      ? row.opportunity.collection.company.id === viewerCompanyId
+      : row.opportunity.product.company.id === viewerCompanyId,
+  );
+}
+
+const OWN_PIN_LEAD = 2;
+
+function pinOwnLead<T>(rows: T[], isOwn: (row: T) => boolean, lead = OWN_PIN_LEAD): T[] {
+  const own = rows.filter(isOwn);
+  if (own.length === 0) return rows;
+  const rest = rows.filter((row) => !isOwn(row));
+  return [...own.slice(0, lead), ...rest, ...own.slice(lead)];
 }

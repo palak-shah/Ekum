@@ -62,11 +62,11 @@ export function AmendOrderSheet({
   title: string;
   items: OrderItemView[];
   qty: Record<string, string>;
-  onQty: (productId: string, next: number | null) => void;
+  onQty: (orderItemId: string, next: number | null) => void;
   removed: Set<string>;
-  onToggleRemoved: (productId: string) => void;
+  onToggleRemoved: (orderItemId: string) => void;
   lineNotes: Record<string, string>;
-  onLineNote: (productId: string, note: string) => void;
+  onLineNote: (orderItemId: string, note: string) => void;
   transporter: string;
   onTransporter: (value: string) => void;
   transporterDisabled?: boolean;
@@ -82,7 +82,7 @@ export function AmendOrderSheet({
   onOpenPhoto: (item: OrderItemView) => void;
 }) {
   const lines = items.filter((item) => item.productId);
-  const remaining = lines.filter((item) => !removed.has(item.productId!));
+  const remaining = lines.filter((item) => !removed.has(item.id));
   const remainingCount = remaining.length;
   const showSameForAll = remainingCount > 1 && !howManyOrderUnitsMixed(remaining);
   const [sameOpen, setSameOpen] = useState(false);
@@ -101,33 +101,29 @@ export function AmendOrderSheet({
     setSameOpen(false);
   }, [showSameForAll]);
   const lastQtyId = lastGroupedItem(
-    lines.filter((item) => !removed.has(item.productId!)),
+    lines.filter((item) => !removed.has(item.id)),
     (item) => item.unit,
-  )?.productId;
+  )?.id;
   const packSizesDiffer = howManyPackSizesDiffer(remaining);
   const footerSummary = howManyOrderFooterSummary(
-    remaining.map((item) => {
-      const pid = item.productId!;
-      return {
-        quantity: parseQtyDraft(qty[pid] ?? String(item.quantity)),
-        unit: item.unit,
-        piecesPerPack: item.piecesPerPack,
-        dispatchUnit: item.dispatchUnit,
-        rate: item.rate,
-      };
-    }),
+    remaining.map((item) => ({
+      quantity: parseQtyDraft(qty[item.id] ?? String(item.quantity)),
+      unit: item.unit,
+      piecesPerPack: item.piecesPerPack,
+      dispatchUnit: item.dispatchUnit,
+      rate: item.rate,
+    })),
   );
   const canSave =
     remainingCount >= 1 &&
     remaining.every((item) => {
-      const pid = item.productId!;
-      const n = parseQtyDraft(qty[pid] ?? String(item.quantity));
+      const n = parseQtyDraft(qty[item.id] ?? String(item.quantity));
       return n != null && n >= 1;
     });
 
   const applyShared = (next: number | null) => {
     if (next == null || next <= 0) return;
-    remaining.forEach((item) => onQty(item.productId!, next));
+    remaining.forEach((item) => onQty(item.id, next));
     setSharedQty(next);
     setSameDraft(next);
     setSameOpen(false);
@@ -182,7 +178,7 @@ export function AmendOrderSheet({
                 setSameDraft(
                   seedSameForAllQty(
                     remaining.map((item) =>
-                      parseQtyDraft(qty[item.productId!] ?? String(item.quantity)),
+                      parseQtyDraft(qty[item.id] ?? String(item.quantity)),
                     ),
                     sharedQty,
                   ),
@@ -201,11 +197,10 @@ export function AmendOrderSheet({
           testId="order-amend-lines"
           lineTestId="order-amend-line"
           renderLine={(item) => {
-            const pid = item.productId!;
-            const isRemoved = removed.has(pid);
+            const isRemoved = removed.has(item.id);
             const noun = qtyCountNoun(item.unit);
             const thumb = toAbsoluteMediaUrl(urlsForOrderItem(item)[0]);
-            const lastQty = lastQtyId === pid;
+            const lastQty = lastQtyId === item.id;
             return (
               <>
                 <OrderLineStack
@@ -244,7 +239,7 @@ export function AmendOrderSheet({
                         type="button"
                         className="shrink-0 px-1 text-[12px] font-body text-muted"
                         data-testid="order-amend-undo"
-                        onClick={() => onToggleRemoved(pid)}
+                        onClick={() => onToggleRemoved(item.id)}
                       >
                         Undo
                       </button>
@@ -253,7 +248,7 @@ export function AmendOrderSheet({
                         name={item.name}
                         testId="order-amend-remove"
                         disabled={saving}
-                        onClick={() => onToggleRemoved(pid)}
+                        onClick={() => onToggleRemoved(item.id)}
                       />
                     ) : null
                   }
@@ -265,12 +260,12 @@ export function AmendOrderSheet({
                         sheetMixedPack={packSizesDiffer}
                         stepper={
                           <QtyStepper
-                            value={parseQtyDraft(qty[pid] ?? String(item.quantity))}
+                            value={parseQtyDraft(qty[item.id] ?? String(item.quantity))}
                             disabled={saving}
                             chainQty
                             enterKeyHint={lastQty ? 'done' : 'next'}
                             aria-label={`${noun} for ${item.name}`}
-                            onChange={(next) => onQty(pid, next)}
+                            onChange={(next) => onQty(item.id, next)}
                           />
                         }
                       />
@@ -279,10 +274,10 @@ export function AmendOrderSheet({
                 />
                 {!isRemoved ? (
                   <HowManyLineNote
-                    value={lineNotes[pid] ?? ''}
+                    value={lineNotes[item.id] ?? ''}
                     disabled={saving}
                     ariaLabel={`Note for ${item.name}`}
-                    onChange={(next) => onLineNote(pid, next)}
+                    onChange={(next) => onLineNote(item.id, next)}
                   />
                 ) : null}
               </>

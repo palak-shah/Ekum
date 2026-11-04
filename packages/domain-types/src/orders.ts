@@ -248,9 +248,13 @@ export const amendOrderSchema = z.object({
   transporter: z.string().trim().max(120).optional().nullable(),
   items: z
     .array(
-      orderItemInputSchema.extend({
-        productId: z.string().min(1),
-      }),
+      orderItemInputSchema
+        .omit({ sourceItemId: true })
+        .extend({
+          productId: z.string().min(1),
+          /** Live parent line id — retain identity; omit only for newly added lines. */
+          orderItemId: z.string().min(1).optional(),
+        }),
     )
     .min(1)
     .max(200),
@@ -812,12 +816,27 @@ export interface OrderView {
   canSendUp?: boolean;
   /** Trader mill hop: open this id (buyer ticket) instead of the subset. */
   deskOrderId?: string | null;
+  /**
+   * Released mill hop: pass-through paused (`passHeldAt` set).
+   * Used for Hold/Resume on the hop top ⋯; omitted/false elsewhere.
+   */
+  passHeld?: boolean;
   /** I-handle parent: mills on this desk. */
   millDesks?: OrderMillDeskView[];
   /** Mill sent rates; trader has not quoted the buyer yet. */
   needsQuotePass?: boolean;
   /** I-handle parent: mill shops (and subset id after Send) for list / Find. */
   linkedMills?: Array<{ name: string; orderId: string | null; held?: boolean }>;
+  /**
+   * Mixed I-handle parent: linked You Selling hop for leftover trader-owned lines.
+   * Trader opens Selling 1:1; buyer never sees this id.
+   */
+  youFulfilmentOrderId?: string | null;
+  /**
+   * Seller Manage parent only: You hop id + status for desk StatusPill / wait cue.
+   * Omitted for buyer (soft-hide) and non-Manage tickets.
+   */
+  youFulfilment?: { id: string; status: string } | null;
   direction: string;
   /** Times the buyer amended before seller progress. */
   amendCount: number;

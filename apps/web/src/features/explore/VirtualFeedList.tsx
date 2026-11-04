@@ -19,9 +19,10 @@ export const EXPLORE_FEED_ESTIMATE_PX = 640;
 export const EXPLORE_FEED_OVERSCAN = 10;
 
 /**
- * Real layout until the feed is long. The buying window (12) + a couple of
- * More posts taps stays non-virtual — variable caption heights were leaving a
- * blank band above More posts when getTotalSize overshot.
+ * Real layout until the feed is long. Collections / Designs Only stay
+ * non-virtual through the buying window. Mixed More posts remainder never
+ * virtualizes — variable caption heights were leaving a blank band before
+ * You've reached the end when getTotalSize overshot.
  */
 export const EXPLORE_FEED_VIRTUALIZE_AFTER = 24;
 
@@ -47,17 +48,19 @@ export function VirtualFeedList<T>({
   getKey,
   estimateSize = EXPLORE_FEED_ESTIMATE_PX,
   overscan = EXPLORE_FEED_OVERSCAN,
+  virtualizeAfter = EXPLORE_FEED_VIRTUALIZE_AFTER,
   renderItem,
 }: {
   items: T[];
   getKey: (item: T, index: number) => string;
   estimateSize?: number;
   overscan?: number;
+  virtualizeAfter?: number;
   renderItem: (item: T, index: number) => ReactNode;
 }) {
   const listRef = useRef<HTMLDivElement>(null);
   const [scrollMargin, setScrollMargin] = useState(0);
-  const virtualize = items.length > EXPLORE_FEED_VIRTUALIZE_AFTER;
+  const virtualize = items.length > virtualizeAfter;
 
   useLayoutEffect(() => {
     if (!virtualize) return;
@@ -72,7 +75,7 @@ export function VirtualFeedList<T>({
     return () => {
       window.removeEventListener('resize', update);
     };
-  }, [items.length, virtualize]);
+  }, [items.length, virtualize, virtualizeAfter]);
 
   const virtualizer = useWindowVirtualizer({
     count: virtualize ? items.length : 0,

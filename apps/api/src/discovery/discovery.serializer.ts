@@ -74,7 +74,11 @@ export class DiscoverySerializer {
 
   toCollectionCard(
     collection: CollectionCardRow,
-    opts?: { viewerReposted?: boolean; viewerCompanyId?: string },
+    opts?: {
+      viewerReposted?: boolean;
+      viewerCompanyId?: string;
+      repostEligibleCount?: number;
+    },
   ): CollectionCard {
     const preview = collectionPreviewFromRow(collection);
     const general = isGeneralKind((collection as { kind?: string }).kind);
@@ -120,6 +124,8 @@ export class DiscoverySerializer {
         collection.products,
       ),
       viewerReposted: opts?.viewerReposted === true,
+      repostEligibleCount:
+        opts?.repostEligibleCount ?? collection._count.products,
       company: this.companySerializer.toPublicSummary(collection.company),
     };
   }
@@ -137,7 +143,7 @@ export class DiscoverySerializer {
 
   toExploreProductCard(
     product: ProductCardRow,
-    opts?: { viewerReposted?: boolean },
+    opts?: { viewerReposted?: boolean; repostEligibleCount?: number },
   ): ExploreProductCard {
     return {
       id: product.id,
@@ -155,6 +161,7 @@ export class DiscoverySerializer {
       catalogCollectionId:
         (product as { catalogCollectionId?: string | null }).catalogCollectionId ?? null,
       viewerReposted: opts?.viewerReposted === true,
+      repostEligibleCount: opts?.repostEligibleCount ?? (product.allowForward === false ? 0 : 1),
       company: this.companySerializer.toPublicSummary(product.company),
     };
   }

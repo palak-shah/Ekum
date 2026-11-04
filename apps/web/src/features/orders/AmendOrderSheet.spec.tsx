@@ -31,11 +31,16 @@ function item(partial: Partial<OrderItemView> & Pick<OrderItemView, 'id' | 'prod
 function renderSheet(
   items: OrderItemView[],
   qty: Record<string, string> = Object.fromEntries(
-    items.filter((row) => row.productId).map((row) => [row.productId!, String(row.quantity)]),
+    items.filter((row) => row.productId).map((row) => [row.id, String(row.quantity)]),
   ),
+  opts: {
+    removed?: Set<string>;
+    onToggleRemoved?: (id: string) => void;
+  } = {},
 ) {
   const onSave = vi.fn();
   const onQty = vi.fn();
+  const onToggleRemoved = opts.onToggleRemoved ?? vi.fn();
   render(
     <AmendOrderSheet
       open
@@ -44,8 +49,8 @@ function renderSheet(
       items={items}
       qty={qty}
       onQty={onQty}
-      removed={new Set()}
-      onToggleRemoved={vi.fn()}
+      removed={opts.removed ?? new Set()}
+      onToggleRemoved={onToggleRemoved}
       lineNotes={{}}
       onLineNote={vi.fn()}
       transporter=""
@@ -60,7 +65,7 @@ function renderSheet(
       onOpenPhoto={vi.fn()}
     />,
   );
-  return { onSave, onQty };
+  return { onSave, onQty, onToggleRemoved };
 }
 
 describe('AmendOrderSheet How many chrome', () => {
@@ -144,8 +149,25 @@ describe('AmendOrderSheet How many chrome', () => {
       screen.getByRole('textbox', { name: 'Same quantity for all designs' }),
     ).toHaveValue('10');
     await user.click(screen.getByRole('button', { name: 'Apply' }));
-    expect(onQty).toHaveBeenCalledWith('p1', 10);
-    expect(onQty).toHaveBeenCalledWith('p2', 10);
+    expect(onQty).toHaveBeenCalledWith('i1', 10);
+    expect(onQty).toHaveBeenCalledWith('i2', 10);
+  });
+
+  it('lets two same-SKU rows change qty and remove independently', async () => {
+    const user = userEvent.setup();
+    const items = [
+      item({ id: 'i-a', productId: 'p1', name: 'Cotton A', quantity: 10, unit: 'pc', piecesPerPack: null }),
+      item({ id: 'i-b', productId: 'p1', name: 'Cotton B', quantity: 20, unit: 'pc', piecesPerPack: null }),
+    ];
+    const { onQty, onToggleRemoved } = renderSheet(items);
+    const steppers = screen.getAllByRole('textbox', { name: /pcs for Cotton/i });
+    expect(steppers).toHaveLength(2);
+    await user.clear(steppers[0]!);
+    await user.type(steppers[0]!, '11');
+    expect(onQty).toHaveBeenCalledWith('i-a', 11);
+    const removes = screen.getAllByTestId('order-amend-remove');
+    await user.click(removes[1]!);
+    expect(onToggleRemoved).toHaveBeenCalledWith('i-b');
   });
 
   it('puts × beside the name, not on the qty row', () => {

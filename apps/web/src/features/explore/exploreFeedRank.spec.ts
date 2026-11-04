@@ -167,4 +167,23 @@ describe('exploreFeedRank', () => {
     );
     expect(feed.map((row) => row.id)).toEqual(['c:pack', 'd:design']);
   });
+
+  it('pins at most two own packs ahead of other shops on buying', () => {
+    const own1 = collectionOpportunity('own-1', 'Surat', '2026-11-02T12:00:00.000Z');
+    const own2 = collectionOpportunity('own-2', 'Surat', '2026-11-02T11:00:00.000Z');
+    const own3 = collectionOpportunity('own-3', 'Surat', '2026-11-02T10:00:00.000Z');
+    own1.collection.company.id = 'me';
+    own2.collection.company.id = 'me';
+    own3.collection.company.id = 'me';
+    const mill = collectionOpportunity('mill', 'In your network', '2026-10-01T00:00:00.000Z');
+    mill.collection.company.id = 'mill';
+    const feed = buildRankedPostFeed(
+      [mill],
+      [],
+      [own1, own2, own3],
+      [],
+      { buyingFeed: true, viewerCompanyId: 'me' },
+    );
+    expect(feed.map((row) => row.id)).toEqual(['c:own-1', 'c:own-2', 'c:mill', 'c:own-3']);
+  });
 });

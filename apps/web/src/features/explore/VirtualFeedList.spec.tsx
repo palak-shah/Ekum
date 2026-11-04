@@ -65,6 +65,25 @@ describe('VirtualFeedList', () => {
     expect(screen.getByText('row-11')).toBeInTheDocument();
   });
 
+  it('keeps mixed More posts remainder in real layout (no phantom height)', () => {
+    virtualizerArgs.length = 0;
+    const items = Array.from({ length: 30 }, (_, i) => `row-${i}`);
+    render(
+      <VirtualFeedList
+        items={items}
+        getKey={(item) => item}
+        virtualizeAfter={Number.POSITIVE_INFINITY}
+        renderItem={(item) => <p>{item}</p>}
+      />,
+    );
+    const list = screen.getByTestId('explore-feed-list');
+    expect(list.style.height).toBe('');
+    expect(list.className).toMatch(/flex/);
+    expect(screen.getByText('row-0')).toBeInTheDocument();
+    expect(screen.getByText('row-29')).toBeInTheDocument();
+    expect(virtualizerArgs.at(-1)?.count).toBe(0);
+  });
+
   it('virtualizes longer feeds and subtracts scrollMargin from spacer height', () => {
     virtualizerArgs.length = 0;
     const items = Array.from({ length: 30 }, (_, i) => `row-${i}`);

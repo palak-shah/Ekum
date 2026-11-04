@@ -1,7 +1,14 @@
-import { useState, type ReactNode } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import type { CollectionCard, ExploreProductCard } from '@ekum/domain-types';
 import { CatalogShareSheet } from '@/features/browse/CatalogShareSheet';
+import {
+  ALREADY_REPOSTED_TOAST,
+  REPOST_NO_PERMISSION,
+  canExploreRepost,
+  exploreRepostEligibleCount,
+} from '@/features/browse/curateCheck';
 import { SelectionMessageSheet } from '@/features/browse/SelectionMessageSheet';
 import { RepostSheet, type RepostSheetTarget } from '@/features/explore/RepostSheet';
 import { api, ApiError } from '@/lib/apiClient';
@@ -84,31 +91,48 @@ export function ExploreFeedActions({
     Boolean(collection?.viewerReposted ?? product?.viewerReposted);
   if (!companyId) return null;
 
-  const canRepost =
-    !isOwn &&
-    !viewerReposted &&
-    trade.trading &&
-    (collection ? collection.allowForward !== false : product?.allowForward !== false);
+  const eligibleCount = collection
+    ? exploreRepostEligibleCount(collection)
+    : exploreRepostEligibleCount(product ?? { allowForward: true });
+  const canRepost = canExploreRepost({
+    isOwn,
+    viewerReposted,
+    trading: trade.trading,
+    eligibleCount,
+  });
   const canMessage = !isOwn;
   const canShare = true;
   const canBookmark = true;
+  const showPermissionHint = !isOwn && !viewerReposted && trade.trading && eligibleCount < 1;
 
-  const repostTarget: RepostSheetTarget | null = collection
-    ? {
+  const repostTarget = useMemo<RepostSheetTarget | null>(() => {
+    if (collection) {
+      return {
         kind: 'collection',
         collectionId: collection.id,
         name: collection.name,
         coverImage: collection.coverImage,
-      }
-    : product
-      ? {
-          kind: 'product',
-          productId: product.id,
-          name: product.name,
-          companyId: product.company.id,
-          thumbUrl: product.images[0] ?? null,
-        }
-      : null;
+      };
+    }
+    if (product) {
+      return {
+        kind: 'product',
+        productId: product.id,
+        name: product.name,
+        companyId: product.company.id,
+        thumbUrl: product.images[0] ?? null,
+      };
+    }
+    return null;
+  }, [
+    collection?.id,
+    collection?.name,
+    collection?.coverImage,
+    product?.id,
+    product?.name,
+    product?.company.id,
+    product?.images,
+  ]);
 
   const onBookmark = async () => {
     if (bookmarkBusy || !canBookmark) return;
@@ -140,7 +164,7 @@ export function ExploreFeedActions({
               testId="explore-feed-repost"
               label="Reposted"
               tone="done"
-              onClick={() => undefined}
+              onClick={() => showToast(ALREADY_REPOSTED_TOAST)}
             >
               <RepostDoneIcon width={24} height={24} />
             </ActionIcon>
@@ -149,6 +173,10 @@ export function ExploreFeedActions({
               testId="explore-feed-repost"
               label="Repost"
               disabled={!canRepost}
+              hint={showPermissionHint ? REPOST_NO_PERMISSION : undefined}
+              onDisabledActivate={
+                showPermissionHint ? () => showToast(REPOST_NO_PERMISSION) : undefined
+              }
               onClick={() => setRepostOpen(true)}
             >
               <RepostIcon width={24} height={24} />
@@ -233,11 +261,18 @@ export function ExploreFeedActions({
   );
 }
 
+function isFineHoverPointer(): boolean {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false;
+  return window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+}
+
 function ActionIcon({
   testId,
   label,
   onClick,
   disabled,
+  hint,
+  onDisabledActivate,
   tone,
   children,
 }: {
@@ -245,32 +280,82 @@ function ActionIcon({
   label: string;
   onClick: () => void;
   disabled?: boolean;
-  /** Done = full ink, not gray, tap is status-only. */
+  hint?: string;
+  onDisabledActivate?: () => void;
+  /** Done = full ink, not gray. */
   tone?: 'done';
   children: ReactNode;
 }) {
   const done = tone === 'done';
+  const nativeDisabled = Boolean(disabled && !hint && !onDisabledActivate);
+  const [hintOpen, setHintOpen] = useState(false);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null);
+
+  useLayoutEffect(() => {
+    if (!hintOpen || !hint) {
+      setPos(null);
+      return;
+    }
+    const el = btnRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const width = Math.min(288, window.innerWidth - 16);
+    let left = r.left;
+    if (left + width > window.innerWidth - 8) left = window.innerWidth - 8 - width;
+    if (left < 8) left = 8;
+    setPos({ top: r.bottom + 6, left, width });
+  }, [hintOpen, hint]);
+
   return (
-    <button
-      type="button"
-      data-testid={testId}
-      data-repost={done ? 'done' : undefined}
-      aria-label={label}
-      aria-disabled={disabled || done || undefined}
-      disabled={disabled}
-      onClick={(event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        if (disabled || done) return;
-        onClick();
-      }}
-      className={
-        disabled
-          ? 'flex h-9 w-9 shrink-0 items-center justify-center text-muted opacity-40'
-          : 'flex h-9 w-9 shrink-0 items-center justify-center text-ink'
-      }
-    >
-      {children}
-    </button>
+    <>
+      <button
+        ref={btnRef}
+        type="button"
+        data-testid={testId}
+        data-repost={done ? 'done' : undefined}
+        aria-label={label}
+        aria-disabled={disabled || undefined}
+        disabled={nativeDisabled}
+        title={disabled && hint ? hint : undefined}
+        onMouseEnter={() => {
+          if (disabled && hint && isFineHoverPointer()) setHintOpen(true);
+        }}
+        onMouseLeave={() => setHintOpen(false)}
+        onFocus={() => {
+          if (disabled && hint && isFineHoverPointer()) setHintOpen(true);
+        }}
+        onBlur={() => setHintOpen(false)}
+        onClick={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          if (disabled) {
+            if (hint && !isFineHoverPointer()) onDisabledActivate?.();
+            return;
+          }
+          onClick();
+        }}
+        className={
+          disabled
+            ? 'flex h-9 w-9 shrink-0 items-center justify-center text-muted opacity-40'
+            : 'flex h-9 w-9 shrink-0 items-center justify-center text-ink'
+        }
+      >
+        {children}
+      </button>
+      {hintOpen && hint && pos && typeof document !== 'undefined'
+        ? createPortal(
+            <div
+              role="tooltip"
+              data-testid={`${testId}-hint`}
+              className="fixed z-[85] rounded-xl border border-line bg-surface px-3 py-2.5 text-xs font-body leading-snug text-muted shadow-[var(--shadow-soft)]"
+              style={{ top: pos.top, left: pos.left, width: pos.width }}
+            >
+              {hint}
+            </div>,
+            document.body,
+          )
+        : null}
+    </>
   );
 }

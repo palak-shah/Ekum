@@ -80,6 +80,16 @@ describe('OrderSerializer remainingQuantity', () => {
     expect(view.dispatch).toBeNull();
   });
 
+  it('exposes passHeld from passHeldAt on mill hops', () => {
+    const held = orderWithItem(OrderLineStatus.Confirmed) as never as {
+      passHeldAt: Date | null;
+    };
+    held.passHeldAt = new Date('2026-11-03T00:00:00Z');
+    expect(serializer.toOrderView(held as never, 'buyer').passHeld).toBe(true);
+    held.passHeldAt = null;
+    expect(serializer.toOrderView(held as never, 'buyer').passHeld).toBe(false);
+  });
+
   it('gives remaining qty only for confirmed lines', () => {
     const view = serializer.toOrderView(orderWithItem(OrderLineStatus.Confirmed) as never, 'seller');
     expect(view.items[0]?.remainingQuantity).toBe(10);
@@ -190,6 +200,66 @@ describe('OrderSerializer remainingQuantity', () => {
             orderItemId: 'oi1',
             quantity: { toNumber: () => 4 },
             orderItem: { id: 'oi1', name: 'A' },
+          },
+        ],
+      },
+    ];
+    const view = serializer.toOrderView(base as never, 'seller');
+    expect(view.status).toBe('part_shipped');
+    expect(view.partiallyShipped).toBe(true);
+  });
+
+  it('keeps part_shipped when You lines are out but Open mill lines remain', () => {
+    const base = orderWithItem(OrderLineStatus.Dispatched) as never as {
+      status: string;
+      shipments: unknown[];
+      items: Array<{
+        id: string;
+        lineStatus: string;
+        quantity: { toNumber: () => number };
+        requestedQuantity: { toNumber: () => number };
+        name: string;
+        productId: string | null;
+        sku: string | null;
+        rate: null;
+        unit: string;
+        image: null;
+        images: unknown[];
+        note: null;
+      }>;
+    };
+    base.status = 'part_shipped';
+    base.items[0]!.id = 'you-1';
+    base.items[0]!.quantity = { toNumber: () => 8 };
+    base.items[0]!.requestedQuantity = { toNumber: () => 8 };
+    base.items[0]!.lineStatus = OrderLineStatus.Dispatched;
+    base.items.push({
+      id: 'mill-1',
+      productId: null,
+      name: 'Mill SKU',
+      sku: null,
+      rate: null,
+      unit: 'pc',
+      image: null,
+      images: [],
+      quantity: { toNumber: () => 12 },
+      requestedQuantity: { toNumber: () => 12 },
+      lineStatus: OrderLineStatus.Open,
+      note: null,
+    });
+    base.shipments = [
+      {
+        id: 's1',
+        orderId: 'o1',
+        transporter: null,
+        lrNumber: 'YOU-1',
+        parcelCount: null,
+        dispatchedAt: new Date(),
+        items: [
+          {
+            orderItemId: 'you-1',
+            quantity: { toNumber: () => 8 },
+            orderItem: { id: 'you-1', name: 'A' },
           },
         ],
       },

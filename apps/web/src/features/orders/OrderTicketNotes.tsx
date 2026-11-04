@@ -5,9 +5,10 @@ import { VoicePlayer } from '@/features/voice/VoicePlayer';
 import { MEDIA_VARIANT } from '@ekum/domain-types';
 import { toAbsoluteMediaUrl } from '@/lib/mediaUrl';
 import { explorePostedWhen } from '@/ui/cards';
-import { Button, Card, InlineNotice, Sheet, cx, listRowClass } from '@/ui/kit';
+import { THREAD_COMPOSER_CONTROL_CLASS } from '@/ui/fieldFill';
+import { Card, InlineNotice, Sheet, cx, listRowClass } from '@/ui/kit';
 import { ManagedImage } from '@/ui/ManagedImage';
-import { FwdIcon } from '@/ui/icons';
+import { FwdIcon, SendIcon } from '@/ui/icons';
 import { DisclosureChevron } from './DisclosureChevron';
 import type { OrderTicketNote } from './orderTicketChrome';
 
@@ -32,6 +33,7 @@ export function OrderTicketNotes({
   onPickMill,
   onCloseMillPick,
   onOpenNotePhotos,
+  audienceCue = 'Both sides see these',
 }: {
   notes: OrderTicketNote[];
   canForward: boolean;
@@ -51,6 +53,8 @@ export function OrderTicketNotes({
   onPickMill: (orderId: string) => void;
   onCloseMillPick: () => void;
   onOpenNotePhotos: (urls: string[], index: number, caption: string) => void;
+  /** Who sees these notes — Manage desk uses you and the buyer. */
+  audienceCue?: string;
 }) {
   const canSubmit = Boolean(note.trim() || voice || images.length > 0);
   const [moreOpen, setMoreOpen] = useState(false);
@@ -63,7 +67,9 @@ export function OrderTicketNotes({
       <Card className="flex flex-col gap-3" data-testid="order-ticket-notes">
         <div className="flex items-baseline justify-between gap-8">
           <p className="text-sm font-emphasis text-ink">Notes & comments</p>
-          <p className="text-xs font-body text-muted">Both sides see these</p>
+          <p className="text-xs font-body text-muted" data-testid="order-notes-audience">
+            {audienceCue}
+          </p>
         </div>
         {notes.length === 0 ? (
           <p className="text-sm text-muted">No notes yet.</p>
@@ -100,7 +106,15 @@ export function OrderTicketNotes({
                   <p className="whitespace-pre-wrap text-ink">{row.note}</p>
                 ) : null}
                 {row.forwarded ? (
-                  <p className="mt-0.5 text-xs text-muted">Forwarded</p>
+                  <p className="mt-0.5 text-xs text-muted" data-testid="order-note-forwarded">
+                    Forwarded
+                    {canForward ? (
+                      <>
+                        <br />
+                        Write a new note to forward again
+                      </>
+                    ) : null}
+                  </p>
                 ) : null}
                 {row.noteVoiceUrl ? (
                   <VoicePlayer src={row.noteVoiceUrl} durationMs={row.noteVoiceDurationMs} />
@@ -125,7 +139,7 @@ export function OrderTicketNotes({
                     ))}
                   </div>
                 ) : null}
-                {canForward && !row.forwarded ? (
+                {canForward && row.forwardable && !row.forwarded ? (
                   <button
                     type="button"
                     data-testid="order-note-forward"
@@ -154,17 +168,26 @@ export function OrderTicketNotes({
           onVoiceChange={onVoiceChange}
           images={images}
           onImagesChange={onImagesChange}
+          onComposerSubmit={onAdd}
+          composerSubmitDisabled={adding}
           testId="order-ticket-note-attach"
           inputTestId="order-ticket-note-input"
           endSlot={
-            <Button
-              data-testid="order-ticket-note-add"
-              disabled={adding || !canSubmit}
-              onClick={onAdd}
-              className="h-9 shrink-0 px-3"
-            >
-              {adding ? 'Adding…' : 'Add'}
-            </Button>
+            canSubmit ? (
+              <button
+                type="button"
+                data-testid="order-ticket-note-send"
+                aria-label="Send"
+                disabled={adding}
+                onClick={onAdd}
+                className={cx(
+                  THREAD_COMPOSER_CONTROL_CLASS,
+                  'bg-accent text-on-accent disabled:opacity-40',
+                )}
+              >
+                <SendIcon width={18} height={18} />
+              </button>
+            ) : null
           }
         />
         {error ? <InlineNotice message={error} /> : null}

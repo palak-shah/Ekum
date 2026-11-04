@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   RateVisibility,
   type BroadcastListView,
   type CollectionDetailView,
   type CollectionPreviewView,
+  type CollectionView,
   type CompanySettingsView,
   type ConnectionView,
   type CreateCollectionDto,
@@ -18,8 +19,18 @@ import {
   catalogShareCopiedToast,
   catalogShareInviteText,
 } from '@/features/browse/catalogShareLinkUnits';
-import { isCurateCeilingError } from '@/features/browse/curateCheck';
-import { CurateWhyHint } from '@/features/browse/CurateWhyHint';
+import {
+  CURATE_ADD_TO_IT,
+  CURATE_NAME_TAKEN,
+  CURATE_PACK_ONLY_SUMMARY,
+  curateSkipSummary,
+  isCurateCeilingError,
+  partitionCurateByCheck,
+} from '@/features/browse/curateCheck';
+import { curateExistingTargets, findOwnedPackByName, mergeCollectionProductIds } from '@/features/browse/curateExisting';
+import { collectionNameClash } from '@/features/catalog/collectionCreateHelpers';
+import { RepostSkipSection } from '@/features/browse/RepostSkipSection';
+import { repostCoverUrl } from '@/features/browse/repostCoverUrl';
 import { maxPublishAudienceForCuratedPack } from '@/features/catalog/curationAudienceCeiling';
 import { readCompanyPublishDefaults } from '@/features/catalog/publishDefaults';
 import {
@@ -82,6 +93,7 @@ export function RepostSheet({
   const [sheetError, setSheetError] = useState<string | null>(null);
   const [readyInvite, setReadyInvite] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const seededSource = useRef<string>('');
 
   const packPreview = useQuery({
     queryKey: ['explore', 'collections', target?.kind === 'collection' ? target.collectionId : ''],
@@ -127,7 +139,44 @@ export function RepostSheet({
   });
 
   const allowedIds = curateCheck.data?.allowedProductIds ?? [];
-  const blockedCount = curateCheck.data?.blocked.length ?? 0;
+
+  const owned = useQuery({
+    queryKey: ['my-collections'],
+    queryFn: () => api.get<CollectionView[]>('/collections'),
+    enabled: open,
+  });
+  const nameTargets = useMemo(
+    () => curateExistingTargets(Array.isArray(owned.data) ? owned.data : []),
+    [owned.data],
+  );
+  const nameClash = findOwnedPackByName(nameTargets, name);
+
+  const memberEntries = useMemo(() => {
+    if (!target) return [];
+    if (target.kind === 'product') {
+      return [
+        {
+          productId: target.productId,
+          name: target.name,
+          thumbUrl: target.thumbUrl ?? null,
+          companyId: target.companyId,
+          companyName: '',
+        },
+      ];
+    }
+    return (packPreview.data?.products ?? []).map((product) => ({
+      productId: product.id,
+      name: product.name,
+      thumbUrl: product.images?.[0] ?? null,
+      companyId: product.companyId,
+      companyName: product.companyName ?? '',
+    }));
+  }, [target, packPreview.data?.products]);
+
+  const { allowed: allowedRows, blocked: blockedRows } = partitionCurateByCheck(
+    memberEntries,
+    curateCheck.data,
+  );
 
   const connections = useQuery({
     queryKey: ['connections'],
@@ -147,13 +196,26 @@ export function RepostSheet({
 
   const activeConnections = (connections.data ?? []).filter((c) => c.status === 'active');
 
+  const sourceKey =
+    target?.kind === 'collection'
+      ? `c:${target.collectionId}`
+      : target?.kind === 'product'
+        ? `p:${target.productId}`
+        : '';
+
   useEffect(() => {
-    if (!open || !target) return;
+    if (!open || !target || !sourceKey) return;
+    if (seededSource.current === sourceKey) return;
+    seededSource.current = sourceKey;
     setName(target.name.trim());
     setConsent(false);
     setSheetError(null);
     setReadyInvite(null);
-  }, [open, target]);
+  }, [open, sourceKey, target]);
+
+  useEffect(() => {
+    if (!open) seededSource.current = '';
+  }, [open]);
 
   useEffect(() => {
     if (!open || !settings.data) return;
@@ -174,13 +236,55 @@ export function RepostSheet({
     packPreview.data != null &&
     packPreview.data.products == null;
 
+  const previewPending = target?.kind === 'collection' && packPreview.isLoading;
+  const previewFailed = target?.kind === 'collection' && packPreview.isError;
+  const noMembers =
+    target?.kind === 'collection' &&
+    !packPreview.isLoading &&
+    !packPreview.isError &&
+    packPreview.data != null &&
+    Array.isArray(packPreview.data.products) &&
+    packPreview.data.products.length === 0;
+  const showPublishForm =
+    Boolean(target) && !previewPending && !previewFailed && !packLocked && !noMembers;
+  const previewErrorMessage =
+    packPreview.error instanceof ApiError
+      ? packPreview.error.message
+      : "Couldn't load these designs.";
+
   const canSubmit =
     Boolean(name.trim()) &&
     allowedIds.length >= 1 &&
+    !nameClash &&
     (canPublishAlready || consent) &&
     publishAudienceCanSubmit(publishAudience) &&
     !packLocked &&
     !curateCheck.isLoading;
+
+  const addToExisting = async (pack: CollectionView) => {
+    if (allowedIds.length < 1) return;
+    setSaving(true);
+    setSheetError(null);
+    try {
+      const detail = await api.get<CollectionDetailView>(`/collections/${pack.id}`);
+      const productIdsMerged = mergeCollectionProductIds(
+        detail.products.map((product) => product.id),
+        allowedIds,
+      );
+      await api.put<CollectionDetailView>(`/collections/${pack.id}/products`, {
+        productIds: productIdsMerged,
+      } satisfies SetCollectionProductsDto);
+      void queryClient.invalidateQueries({ queryKey: ['my-collections'] });
+      showToast(`Added to ${pack.name}`);
+      onClose();
+    } catch (err) {
+      setSheetError(
+        err instanceof ApiError ? err.message : (err as Error).message || 'Could not add to collection.',
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
 
   /** Returns true when the sheet should stay open for manual copy. */
   const mintLink = async (collectionId: string): Promise<boolean> => {
@@ -219,12 +323,9 @@ export function RepostSheet({
     if (!packName) throw new Error('Enter a collection name.');
     if (allowedIds.length < 1) throw new Error('Nothing you can put in a collection yet.');
 
-    const cover =
-      target.kind === 'collection'
-        ? target.coverImage
-        : target.thumbUrl && /^https?:\/\//i.test(target.thumbUrl)
-          ? target.thumbUrl
-          : undefined;
+    const cover = repostCoverUrl(
+      target.kind === 'collection' ? target.coverImage : target.thumbUrl,
+    );
 
     let createdId: string | undefined;
     try {
@@ -302,12 +403,19 @@ export function RepostSheet({
         void queryClient.invalidateQueries({ queryKey: ['explore'] });
         showToast('You already reposted this.');
         onClose();
+      } else if (err instanceof ApiError && err.code === 'COLLECTION_NAME_TAKEN') {
+        setSheetError(CURATE_NAME_TAKEN);
       } else if (err instanceof ApiError && isCurateCeilingError(err)) {
         setSheetError(null);
         void queryClient.invalidateQueries({ queryKey: ['collections', 'curate-check'] });
       } else {
+        const clash = err instanceof ApiError ? collectionNameClash(err) : null;
         setSheetError(
-          err instanceof ApiError ? err.message : (err as Error).message || 'Could not repost.',
+          clash
+            ? CURATE_NAME_TAKEN
+            : err instanceof ApiError
+              ? err.message
+              : (err as Error).message || 'Could not repost.',
         );
       }
     } finally {
@@ -326,7 +434,19 @@ export function RepostSheet({
         }}
         title="Repost"
         footer={
+          !showPublishForm || (allowedIds.length < 1 && !curateCheck.isLoading) ? null : (
           <div className="flex flex-col gap-2">
+            {nameClash ? (
+              <Button
+                fullWidth
+                disabled={busy || allowedIds.length < 1}
+                data-testid="repost-add-to-it"
+                onClick={() => void addToExisting(nameClash)}
+              >
+                {CURATE_ADD_TO_IT}
+              </Button>
+            ) : (
+              <>
             <Button
               fullWidth
               disabled={!canSubmit || busy}
@@ -348,90 +468,107 @@ export function RepostSheet({
                   ? 'Repost + share a link · 48 hours'
                   : 'Repost + copy a link · 48 hours'}
             </button>
+              </>
+            )}
           </div>
+          )
         }
       >
         <div className="flex flex-col gap-4">
-          <p className="text-sm text-muted">
-            Publish under your name for the buyers you choose.
-          </p>
+          {previewPending || showPublishForm ? (
+            <p className="text-sm text-muted">
+              Publish under your name for the buyers you choose.
+            </p>
+          ) : null}
 
           {packLocked ? (
             <InlineNotice message="Open this collection first — designs aren’t visible to put in a collection yet." />
           ) : null}
 
-          {target?.kind === 'collection' && packPreview.isLoading ? (
+          {previewPending ? (
             <p className="text-sm text-muted">Loading designs…</p>
           ) : null}
 
-          {curateCheck.isLoading && productIds.length > 0 ? (
-            <p className="text-sm text-muted">Checking which can go in…</p>
+          {previewFailed ? (
+            <InlineNotice message={previewErrorMessage} />
           ) : null}
 
-          {!packLocked && productIds.length > 0 && !curateCheck.isLoading ? (
-            <div className="flex items-center gap-1">
-              <p className="min-w-0 flex-1 text-sm text-muted" data-testid="repost-skip-summary">
-                {allowedIds.length} design{allowedIds.length === 1 ? '' : 's'}
-                {blockedCount > 0
-                  ? ` · ${blockedCount} skipped (can’t put in a collection)`
-                  : ''}
-              </p>
-              <CurateWhyHint
-                codes={(curateCheck.data?.blocked ?? []).map((row) => row.code)}
-                extra={sheetError}
-              />
+          {noMembers ? (
+            <div className="flex flex-col gap-1" data-testid="repost-unavailable-summary">
+              <p className="text-sm text-muted">{curateSkipSummary(0, 2)}</p>
+              <p className="text-sm text-muted">{CURATE_PACK_ONLY_SUMMARY}</p>
             </div>
           ) : null}
 
-          <Field label="Name">
-            <TextInput
-              value={name}
-              onChange={(e) => {
-                setName(e.target.value);
-                setSheetError(null);
-              }}
-              placeholder="e.g. Festive 2026"
-              autoComplete="off"
-              data-testid="repost-name"
-            />
-          </Field>
+          {showPublishForm ? (
+            <>
+              {curateCheck.isLoading && productIds.length > 0 ? (
+                <p className="text-sm text-muted">Checking which can go in…</p>
+              ) : null}
 
-          <PublishAudienceFields
-            state={publishAudience}
-            onChange={(next) => {
-              setSheetError(null);
-              setPublishAudience(next);
-            }}
-            lists={broadcastLists.data ?? []}
-            connections={activeConnections}
-            connectionsLoading={connections.isLoading}
-            tradeDefaults={settings.data?.tradeDefaults}
-            maxAudience={maxAudience}
-            showSourceShopsOption={hasForeign}
-            showConsent={!canPublishAlready}
-            consent={consent}
-            onConsent={setConsent}
-            consentLabel="You're sharing others' designs under their rules — publish this collection?"
-            onCreateGroup={() => setCreateGroupOpen(true)}
-          />
+              {productIds.length > 0 && !curateCheck.isLoading ? (
+                <RepostSkipSection
+                  allowed={allowedRows}
+                  blocked={blockedRows}
+                  extraHint={sheetError}
+                  allowRelistAsk={false}
+                  trading={false}
+                  pendingByProductId={{}}
+                  askingKey={null}
+                  onAsk={() => undefined}
+                  onAskAll={() => undefined}
+                />
+              ) : null}
 
-          {sheetError ? (
-            <div className="flex items-start gap-1">
-              <div className="min-w-0 flex-1">
+              <Field label="Name">
+                <TextInput
+                  value={name}
+                  onChange={(e) => {
+                    setName(e.target.value);
+                    setSheetError(null);
+                  }}
+                  placeholder="e.g. Festive 2026"
+                  autoComplete="off"
+                  data-testid="repost-name"
+                />
+              </Field>
+
+              <PublishAudienceFields
+                state={publishAudience}
+                onChange={(next) => {
+                  setSheetError(null);
+                  setPublishAudience(next);
+                }}
+                lists={broadcastLists.data ?? []}
+                connections={activeConnections}
+                connectionsLoading={connections.isLoading}
+                tradeDefaults={settings.data?.tradeDefaults}
+                maxAudience={maxAudience}
+                showSourceShopsOption={hasForeign}
+                showConsent={!canPublishAlready}
+                consent={consent}
+                onConsent={setConsent}
+                consentLabel="You're sharing others' designs under their rules — publish this collection?"
+                onCreateGroup={() => setCreateGroupOpen(true)}
+              />
+
+              {nameClash ? (
+                <InlineNotice message={CURATE_NAME_TAKEN} tone="muted" />
+              ) : null}
+              {sheetError && !nameClash ? (
                 <InlineNotice message={sheetError} />
-              </div>
-              {blockedCount < 1 ? <CurateWhyHint codes={[]} extra={sheetError} /> : null}
-            </div>
-          ) : null}
-          {readyInvite ? (
-            <Field label="48-hour link" hint="Select the text and copy.">
-              <TextArea
-                readOnly
-                value={readyInvite}
-                rows={Math.min(6, readyInvite.split('\n').length + 1)}
-                data-testid="repost-link-ready"
-              />
-            </Field>
+              ) : null}
+              {readyInvite ? (
+                <Field label="48-hour link" hint="Select the text and copy.">
+                  <TextArea
+                    readOnly
+                    value={readyInvite}
+                    rows={Math.min(6, readyInvite.split('\n').length + 1)}
+                    data-testid="repost-link-ready"
+                  />
+                </Field>
+              ) : null}
+            </>
           ) : null}
         </div>
       </Sheet>

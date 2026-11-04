@@ -95,7 +95,18 @@ function makeService(
       updatedAt: new Date().toISOString(),
     }),
   } as unknown as DiscoverySerializer;
-  return new ExploreService(prisma, visibilityService, catalog, discovery);
+  return new ExploreService(
+    prisma,
+    visibilityService,
+    catalog,
+    discovery,
+    {
+      checkCurateProducts: async (_companyId: string, productIds: string[]) => ({
+        allowedProductIds: productIds,
+        blocked: [],
+      }),
+    } as never,
+  );
 }
 
 const publishedCollection = {
@@ -241,6 +252,40 @@ describe('ExploreService.collectionDetail trust rules', () => {
     );
     const view = await service.collectionDetail('viewer', 'col1');
     expect(view.products).toHaveLength(2);
+  });
+
+  it('skips dangling members and still returns live designs', async () => {
+    const service = makeService(
+      {
+        ...publishedCollection,
+        products: [
+          { product: null },
+          {
+            product: {
+              id: 'p1',
+              companyId: 'owner',
+              status: 'published',
+              rate: 100,
+              rateVisibility: 'on_request',
+            },
+          },
+          {
+            product: {
+              id: 'p-draft',
+              companyId: 'owner',
+              status: 'draft',
+              rate: 50,
+              rateVisibility: 'on_request',
+            },
+          },
+        ],
+        _count: { products: 3 },
+      },
+      { blocked: false, connected: true },
+      { following: true },
+    );
+    const view = await service.collectionDetail('viewer', 'col1');
+    expect(view.products?.map((row) => row.id)).toEqual(['p1']);
   });
 
   it('stamps mill From names on a Selected auto pack with Show supplier on', async () => {
@@ -690,17 +735,289 @@ describe('ExploreService.collectionDetail trust rules', () => {
       {} as VisibilityService,
       {} as CatalogSerializer,
       discovery,
+      {
+        checkCurateProducts: async (_companyId: string, productIds: string[]) => ({
+          allowedProductIds: productIds,
+          blocked: [],
+        }),
+      } as never,
     );
     const page = await service.collections('me', { limit: 20, following: true });
     expect(stampWhere).toMatchObject({
       companyId: 'me',
-      status: 'published',
-      audience: { in: ['followers', 'connections', 'everyone'] },
+      status: { not: 'archived' },
       OR: [{ repostSourceCollectionId: { in: ['peer-col'] } }],
     });
-    expect(
-      (stampWhere as { audience: { in: string[] } }).audience.in,
-    ).not.toContain('selected');
+    expect(stampWhere).not.toHaveProperty('audience');
     expect(page.results[0]?.viewerReposted).toBe(true);
+  });
+
+  it('stamps viewerReposted for a published Selected hop, not draft / automatic Selected', async () => {
+    const peerPack = {
+      id: 'peer-col',
+      companyId: 'peer',
+      name: 'Peer Pack',
+      status: 'published',
+      coverImage: null,
+      exploreActivityAt: new Date('2026-10-01T00:00:00.000Z'),
+      createdAt: new Date('2026-10-01T00:00:00.000Z'),
+      company: { id: 'peer', name: 'Peer Shop' },
+      products: [{ product: { id: 'p1', status: 'published' } }],
+      _count: { products: 1 },
+    };
+    const prisma = {
+      follow: { findMany: async () => [{ followedCompanyId: 'peer' }] },
+      company: {
+        findUnique: async () => ({
+          buyCategories: ['saree'],
+          superCategories: [],
+          city: 'Surat',
+        }),
+      },
+      collection: {
+        findMany: async (args: { where?: { companyId?: string } }) => {
+          if (args.where?.companyId === 'me') {
+            return [
+              {
+                repostSourceCollectionId: 'peer-col',
+                repostSourceProductId: null,
+                status: 'published',
+                audience: 'selected',
+                repostOrigin: 'manual',
+              },
+            ];
+          }
+          return [peerPack];
+        },
+      },
+    } as unknown as PrismaService;
+    const discovery = {
+      toCollectionCard: (
+        row: { id: string },
+        opts?: { viewerReposted?: boolean; repostEligibleCount?: number },
+      ) => ({
+        id: row.id,
+        viewerReposted: opts?.viewerReposted === true,
+        repostEligibleCount: opts?.repostEligibleCount ?? 0,
+      }),
+    } as unknown as DiscoverySerializer;
+    const service = new ExploreService(
+      prisma,
+      {} as VisibilityService,
+      {} as CatalogSerializer,
+      discovery,
+      {
+        checkCurateProducts: async (_companyId: string, productIds: string[]) => ({
+          allowedProductIds: productIds,
+          blocked: [],
+        }),
+      } as never,
+    );
+    const page = await service.collections('me', { limit: 20, following: true });
+    expect(page.results[0]?.viewerReposted).toBe(true);
+    expect(page.results[0]?.repostEligibleCount).toBe(1);
+  });
+
+  it('stamps mixed pack eligibility and ignores pack allowForward when curate-check allows', async () => {
+    const mixed = {
+      id: 'peer-col',
+      companyId: 'peer',
+      name: 'Peer Pack',
+      status: 'published',
+      allowForward: false,
+      coverImage: null,
+      exploreActivityAt: new Date('2026-10-01T00:00:00.000Z'),
+      createdAt: new Date('2026-10-01T00:00:00.000Z'),
+      company: { id: 'peer', name: 'Peer Shop' },
+      products: [
+        { product: { id: 'p1', status: 'published' } },
+        { product: { id: 'p2', status: 'published' } },
+      ],
+      _count: { products: 2 },
+    };
+    const prisma = {
+      follow: { findMany: async () => [{ followedCompanyId: 'peer' }] },
+      company: {
+        findUnique: async () => ({
+          buyCategories: ['saree'],
+          superCategories: [],
+          city: 'Surat',
+        }),
+      },
+      collection: { findMany: async () => [mixed] },
+    } as unknown as PrismaService;
+    const discovery = {
+      toCollectionCard: (
+        row: { id: string },
+        opts?: { viewerReposted?: boolean; repostEligibleCount?: number },
+      ) => ({
+        id: row.id,
+        viewerReposted: opts?.viewerReposted === true,
+        repostEligibleCount: opts?.repostEligibleCount ?? 0,
+      }),
+    } as unknown as DiscoverySerializer;
+    const mixedService = new ExploreService(
+      prisma,
+      {} as VisibilityService,
+      {} as CatalogSerializer,
+      discovery,
+      {
+        checkCurateProducts: async (_companyId: string, productIds: string[]) => ({
+          allowedProductIds: productIds.filter((id) => id === 'p1'),
+          blocked: [{ productId: 'p2', code: 'NOT_DISCOVERABLE' }],
+        }),
+      } as never,
+    );
+    const mixedPage = await mixedService.collections('me', { limit: 20, following: true });
+    expect(mixedPage.results[0]?.repostEligibleCount).toBe(1);
+
+    const noneService = new ExploreService(
+      prisma,
+      {} as VisibilityService,
+      {} as CatalogSerializer,
+      discovery,
+      {
+        checkCurateProducts: async () => ({
+          allowedProductIds: [],
+          blocked: [
+            { productId: 'p1', code: 'NOT_DISCOVERABLE' },
+            { productId: 'p2', code: 'NOT_DISCOVERABLE' },
+          ],
+        }),
+      } as never,
+    );
+    const nonePage = await noneService.collections('me', { limit: 20, following: true });
+    expect(nonePage.results[0]?.repostEligibleCount).toBe(0);
+  });
+
+  it('counts only Published members for feed Repost eligibility', async () => {
+    let memberWhere: unknown;
+    let checkedIds: string[] = [];
+    const peerPack = {
+      id: 'peer-col',
+      companyId: 'peer',
+      name: 'Peer Pack',
+      status: 'published',
+      coverImage: null,
+      exploreActivityAt: new Date('2026-10-01T00:00:00.000Z'),
+      createdAt: new Date('2026-10-01T00:00:00.000Z'),
+      company: { id: 'peer', name: 'Peer Shop' },
+      products: [
+        { product: { id: 'p1', status: 'published' } },
+        { product: { id: 'draft-1', status: 'draft' } },
+      ],
+      _count: { products: 2 },
+    };
+    const prisma = {
+      follow: { findMany: async () => [{ followedCompanyId: 'peer' }] },
+      company: {
+        findUnique: async () => ({
+          buyCategories: ['saree'],
+          superCategories: [],
+          city: 'Surat',
+        }),
+      },
+      collection: { findMany: async () => [peerPack] },
+      collectionProduct: {
+        findMany: async (args: { where?: unknown }) => {
+          memberWhere = args.where;
+          return [{ collectionId: 'peer-col', productId: 'p1' }];
+        },
+      },
+    } as unknown as PrismaService;
+    const discovery = {
+      toCollectionCard: (
+        row: { id: string },
+        opts?: { viewerReposted?: boolean; repostEligibleCount?: number },
+      ) => ({
+        id: row.id,
+        viewerReposted: opts?.viewerReposted === true,
+        repostEligibleCount: opts?.repostEligibleCount ?? 0,
+      }),
+    } as unknown as DiscoverySerializer;
+    const service = new ExploreService(
+      prisma,
+      {} as VisibilityService,
+      {} as CatalogSerializer,
+      discovery,
+      {
+        checkCurateProducts: async (_companyId: string, productIds: string[]) => {
+          checkedIds = productIds;
+          return { allowedProductIds: productIds, blocked: [] };
+        },
+      } as never,
+    );
+    const page = await service.collections('me', { limit: 20, following: true });
+    expect(memberWhere).toMatchObject({
+      collectionId: { in: ['peer-col'] },
+      product: { status: 'published' },
+    });
+    expect(checkedIds).toEqual(['p1']);
+    expect(page.results[0]?.repostEligibleCount).toBe(1);
+  });
+
+  it('does not stamp done for draft or automatic Selected hops', async () => {
+    const peerPack = {
+      id: 'peer-col',
+      companyId: 'peer',
+      name: 'Peer Pack',
+      status: 'published',
+      coverImage: null,
+      exploreActivityAt: new Date('2026-10-01T00:00:00.000Z'),
+      createdAt: new Date('2026-10-01T00:00:00.000Z'),
+      company: { id: 'peer', name: 'Peer Shop' },
+      products: [{ product: { id: 'p1', status: 'published' } }],
+      _count: { products: 1 },
+    };
+    const prisma = {
+      follow: { findMany: async () => [{ followedCompanyId: 'peer' }] },
+      company: {
+        findUnique: async () => ({
+          buyCategories: ['saree'],
+          superCategories: [],
+          city: 'Surat',
+        }),
+      },
+      collection: {
+        findMany: async (args: { where?: { companyId?: string } }) => {
+          if (args.where?.companyId === 'me') {
+            return [
+              {
+                repostSourceCollectionId: 'peer-col',
+                repostSourceProductId: null,
+                status: 'draft',
+                audience: 'followers',
+                repostOrigin: 'manual',
+              },
+            ];
+          }
+          return [peerPack];
+        },
+      },
+    } as unknown as PrismaService;
+    const discovery = {
+      toCollectionCard: (
+        row: { id: string },
+        opts?: { viewerReposted?: boolean; repostEligibleCount?: number },
+      ) => ({
+        id: row.id,
+        viewerReposted: opts?.viewerReposted === true,
+        repostEligibleCount: opts?.repostEligibleCount ?? 0,
+      }),
+    } as unknown as DiscoverySerializer;
+    const service = new ExploreService(
+      prisma,
+      {} as VisibilityService,
+      {} as CatalogSerializer,
+      discovery,
+      {
+        checkCurateProducts: async (_companyId: string, productIds: string[]) => ({
+          allowedProductIds: productIds,
+          blocked: [],
+        }),
+      } as never,
+    );
+    const page = await service.collections('me', { limit: 20, following: true });
+    expect(page.results[0]?.viewerReposted).toBe(false);
   });
 });

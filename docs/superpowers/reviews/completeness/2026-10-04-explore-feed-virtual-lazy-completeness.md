@@ -96,7 +96,7 @@
 ## Explicitly deferred / rejected
 
 - Real pixel thumbnail pipeline / CDN transforms (URL `_thumb` convention stays; no force without files)
-- Infinite `/explore/home` cursor API (home stays sectioned; window + More posts)
+- Infinite `/explore/home` cursor API (home stays sectioned; Buying continues via `/explore/feed` — see `2026-11-02-explore-buying-scroll-load`)
 - Virtualizing Home opportunity rows (smaller; feed API cap covers hang)
 - Changing Explore ranking semantics beyond window approximation
 
@@ -104,3 +104,7 @@
 
 Required gaps closed or deferred in writing: Yes  
 Ready for implementation / `@functional` journeys: Yes  
+
+## Hole (2026-11-02)
+
+Mixed **More posts** remainder virtualized at 24 and left a blank band before **You've reached the end**. Mixed buying stays real layout. Completeness: `2026-11-02-explore-mixed-feed-blank-band-completeness.md`.

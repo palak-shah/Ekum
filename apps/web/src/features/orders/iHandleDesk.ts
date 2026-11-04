@@ -26,9 +26,48 @@ export function itemsForMill(
   return items.filter((item) => ids.has(item.id));
 }
 
+/** Parent item ids claimed by mill hops — union of each desk `itemIds`. */
+export function millOwnedParentItemIds(
+  millDesks: OrderView['millDesks'] | undefined,
+): Set<string> {
+  const ids = new Set<string>();
+  for (const desk of millDesks ?? []) {
+    for (const id of desk.itemIds ?? []) ids.add(id);
+  }
+  return ids;
+}
+
+/**
+ * Parent lines not on any mill desk. Empty mill desks → all items
+ * (Direct / 1:1 / I-handle without hops).
+ */
+export function leftoverYouItems<T extends { id: string }>(
+  items: T[],
+  millDesks: OrderView['millDesks'] | undefined,
+): T[] {
+  if (!millDesks?.length) return items;
+  const millIds = millOwnedParentItemIds(millDesks);
+  return items.filter((item) => !millIds.has(item.id));
+}
+
+export function leftoverYouHasRemaining(
+  items: Array<{ id: string; remainingQuantity: number }>,
+  millDesks: OrderView['millDesks'] | undefined,
+): boolean {
+  return leftoverYouItems(items, millDesks).some((item) => item.remainingQuantity > 0);
+}
+
+export function leftoverYouHasDeclined(
+  items: Array<{ id: string; lineStatus: string }>,
+  millDesks: OrderView['millDesks'] | undefined,
+): boolean {
+  return leftoverYouItems(items, millDesks).some((item) => item.lineStatus === 'declined');
+}
+
 /**
  * Parent item list vs mill cards — never both.
  * Trader and Reveal-On buyer already see designs under each mill card.
+ * Leftover trader-owned lines render as a separate You group.
  */
 export function showOrderParentItemsList(
   millDesks: OrderView['millDesks'] | undefined,
@@ -211,6 +250,7 @@ export function orderDetailNextCue(input: {
       hasSellerQuote: input.hasSellerQuote,
       millDesks: input.millDesks,
       laneTicket: input.laneTicket,
+      // orderDetailNextCue callers without youFulfilment stay mill-only.
     });
   }
   return nextOrderAction({
@@ -329,17 +369,26 @@ export function orderActionDock(input: {
   canAcceptQuote?: boolean;
   /** Seller logged this ticket — hide Confirm; buyer Declines (no Accept). */
   createdBySeller?: boolean;
+  /**
+   * Trader on mill hop (buyer of mill ticket): qty Edit until confirm;
+   * Cancel in ⋯; never Accept-quote rate-haggle.
+   */
+  isTraderMillHop?: boolean;
 }): OrderActionDock {
   if (!input.isSeller) {
     const requested = input.status === 'requested';
-    const acceptQuote = requested && input.canAcceptQuote === true;
+    const millHop = input.isTraderMillHop === true;
+    const acceptQuote =
+      !millHop && requested && input.canAcceptQuote === true;
     const edit = input.canAmend === true;
     const openToRefuse = requested || input.status === 'confirmed';
     // Seller-logged (own catalog): confirmed on create. Decline stays on the
     // confirmed ticket so the buyer can refuse a phone-agreed log. Buyer-placed
-    // tickets keep Cancel for the same statuses.
-    const declineLogged = input.createdBySeller === true && openToRefuse;
-    const cancel = input.createdBySeller !== true && openToRefuse;
+    // tickets keep Cancel for the same statuses. Mill hop: Cancel in ⋯ only.
+    const declineLogged =
+      !millHop && input.createdBySeller === true && openToRefuse;
+    const cancel =
+      !millHop && input.createdBySeller !== true && openToRefuse;
     if (!cancel && !declineLogged && !edit && !acceptQuote) {
       return { kind: 'none' };
     }
@@ -366,8 +415,13 @@ export function orderActionDock(input: {
       quoted,
     };
   }
+  // Parent Dispatch stays off while mill desks exist — You lots ship on the
+  // linked You Selling hop; mill lots on mill hops. Legacy Slice B leftover
+  // without a You hop still passes hasRemaining from the caller.
+  const millDeskBlocksParentDispatch = Boolean(input.millDesks?.length);
   const openDispatchSheet =
     input.openForDispatch &&
+    !millDeskBlocksParentDispatch &&
     (input.hasRemaining || input.hasDeclinedToRestore === true);
   if (openDispatchSheet) {
     return {
@@ -392,8 +446,21 @@ export function showMillSendOnCard(
   return true;
 }
 
+/** You-hop wait after mills are quiet — Confirm / Dispatch on the hop, never parent operate. */
+export function youFulfilmentDeskCue(
+  youFulfilment: { id: string; status: string } | null | undefined,
+): string | null {
+  if (!youFulfilment) return null;
+  if (youFulfilment.status === 'requested') return 'Your move: Confirm your lots';
+  if (youFulfilment.status === 'confirmed' || youFulfilment.status === 'part_shipped') {
+    return 'Waiting on You to dispatch';
+  }
+  return null;
+}
+
 /**
- * I-handle trader desk “Your move” — mill Send / wait on mill Confirm.
+ * I-handle trader desk “Your move” — mill Send / wait on mill Confirm,
+ * then You hop Confirm / Dispatch when mills are quiet.
  * No parent Send quote / Confirm (trader is buyer on mill hops).
  */
 export function traderDeskNextAction(input: {
@@ -401,6 +468,7 @@ export function traderDeskNextAction(input: {
   counterpartName: string;
   hasSellerQuote?: boolean;
   millDesks: OrderView['millDesks'] | undefined;
+  youFulfilment?: { id: string; status: string } | null;
   laneTicket?: string | null;
 }): string | null {
   const desks = input.millDesks;
@@ -413,13 +481,7 @@ export function traderDeskNextAction(input: {
       return 'Your move: Send mill lots';
     }
 
-    const awaitingRates = desks.filter((desk) => !desk.held && !desk.millQuoted);
-    if (awaitingRates.length === 1) {
-      return `Waiting on ${awaitingRates[0]!.sellerName} for rates`;
-    }
-    if (awaitingRates.length > 1) return 'Waiting on mills for rates';
-
-    // Mill quoted or still open — wait for mill Confirm (pass-through firms parent).
+    // Released mills — wait for Confirm (no wait-for-rates; mill edits rate on Confirm).
     const awaitingConfirm = desks.filter(
       (desk) => !desk.held && !millDeskDropped(desk) && desk.status === 'requested',
     );
@@ -427,6 +489,8 @@ export function traderDeskNextAction(input: {
       return `Waiting on ${awaitingConfirm[0]!.sellerName} to confirm`;
     }
     if (awaitingConfirm.length > 1) return 'Waiting on mills to confirm';
+
+    return youFulfilmentDeskCue(input.youFulfilment);
   }
 
   if (input.status === 'confirmed' || input.status === 'part_shipped') {
@@ -436,13 +500,176 @@ export function traderDeskNextAction(input: {
     }
     if (awaitingDispatch.length > 1) return 'Waiting on mills to dispatch';
 
-    // All released mills finished — parent should already be Settled (pass-through / heal).
-    return null;
+    return youFulfilmentDeskCue(input.youFulfilment);
   }
 
   if (input.status === 'dispatched') return 'Dispatched · complete';
   if (input.status === 'settled') return 'Settled · complete';
   return null;
+}
+
+/** Compact trade-summary rows for I-handle Selling Manage parent (seller). */
+export type TradeSummaryRow = {
+  label: string;
+  value: string;
+  pill?: string;
+};
+
+/** Goods path on Manage desk — straight broker path (no godown copy). */
+export function tradeSummaryGoodsGo(buyerName: string): string {
+  return `Supplier → ${buyerName}`;
+}
+
+export function buildTradeSummaryRows(input: {
+  buyerName: string;
+  millDesks: OrderView['millDesks'] | undefined;
+  /** Seller sees mill names; buyer soft-hide omits You buy from. */
+  includeMillNames: boolean;
+}): TradeSummaryRow[] {
+  const rows: TradeSummaryRow[] = [
+    { label: 'You sell to', value: input.buyerName, pill: 'Through you' },
+  ];
+  if (input.includeMillNames) {
+    const names = (input.millDesks ?? [])
+      .filter((desk) => !millDeskDropped(desk) && desk.sellerName?.trim())
+      .map((desk) => desk.sellerName.trim());
+    const unique = [...new Set(names)];
+    if (unique.length > 0) {
+      rows.push({ label: 'You buy from', value: unique.join(', ') });
+    }
+  }
+  rows.push({
+    label: 'Goods go',
+    value: tradeSummaryGoodsGo(input.buyerName),
+  });
+  return rows;
+}
+
+/** Show You fulfilment card when leftover lines exist or a You hop is linked. */
+export function showYouFulfilmentCard(input: {
+  millDesks: OrderView['millDesks'] | undefined;
+  leftoverCount: number;
+  youFulfilmentOrderId?: string | null;
+}): boolean {
+  if (!(input.millDesks && input.millDesks.length > 0)) return false;
+  return input.leftoverCount > 0 || Boolean(input.youFulfilmentOrderId);
+}
+
+/**
+ * Trader Manage parent with mill desks — trade summary replaces the party card
+ * (do not paint the trader as supplier).
+ */
+export function hideManagePartyCard(
+  direction: string | undefined,
+  millDesks: OrderView['millDesks'] | undefined,
+): boolean {
+  return isTraderDeskOperator(direction ?? '', millDesks);
+}
+
+/** Released mill open subline — Buying # · wait cue (one place; not StatusPill). */
+export function millFulfilmentOpenSubtitle(
+  hopOrderId: string,
+  waitCue?: string | null,
+): string {
+  const idTail = hopOrderId.replace(/[^a-zA-Z0-9]/g, '').slice(-4).toUpperCase();
+  const hash = `#${idTail || hopOrderId.slice(-4)}`;
+  const base = `Buying ${hash}`;
+  const tail = waitCue?.trim();
+  return tail ? `${base} · ${tail}` : base;
+}
+
+/**
+ * Wait cue for mill open-row subline — never wait-for-rates.
+ * Held → Held; requested → waiting to accept; else dispatch.
+ */
+export function millFulfilmentWaitLabel(
+  desk: Pick<OrderMillDeskView, 'held' | 'status' | 'passHeld'>,
+): string | null {
+  if (desk.held || millDeskDropped(desk)) return null;
+  if (desk.passHeld) return 'Held';
+  if (desk.status === 'requested') return 'waiting to accept';
+  if (millNeedsDispatch(desk)) return 'waiting to dispatch';
+  return null;
+}
+
+/** Mill hop idle dock wait — trader as buyer of mill ticket. */
+export function millHopAcceptWaitLabel(sellerName: string): string {
+  const name = sellerName.trim() || 'supplier';
+  return `Waiting for ${name} to accept`;
+}
+
+/**
+ * Buy ≈ / Sell caption on Manage mill card design lines.
+ * Unequal → both; equal → single ₹; one-sided → that side.
+ */
+export function millCardLineRateCaption(input: {
+  buyRate: number | null | undefined;
+  sellRate: number | null | undefined;
+  unitSuffix: string;
+  formatAmount: (rate: number) => string;
+}): string | null {
+  const buy = input.buyRate;
+  const sell = input.sellRate;
+  const u = input.unitSuffix;
+  const fmt = input.formatAmount;
+  if (buy != null && sell != null && buy !== sell) {
+    return `Buy ≈ ${fmt(buy)} · Sell ${fmt(sell)}${u}`;
+  }
+  if (buy != null && sell != null) {
+    return `${fmt(sell)}${u}`;
+  }
+  if (buy != null) return `Buy ≈ ${fmt(buy)}${u}`;
+  if (sell != null) return `${fmt(sell)}${u}`;
+  return null;
+}
+
+/** `{shipped} of {qty} to {buyer}` on Manage mill card lines. */
+export function millCardLineProgressCaption(input: {
+  shipped: number;
+  quantity: number;
+  buyerName: string;
+}): string {
+  const buyer = input.buyerName.trim() || 'buyer';
+  const shipped = Number.isFinite(input.shipped) ? Math.max(0, input.shipped) : 0;
+  const qty = Number.isFinite(input.quantity) ? input.quantity : 0;
+  return `${shipped} of ${qty} to ${buyer}`;
+}
+
+export type DeskChatTarget = {
+  id: string;
+  name: string;
+  role: 'buyer' | 'mill';
+  threadId: string;
+};
+
+/**
+ * Manage desk dock chat targets: buyer thread + released mill threads.
+ * Skip You hop (same parties as buyer↔trader).
+ */
+export function deskChatTargets(input: {
+  buyerName: string;
+  buyerThreadId?: string | null;
+  millDesks: OrderView['millDesks'] | undefined;
+}): DeskChatTarget[] {
+  const targets: DeskChatTarget[] = [];
+  if (input.buyerThreadId) {
+    targets.push({
+      id: 'buyer',
+      name: input.buyerName,
+      role: 'buyer',
+      threadId: input.buyerThreadId,
+    });
+  }
+  for (const desk of input.millDesks ?? []) {
+    if (desk.held || millDeskDropped(desk) || !desk.millThreadId) continue;
+    targets.push({
+      id: desk.upstreamOrderId,
+      name: desk.sellerName,
+      role: 'mill',
+      threadId: desk.millThreadId,
+    });
+  }
+  return targets;
 }
 
 /** @deprecated use traderActionsBehindTakeOver */

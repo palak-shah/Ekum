@@ -4,6 +4,9 @@ import {
   isTraderDeskOperator,
   isTraderMillHop,
   itemsForMill,
+  leftoverYouHasDeclined,
+  leftoverYouHasRemaining,
+  leftoverYouItems,
   millCue,
   millDeskCardClass,
   millDeskDropped,
@@ -30,6 +33,17 @@ import {
   orderActionDock,
   requestedDockPrimary,
   showMillSendAll,
+  buildTradeSummaryRows,
+  showYouFulfilmentCard,
+  youFulfilmentDeskCue,
+  hideManagePartyCard,
+  millFulfilmentOpenSubtitle,
+  millFulfilmentWaitLabel,
+  millHopAcceptWaitLabel,
+  millCardLineRateCaption,
+  millCardLineProgressCaption,
+  deskChatTargets,
+  tradeSummaryGoodsGo,
   showMillSendOnCard,
 } from './iHandleDesk';
 import type { OrderMillDeskView, OrderView } from '@ekum/domain-types';
@@ -102,6 +116,101 @@ describe('iHandleDesk', () => {
     const items = [{ id: 'a' }, { id: 'b' }] as OrderView['items'];
     const group = { itemIds: ['b'] } as OrderMillDeskView;
     expect(itemsForMill(items, group).map((row) => row.id)).toEqual(['b']);
+  });
+
+  it('renders leftover You lines once, off mill cards', () => {
+    const items = [
+      { id: 'mill-a', remainingQuantity: 10, lineStatus: 'confirmed' },
+      { id: 'mill-b', remainingQuantity: 8, lineStatus: 'confirmed' },
+      { id: 'you-1', remainingQuantity: 5, lineStatus: 'confirmed' },
+    ] as OrderView['items'];
+    const desks = [
+      { itemIds: ['mill-a'], sellerName: 'Ahmedabad Loom Co' },
+      { itemIds: ['mill-b'], sellerName: 'Surat Mill' },
+    ] as OrderView['millDesks'];
+    expect(leftoverYouItems(items, desks).map((row) => row.id)).toEqual(['you-1']);
+    expect(itemsForMill(items, desks![0]!).map((row) => row.id)).toEqual(['mill-a']);
+    expect(itemsForMill(items, desks![1]!).map((row) => row.id)).toEqual(['mill-b']);
+    const rendered = [
+      ...itemsForMill(items, desks![0]!),
+      ...itemsForMill(items, desks![1]!),
+      ...leftoverYouItems(items, desks),
+    ].map((row) => row.id);
+    expect(rendered).toEqual(['mill-a', 'mill-b', 'you-1']);
+    expect(new Set(rendered).size).toBe(3);
+    expect(leftoverYouItems(items, undefined).map((row) => row.id)).toEqual([
+      'mill-a',
+      'mill-b',
+      'you-1',
+    ]);
+    expect(
+      leftoverYouItems(items, [
+        { itemIds: ['mill-a', 'mill-b', 'you-1'] },
+      ] as OrderView['millDesks']),
+    ).toEqual([]);
+  });
+
+  it('blocks parent Dispatch while mill desks exist (You hop fulfils leftover)', () => {
+    const millOnly = [
+      { id: 'mill-a', remainingQuantity: 10, lineStatus: 'confirmed' },
+      { id: 'mill-b', remainingQuantity: 8, lineStatus: 'confirmed' },
+    ] as OrderView['items'];
+    const mixed = [
+      ...millOnly,
+      { id: 'you-1', remainingQuantity: 5, lineStatus: 'confirmed' },
+    ] as OrderView['items'];
+    const desks = [
+      { itemIds: ['mill-a'], sellerName: 'A' },
+      { itemIds: ['mill-b'], sellerName: 'B' },
+    ] as OrderView['millDesks'];
+    expect(leftoverYouHasRemaining(millOnly, desks)).toBe(false);
+    expect(leftoverYouHasRemaining(mixed, desks)).toBe(true);
+    expect(leftoverYouHasDeclined(mixed, desks)).toBe(false);
+    expect(
+      leftoverYouHasDeclined(
+        [{ id: 'you-1', remainingQuantity: 0, lineStatus: 'declined' }] as OrderView['items'],
+        desks,
+      ),
+    ).toBe(true);
+    expect(
+      orderActionDock({
+        isSeller: true,
+        status: 'confirmed',
+        millDesks: desks,
+        sendQuote: false,
+        openForDispatch: true,
+        hasRemaining: leftoverYouHasRemaining(millOnly, desks),
+        canSettle: false,
+      }),
+    ).toEqual({ kind: 'none' });
+    // Mixed leftover remaining must not reopen parent Dispatch — You hop owns it.
+    expect(
+      orderActionDock({
+        isSeller: true,
+        status: 'confirmed',
+        millDesks: desks,
+        sendQuote: false,
+        openForDispatch: true,
+        hasRemaining: leftoverYouHasRemaining(mixed, desks),
+        canSettle: false,
+      }),
+    ).toEqual({ kind: 'none' });
+    expect(
+      orderActionDock({
+        isSeller: true,
+        status: 'confirmed',
+        millDesks: [],
+        sendQuote: false,
+        openForDispatch: true,
+        hasRemaining: true,
+        canSettle: false,
+      }),
+    ).toEqual({
+      kind: 'fulfill',
+      dispatch: true,
+      dispatchMore: false,
+      settle: false,
+    });
   });
 
   it('cues mixed mill outcomes without dropping Meena copy', () => {
@@ -552,10 +661,15 @@ describe('iHandleDesk', () => {
         status: 'requested',
         counterpartName: 'Jaipur Emporium',
         millDesks: [
-          { held: false, millQuoted: false, sellerName: 'Ahmedabad Loom Co' },
+          {
+            held: false,
+            millQuoted: false,
+            sellerName: 'Ahmedabad Loom Co',
+            status: 'requested',
+          },
         ] as OrderView['millDesks'],
       }),
-    ).toBe('Waiting on Ahmedabad Loom Co for rates');
+    ).toBe('Waiting on Ahmedabad Loom Co to confirm');
     expect(
       traderDeskNextAction({
         status: 'requested',
@@ -654,6 +768,224 @@ describe('iHandleDesk', () => {
         ] as OrderView['millDesks'],
       }),
     ).toBe('Waiting on Jaipur Weaves to dispatch');
+  });
+
+  it('cues You hop Confirm / Dispatch when mills are quiet', () => {
+    const quietMills = [
+      {
+        held: false,
+        millQuoted: true,
+        sellerName: 'Ahmedabad Loom Co',
+        status: 'settled',
+      },
+    ] as OrderView['millDesks'];
+    expect(
+      traderDeskNextAction({
+        status: 'requested',
+        counterpartName: 'Jaipur Emporium',
+        millDesks: quietMills,
+        youFulfilment: { id: 'you-1', status: 'requested' },
+      }),
+    ).toBe('Your move: Confirm your lots');
+    expect(
+      traderDeskNextAction({
+        status: 'part_shipped',
+        counterpartName: 'Jaipur Emporium',
+        millDesks: quietMills,
+        youFulfilment: { id: 'you-1', status: 'confirmed' },
+      }),
+    ).toBe('Waiting on You to dispatch');
+    expect(
+      traderDeskNextAction({
+        status: 'requested',
+        counterpartName: 'Jaipur Emporium',
+        millDesks: [
+          { held: true, millQuoted: false, sellerName: 'Ahmedabad Loom Co' },
+        ] as OrderView['millDesks'],
+        youFulfilment: { id: 'you-1', status: 'requested' },
+      }),
+    ).toBe('Your move: Send to Ahmedabad Loom Co');
+    expect(youFulfilmentDeskCue({ id: 'you-1', status: 'settled' })).toBeNull();
+  });
+
+  it('hides Manage party when trader has mill desks', () => {
+    expect(
+      hideManagePartyCard('selling', [
+        { sellerName: 'Ahmedabad Loom Co' },
+      ] as OrderView['millDesks']),
+    ).toBe(true);
+    expect(hideManagePartyCard('buying', [{ sellerName: 'Mill' }] as OrderView['millDesks'])).toBe(
+      false,
+    );
+    expect(hideManagePartyCard('selling', [])).toBe(false);
+  });
+
+  it('builds mill open subtitle, wait label, Buy/Sell caption, and desk chat targets', () => {
+    expect(millFulfilmentOpenSubtitle('cmabcdefgh')).toBe('Buying #EFGH');
+    expect(
+      millFulfilmentOpenSubtitle('cmabcdefgh', millFulfilmentWaitLabel({
+        held: false,
+        status: 'requested',
+        passHeld: false,
+      })),
+    ).toBe('Buying #EFGH · waiting to accept');
+    expect(tradeSummaryGoodsGo('Jaipur Emporium')).toBe('Supplier → Jaipur Emporium');
+    expect(millHopAcceptWaitLabel('Ahmedabad Loom Co')).toBe(
+      'Waiting for Ahmedabad Loom Co to accept',
+    );
+    expect(
+      millFulfilmentWaitLabel({
+        held: false,
+        status: 'requested',
+        passHeld: false,
+      }),
+    ).toBe('waiting to accept');
+    expect(
+      millFulfilmentWaitLabel({
+        held: false,
+        status: 'confirmed',
+        passHeld: false,
+      }),
+    ).toBe('waiting to dispatch');
+    expect(
+      millFulfilmentWaitLabel({
+        held: false,
+        status: 'requested',
+        passHeld: true,
+      }),
+    ).toBe('Held');
+    expect(
+      millFulfilmentWaitLabel({
+        held: true,
+        status: 'requested',
+        passHeld: false,
+      }),
+    ).toBeNull();
+    expect(
+      millCardLineRateCaption({
+        buyRate: 2100,
+        sellRate: 2500,
+        unitSuffix: '/pc',
+        formatAmount: (n) => `₹${n}`,
+      }),
+    ).toBe('Buy ≈ ₹2100 · Sell ₹2500/pc');
+    expect(
+      millCardLineRateCaption({
+        buyRate: 85,
+        sellRate: 85,
+        unitSuffix: '/mtr',
+        formatAmount: (n) => `₹${n}`,
+      }),
+    ).toBe('₹85/mtr');
+    expect(
+      millCardLineProgressCaption({
+        shipped: 0,
+        quantity: 3,
+        buyerName: 'Ameyaa',
+      }),
+    ).toBe('0 of 3 to Ameyaa');
+    expect(
+      orderActionDock({
+        isSeller: false,
+        status: 'requested',
+        sendQuote: false,
+        openForDispatch: false,
+        hasRemaining: false,
+        canSettle: false,
+        canAmend: true,
+        canAcceptQuote: true,
+        isTraderMillHop: true,
+      }),
+    ).toEqual({
+      kind: 'buy',
+      cancel: false,
+      declineLogged: false,
+      edit: true,
+      acceptQuote: false,
+      raiseReturn: false,
+    });
+    const targets = deskChatTargets({
+      buyerName: 'Jaipur Emporium',
+      buyerThreadId: 'th-buyer',
+      millDesks: [
+        {
+          upstreamOrderId: 'up1',
+          sellerName: 'Ahmedabad Loom Co',
+          held: false,
+          status: 'requested',
+          millThreadId: 'th-mill',
+        },
+        {
+          upstreamOrderId: 'up2',
+          sellerName: 'Held Mill',
+          held: true,
+          status: 'requested',
+          millThreadId: 'th-held',
+        },
+      ] as OrderView['millDesks'],
+    });
+    expect(targets).toEqual([
+      { id: 'buyer', name: 'Jaipur Emporium', role: 'buyer', threadId: 'th-buyer' },
+      { id: 'up1', name: 'Ahmedabad Loom Co', role: 'mill', threadId: 'th-mill' },
+    ]);
+  });
+
+  it('builds trade summary with mill names only for seller', () => {
+    const desks = [
+      { sellerName: 'Ahmedabad Loom Co', status: 'requested' },
+      { sellerName: 'Jaipur Weaves', status: 'requested' },
+    ] as OrderView['millDesks'];
+    const sellerRows = buildTradeSummaryRows({
+      buyerName: 'Jaipur Emporium',
+      millDesks: desks,
+      includeMillNames: true,
+    });
+    expect(sellerRows.map((r) => r.label)).toEqual([
+      'You sell to',
+      'You buy from',
+      'Goods go',
+    ]);
+    expect(sellerRows[0]?.pill).toBe('Through you');
+    expect(sellerRows[1]?.value).toContain('Ahmedabad Loom Co');
+    expect(sellerRows[2]?.value).toBe(tradeSummaryGoodsGo('Jaipur Emporium'));
+    const buyerRows = buildTradeSummaryRows({
+      buyerName: 'Jaipur Emporium',
+      millDesks: desks,
+      includeMillNames: false,
+    });
+    expect(buyerRows.map((r) => r.label)).toEqual(['You sell to', 'Goods go']);
+  });
+
+  it('shows You fulfilment card when leftover or hop exists', () => {
+    const desks = [{ sellerName: 'Mill' }] as OrderView['millDesks'];
+    expect(
+      showYouFulfilmentCard({
+        millDesks: desks,
+        leftoverCount: 1,
+        youFulfilmentOrderId: null,
+      }),
+    ).toBe(true);
+    expect(
+      showYouFulfilmentCard({
+        millDesks: desks,
+        leftoverCount: 0,
+        youFulfilmentOrderId: 'you-1',
+      }),
+    ).toBe(true);
+    expect(
+      showYouFulfilmentCard({
+        millDesks: desks,
+        leftoverCount: 0,
+        youFulfilmentOrderId: null,
+      }),
+    ).toBe(false);
+    expect(
+      showYouFulfilmentCard({
+        millDesks: [],
+        leftoverCount: 1,
+        youFulfilmentOrderId: 'you-1',
+      }),
+    ).toBe(false);
   });
 
   it('prefills Send quote from mill rates', () => {

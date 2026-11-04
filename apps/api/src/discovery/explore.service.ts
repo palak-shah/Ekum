@@ -33,13 +33,20 @@ import {
 } from '../access/connection-pair';
 import { VisibilityService } from '../access/visibility.service';
 import { CatalogSerializer } from '../catalog/catalog.serializer';
+import { CollectionService } from '../catalog/collection.service';
+import { shouldReuseRepostChild } from '../catalog/collection-lineage';
 import {
   generalMemberJoinRows,
   generalMemberProductWhere,
   isGeneralKind,
   publicCollectionKindWhere,
 } from '../catalog/general-collection';
-import { pinOwnRows, prependUniqueById } from './explore-own-pin';
+import { peerCompanyIdFilter, pinOwnRows, prependOwnCapped } from './explore-own-pin';
+import {
+  diversifyNewestThenFill,
+  olderThanActivityWhere,
+  parseFeedCursor,
+} from './explore-feed-page';
 import { collectionSourceShopNames, DiscoverySerializer } from './discovery.serializer';
 import {
   canDiscoverCollection,
@@ -54,7 +61,7 @@ import {
   collectionCardRateFields,
   collectionCardRateVisibility,
 } from './collection-card-rate';
-import { collectionCardInclude } from './collection-preview';
+import { collectionCardInclude, publishedCollectionMemberWhere } from './collection-preview';
 import { cursorArgs, toCursorPage } from './pagination';
 import { rankWindowTake } from './rank-window';
 import {
@@ -81,6 +88,18 @@ import {
   isEligibleStoryPublisher,
   pickReceivedCurated,
 } from './exploreReceived';
+
+/** Drop join rows whose product is gone so hops cannot 500 the album GET. */
+function presentCollectionProducts<T extends { product?: unknown | null }>(
+  entries: T[] | undefined,
+): Array<T & { product: NonNullable<T['product']> }> {
+  const list: Array<T & { product: NonNullable<T['product']> }> = [];
+  for (const entry of entries ?? []) {
+    if (entry.product == null) continue;
+    list.push(entry as T & { product: NonNullable<T['product']> });
+  }
+  return list;
+}
 
 /** Posts visible to this viewer by publish audience (everyone/connections/followers/selected). */
 function audienceVisibility(viewerCompanyId: string): { OR: object[] } {
@@ -148,11 +167,13 @@ export class ExploreService {
     private readonly visibility: VisibilityService,
     private readonly catalog: CatalogSerializer,
     private readonly discovery: DiscoverySerializer,
+    private readonly collectionService: CollectionService,
   ) {}
 
   /**
    * Sectioned Explore home. Optional category/city Narrow filters apply across sections.
    * `side=buying` fills receivedByDay; receivedCurated is always populated for Home.
+   * Own packs pin at most two in the first window so peers stay visible.
    */
   async home(viewerCompanyId: string, query: ExploreHomeQuery = {}): Promise<ExploreHomeView> {
     const feedOnly = query.sections === 'feed';
@@ -232,7 +253,7 @@ export class ExploreService {
     const networkIds = new Set(networkPage.results.map((row) => row.id));
     const networkDesignIds = new Set(networkDesigns.results.map((row) => row.id));
     const ownIds = new Set(ownCollections.map((collection) => collection.id));
-    const opportunityCollections = prependUniqueById(
+    const opportunityCollections = prependOwnCapped(
       ownCollections,
       [
         ...networkPage.results,
@@ -284,7 +305,7 @@ export class ExploreService {
           tradeById.get(collection.company.id),
         ),
       );
-    const forYou = prependUniqueById(
+    const forYou = prependOwnCapped(
       ownCollections.map((collection) =>
         this.toOpportunity(
           collection,
@@ -360,7 +381,7 @@ export class ExploreService {
         )
       : null;
 
-    const stories = this.buildStories({
+    const stories = await this.storiesForHome({
       fromNetwork,
       designsFromNetwork,
       forYou,
@@ -411,8 +432,11 @@ export class ExploreService {
     };
   }
 
-  /** Rank follow/connected publishers by newest visible post for the Stories rail. */
-  private buildStories(input: {
+  /**
+   * Stories from home shelves plus any followed/connected mill that still has a
+   * live pack — so one busy follow cannot wipe another off the rail.
+   */
+  private async storiesForHome(input: {
     fromNetwork: ExploreHomeView['fromNetwork'];
     designsFromNetwork: ExploreHomeView['designsFromNetwork'];
     forYou: ExploreHomeView['forYou'];
@@ -420,7 +444,7 @@ export class ExploreService {
     viewerCompanyId: string;
     followedIds: Set<string>;
     connectedIds: Set<string>;
-  }): ExploreStory[] {
+  }): Promise<ExploreStory[]> {
     const latest = new Map<string, ExploreStory>();
     const touch = (
       company: ExploreStory['company'],
@@ -453,6 +477,32 @@ export class ExploreService {
     }
     for (const row of input.designsForYou) {
       touch(row.product.company, row.product.postedAt, true);
+    }
+
+    const eligibleIds = [
+      ...new Set([...input.followedIds, ...input.connectedIds]),
+    ].filter((id) => id !== input.viewerCompanyId && !latest.has(id));
+    if (eligibleIds.length > 0) {
+      const packs = await this.prisma.collection.findMany({
+        where: {
+          companyId: { in: eligibleIds },
+          status: CollectionStatus.Published,
+          ...publicCollectionKindWhere(),
+          AND: [
+            collectionAudienceVisibility(input.viewerCompanyId),
+            ...liveWindowClauses(),
+            hasPublishedDesignClause(),
+          ],
+        },
+        include: { company: true },
+        orderBy: [{ exploreActivityAt: 'desc' }, { id: 'desc' }],
+        distinct: ['companyId'],
+        take: eligibleIds.length,
+      });
+      for (const pack of packs) {
+        const at = (pack.exploreActivityAt ?? pack.updatedAt).toISOString();
+        touch(this.discovery.toCompanyCard(pack.company), at);
+      }
     }
 
     const stories = [...latest.values()].sort((a, b) =>
@@ -489,20 +539,28 @@ export class ExploreService {
       take: 80,
     });
 
-    return withLiveDesigns(rows)
-      .filter((row) => isDirectedAudience(row.audience) || broadcastCollectionIds.includes(row.id))
-      .map((row) => {
-        const card = this.discovery.toCollectionCard(row, {
-          viewerCompanyId,
-        });
-        const memberCompanyIds = row.products.map((entry) => entry.product.companyId);
-        return {
-          postedAt: row.exploreActivityAt ?? row.updatedAt,
-          companyId: row.companyId,
-          curated: isCuratedCollection(row.companyId, memberCompanyIds),
-          payload: card,
-        };
+    const live = withLiveDesigns(rows).filter(
+      (row) => isDirectedAudience(row.audience) || broadcastCollectionIds.includes(row.id),
+    );
+    const eligible = await this.eligibleCountByCollection(viewerCompanyId, live);
+    const stamps = await this.viewerRepostStamps(viewerCompanyId, {
+      collectionIds: live.map((row) => row.id),
+      productIds: [],
+    });
+    return live.map((row) => {
+      const card = this.discovery.toCollectionCard(row, {
+        viewerCompanyId,
+        viewerReposted: stamps.collections.has(row.id),
+        repostEligibleCount: eligible.get(row.id) ?? 0,
       });
+      const memberCompanyIds = row.products.map((entry) => entry.product.companyId);
+      return {
+        postedAt: row.exploreActivityAt ?? row.updatedAt,
+        companyId: row.companyId,
+        curated: isCuratedCollection(row.companyId, memberCompanyIds),
+        payload: card,
+      };
+    });
   }
 
   /** Published designs on Explore (posted to market), including the viewer’s own. */
@@ -541,7 +599,7 @@ export class ExploreService {
 
     if (followedIds.length === 0) {
       const rows = await this.prisma.product.findMany({
-        where: baseWhere,
+        where: { ...baseWhere, companyId: { not: viewerCompanyId } },
         include: { company: true },
         ...args,
       });
@@ -558,7 +616,7 @@ export class ExploreService {
       this.prisma.product.findMany({
         where: {
           ...baseWhere,
-          companyId: { notIn: followedIds },
+          companyId: peerCompanyIdFilter(viewerCompanyId, followedIds),
         },
         include: { company: true },
         orderBy,
@@ -572,14 +630,19 @@ export class ExploreService {
 
   /**
    * Mixed market feed: published collections and products posted to market.
-   * All chip + interests: followed → interest-matched public → rest.
-   * Chip hard-filters then followed → public. `following=true` is followed-only.
+   * Page 1 soft-ranks within a window. Later pages keyset by activity so scroll
+   * can keep loading older live packs past that window.
    */
   async feed(viewerCompanyId: string, query: ExploreQuery): Promise<CursorPage<ExplorePost>> {
+    if (query.cursor) {
+      return this.feedContinue(viewerCompanyId, query);
+    }
+
     const companyFilter = this.companyFilter(viewerCompanyId, query);
     const windowTake = rankWindowTake(query.limit);
     const collectionWhere: Prisma.CollectionWhereInput = {
       status: CollectionStatus.Published,
+      ...publicCollectionKindWhere(),
       company: companyFilter,
       AND: [collectionAudienceVisibility(viewerCompanyId), ...liveWindowClauses()],
     };
@@ -606,17 +669,22 @@ export class ExploreService {
         }),
       ]);
       const merged = await this.hideDesignsCoveredByPacks(
-        [
-          ...withLiveDesigns(collections).map((row) => this.toCollectionFeedRow(row)),
-          ...products.map((row) => this.toProductFeedRow(row)),
-        ].sort(byPostedAtDesc),
+        diversifyNewestThenFill(
+          [
+            ...withLiveDesigns(collections).map((row) => this.toCollectionFeedRow(row)),
+            ...products.map((row) => this.toProductFeedRow(row)),
+          ].sort(byPostedAtDesc),
+          (row) => row.company.id,
+          windowTake,
+        ),
       );
       const page = pageMerged(merged, query, (row) => row.feedId);
       const stamps = await this.viewerRepostStampsForFeed(viewerCompanyId, page);
+      const eligible = await this.eligibleForFeedRows(viewerCompanyId, page);
       return toCursorPage(
         page,
         query.limit,
-        (row) => this.toExplorePost(row, stamps, viewerCompanyId),
+        (row) => this.toExplorePost(row, stamps, eligible, viewerCompanyId),
         (row) => row.feedId,
       );
     }
@@ -640,7 +708,7 @@ export class ExploreService {
         this.prisma.collection.findMany({
           where: {
             ...collectionWhere,
-            ...(followedIds.length > 0 ? { companyId: { notIn: followedIds } } : {}),
+            companyId: peerCompanyIdFilter(viewerCompanyId, followedIds),
           },
           include: collectionCardInclude,
           orderBy: [{ exploreActivityAt: 'desc' }, { createdAt: 'desc' }, { id: 'desc' }],
@@ -657,7 +725,7 @@ export class ExploreService {
         this.prisma.product.findMany({
           where: {
             ...productWhere,
-            ...(followedIds.length > 0 ? { companyId: { notIn: followedIds } } : {}),
+            companyId: peerCompanyIdFilter(viewerCompanyId, followedIds),
           },
           include: { company: true },
           orderBy: [{ postedToMarketAt: 'desc' }, { id: 'desc' }],
@@ -665,42 +733,14 @@ export class ExploreService {
         }),
       ]);
 
-    const followedRows = [
-      ...withLiveDesigns(followedCollections).map((row) => this.toCollectionFeedRow(row)),
-      ...followedProducts.map((row) => this.toProductFeedRow(row)),
-    ].sort(byPostedAtDesc);
-    // #region agent log
-    {
-      const all = [...followedCollections, ...otherCollections];
-      const selected = all.filter((row) => row.audience === PublishAudience.Selected);
-      fetch('http://127.0.0.1:7359/ingest/c3df85ff-1820-4af4-9a7f-aa6252617829', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '097f3c' },
-        body: JSON.stringify({
-          sessionId: '097f3c',
-          runId: 'pre-fix',
-          hypothesisId: 'H4',
-          location: 'explore.service.ts:feed',
-          message: 'explore feed collections',
-          data: {
-            viewerCompanyId,
-            following: Boolean(query.following),
-            followedCollectionCount: followedCollections.length,
-            otherCollectionCount: otherCollections.length,
-            selectedHits: selected.map((row) => ({
-              id: row.id,
-              companyId: row.companyId,
-              name: row.name,
-              audienceIds: row.audienceCompanyIds,
-              origin: row.repostOrigin,
-              liveDesigns: row._count?.products ?? row.products?.length ?? 0,
-            })),
-          },
-          timestamp: Date.now(),
-        }),
-      }).catch(() => {});
-    }
-    // #endregion
+    const followedRows = diversifyNewestThenFill(
+      [
+        ...withLiveDesigns(followedCollections).map((row) => this.toCollectionFeedRow(row)),
+        ...followedProducts.map((row) => this.toProductFeedRow(row)),
+      ].sort(byPostedAtDesc),
+      (row) => row.company.id,
+      windowTake,
+    );
     const otherRows = [
       ...withLiveDesigns(otherCollections).map((row) => this.toCollectionFeedRow(row)),
       ...otherProducts.map((row) => this.toProductFeedRow(row)),
@@ -718,10 +758,93 @@ export class ExploreService {
 
     const page = pageMerged(await this.hideDesignsCoveredByPacks(merged), query, (row) => row.feedId);
     const stamps = await this.viewerRepostStampsForFeed(viewerCompanyId, page);
+    const eligible = await this.eligibleForFeedRows(viewerCompanyId, page);
     return toCursorPage(
       page,
       query.limit,
-      (row) => this.toExplorePost(row, stamps, viewerCompanyId),
+      (row) => this.toExplorePost(row, stamps, eligible, viewerCompanyId),
+      (row) => row.feedId,
+    );
+  }
+
+  /** Later Buying pages — activity keyset, no soft-rank window cap. */
+  private async feedContinue(
+    viewerCompanyId: string,
+    query: ExploreQuery,
+  ): Promise<CursorPage<ExplorePost>> {
+    const parsed = parseFeedCursor(query.cursor ?? '');
+    if (!parsed) {
+      return { results: [], nextCursor: null };
+    }
+
+    let postedAt: Date | null = null;
+    if (parsed.kind === 'collection') {
+      const row = await this.prisma.collection.findUnique({
+        where: { id: parsed.entityId },
+        select: { exploreActivityAt: true, createdAt: true },
+      });
+      postedAt = row ? (row.exploreActivityAt ?? row.createdAt) : null;
+    } else {
+      const row = await this.prisma.product.findUnique({
+        where: { id: parsed.entityId },
+        select: { postedToMarketAt: true, createdAt: true },
+      });
+      postedAt = row ? (row.postedToMarketAt ?? row.createdAt) : null;
+    }
+    if (!postedAt) {
+      return { results: [], nextCursor: null };
+    }
+
+    const companyFilter = this.companyFilter(viewerCompanyId, query);
+    const take = query.limit + 1;
+    const collectionWhere: Prisma.CollectionWhereInput = {
+      status: CollectionStatus.Published,
+      ...publicCollectionKindWhere(),
+      company: companyFilter,
+      AND: [
+        collectionAudienceVisibility(viewerCompanyId),
+        ...liveWindowClauses(),
+        olderThanActivityWhere(postedAt, parsed.entityId, 'exploreActivityAt') as Prisma.CollectionWhereInput,
+      ],
+    };
+    const productWhere: Prisma.ProductWhereInput = {
+      status: ProductStatus.Published,
+      postedToMarketAt: { not: null },
+      company: companyFilter,
+      AND: [
+        audienceVisibility(viewerCompanyId),
+        olderThanActivityWhere(postedAt, parsed.entityId, 'postedToMarketAt') as Prisma.ProductWhereInput,
+      ],
+    };
+
+    const [collections, products] = await Promise.all([
+      this.prisma.collection.findMany({
+        where: collectionWhere,
+        include: collectionCardInclude,
+        orderBy: [{ exploreActivityAt: 'desc' }, { id: 'desc' }],
+        take,
+      }),
+      this.prisma.product.findMany({
+        where: productWhere,
+        include: { company: true },
+        orderBy: [{ postedToMarketAt: 'desc' }, { id: 'desc' }],
+        take,
+      }),
+    ]);
+
+    const merged = await this.hideDesignsCoveredByPacks(
+      [
+        ...withLiveDesigns(collections).map((row) => this.toCollectionFeedRow(row)),
+        ...products.map((row) => this.toProductFeedRow(row)),
+      ].sort(byPostedAtDesc),
+    );
+    const page = merged.slice(0, take);
+    const stamps = await this.viewerRepostStampsForFeed(viewerCompanyId, page);
+    const eligible = await this.eligibleForFeedRows(viewerCompanyId, page);
+    return toCursorPage(
+      page,
+      query.limit,
+      (row) => this.toExplorePost(row, stamps, eligible, viewerCompanyId),
       (row) => row.feedId,
     );
   }
@@ -761,6 +884,26 @@ export class ExploreService {
     };
 
     if (query.following) {
+      // First page: pull a ranking window then keep ≥1 newest pack per followed
+      // shop so one busy mill cannot fill all 12 home slots.
+      if (!query.cursor) {
+        const rows = await this.prisma.collection.findMany({
+          where: baseWhere,
+          include: collectionCardInclude,
+          orderBy: [
+            { exploreActivityAt: 'desc' },
+            { createdAt: 'desc' },
+            { id: 'desc' },
+          ],
+          take: windowTake,
+        });
+        const diverse = diversifyNewestThenFill(
+          withLiveDesigns(rows),
+          (row) => row.companyId,
+          query.limit + 1,
+        );
+        return this.toCollectionCardPage(viewerCompanyId, diverse, query.limit);
+      }
       const rows = await this.prisma.collection.findMany({
         where: baseWhere,
         include: collectionCardInclude,
@@ -770,7 +913,8 @@ export class ExploreService {
           { id: 'desc' },
         ],
         take: query.limit + 1,
-        ...(query.cursor ? { cursor: { id: query.cursor }, skip: 1 } : {}),
+        cursor: { id: query.cursor },
+        skip: 1,
       });
       return this.toCollectionCardPage(viewerCompanyId, withLiveDesigns(rows), query.limit);
     }
@@ -797,7 +941,7 @@ export class ExploreService {
       this.prisma.collection.findMany({
         where: {
           ...baseWhere,
-          ...(followedIds.length > 0 ? { companyId: { notIn: followedIds } } : {}),
+          companyId: peerCompanyIdFilter(viewerCompanyId, followedIds),
         },
         include: collectionCardInclude,
         orderBy,
@@ -1070,6 +1214,10 @@ export class ExploreService {
         _count: { ...collection._count, products: members.length },
       };
     }
+    collection = {
+      ...collection,
+      products: presentCollectionProducts(collection.products),
+    };
     const connected =
       isOwner || (await this.visibility.canViewCatalog(viewerCompanyId, collection.companyId));
     const following =
@@ -1755,10 +1903,12 @@ export class ExploreService {
       collectionIds: rows.map((row) => row.id),
       productIds: [],
     });
+    const eligible = await this.eligibleCountByCollection(viewerCompanyId, rows);
     return toCursorPage(rows, limit, (row) =>
       this.discovery.toCollectionCard(row, {
         viewerReposted: stamps.collections.has(row.id),
         viewerCompanyId,
+        repostEligibleCount: eligible.get(row.id) ?? 0,
       }),
     );
   }
@@ -1772,9 +1922,14 @@ export class ExploreService {
       collectionIds: [],
       productIds: rows.map((row) => row.id),
     });
+    const allowed = await this.allowedProductIdSet(
+      viewerCompanyId,
+      rows.map((row) => row.id),
+    );
     return toCursorPage(rows, limit, (row) =>
       this.discovery.toExploreProductCard(row, {
         viewerReposted: stamps.products.has(row.id),
+        repostEligibleCount: allowed.has(row.id) ? 1 : 0,
       }),
     );
   }
@@ -1805,14 +1960,7 @@ export class ExploreService {
     const mine = await this.prisma.collection.findMany({
       where: {
         companyId: viewerCompanyId,
-        status: CollectionStatus.Published,
-        audience: {
-          in: [
-            PublishAudience.Followers,
-            PublishAudience.Connections,
-            PublishAudience.Everyone,
-          ],
-        },
+        status: { not: CollectionStatus.Archived },
         OR: [
           ...(collectionIds.length > 0
             ? [{ repostSourceCollectionId: { in: collectionIds } }]
@@ -1820,23 +1968,128 @@ export class ExploreService {
           ...(productIds.length > 0 ? [{ repostSourceProductId: { in: productIds } }] : []),
         ],
       },
-      select: { repostSourceCollectionId: true, repostSourceProductId: true },
+      select: {
+        repostSourceCollectionId: true,
+        repostSourceProductId: true,
+        status: true,
+        audience: true,
+        repostOrigin: true,
+      },
     });
-    return {
-      collections: new Set(
-        mine
-          .map((row) => row.repostSourceCollectionId)
-          .filter((id): id is string => Boolean(id)),
-      ),
-      products: new Set(
-        mine.map((row) => row.repostSourceProductId).filter((id): id is string => Boolean(id)),
-      ),
-    };
+    const collections = new Set<string>();
+    const products = new Set<string>();
+    for (const row of mine) {
+      if (shouldReuseRepostChild(row)) continue;
+      if (row.repostSourceCollectionId) collections.add(row.repostSourceCollectionId);
+      if (row.repostSourceProductId) products.add(row.repostSourceProductId);
+    }
+    return { collections, products };
+  }
+
+  private memberProductIds(row: CollectionCardRow): string[] {
+    return (row.products ?? [])
+      .map((entry) => (entry.product as { id?: string }).id)
+      .filter((id): id is string => Boolean(id));
+  }
+
+  private async allowedProductIdSet(
+    viewerCompanyId: string,
+    productIds: string[],
+  ): Promise<Set<string>> {
+    const unique = [...new Set(productIds.filter(Boolean))];
+    if (unique.length === 0) return new Set();
+    const check = await this.collectionService.checkCurateProducts(viewerCompanyId, unique);
+    return new Set(check.allowedProductIds);
+  }
+
+  /** Id-only members — not the preview slice used for thumbs. */
+  private async queryMemberIdsByCollection(
+    collectionIds: string[],
+  ): Promise<Map<string, string[]>> {
+    const map = new Map<string, string[]>();
+    if (collectionIds.length === 0) return map;
+    const client = this.prisma.collectionProduct as
+      | { findMany?: (args: unknown) => Promise<Array<{ collectionId: string; productId: string }>> }
+      | undefined;
+    if (!client?.findMany) return map;
+    const members = await client.findMany({
+      where: { collectionId: { in: collectionIds }, ...publishedCollectionMemberWhere },
+      select: { collectionId: true, productId: true },
+    });
+    for (const row of members) {
+      const list = map.get(row.collectionId) ?? [];
+      list.push(row.productId);
+      map.set(row.collectionId, list);
+    }
+    return map;
+  }
+
+  private membersForCollection(
+    row: CollectionCardRow,
+    queried: Map<string, string[]>,
+  ): string[] {
+    const fromQuery = queried.get(row.id);
+    return fromQuery && fromQuery.length > 0 ? fromQuery : this.memberProductIds(row);
+  }
+
+  private async eligibleCountByCollection(
+    viewerCompanyId: string,
+    rows: CollectionCardRow[],
+  ): Promise<Map<string, number>> {
+    const queried = await this.queryMemberIdsByCollection(rows.map((row) => row.id));
+    const allowed = await this.allowedProductIdSet(
+      viewerCompanyId,
+      rows.flatMap((row) => this.membersForCollection(row, queried)),
+    );
+    const map = new Map<string, number>();
+    for (const row of rows) {
+      map.set(
+        row.id,
+        this.membersForCollection(row, queried).filter((id) => allowed.has(id)).length,
+      );
+    }
+    return map;
+  }
+
+  private async eligibleForFeedRows(
+    viewerCompanyId: string,
+    rows: FeedRow[],
+  ): Promise<{ collections: Map<string, number>; products: Map<string, number> }> {
+    const collectionRows = rows.flatMap((row) =>
+      row.kind === 'collection' && row.collection ? [row.collection] : [],
+    );
+    const queried = await this.queryMemberIdsByCollection(collectionRows.map((row) => row.id));
+    const membersByCollection = new Map<string, string[]>();
+    const productIds: string[] = [];
+    for (const row of rows) {
+      if (row.kind === 'collection' && row.collection) {
+        membersByCollection.set(
+          row.collection.id,
+          this.membersForCollection(row.collection, queried),
+        );
+      } else if (row.kind === 'product' && row.product) {
+        productIds.push(row.product.id);
+      }
+    }
+    const allowed = await this.allowedProductIdSet(viewerCompanyId, [
+      ...[...membersByCollection.values()].flat(),
+      ...productIds,
+    ]);
+    const collections = new Map<string, number>();
+    for (const [id, members] of membersByCollection) {
+      collections.set(id, members.filter((memberId) => allowed.has(memberId)).length);
+    }
+    const products = new Map<string, number>();
+    for (const id of productIds) {
+      products.set(id, allowed.has(id) ? 1 : 0);
+    }
+    return { collections, products };
   }
 
   private toExplorePost(
     row: FeedRow,
     stamps: { collections: Set<string>; products: Set<string> },
+    eligible: { collections: Map<string, number>; products: Map<string, number> },
     viewerCompanyId: string,
   ): ExplorePost {
     if (row.kind === 'collection' && row.collection) {
@@ -1847,6 +2100,7 @@ export class ExploreService {
         collection: this.discovery.toCollectionCard(row.collection, {
           viewerReposted: stamps.collections.has(row.collection.id),
           viewerCompanyId,
+          repostEligibleCount: eligible.collections.get(row.collection.id) ?? 0,
         }),
       };
     }
@@ -1857,6 +2111,7 @@ export class ExploreService {
         postedAt: row.postedAt.toISOString(),
         product: this.discovery.toExploreProductCard(row.product, {
           viewerReposted: stamps.products.has(row.product.id),
+          repostEligibleCount: eligible.products.get(row.product.id) ?? 0,
         }),
       };
     }

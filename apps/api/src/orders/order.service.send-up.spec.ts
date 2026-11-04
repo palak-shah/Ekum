@@ -805,6 +805,7 @@ describe('OrderAudit hop vs parent ownership', () => {
       buyerCompanyId: 'buyer',
       sellerCompanyId: 'trader',
       buyer: { name: 'Jaipur Emporium' },
+      seller: { name: 'Ravi Trading' },
       items: [
         {
           id: 'pi-1',
@@ -824,7 +825,9 @@ describe('OrderAudit hop vs parent ownership', () => {
       id: 'up-1',
       status: OrderStatus.Requested,
       passHeldAt: null,
+      buyerCompanyId: 'trader',
       sellerCompanyId: 'mill',
+      downstreamOrderId: 'down-1',
       seller: { name: 'Ahmedabad Loom Co' },
       items: [
         {
@@ -834,6 +837,7 @@ describe('OrderAudit hop vs parent ownership', () => {
           sku: 'CL-1',
           unit: 'pc',
           quantity: { toNumber: () => 10 },
+          sourceItemId: null,
         },
         {
           id: 'ui-drop',
@@ -842,6 +846,7 @@ describe('OrderAudit hop vs parent ownership', () => {
           sku: 'LL-1',
           unit: 'pc',
           quantity: { toNumber: () => 5 },
+          sourceItemId: null,
         },
       ],
     };
@@ -850,6 +855,7 @@ describe('OrderAudit hop vs parent ownership', () => {
       order: {
         findUnique: vi.fn(async () => parent),
         findMany: vi.fn(async () => [hop]),
+        create: vi.fn(async () => ({ id: 'new-hop' })),
       },
       orderItem: {
         delete: vi.fn(async ({ where }: { where: { id: string } }) => {
@@ -859,7 +865,13 @@ describe('OrderAudit hop vs parent ownership', () => {
         update: vi.fn(async () => ({})),
         create: vi.fn(async () => ({})),
       },
-      product: { findUnique: vi.fn(async () => null) },
+      product: {
+        findUnique: vi.fn(async () => null),
+        findMany: vi.fn(async () => [{ id: 'p1', companyId: 'mill' }]),
+      },
+      tradeLane: {
+        upsert: vi.fn(async () => ({})),
+      },
       $transaction: async (fn: (tx: unknown) => Promise<unknown>) => fn(prisma),
     } as unknown as PrismaService;
     const svc = service(prisma);
@@ -868,8 +880,23 @@ describe('OrderAudit hop vs parent ownership', () => {
     };
 
     await (
-      svc as unknown as { passBuyerAmendToMills: (parentId: string) => Promise<void> }
-    ).passBuyerAmendToMills('down-1');
+      svc as unknown as {
+        syncHopsAfterBuyerAmend: (
+          tx: unknown,
+          input: {
+            parent: typeof parent;
+            deletedParentIds: Set<string>;
+            newlyCreatedParentIds: Set<string>;
+            actorCompanyId: string;
+          },
+        ) => Promise<void>;
+      }
+    ).syncHopsAfterBuyerAmend(prisma, {
+      parent,
+      deletedParentIds: new Set(),
+      newlyCreatedParentIds: new Set(),
+      actorCompanyId: 'buyer',
+    });
 
     expect(deleted).toEqual(['ui-drop']);
     expect(appendQty).toHaveBeenCalledWith(

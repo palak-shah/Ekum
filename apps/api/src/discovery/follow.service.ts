@@ -102,7 +102,15 @@ export class FollowService {
       return { following: false, pending: true };
     }
     if (existing.status === FollowStatus.Stopped) {
-      return this.follow(followerCompanyId, followedCompanyId);
+      await this.prisma.follow.update({
+        where: { id: existing.id },
+        data: {
+          status: FollowStatus.Pending,
+          accessKind: null,
+          packAskPending: true,
+        },
+      });
+      return { following: false, pending: true, packAskPending: true };
     }
     if (existing.status === FollowStatus.Allowed && existing.accessKind === FollowAccessKind.Pack) {
       return { following: true, pending: false, packAskPending: false };
@@ -180,8 +188,7 @@ export class FollowService {
     return follows.map((follow) => ({
       company: this.serializer.toCompanyCard(follow.follower),
       createdAt: follow.createdAt.toISOString(),
-      kind:
-        follow.status === FollowStatus.Allowed && follow.packAskPending ? 'share' : 'see',
+      kind: follow.packAskPending ? 'share' : 'see',
     }));
   }
 

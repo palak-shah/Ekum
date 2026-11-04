@@ -3,6 +3,10 @@ import {
   CURATE_ASK_RELIST,
   CURATE_NOT_VISIBLE_REASON,
   CURATE_PACK_LOCK_REASON,
+  CURATE_PACK_ONLY_SUMMARY,
+  REPOST_NO_PERMISSION,
+  canExploreRepost,
+  cartMayAskRelist,
   curateAskAllLabel,
   curateAskKind,
   curateBlockReason,
@@ -10,10 +14,15 @@ import {
   curateSaveDraftLabel,
   curateSkipSummary,
   curateWhyHintLines,
+  exploreRepostEligibleCount,
   groupRelistAskBatches,
   isCurateCeilingError,
+  isPackOnlyUnavailable,
   mayAskToPutInPack,
   partitionCurateByCheck,
+  skippedDesignsLabel,
+  unavailableDesignsSummary,
+  zeroEligibleSharedReason,
 } from './curateCheck';
 
 describe('curateBlockReason', () => {
@@ -73,6 +82,16 @@ describe('curateWhyHintLines', () => {
     ]);
     expect(curateWhyHintLines(['CURATED_AUDIENCE_TOO_WIDE'])).toEqual([
       'Your Who is wider than a sourced design allows.',
+    ]);
+  });
+
+  it('collapses duplicate skip codes to one line', () => {
+    expect(
+      curateWhyHintLines(['NOT_DISCOVERABLE', 'NOT_DISCOVERABLE', 'INVALID_PRODUCTS']),
+    ).toHaveLength(1);
+    expect(curateWhyHintLines(['RELIST_NOT_ALLOWED', 'NOT_DISCOVERABLE'])).toEqual([
+      'They don’t allow putting these designs in a collection.',
+      'These designs aren’t listed for adding to a collection. A pack category doesn’t unlock that.',
     ]);
   });
 
@@ -143,6 +162,38 @@ describe('isCurateCeilingError', () => {
       isCurateCeilingError({ message: 'One or more products are not visible to you.' }),
     ).toBe(true);
     expect(isCurateCeilingError({ message: 'Network down' })).toBe(false);
+  });
+});
+
+describe('canExploreRepost', () => {
+  it('is on only when trading, not own, not done, and at least one eligible design', () => {
+    const ok = { isOwn: false, viewerReposted: false, trading: true, eligibleCount: 2 };
+    expect(canExploreRepost(ok)).toBe(true);
+    expect(canExploreRepost({ ...ok, eligibleCount: 0 })).toBe(false);
+    expect(canExploreRepost({ ...ok, isOwn: true })).toBe(false);
+    expect(canExploreRepost({ ...ok, viewerReposted: true })).toBe(false);
+    expect(canExploreRepost({ ...ok, trading: false })).toBe(false);
+  });
+});
+
+describe('exploreRepostEligibleCount', () => {
+  it('uses the stamp, else falls back to the pack lock', () => {
+    expect(exploreRepostEligibleCount({ repostEligibleCount: 0, allowForward: true })).toBe(0);
+    expect(exploreRepostEligibleCount({ allowForward: false })).toBe(0);
+    expect(exploreRepostEligibleCount({ allowForward: true })).toBe(1);
+  });
+});
+
+describe('unavailable copy', () => {
+  it('does not repeat pack-only reasons and never Asks for not-listed', () => {
+    expect(skippedDesignsLabel(3)).toBe('Skipped designs (3)');
+    expect(unavailableDesignsSummary(8)).toBe('8 designs unavailable');
+    expect(unavailableDesignsSummary(1)).toBe('1 design unavailable');
+    expect(isPackOnlyUnavailable(['NOT_DISCOVERABLE', 'INVALID_PRODUCTS'])).toBe(true);
+    expect(zeroEligibleSharedReason(['NOT_DISCOVERABLE'])).toBe(CURATE_PACK_ONLY_SUMMARY);
+    expect(cartMayAskRelist(['NOT_DISCOVERABLE'])).toBe(false);
+    expect(cartMayAskRelist(['RELIST_NOT_ALLOWED', 'NOT_DISCOVERABLE'])).toBe(true);
+    expect(REPOST_NO_PERMISSION).toBe("You don't have permission to repost these designs.");
   });
 });
 

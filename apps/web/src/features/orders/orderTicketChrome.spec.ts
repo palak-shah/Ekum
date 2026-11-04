@@ -41,6 +41,26 @@ function line(partial: {
   };
 }
 
+function millDesk(partial: Partial<NonNullable<OrderView['millDesks']>[number]> = {}) {
+  return {
+    upstreamOrderId: 'up1',
+    sellerCompanyId: 'mill',
+    sellerName: 'Ahmedabad Loom Co',
+    held: false,
+    passHeld: false,
+    reveal: false,
+    revealThreadId: null,
+    millThreadId: null,
+    status: 'requested',
+    itemIds: ['i1'],
+    confirmedCount: 0,
+    declinedCount: 0,
+    millQuoted: false,
+    lines: [],
+    ...partial,
+  };
+}
+
 function order(partial: {
   status?: string;
   direction?: string;
@@ -49,6 +69,8 @@ function order(partial: {
   manualOrderNo?: string;
   items?: ReturnType<typeof line>[];
   linkedMills?: OrderView['linkedMills'];
+  millDesks?: OrderView['millDesks'];
+  youFulfilment?: OrderView['youFulfilment'];
 }): OrderView {
   const direction = partial.direction ?? 'buying';
   const status = partial.status ?? 'requested';
@@ -76,6 +98,8 @@ function order(partial: {
       ? { manualOrderNo: partial.manualOrderNo, note: null, images: [] }
       : undefined,
     linkedMills: partial.linkedMills,
+    millDesks: partial.millDesks,
+    youFulfilment: partial.youFulfilment,
   } as OrderView;
 }
 
@@ -116,7 +140,7 @@ describe('orderTicketChrome', () => {
     expect(over?.over).toBe(true);
   });
 
-  it('waiting supplier on idle buying; buyer when seller is idle; none on I-handle desk', () => {
+  it('waiting supplier on idle buying; buyer when seller is idle; I-handle wait after Send', () => {
     expect(orderTicketWaitingCue(order({ status: 'requested', direction: 'buying' }))).toBe(
       'Waiting: supplier',
     );
@@ -140,7 +164,68 @@ describe('orderTicketChrome', () => {
         }),
       ),
     ).toBeNull();
+    expect(
+      orderTicketWaitingCue(
+        order({
+          status: 'requested',
+          direction: 'selling',
+          tradeMode: 'manage',
+          millDesks: [millDesk({ held: true })],
+        }),
+      ),
+    ).toBeNull();
+    expect(
+      orderTicketWaitingCue(
+        order({
+          status: 'requested',
+          direction: 'selling',
+          tradeMode: 'manage',
+          millDesks: [millDesk({ held: false, millQuoted: false })],
+        }),
+      ),
+    ).toBe('Waiting on Ahmedabad Loom Co to confirm');
+    expect(
+      orderTicketWaitingCue(
+        order({
+          status: 'requested',
+          direction: 'selling',
+          tradeMode: 'manage',
+          millDesks: [millDesk({ held: false, millQuoted: true, status: 'requested' })],
+        }),
+      ),
+    ).toBe('Waiting on Ahmedabad Loom Co to confirm');
+    expect(
+      orderTicketWaitingCue(
+        order({
+          status: 'confirmed',
+          direction: 'selling',
+          tradeMode: 'manage',
+          millDesks: [millDesk({ held: false, millQuoted: true, status: 'confirmed' })],
+        }),
+      ),
+    ).toBe('Waiting on Ahmedabad Loom Co to dispatch');
+    expect(
+      orderTicketWaitingCue(
+        order({
+          status: 'part_shipped',
+          direction: 'selling',
+          tradeMode: 'manage',
+          millDesks: [millDesk({ held: false, millQuoted: true, status: 'settled' })],
+          youFulfilment: { id: 'you-1', status: 'confirmed' },
+        }),
+      ),
+    ).toBe('Waiting on You to dispatch');
     expect(orderTicketWaitingCue(order({ status: 'dispatched', direction: 'buying' }))).toBeNull();
+    expect(
+      orderTicketWaitingCue(
+        order({
+          status: 'dispatched',
+          direction: 'selling',
+          tradeMode: 'manage',
+          millDesks: [millDesk({ held: false, millQuoted: true, status: 'dispatched' })],
+        }),
+      ),
+    ).toBeNull();
   });
 
   it('mixed order units omit the noun', () => {
@@ -191,7 +276,10 @@ describe('orderTicketChrome', () => {
     const listed = orderTicketNotes(buying, 'buyer');
     expect(listed[0]?.id).toBe('place');
     expect(listed[0]?.who).toBe('You');
+    expect(listed[0]?.forwardable).toBe(true);
+    expect(listed[0]?.forwarded).toBe(false);
     expect(listed[1]?.note).toBe('Will cut Friday');
+    expect(listed[1]?.forwardable).toBe(true);
     expect(orderTicketCanForwardNotes(buying)).toBe(false);
     expect(
       orderTicketCanForwardNotes(
@@ -227,6 +315,33 @@ describe('orderTicketChrome', () => {
     expect(orderTicketCanForwardNotes(order({ tradeMode: 'direct', direction: 'buying' }))).toBe(
       false,
     );
+  });
+
+  it('marks place-time Forwarded after the requested trail is stamped', () => {
+    const parent = order({ direction: 'selling', tradeMode: 'manage' });
+    parent.note = 'Need lining';
+    parent.buyerCompanyId = 'buyer';
+    parent.sellerCompanyId = 'trader';
+    parent.trail = [
+      {
+        id: 'requested-1',
+        type: 'requested',
+        at: '2026-09-08T00:00:00.000Z',
+        who: 'Jaipur Emporium',
+        summary: 'Requested',
+        detail: null,
+        note: null,
+        noteVoiceUrl: null,
+        noteVoiceDurationMs: null,
+        noteImageUrls: [],
+        mine: false,
+        forwarded: true,
+      },
+    ];
+    const listed = orderTicketNotes(parent, 'trader');
+    expect(listed[0]?.id).toBe('place');
+    expect(listed[0]?.forwarded).toBe(true);
+    expect(listed[0]?.forwardable).toBe(true);
   });
 
   it('Notes include confirm/dispatch sheet notes with a quiet cue', () => {
@@ -286,6 +401,7 @@ describe('orderTicketChrome', () => {
     expect(listed[0]?.cue).toBe('On confirm');
     expect(listed[1]?.cue).toBe('On dispatch');
     expect(listed[2]?.cue).toBeNull();
+    expect(listed.map((row) => row.forwardable)).toEqual([false, false, true]);
     expect(listed[0]?.mine).toBe(false);
     expect(listed[2]?.mine).toBe(true);
     expect(orderTicketNoteCue('settled')).toBe('On settle');
@@ -337,6 +453,7 @@ describe('orderTicketChrome', () => {
     ];
     const listed = orderTicketNotes(ticket, 'buyer');
     expect(listed.map((row) => row.note)).toEqual(['Drop the navy', 'Rate holds 3 days']);
+    expect(listed.every((row) => row.forwardable === false)).toBe(true);
     expect(listed.some((row) => row.note?.includes('Pack later'))).toBe(false);
     expect(listed[0]?.cue).toBeNull();
     expect(listed[1]?.cue).toBeNull();

@@ -50,7 +50,9 @@ import {
   EXPLORE_FIRST_PAINT_POSTS,
   EXPLORE_INITIAL_FEED_POSTS,
   exploreFeedEndVisible,
+  exploreFeedLoadMoreVisible,
   exploreLandingBlocked,
+  feedCursorFromMixedId,
   mixedOpportunitiesFromExplorePosts,
 } from './exploreFeedFromPosts';
 import { loadExploreFeedSeenMap } from './exploreFeedSeen';
@@ -251,6 +253,7 @@ function MixedSection({
       <VirtualFeedList
         items={items}
         getKey={(item) => item.id}
+        virtualizeAfter={Number.POSITIVE_INFINITY}
         renderItem={(item, index) =>
           item.kind === 'collection' ? (
             <OpportunityCollectionCard
@@ -490,7 +493,7 @@ export function ExplorePage() {
     () => searchParams.get('search') === '1' || Boolean(searchParams.get('q')),
   );
   const [searchTerm, setSearchTerm] = useState(() => searchParams.get('q') ?? '');
-  const [showAllPosts, setShowAllPosts] = useState(false);
+  const [homeTailOpen, setHomeTailOpen] = useState(false);
   const searchQuery = searchTerm.trim();
   const showingResults = searchFocused && searchQuery.length >= 2;
 
@@ -675,24 +678,92 @@ export function ExplorePage() {
       .sort((a, b) => b.at - a.at);
   }, [postsForYou, storyCompanyId]);
 
-  // Story filter and filter changes reset the More posts window.
+  // Story filter and filter changes reset scroll-load expansion.
   useEffect(() => {
-    setShowAllPosts(false);
+    setHomeTailOpen(false);
   }, [storyCompanyId, contentMode, categories, cities, tradeSide]);
 
-  const visiblePosts = useMemo(() => {
-    if (storyCompanyId || showAllPosts) return filteredPosts;
+  const homeHead = useMemo(() => {
+    if (storyCompanyId) return filteredPosts;
     if (!home.isSuccess) return filteredPosts.slice(0, EXPLORE_FIRST_PAINT_POSTS);
     return filteredPosts.slice(0, EXPLORE_INITIAL_FEED_POSTS);
-  }, [filteredPosts, showAllPosts, storyCompanyId, home.isSuccess]);
-  const morePostsCount = home.isSuccess
-    ? Math.max(0, filteredPosts.length - visiblePosts.length)
-    : 0;
+  }, [filteredPosts, storyCompanyId, home.isSuccess]);
+  const homeTail = useMemo(() => {
+    if (storyCompanyId || !home.isSuccess) return [];
+    return filteredPosts.slice(EXPLORE_INITIAL_FEED_POSTS);
+  }, [filteredPosts, storyCompanyId, home.isSuccess]);
+  // Seed past the first painted window so Load more continues the Buying lane
+  // (homeTail may still open for ranked shelf leftovers; older pages dedupe by id).
+  const feedSeedCursor = useMemo(() => {
+    const last = homeHead[homeHead.length - 1];
+    return last ? feedCursorFromMixedId(last.id) : null;
+  }, [homeHead]);
+
+  const olderFeed = useInfiniteQuery({
+    queryKey: ['explore', 'feed', 'older', filters, tradeSide, feedSeedCursor],
+    initialPageParam: feedSeedCursor as string,
+    queryFn: ({ pageParam }) =>
+      api.get<CursorPage<ExplorePost>>('/explore/feed', {
+        ...filters,
+        limit: EXPLORE_INITIAL_FEED_POSTS,
+        cursor: pageParam,
+      }),
+    getNextPageParam: (last) => last.nextCursor,
+    enabled:
+      tradeSide === 'buying' &&
+      contentMode === 'all' &&
+      home.isSuccess &&
+      !storyCompanyId &&
+      homeTailOpen &&
+      Boolean(feedSeedCursor),
+  });
+
+  const olderPosts = useMemo(
+    () =>
+      mixedOpportunitiesFromExplorePosts(
+        olderFeed.data?.pages.flatMap((page) => page.results) ?? [],
+      ),
+    [olderFeed.data?.pages],
+  );
+  const homeIds = useMemo(() => new Set(filteredPosts.map((row) => row.id)), [filteredPosts]);
+  const visiblePosts = useMemo(() => {
+    const mid = homeTailOpen ? homeTail : [];
+    const extra = olderPosts.filter((row) => !homeIds.has(row.id));
+    return [...homeHead, ...mid, ...extra];
+  }, [homeHead, homeTail, homeTailOpen, olderPosts, homeIds]);
+  const feedExhausted =
+    home.isSuccess &&
+    (storyCompanyId
+      ? true
+      : homeTailOpen &&
+        !olderFeed.isFetching &&
+        !olderFeed.isFetchingNextPage &&
+        (feedSeedCursor ? olderFeed.isFetched && !olderFeed.hasNextPage : true));
   const showFeedEnd = exploreFeedEndVisible({
     postCount: visiblePosts.length,
-    morePostsCount,
     homeReady: home.isSuccess,
+    feedExhausted,
   });
+  const canLoadMore = !homeTailOpen
+    ? homeTail.length > 0 || Boolean(feedSeedCursor)
+    : Boolean(feedSeedCursor) &&
+      (olderFeed.isFetching || olderFeed.hasNextPage || !olderFeed.isFetched);
+  const showLoadMore = exploreFeedLoadMoreVisible({
+    homeReady: home.isSuccess,
+    feedExhausted,
+    storyFiltered: Boolean(storyCompanyId),
+    canLoadMore,
+  });
+  const loadOlderFeed = () => {
+    if (storyCompanyId || tradeSide !== 'buying' || contentMode !== 'all') return;
+    if (!homeTailOpen) {
+      setHomeTailOpen(true);
+      return;
+    }
+    if (olderFeed.hasNextPage && !olderFeed.isFetching) {
+      void olderFeed.fetchNextPage();
+    }
+  };
   const landingBlocked = exploreLandingBlocked({
     homeLoading: home.isLoading,
     homeHasData: Boolean(home.data),
@@ -998,15 +1069,18 @@ export function ExplorePage() {
                   items={visiblePosts}
                   feedRelationships={feedRelationships}
                 />
-                {morePostsCount > 0 ? (
-                  <Button
-                    variant="secondary"
-                    fullWidth
-                    data-testid="explore-more-posts"
-                    onClick={() => setShowAllPosts(true)}
-                  >
-                    More posts
-                  </Button>
+                {showLoadMore ? (
+                  <div className="px-4 pb-2">
+                    <Button
+                      variant="secondary"
+                      fullWidth
+                      data-testid="explore-feed-load-more"
+                      disabled={olderFeed.isFetching}
+                      onClick={loadOlderFeed}
+                    >
+                      {olderFeed.isFetching ? 'Loading…' : 'Load more'}
+                    </Button>
+                  </div>
                 ) : null}
                 {showFeedEnd ? <ExploreFeedEnd /> : null}
               </>

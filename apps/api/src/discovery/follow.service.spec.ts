@@ -360,6 +360,37 @@ describe('FollowService.requestShare', () => {
       data: { packAskPending: true },
     });
   });
+
+  it('reopens Stopped as pending pack ask (not bare follow)', async () => {
+    const update = vi.fn(async () => ({}));
+    const prisma = {
+      company: { findUnique: async () => ({ id: 'mill' }) },
+      follow: {
+        findUnique: async () => ({
+          id: 'f-stopped',
+          status: 'stopped',
+          accessKind: null,
+          packAskPending: false,
+        }),
+        update,
+      },
+    } as unknown as PrismaService;
+    const visibility = { isBlocked: async () => false } as unknown as VisibilityService;
+    const service = new FollowService(prisma, visibility, {} as DiscoverySerializer);
+    await expect(service.requestShare('trader', 'mill')).resolves.toEqual({
+      following: false,
+      pending: true,
+      packAskPending: true,
+    });
+    expect(update).toHaveBeenCalledWith({
+      where: { id: 'f-stopped' },
+      data: {
+        status: 'pending',
+        accessKind: null,
+        packAskPending: true,
+      },
+    });
+  });
 });
 
 describe('FollowService.listAsks', () => {
@@ -395,6 +426,51 @@ describe('FollowService.listAsks', () => {
           logoUrl: null,
         },
         createdAt: '2026-10-31T00:00:00.000Z',
+        kind: 'share',
+      },
+    ]);
+  });
+
+  it('marks pending pack asks as share (Stopped reopen)', async () => {
+    const findMany = vi.fn(async () => [
+      {
+        status: 'pending',
+        packAskPending: true,
+        createdAt: new Date('2026-11-04T00:00:00.000Z'),
+        follower: {
+          id: 'c2',
+          name: 'Meena',
+          city: 'Surat',
+          verification: 'none',
+          logoUrl: null,
+          sellCategories: [],
+          buyCategories: [],
+        },
+      },
+    ]);
+    const toCompanyCard = vi.fn((company: { id: string }) => ({
+      id: company.id,
+      name: 'Meena',
+      city: 'Surat',
+      verification: 'none',
+      logoUrl: null,
+    }));
+    const prisma = { follow: { findMany } } as unknown as PrismaService;
+    const service = new FollowService(
+      prisma,
+      {} as VisibilityService,
+      { toCompanyCard } as unknown as DiscoverySerializer,
+    );
+    await expect(service.listAsks('mill')).resolves.toEqual([
+      {
+        company: {
+          id: 'c2',
+          name: 'Meena',
+          city: 'Surat',
+          verification: 'none',
+          logoUrl: null,
+        },
+        createdAt: '2026-11-04T00:00:00.000Z',
         kind: 'share',
       },
     ]);

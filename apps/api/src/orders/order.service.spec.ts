@@ -1,3 +1,4 @@
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { describe, expect, it } from 'vitest';
 import {
   OrderIntent,
@@ -49,6 +50,7 @@ interface Captured {
   itemUpdates: Record<string, unknown>[];
   shipmentCreate: Record<string, unknown> | null;
   trailAppends: Record<string, unknown>[];
+  trailUpdates: Array<{ id: string; payload: Record<string, unknown> }>;
   companyNoteUpsert: Record<string, unknown> | null;
   auditAppends: Record<string, unknown>[];
 }
@@ -112,8 +114,14 @@ interface Options {
     noteVoiceUrl: string | null;
     noteVoiceDurationMs: number | null;
     noteImageUrls: string[];
+    payload?: Record<string, unknown> | null;
   } | null;
-  requestedTrail?: { noteImageUrls: string[] } | null;
+  requestedTrail?: {
+    id?: string;
+    noteImageUrls: string[];
+    payload?: Record<string, unknown> | null;
+  } | null;
+  millHops?: Array<{ items: Array<{ sourceItemId: string | null }> }>;
   upstreamHops?: Array<{ id: string }>;
   hopOrder?: {
     id: string;
@@ -125,6 +133,8 @@ interface Options {
     items?: unknown[];
     shipments?: unknown[];
   } | null;
+  /** Seller Manage parent You hop summary for GET. */
+  youFulfilmentHop?: { id: string; status: string } | null;
 }
 
 function makeService(options: Options) {
@@ -137,6 +147,7 @@ function makeService(options: Options) {
     itemUpdates: [],
     shipmentCreate: null,
     trailAppends: [],
+    trailUpdates: [] as Array<{ id: string; payload: Record<string, unknown> }>,
     companyNoteUpsert: null,
     auditAppends: [],
   };
@@ -194,14 +205,19 @@ function makeService(options: Options) {
       findMany: async (args?: {
         where?: { downstreamOrderId?: string };
         select?: Record<string, unknown>;
+        include?: Record<string, unknown>;
       }) => {
-        if (
-          args?.where?.downstreamOrderId &&
-          args.select &&
-          Object.keys(args.select).length === 1 &&
-          args.select.id
-        ) {
-          return options.upstreamHops ?? [];
+        if (args?.where?.downstreamOrderId) {
+          if (args.select && 'items' in args.select) {
+            return options.millHops ?? [];
+          }
+          if (
+            args.select &&
+            Object.keys(args.select).length === 1 &&
+            args.select.id
+          ) {
+            return options.upstreamHops ?? [];
+          }
         }
         return [];
       },
@@ -230,6 +246,29 @@ function makeService(options: Options) {
           };
         }
         return orderState;
+      },
+      findFirst: async (args?: {
+        where?: {
+          downstreamOrderId?: string;
+          sellerCompanyId?: string;
+          status?: unknown;
+        };
+        select?: { id?: boolean; status?: boolean };
+      }) => {
+        if (
+          options.youFulfilmentHop &&
+          args?.where?.downstreamOrderId &&
+          args.where.sellerCompanyId &&
+          orderState &&
+          args.where.downstreamOrderId === orderState.id &&
+          args.where.sellerCompanyId === orderState.sellerCompanyId
+        ) {
+          return {
+            id: options.youFulfilmentHop.id,
+            status: options.youFulfilmentHop.status,
+          };
+        }
+        return null;
       },
       update: async (args: { where: { id: string }; data: Record<string, unknown> }) => {
         captured.updateData = args.data;
@@ -272,8 +311,38 @@ function makeService(options: Options) {
     },
     orderItem: {
       findMany: async () => orderState?.items ?? [],
+      create: async (args: { data: Record<string, unknown> }) => {
+        const data = args.data;
+        const created = {
+          id: `created-${(orderState?.items.length ?? 0) + 1}`,
+          productId: (data.productId as string | null | undefined) ?? null,
+          name: String(data.name ?? data.productId ?? 'Item'),
+          sku: (data.sku as string | null | undefined) ?? null,
+          unit: (data.unit as string | null | undefined) ?? null,
+          quantity: { toNumber: () => Number(data.quantity ?? 0) },
+          requestedQuantity: { toNumber: () => Number(data.requestedQuantity ?? data.quantity ?? 0) },
+          lineStatus: String(data.lineStatus ?? OrderLineStatus.Open),
+          rate: null,
+        };
+        if (orderState) {
+          orderState = { ...orderState, items: [...orderState.items, created] };
+        }
+        captured.itemUpdates.push({ create: data });
+        return created;
+      },
+      deleteMany: async (args: { where: { id?: { in: string[] } } }) => {
+        const ids = args.where.id?.in ?? [];
+        if (orderState) {
+          orderState = {
+            ...orderState,
+            items: orderState.items.filter((item) => !ids.includes(item.id)),
+          };
+        }
+        captured.itemUpdates.push({ deleteMany: ids });
+        return { count: ids.length };
+      },
       update: async (args: { where: { id: string }; data: Record<string, unknown> }) => {
-        captured.itemUpdates.push(args.data);
+        captured.itemUpdates.push({ id: args.where.id, ...args.data });
         if (orderState) {
           orderState = {
             ...orderState,
@@ -290,6 +359,12 @@ function makeService(options: Options) {
                       args.data.rate !== undefined
                         ? { toNumber: () => Number(args.data.rate) }
                         : item.rate,
+                    productId:
+                      args.data.productId !== undefined
+                        ? (args.data.productId as string | null)
+                        : item.productId,
+                    name:
+                      args.data.name !== undefined ? String(args.data.name) : item.name,
                   }
                 : item,
             ),
@@ -373,7 +448,19 @@ function makeService(options: Options) {
         }
         return null;
       },
-      findFirst: async () => options.requestedTrail ?? null,
+      findFirst: async () =>
+        options.requestedTrail
+          ? { id: 'requested-1', ...options.requestedTrail }
+          : null,
+      update: async (args: {
+        where: { id: string };
+        data: { payload?: Record<string, unknown> };
+      }) => {
+        if (args.data.payload) {
+          captured.trailUpdates.push({ id: args.where.id, payload: args.data.payload });
+        }
+        return { id: args.where.id };
+      },
     },
     message: {
       create: async (args: { data: Record<string, unknown> }) => {
@@ -470,6 +557,15 @@ function makeService(options: Options) {
       findFirst: async () => null,
       findMany: async () => [],
       update: async () => ({}),
+      upsert: async () => ({
+        id: 'lane-1',
+        traderCompanyId: 'trader',
+        sellerCompanyId: 'mill',
+        buyerCompanyId: 'buyer',
+        ticket: 'me',
+        reveal: false,
+        groupThreadId: null,
+      }),
     },
     paymentRequest: {
       findMany: async () => [],
@@ -724,19 +820,24 @@ describe('OrderService.create snapshots', () => {
         kind: OrderKind.Standard,
         buyerCompanyId: 'buyer',
         sellerCompanyId: 'seller',
-        items: [{ ...openItem('oi1', 10), productId: 'p1' }],
+        items: [{ ...openItem('oi1', 10), productId: 'p1', name: 'Silk Saree' }],
       },
     });
     await service.amend('buyer', 'u1', 'o1', {
       items: [
-        { productId: 'p1', quantity: 12, images: [] },
+        { orderItemId: 'oi1', productId: 'p1', quantity: 12, images: [] },
         { productId: 'p2', quantity: 5, images: [] },
       ],
     });
     expect(captured.updateData).toMatchObject({
       amendCount: { increment: 1 },
-      items: expect.objectContaining({ deleteMany: {} }),
     });
+    expect(captured.itemUpdates).toContainEqual(
+      expect.objectContaining({ id: 'oi1', quantity: 12 }),
+    );
+    expect(captured.itemUpdates).toContainEqual(
+      expect.objectContaining({ create: expect.objectContaining({ productId: 'p2' }) }),
+    );
     expect(captured.messageCreate).toMatchObject({
       type: 'order_card',
       metadata: expect.objectContaining({
@@ -783,15 +884,18 @@ describe('OrderService.create snapshots', () => {
         tradeMode: OrderTradeMode.Manage,
         buyerCompanyId: 'buyer',
         sellerCompanyId: 'trader',
-        items: [openItem('oi1', 10)],
+        items: [{ ...openItem('oi1', 10), productId: 'fab-1', name: 'Cotton Grey Fabric' }],
       },
     });
     await service.amend('buyer', 'u1', 'o1', {
-      items: [{ productId: 'fab-1', quantity: 20, images: [] }],
+      items: [{ orderItemId: 'oi1', productId: 'fab-1', quantity: 20, images: [] }],
     });
     expect(captured.updateData).toMatchObject({
       amendCount: { increment: 1 },
     });
+    expect(captured.itemUpdates).toContainEqual(
+      expect.objectContaining({ id: 'oi1', quantity: 20 }),
+    );
   });
 
   it('audits a dropped amend design as amended_removed without a new live line', async () => {
@@ -828,12 +932,11 @@ describe('OrderService.create snapshots', () => {
       },
     });
     await service.amend('buyer', 'u1', 'o1', {
-      items: [{ productId: 'p1', quantity: 10, images: [] }],
+      items: [{ orderItemId: 'oi1', productId: 'p1', quantity: 10, images: [] }],
     });
-    const created = (
-      captured.updateData?.items as { create?: Array<{ productId?: string }> } | undefined
-    )?.create;
-    expect(created?.map((row) => row.productId)).toEqual(['p1']);
+    expect(captured.itemUpdates).toContainEqual(
+      expect.objectContaining({ deleteMany: ['oi2'] }),
+    );
     expect(captured.auditAppends).toContainEqual(
       expect.objectContaining({
         orderId: 'o1',
@@ -848,6 +951,77 @@ describe('OrderService.create snapshots', () => {
             qtyAfter: 0,
           }),
         ],
+      }),
+    );
+  });
+
+  it('rejects foreign and duplicate amend orderItemIds', async () => {
+    const { service } = makeService({
+      products: [
+        { id: 'p1', name: 'Silk', sku: 'S1', rate: { toNumber: () => 10 }, unit: 'mtr', images: [] },
+      ],
+      order: {
+        id: 'o1',
+        status: OrderStatus.Requested,
+        intent: OrderIntent.Order,
+        kind: OrderKind.Standard,
+        buyerCompanyId: 'buyer',
+        sellerCompanyId: 'seller',
+        items: [{ ...openItem('oi1', 10), productId: 'p1', name: 'Silk' }],
+      },
+    });
+    await expect(
+      service.amend('buyer', 'u1', 'o1', {
+        items: [{ orderItemId: 'ghost', productId: 'p1', quantity: 10, images: [] }],
+      }),
+    ).rejects.toThrow(/isn’t on this ticket|isn.t on this ticket/i);
+    await expect(
+      service.amend('buyer', 'u1', 'o1', {
+        items: [
+          { orderItemId: 'oi1', productId: 'p1', quantity: 10, images: [] },
+          { orderItemId: 'oi1', productId: 'p1', quantity: 12, images: [] },
+        ],
+      }),
+    ).rejects.toThrow(/only appear once/i);
+  });
+
+  it('keeps distinct ids when amending duplicate product lines', async () => {
+    const { service, captured } = makeService({
+      products: [
+        { id: 'p1', name: 'Cotton', sku: 'C1', rate: { toNumber: () => 40 }, unit: 'pc', images: [] },
+      ],
+      order: {
+        id: 'o1',
+        status: OrderStatus.Requested,
+        intent: OrderIntent.Order,
+        kind: OrderKind.Standard,
+        buyerCompanyId: 'buyer',
+        sellerCompanyId: 'seller',
+        items: [
+          { ...openItem('oi-a', 10), productId: 'p1', name: 'Cotton', sku: 'C1', unit: 'pc' },
+          { ...openItem('oi-b', 20), productId: 'p1', name: 'Cotton', sku: 'C1', unit: 'pc' },
+        ],
+      },
+    });
+    await service.amend('buyer', 'u1', 'o1', {
+      items: [
+        { orderItemId: 'oi-a', productId: 'p1', quantity: 11, images: [] },
+        { orderItemId: 'oi-b', productId: 'p1', quantity: 20, images: [] },
+      ],
+    });
+    expect(captured.itemUpdates).toContainEqual(
+      expect.objectContaining({ id: 'oi-a', quantity: 11 }),
+    );
+    expect(captured.itemUpdates).toContainEqual(
+      expect.objectContaining({ id: 'oi-b', quantity: 20 }),
+    );
+    expect(captured.auditAppends).toContainEqual(
+      expect.objectContaining({
+        kind: 'amended',
+        rows: expect.arrayContaining([
+          expect.objectContaining({ orderItemId: 'oi-a', qtyBefore: 10, qtyAfter: 11 }),
+          expect.objectContaining({ orderItemId: 'oi-b', qtyBefore: 20, qtyAfter: 20 }),
+        ]),
       }),
     );
   });
@@ -1273,6 +1447,52 @@ describe('OrderService decideLines', () => {
     expect(view.threadId).toBe('trio-1');
   });
 
+  it('attaches youFulfilment summary on seller Manage GET only', async () => {
+    const manageOrder = {
+      id: 'o-manage',
+      status: OrderStatus.Requested,
+      tradeMode: OrderTradeMode.Manage,
+      buyerCompanyId: 'buyer',
+      sellerCompanyId: 'seller',
+      items: [openItem('oi1', 5)],
+      downstreamOrderId: null as string | null,
+    };
+    const sellerSvc = makeService({
+      order: manageOrder,
+      youFulfilmentHop: { id: 'you-hop-1', status: OrderStatus.Requested },
+    });
+    const sellerView = await sellerSvc.service.get('seller', 'o-manage');
+    expect(sellerView.youFulfilmentOrderId).toBe('you-hop-1');
+    expect(sellerView.youFulfilment).toEqual({
+      id: 'you-hop-1',
+      status: OrderStatus.Requested,
+    });
+
+    const buyerSvc = makeService({
+      order: manageOrder,
+      youFulfilmentHop: { id: 'you-hop-1', status: OrderStatus.Requested },
+    });
+    const buyerView = await buyerSvc.service.get('buyer', 'o-manage');
+    expect(buyerView.youFulfilmentOrderId ?? null).toBeNull();
+    expect(buyerView.youFulfilment ?? null).toBeNull();
+
+    const directSvc = makeService({
+      order: {
+        id: 'o-direct',
+        status: OrderStatus.Requested,
+        tradeMode: OrderTradeMode.Direct,
+        facilitatorCompanyId: 'trader',
+        buyerCompanyId: 'buyer',
+        sellerCompanyId: 'seller',
+        items: [openItem('oi1', 5)],
+      },
+      youFulfilmentHop: { id: 'you-hop-1', status: OrderStatus.Requested },
+    });
+    const directView = await directSvc.service.get('seller', 'o-direct');
+    expect(directView.youFulfilmentOrderId ?? null).toBeNull();
+    expect(directView.youFulfilment ?? null).toBeNull();
+  });
+
   it('heals mill-logged Direct Requested onto mill–buyer 1:1 Confirmed', async () => {
     const { service, captured } = makeService({
       order: {
@@ -1442,6 +1662,80 @@ describe('OrderService lifecycle action cards', () => {
         event: 'order_dispatched',
         livingMessageId: 'quote-msg',
       }),
+    });
+  });
+
+  it('rejects parent dispatch of mill-mapped lines', async () => {
+    const { service } = makeService({
+      millHops: [{ items: [{ sourceItemId: 'oi-mill' }] }],
+      order: {
+        id: 'o1',
+        status: OrderStatus.Confirmed,
+        tradeMode: OrderTradeMode.Manage,
+        buyerCompanyId: 'buyer',
+        sellerCompanyId: 'seller',
+        items: [
+          {
+            id: 'oi-mill',
+            name: 'Mill lawn',
+            quantity: { toNumber: () => 10 },
+            requestedQuantity: { toNumber: () => 10 },
+            lineStatus: OrderLineStatus.Confirmed,
+            rate: { toNumber: () => 100 },
+          },
+        ],
+        shipments: [],
+      },
+    });
+    await expect(
+      service.dispatch('seller', 'u1', 'o1', {
+        items: [{ orderItemId: 'oi-mill', quantity: 10 }],
+        lrNumber: 'LR-M',
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(service.dispatch('seller', 'u1', 'o1', { lrNumber: 'LR-M' })).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+  });
+
+  it('lets the trader dispatch leftover You lines on a mixed parent', async () => {
+    const { service, captured } = makeService({
+      millHops: [{ items: [{ sourceItemId: 'oi-mill' }] }],
+      order: {
+        id: 'o1',
+        status: OrderStatus.Confirmed,
+        tradeMode: OrderTradeMode.Manage,
+        buyerCompanyId: 'buyer',
+        sellerCompanyId: 'seller',
+        items: [
+          {
+            id: 'oi-mill',
+            name: 'Mill lawn',
+            quantity: { toNumber: () => 10 },
+            requestedQuantity: { toNumber: () => 10 },
+            lineStatus: OrderLineStatus.Confirmed,
+            rate: { toNumber: () => 80 },
+          },
+          {
+            id: 'oi-you',
+            name: 'Own print',
+            quantity: { toNumber: () => 6 },
+            requestedQuantity: { toNumber: () => 6 },
+            lineStatus: OrderLineStatus.Confirmed,
+            rate: { toNumber: () => 90 },
+          },
+        ],
+        shipments: [],
+      },
+    });
+    await service.dispatch('seller', 'u1', 'o1', {
+      items: [{ orderItemId: 'oi-you', quantity: 6 }],
+      lrNumber: 'LR-Y',
+    });
+    expect(captured.shipmentCreate).toMatchObject({
+      items: {
+        create: [{ orderItemId: 'oi-you', quantity: 6 }],
+      },
     });
   });
 });
@@ -1837,11 +2131,61 @@ describe('OrderService notes', () => {
         }),
       ]),
     );
+    expect(captured.trailUpdates).toEqual([
+      expect.objectContaining({
+        id: 'note-1',
+        payload: expect.objectContaining({ forwarded: true }),
+      }),
+    ]);
     expect(JSON.stringify(captured.trailAppends)).not.toMatch(/buyer|mill name|Ravi/i);
     expect(captured.messageCreate).toMatchObject({
       type: 'system',
       body: 'Trader added a note',
     });
+  });
+
+  it('rejects Forward when the source note was already forwarded', async () => {
+    const { service } = makeService({
+      order: {
+        id: 'parent',
+        status: OrderStatus.Requested,
+        tradeMode: OrderTradeMode.Manage,
+        buyerCompanyId: 'buyer',
+        sellerCompanyId: 'trader',
+        items: [openItem('oi1', 5)],
+      },
+      sourceNote: {
+        id: 'note-1',
+        orderId: 'parent',
+        type: 'noted',
+        note: 'Need lining',
+        noteVoiceMediaId: null,
+        noteVoiceUrl: null,
+        noteVoiceDurationMs: null,
+        noteImageUrls: [],
+        payload: { forwarded: true },
+      },
+      upstreamHops: [{ id: 'mill-hop' }],
+      hopOrder: {
+        id: 'mill-hop',
+        status: OrderStatus.Requested,
+        tradeMode: OrderTradeMode.Manage,
+        buyerCompanyId: 'trader',
+        sellerCompanyId: 'mill',
+        downstreamOrderId: 'parent',
+        items: [openItem('oi1', 5)],
+        shipments: [],
+      },
+    });
+    try {
+      await service.forwardNote('trader', 'u1', 'parent', 'note-1', {});
+      expect.fail('expected NOTE_ALREADY_FORWARDED');
+    } catch (error) {
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as BadRequestException).getResponse()).toMatchObject({
+        code: 'NOTE_ALREADY_FORWARDED',
+      });
+    }
   });
 
   it('rejects Forward on Direct and from the buyer', async () => {
@@ -1869,5 +2213,98 @@ describe('OrderService notes', () => {
       },
     });
     await expect(parent.forwardNote('buyer', 'u1', 'parent', 'note-1', {})).rejects.toThrow();
+  });
+
+  it('forwards a Place note onto the mill hop as the trader', async () => {
+    const { service, captured } = makeService({
+      order: {
+        id: 'parent',
+        status: OrderStatus.Requested,
+        tradeMode: OrderTradeMode.Manage,
+        buyerCompanyId: 'buyer',
+        sellerCompanyId: 'trader',
+        note: 'Need lining from How many',
+        noteVoiceMediaId: 'media-voice',
+        noteVoiceUrl: 'https://host/voice.webm',
+        noteVoiceDurationMs: 1800,
+        items: [openItem('oi1', 5)],
+      },
+      requestedTrail: { noteImageUrls: ['https://cdn.example/a.jpg'] },
+      upstreamHops: [{ id: 'mill-hop' }],
+      hopOrder: {
+        id: 'mill-hop',
+        status: OrderStatus.Requested,
+        tradeMode: OrderTradeMode.Manage,
+        buyerCompanyId: 'trader',
+        sellerCompanyId: 'mill',
+        downstreamOrderId: 'parent',
+        items: [openItem('oi1', 5)],
+        shipments: [],
+      },
+    });
+    await service.forwardNote('trader', 'u1', 'parent', 'place', {});
+    expect(captured.trailAppends).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          orderId: 'mill-hop',
+          type: 'noted',
+          actorCompanyId: 'trader',
+          note: 'Need lining from How many',
+          noteVoiceMediaId: 'media-voice',
+          payload: expect.objectContaining({ forwarded: true, sourceEventId: 'place' }),
+        }),
+      ]),
+    );
+    expect(captured.trailUpdates).toEqual([
+      expect.objectContaining({
+        id: 'requested-1',
+        payload: expect.objectContaining({ forwarded: true }),
+      }),
+    ]);
+  });
+
+  it('rejects Forward of confirm, dispatch, and settle sheet notes', async () => {
+    for (const type of ['confirmed', 'dispatched', 'settled'] as const) {
+      const { service } = makeService({
+        order: {
+          id: 'parent',
+          status: OrderStatus.Requested,
+          tradeMode: OrderTradeMode.Manage,
+          buyerCompanyId: 'buyer',
+          sellerCompanyId: 'trader',
+          items: [openItem('oi1', 5)],
+        },
+        sourceNote: {
+          id: `${type}-1`,
+          orderId: 'parent',
+          type,
+          note: 'Sheet note',
+          noteVoiceMediaId: null,
+          noteVoiceUrl: null,
+          noteVoiceDurationMs: null,
+          noteImageUrls: [],
+        },
+        upstreamHops: [{ id: 'mill-hop' }],
+        hopOrder: {
+          id: 'mill-hop',
+          status: OrderStatus.Requested,
+          tradeMode: OrderTradeMode.Manage,
+          buyerCompanyId: 'trader',
+          sellerCompanyId: 'mill',
+          downstreamOrderId: 'parent',
+          items: [openItem('oi1', 5)],
+          shipments: [],
+        },
+      });
+      try {
+        await service.forwardNote('trader', 'u1', 'parent', `${type}-1`, {});
+        expect.fail(`expected NOTE_NOT_FORWARDABLE for ${type}`);
+      } catch (error) {
+        expect(error).toBeInstanceOf(BadRequestException);
+        expect((error as BadRequestException).getResponse()).toMatchObject({
+          code: 'NOTE_NOT_FORWARDABLE',
+        });
+      }
+    }
   });
 });

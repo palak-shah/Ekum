@@ -444,10 +444,13 @@ export function CollectionEditorPage() {
 
   useEffect(() => {
     if (form.masterCategoryId) return;
+    const ownerId = company.data?.id;
+    const foreign = existing.data?.products?.some((product) => product.companyId !== ownerId);
+    if (foreign) return;
     if (profileMasterDefaultId) {
       setForm((prev) => ({ ...prev, masterCategoryId: profileMasterDefaultId }));
     }
-  }, [profileMasterDefaultId, form.masterCategoryId]);
+  }, [profileMasterDefaultId, form.masterCategoryId, existing.data?.products, company.data?.id]);
 
   const masterTaxonomy = useQuery({
     queryKey: ['catalog-master-taxonomy', form.masterCategoryId],
@@ -2273,6 +2276,7 @@ export function CollectionEditorPage() {
         <p className="text-xs font-body uppercase tracking-wide text-muted">Product details</p>
         <ProductDetailsSlots
           category={
+            hasForeignMembers ? null : (
             <MasterCategoryField
               required
               value={form.masterCategoryId}
@@ -2280,6 +2284,7 @@ export function CollectionEditorPage() {
               options={catalogMasterOptions}
               error={isCollectionCategoryError(error) ? error : null}
             />
+            )
           }
           rate={
             <RateRangeFields
@@ -2302,6 +2307,7 @@ export function CollectionEditorPage() {
             />
           }
           tags={
+            hasForeignMembers ? null : (
             <CascadeTagsFields
               items={tagSlots.items}
               qualities={tagSlots.qualities}
@@ -2311,6 +2317,7 @@ export function CollectionEditorPage() {
               onQualities={(qualities) => setTagSlots({ ...tagSlots, qualities })}
               onSizes={(sizes) => setTagSlots({ ...tagSlots, sizes })}
             />
+            )
           }
         />
       </div>

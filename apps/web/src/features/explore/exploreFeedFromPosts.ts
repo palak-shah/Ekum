@@ -1,7 +1,7 @@
 import type { ExplorePost } from '@ekum/domain-types';
 import { explorePostTier, type MixedOpportunity } from './exploreFeedRank';
 
-/** Initial buying feed window — then More posts (explore.md). */
+/** Initial buying feed window — then Load more for older (explore.md). */
 export const EXPLORE_INITIAL_FEED_POSTS = 12;
 /** Light parallel feed for first paint while home enriches. */
 export const EXPLORE_FIRST_PAINT_POSTS = 6;
@@ -49,11 +49,35 @@ export function exploreLandingBlocked(input: {
   return input.homeLoading;
 }
 
-/** Quiet end footer when posts exist and More posts is not offering more. */
+/**
+ * Quiet end footer when posts exist and Load more has no further pages.
+ * `feedExhausted` is true only after the home tail is open and the feed cursor is done.
+ */
 export function exploreFeedEndVisible(input: {
   postCount: number;
-  morePostsCount: number;
   homeReady: boolean;
+  feedExhausted: boolean;
 }): boolean {
-  return input.homeReady && input.postCount > 0 && input.morePostsCount === 0;
+  return input.homeReady && input.postCount > 0 && input.feedExhausted;
+}
+
+/** Kit Load more under Buying — mutually exclusive with the end footer. */
+export function exploreFeedLoadMoreVisible(input: {
+  homeReady: boolean;
+  feedExhausted: boolean;
+  storyFiltered: boolean;
+  canLoadMore: boolean;
+}): boolean {
+  return (
+    input.homeReady &&
+    !input.storyFiltered &&
+    !input.feedExhausted &&
+    input.canLoadMore
+  );
+}
+
+/** Home mixed ids use `d:`; feed cursors use `p:` for designs. */
+export function feedCursorFromMixedId(id: string): string {
+  if (id.startsWith('d:')) return `p:${id.slice(2)}`;
+  return id;
 }

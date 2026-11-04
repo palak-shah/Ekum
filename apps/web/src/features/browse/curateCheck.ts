@@ -3,6 +3,10 @@ export const CURATE_ADD_TO_IT = 'Add to it';
 export const CURATE_NOT_VISIBLE_REASON = "Can't see this now";
 export const CURATE_PACK_LOCK_REASON = "Can't put in a collection";
 export const CURATE_ASK_RELIST = 'Ask to put in my collection';
+export const REPOST_NO_PERMISSION = "You don't have permission to repost these designs.";
+export const CURATE_PACK_ONLY_SUMMARY =
+  "These designs haven't been individually published for adding to other collections.";
+export const ALREADY_REPOSTED_TOAST = 'You already reposted this.';
 
 /** Pack Ask only when supplier locked “buyers can add to collections” — never look-only or view-Ask. */
 export function mayAskToPutInPack(input: {
@@ -124,6 +128,48 @@ export function partitionCurateByCheck<T extends { productId: string }>(
     blocked.push({ ...entry, code: codeById.get(entry.productId) ?? 'NOT_DISCOVERABLE' });
   }
   return { allowed, blocked };
+}
+
+export function exploreRepostEligibleCount(card: {
+  repostEligibleCount?: number;
+  allowForward?: boolean;
+}): number {
+  if (typeof card.repostEligibleCount === 'number') return card.repostEligibleCount;
+  return card.allowForward === false ? 0 : 1;
+}
+
+export function canExploreRepost(input: {
+  isOwn: boolean;
+  viewerReposted: boolean;
+  trading: boolean;
+  eligibleCount: number;
+}): boolean {
+  return !input.isOwn && !input.viewerReposted && input.trading && input.eligibleCount > 0;
+}
+
+export function skippedDesignsLabel(count: number): string {
+  return `Skipped designs (${count})`;
+}
+
+export function unavailableDesignsSummary(count: number): string {
+  return count === 1 ? '1 design unavailable' : `${count} designs unavailable`;
+}
+
+export function isPackOnlyUnavailable(codes: string[]): boolean {
+  return (
+    codes.length > 0 &&
+    codes.every((code) => code === 'NOT_DISCOVERABLE' || code === 'INVALID_PRODUCTS')
+  );
+}
+
+export function zeroEligibleSharedReason(codes: string[]): string {
+  if (isPackOnlyUnavailable(codes)) return CURATE_PACK_ONLY_SUMMARY;
+  return curateWhyHintLines(codes).join(' ');
+}
+
+/** Relist Ask on Cart when any skip is seller lock — including all-blocked lock. */
+export function cartMayAskRelist(codes: string[]): boolean {
+  return codes.some((code) => code === 'RELIST_NOT_ALLOWED');
 }
 
 export function groupRelistAskBatches(

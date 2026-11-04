@@ -395,7 +395,8 @@ test.describe('orders chrome @functional @release @orders', () => {
     await expect(page.getByTestId('order-ticket-notes').getByText('No notes yet.')).toBeVisible();
     await expect(page.getByTestId('order-ticket-notes').getByText('Notes & comments')).toBeVisible();
     await expect(page.getByTestId('note-attach-plus')).toBeVisible();
-    await expect(page.getByTestId('order-ticket-note-add')).toHaveText('Add');
+    await expect(page.getByTestId('order-ticket-note-send')).toHaveCount(0);
+
     await expect(page.getByTestId('order-ticket-bill-total')).toHaveCount(0);
     await expect(page.getByTestId('order-timeline-more')).toContainText(/Timeline · /);
     const timeline = page.getByTestId('order-timeline');
@@ -639,7 +640,8 @@ test.describe('orders chrome @functional @release @orders', () => {
     await notes.locator('input[type="file"][multiple]').setInputFiles(SAMPLE_JPG);
     await expect(notes.locator('textarea')).toBeVisible({ timeout: 15_000 });
     await notes.locator('textarea').fill('Need extra lining');
-    await notes.getByTestId('order-ticket-note-add').click();
+    await notes.getByTestId('order-ticket-note-send').click();
+
     await expect(notes.getByText('Need extra lining')).toBeVisible({ timeout: 15_000 });
     await expect(notes.locator('img').first()).toBeVisible();
     await expect(page.getByTestId('order-personal-note-preview')).toHaveCount(0);
@@ -663,7 +665,8 @@ test.describe('orders chrome @functional @release @orders', () => {
     await expect(buyerNotes).toBeVisible({ timeout: 15_000 });
     await expect(page.getByTestId('order-note-forward')).toHaveCount(0);
     await buyerNotes.locator('textarea').fill('Need lining on mill lot');
-    await buyerNotes.getByTestId('order-ticket-note-add').click();
+    await buyerNotes.getByTestId('order-ticket-note-send').click();
+
     await expect(buyerNotes.getByText('Need lining on mill lot')).toBeVisible({ timeout: 15_000 });
     await expect(buyerNotes).not.toContainText(/Ahmedabad Loom Co/i);
 
@@ -671,6 +674,8 @@ test.describe('orders chrome @functional @release @orders', () => {
     await page.goto(`/orders/${parentId}`);
     await expect(page.getByTestId('order-note-forward').first()).toBeVisible({ timeout: 15_000 });
     await page.getByTestId('order-note-forward').first().click();
+    await expect(page.getByTestId('order-note-forwarded').first()).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId('order-note-forward')).toHaveCount(0);
 
     const traderToken = await accessTokenFromPage(page);
     const traderDetail = await page.request.get(`${API_URL}/orders/${parentId}`, {

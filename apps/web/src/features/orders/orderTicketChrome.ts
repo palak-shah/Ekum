@@ -1,6 +1,6 @@
 import { shortOrderLabel, type OrderView } from '@ekum/domain-types';
 import { explorePostedWhen } from '@/ui/cards';
-import { isIHandleSellingParent, isTraderMillHop } from './iHandleDesk';
+import { isIHandleSellingParent, isTraderMillHop, traderDeskNextAction } from './iHandleDesk';
 import { orderNeedsYouLabel } from './tradeNeedsYouLabel';
 import {
   tradeListDispatchInPlay,
@@ -69,12 +69,22 @@ export function orderTicketProgress(
 
 /**
  * Idle wait on the party block — role words, not mill names.
- * I-handle trader desk keeps mill-named mill-card cues (skip here).
+ * I-handle selling parent: after mill Send, mill-named wait from
+ * `traderDeskNextAction`. Held mills stay silent here (Send is on the card).
  */
 export function orderTicketWaitingCue(order: OrderView): string | null {
   if (orderNeedsYouLabel(order)) return null;
   if (TICKET_DONE.has(order.status)) return null;
-  if (isIHandleSellingParent(order)) return null;
+  if (isIHandleSellingParent(order)) {
+    if (order.millDesks?.some((desk) => desk.held)) return null;
+    return traderDeskNextAction({
+      status: order.status,
+      counterpartName: order.counterpart?.name ?? '',
+      hasSellerQuote: order.hasSellerQuote,
+      millDesks: order.millDesks,
+      youFulfilment: order.youFulfilment,
+    });
+  }
   if (order.direction === 'buying') return 'Waiting: supplier';
   if (order.direction === 'selling') return 'Waiting: buyer';
   return null;
@@ -92,6 +102,8 @@ export type OrderTicketNote = {
   forwarded: boolean;
   /** Quiet cue when the body came from a sheet, not a free note. */
   cue?: string | null;
+  /** API Forward: place-time (`id === 'place'`) and free `noted` only. */
+  forwardable: boolean;
 };
 
 export function orderTicketNoteCue(type: string): string | null {
@@ -144,8 +156,10 @@ export function orderTicketNotes(order: OrderView, viewerCompanyId: string): Ord
       noteVoiceUrl: order.noteVoiceUrl,
       noteVoiceDurationMs: order.noteVoiceDurationMs,
       noteImageUrls: placeImages,
-      forwarded: false,
+      /** Stamped on the requested trail after trader Forward — blocks duplicate forwards. */
+      forwarded: requested?.forwarded === true,
       cue: null,
+      forwardable: true,
     });
   }
   for (const step of order.trail ?? []) {
@@ -163,6 +177,7 @@ export function orderTicketNotes(order: OrderView, viewerCompanyId: string): Ord
       noteImageUrls: step.noteImageUrls ?? [],
       forwarded: step.forwarded === true,
       cue: step.type === 'noted' ? null : orderTicketNoteCue(step.type),
+      forwardable: step.type === 'noted',
     });
   }
   return notes.sort((a, b) => a.at.localeCompare(b.at));

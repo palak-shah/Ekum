@@ -22,6 +22,8 @@ import {
   type PublishCollectionDto,
   type PublishCollectionMembersView,
   type UpdateCollectionDto,
+  uniqueSharedStringList,
+  uniqueSharedValue,
 } from '@ekum/domain-types';
 import { createdAtOrderBy, createdAtRangeFilter } from '../common/audit';
 import { PrismaService } from '../core/prisma/prisma.service';
@@ -74,6 +76,17 @@ export function peerRepostOmitsCategoryPick(row: {
   repostSourceProductId?: string | null;
 }): boolean {
   return Boolean(row.repostSourceCollectionId || row.repostSourceProductId);
+}
+
+/** Cart mixed packs may have no hop — still skip Category when any member is foreign. */
+export function publishOmitsCategoryPick(
+  row: {
+    repostSourceCollectionId?: string | null;
+    repostSourceProductId?: string | null;
+  },
+  hasForeignMembers: boolean,
+): boolean {
+  return peerRepostOmitsCategoryPick(row) || hasForeignMembers;
 }
 
 function curateExceptionCode(err: unknown): string {
@@ -169,6 +182,10 @@ export class CollectionService {
             },
           )
         : null;
+    const categories =
+      dto.categories && dto.categories.length > 0
+        ? dto.categories
+        : (repostSource.sourceCategories ?? dto.categories ?? []);
     if (repostSource.reuseCollectionId) {
       const reused = await this.prisma.collection.update({
         where: { id: repostSource.reuseCollectionId },
@@ -178,6 +195,7 @@ export class CollectionService {
           ...(masterCategoryId !== null && prismaModelHasField('Collection', 'masterCategoryId')
             ? { masterCategoryId }
             : {}),
+          ...(categories.length > 0 ? { categories } : {}),
           updatedByUserId: userId,
         },
         include: listInclude,
@@ -197,7 +215,7 @@ export class CollectionService {
               name,
               description: dto.description ?? null,
               coverImage: dto.coverImage ?? null,
-              categories: dto.categories ?? [],
+              categories,
               ...(masterCategoryId !== null && prismaModelHasField('Collection', 'masterCategoryId')
                 ? { masterCategoryId }
                 : {}),
@@ -276,6 +294,7 @@ export class CollectionService {
     repostSourceCollectionId?: string | null;
     repostSourceProductId?: string | null;
     sourceMasterCategoryId?: string | null;
+    sourceCategories?: string[];
     reuseCollectionId?: string;
   }> {
     if (!dto.repostSourceCollectionId && !dto.repostSourceProductId) {
@@ -290,7 +309,13 @@ export class CollectionService {
     if (dto.repostSourceCollectionId) {
       const source = await this.prisma.collection.findUnique({
         where: { id: dto.repostSourceCollectionId },
-        select: { id: true, companyId: true, status: true, masterCategoryId: true },
+        select: {
+          id: true,
+          companyId: true,
+          status: true,
+          masterCategoryId: true,
+          categories: true,
+        },
       });
       if (!source || source.status !== CollectionStatus.Published) {
         throw new NotFoundException({
@@ -318,6 +343,7 @@ export class CollectionService {
             repostSourceCollectionId: source.id,
             repostSourceProductId: null,
             sourceMasterCategoryId: source.masterCategoryId,
+            sourceCategories: source.categories ?? [],
             reuseCollectionId: existing.id,
           };
         }
@@ -330,6 +356,7 @@ export class CollectionService {
         repostSourceCollectionId: source.id,
         repostSourceProductId: null,
         sourceMasterCategoryId: source.masterCategoryId,
+        sourceCategories: source.categories ?? [],
       };
     }
     const productId = dto.repostSourceProductId!;
@@ -341,6 +368,7 @@ export class CollectionService {
         status: true,
         postedToMarketAt: true,
         masterCategoryId: true,
+        categories: true,
       },
     });
     if (!source || source.status !== ProductStatus.Published || !source.postedToMarketAt) {
@@ -369,6 +397,7 @@ export class CollectionService {
           repostSourceCollectionId: null,
           repostSourceProductId: source.id,
           sourceMasterCategoryId: source.masterCategoryId,
+          sourceCategories: source.categories ?? [],
           reuseCollectionId: existing.id,
         };
       }
@@ -380,6 +409,7 @@ export class CollectionService {
     return {
       repostSourceCollectionId: null,
       repostSourceProductId: source.id,
+      sourceCategories: source.categories ?? [],
       sourceMasterCategoryId: source.masterCategoryId,
     };
   }
@@ -574,11 +604,6 @@ export class CollectionService {
         message: `Give this ${packNoun((existing as { kind?: string }).kind)} a name.`,
       });
     }
-    if (this.masterData && prismaModelHasField('Collection', 'masterCategoryId')) {
-      await this.masterData.resolveCategoryIdForCompany(companyId, existing.masterCategoryId, {
-        required: !peerRepostOmitsCategoryPick(existing),
-      });
-    }
     const company = await this.prisma.company.findUniqueOrThrow({
       where: { id: companyId },
       select: { canPublish: true },
@@ -623,6 +648,12 @@ export class CollectionService {
       throw new BadRequestException({
         code: 'COLLECTION_EMPTY',
         message: `Add at least one design before publishing this ${packNoun((existing as { kind?: string }).kind)}.`,
+      });
+    }
+    const hasForeignMembers = members.some((row) => row.product.companyId !== companyId);
+    if (this.masterData && prismaModelHasField('Collection', 'masterCategoryId')) {
+      await this.masterData.resolveCategoryIdForCompany(companyId, existing.masterCategoryId, {
+        required: !publishOmitsCategoryPick(existing, hasForeignMembers),
       });
     }
 
@@ -982,6 +1013,8 @@ export class CollectionService {
               status: true,
               postedToMarketAt: true,
               catalogCollectionId: true,
+              masterCategoryId: true,
+              categories: true,
             },
           });
     if (uniqueIds.length > 0) {
@@ -1230,6 +1263,7 @@ export class CollectionService {
     if (shouldBumpExplore) {
       await this.enqueuePropagate(id);
     }
+    await this.inheritRepostIdentityFromMembers(companyId, id, existing, products);
     return this.get(companyId, id);
   }
 
@@ -1472,22 +1506,94 @@ export class CollectionService {
     });
   }
 
+  private async inheritRepostIdentityFromMembers(
+    companyId: string,
+    collectionId: string,
+    existing: {
+      repostSourceCollectionId?: string | null;
+      repostSourceProductId?: string | null;
+      masterCategoryId?: string | null;
+      categories?: string[];
+    },
+    products: Array<{
+      id: string;
+      companyId: string;
+      masterCategoryId?: string | null;
+      categories?: string[];
+    }>,
+  ): Promise<void> {
+    const foreign = products.filter((product) => product.companyId !== companyId);
+    if (foreign.length === 0) return;
+    const allForeign = foreign.length === products.length;
+
+    const data: Record<string, unknown> = {};
+    if (
+      allForeign &&
+      !existing.repostSourceCollectionId &&
+      !existing.repostSourceProductId
+    ) {
+      const memberships = await this.prisma.collectionProduct.findMany({
+        where: {
+          productId: { in: foreign.map((product) => product.id) },
+          collectionId: { not: collectionId },
+          collection: {
+            status: CollectionStatus.Published,
+            companyId: { not: companyId },
+            kind: { not: CollectionKind.General },
+          },
+        },
+        select: { productId: true, collectionId: true },
+      });
+      const byProduct = new Map<string, Set<string>>();
+      for (const row of memberships) {
+        if (!row.collectionId) continue;
+        const set = byProduct.get(row.productId) ?? new Set<string>();
+        set.add(row.collectionId);
+        byProduct.set(row.productId, set);
+      }
+      let intersection: Set<string> | null = null;
+      for (const product of foreign) {
+        const set = byProduct.get(product.id) ?? new Set<string>();
+        if (intersection === null) {
+          intersection = set;
+          continue;
+        }
+        const next = new Set<string>();
+        for (const id of intersection) {
+          if (set.has(id)) next.add(id);
+        }
+        intersection = next;
+      }
+      if (intersection && intersection.size === 1) {
+        data.repostSourceCollectionId = [...intersection][0];
+      } else if (foreign.length === 1 && (!intersection || intersection.size === 0)) {
+        data.repostSourceProductId = foreign[0].id;
+      }
+    }
+    if (!existing.masterCategoryId) {
+      const categoryId = uniqueSharedValue(foreign.map((product) => product.masterCategoryId));
+      if (categoryId) data.masterCategoryId = categoryId;
+    }
+    if (!existing.categories?.length) {
+      const tags = uniqueSharedStringList(foreign.map((product) => product.categories ?? []));
+      if (tags?.length) data.categories = tags;
+    }
+    if (Object.keys(data).length === 0) return;
+    try {
+      await this.prisma.collection.update({
+        where: { id: collectionId },
+        data,
+      });
+      if (typeof data.repostSourceCollectionId === 'string') {
+        await this.stampManualRepostLineage(collectionId, data.repostSourceCollectionId);
+      }
+    } catch (err) {
+      if ((err as { code?: string }).code === 'P2002') return;
+      throw err;
+    }
+  }
+
   private async enqueuePropagate(collectionId: string): Promise<void> {
     await this.jobs.enqueue(JobType.CollectionPropagate, { collectionId });
-    // #region agent log
-    fetch('http://127.0.0.1:7359/ingest/c3df85ff-1820-4af4-9a7f-aa6252617829', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '097f3c' },
-      body: JSON.stringify({
-        sessionId: '097f3c',
-        runId: 'pre-fix',
-        hypothesisId: 'H5',
-        location: 'collection.service.ts:enqueuePropagate',
-        message: 'enqueued collection.propagate',
-        data: { collectionId },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
   }
 }

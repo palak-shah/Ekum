@@ -183,4 +183,29 @@ describe('toCollectionCard', () => {
     );
     expect(off.sourceShopNames).toEqual([]);
   });
+
+  it('stamps viewer curate eligibility on the card', () => {
+    expect(serializer.toCollectionCard(pack(), { repostEligibleCount: 0 }).repostEligibleCount).toBe(
+      0,
+    );
+    expect(serializer.toCollectionCard(pack()).repostEligibleCount).toBe(2);
+    expect(
+      serializer.toExploreProductCard(
+        {
+          id: 'p1',
+          name: 'Silk',
+          images: [],
+          rate: null,
+          rateMax: null,
+          unit: 'pc',
+          company,
+          allowForward: false,
+          categories: [],
+          createdAt: new Date('2026-10-22T00:00:00.000Z'),
+          postedToMarketAt: new Date('2026-10-22T00:00:00.000Z'),
+        } as never,
+        { repostEligibleCount: 1 },
+      ).repostEligibleCount,
+    ).toBe(1);
+  });
 });

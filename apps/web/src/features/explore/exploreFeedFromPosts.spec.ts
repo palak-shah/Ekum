@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import type { ExplorePost } from '@ekum/domain-types';
 import {
   exploreFeedEndVisible,
+  exploreFeedLoadMoreVisible,
   exploreLandingBlocked,
+  feedCursorFromMixedId,
   mixedOpportunitiesFromExplorePosts,
 } from './exploreFeedFromPosts';
 
@@ -73,15 +75,55 @@ describe('exploreFeedFromPosts', () => {
     ).toBe(true);
   });
 
-  it('shows end footer only when home ready and no more posts', () => {
+  it('shows end footer only when home ready and feed is exhausted', () => {
     expect(
-      exploreFeedEndVisible({ postCount: 3, morePostsCount: 0, homeReady: true }),
+      exploreFeedEndVisible({ postCount: 3, homeReady: true, feedExhausted: true }),
     ).toBe(true);
     expect(
-      exploreFeedEndVisible({ postCount: 3, morePostsCount: 4, homeReady: true }),
+      exploreFeedEndVisible({ postCount: 3, homeReady: true, feedExhausted: false }),
     ).toBe(false);
     expect(
-      exploreFeedEndVisible({ postCount: 3, morePostsCount: 0, homeReady: false }),
+      exploreFeedEndVisible({ postCount: 3, homeReady: false, feedExhausted: true }),
     ).toBe(false);
+  });
+
+  it('shows Load more only when home ready, not exhausted, and more exists', () => {
+    expect(
+      exploreFeedLoadMoreVisible({
+        homeReady: true,
+        feedExhausted: false,
+        storyFiltered: false,
+        canLoadMore: true,
+      }),
+    ).toBe(true);
+    expect(
+      exploreFeedLoadMoreVisible({
+        homeReady: true,
+        feedExhausted: true,
+        storyFiltered: false,
+        canLoadMore: true,
+      }),
+    ).toBe(false);
+    expect(
+      exploreFeedLoadMoreVisible({
+        homeReady: true,
+        feedExhausted: false,
+        storyFiltered: true,
+        canLoadMore: true,
+      }),
+    ).toBe(false);
+    expect(
+      exploreFeedLoadMoreVisible({
+        homeReady: true,
+        feedExhausted: false,
+        storyFiltered: false,
+        canLoadMore: false,
+      }),
+    ).toBe(false);
+  });
+
+  it('maps design mixed ids to feed product cursors', () => {
+    expect(feedCursorFromMixedId('d:prod-1')).toBe('p:prod-1');
+    expect(feedCursorFromMixedId('c:pack-1')).toBe('c:pack-1');
   });
 });

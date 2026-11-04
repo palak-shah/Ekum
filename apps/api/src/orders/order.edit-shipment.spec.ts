@@ -110,6 +110,7 @@ describe('OrderService.editShipment', () => {
       shippedTotals,
       withActor,
       loadForParty: vi.fn(async () => orderRow),
+      passMillEditShipmentToParent: vi.fn(async () => undefined),
     });
 
     // Editing Soft Lining while Georgette on the same LR is now Can’t supply must still save.

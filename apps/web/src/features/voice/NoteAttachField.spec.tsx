@@ -91,12 +91,68 @@ describe('NoteAttachField', () => {
         images={[]}
         onImagesChange={vi.fn()}
         testId="order-ticket-note-attach"
-        endSlot={<button type="button">Add</button>}
+        endSlot={
+          <button type="button" aria-label="Send">
+            Send
+          </button>
+        }
       />,
     );
     const shell = screen.getByTestId('note-attach-composer-shell');
     expect(shell).toContainElement(screen.getByTestId('note-attach-plus'));
     expect(shell.querySelector('textarea')).toBeInTheDocument();
-    expect(shell).toContainElement(screen.getByRole('button', { name: 'Add' }));
+    expect(shell).toContainElement(screen.getByRole('button', { name: 'Send' }));
+  });
+
+  it('composer Enter submits when ready; Shift+Enter does not', async () => {
+    const user = userEvent.setup();
+    const onComposerSubmit = vi.fn();
+    render(
+      <NoteAttachField
+        label="Note"
+        layout="composer"
+        collapseEmpty={false}
+        note="Need lining"
+        onNoteChange={vi.fn()}
+        voice={null}
+        onVoiceChange={vi.fn()}
+        images={[]}
+        onImagesChange={vi.fn()}
+        onComposerSubmit={onComposerSubmit}
+        inputTestId="order-ticket-note-input"
+      />,
+    );
+    const input = screen.getByTestId('order-ticket-note-input');
+    await user.click(input);
+    await user.keyboard('{Enter}');
+    expect(onComposerSubmit).toHaveBeenCalledTimes(1);
+
+    onComposerSubmit.mockClear();
+    await user.keyboard('{Shift>}{Enter}{/Shift}');
+    expect(onComposerSubmit).not.toHaveBeenCalled();
+  });
+
+  it('composer Enter does nothing when empty', async () => {
+    const user = userEvent.setup();
+    const onComposerSubmit = vi.fn();
+    render(
+      <NoteAttachField
+        label="Note"
+        layout="composer"
+        collapseEmpty={false}
+        note=""
+        onNoteChange={vi.fn()}
+        voice={null}
+        onVoiceChange={vi.fn()}
+        images={[]}
+        onImagesChange={vi.fn()}
+        onComposerSubmit={onComposerSubmit}
+        inputTestId="order-ticket-note-input"
+      />,
+    );
+    await user.click(screen.getByTestId('order-ticket-note-input'));
+    await user.keyboard('{Enter}');
+    expect(onComposerSubmit).not.toHaveBeenCalled();
   });
 });
+

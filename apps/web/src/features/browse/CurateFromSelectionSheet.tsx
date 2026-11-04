@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  MEDIA_VARIANT,
   CollectionStatus,
+  uniqueSharedRepostHop,
   type CollectionDetailView,
   type CollectionView,
   type CreateCollectionDto,
@@ -27,45 +27,26 @@ import {
 } from '@/features/browse/curateExisting';
 import {
   CURATE_ADD_TO_IT,
-  CURATE_ASK_RELIST,
   CURATE_NAME_TAKEN,
-  curateAskAllLabel,
-  curateAskKind,
-  curateBlockReason,
-  curateSkipSummary,
   groupRelistAskBatches,
   isCurateCeilingError,
-  mayAskToPutInPack,
   partitionCurateByCheck,
 } from '@/features/browse/curateCheck';
 import { useToast } from '@/ui/Toast';
 import { DockIconButton } from '@/features/browse/BottomTradeDock';
 import { BookmarkIcon, CollectionIcon, PlusIcon } from '@/ui/icons';
 import { CurateWhyHint } from '@/features/browse/CurateWhyHint';
+import { RepostSkipSection } from '@/features/browse/RepostSkipSection';
+import { repostCoverUrl } from '@/features/browse/repostCoverUrl';
 import { Button, Field, InlineNotice, Sheet, TextInput, cx } from '@/ui/kit';
-import { ManagedImage } from '@/ui/ManagedImage';
 
 type RepostMode = 'choose' | 'existing' | 'new';
-
-function isHttpUrl(value: string | null | undefined): value is string {
-  return Boolean(value && /^https?:\/\//i.test(value));
-}
 
 function statusLabel(status: CollectionView['status']): string {
   if (status === CollectionStatus.Published) return 'Published';
   if (status === CollectionStatus.Ready) return 'Ready';
   return 'Draft';
 }
-
-type BlockedRow = {
-  productId: string;
-  name: string;
-  thumbUrl: string | null;
-  companyId: string;
-  companyName: string;
-  sourceCollectionId?: string;
-  code: string;
-};
 
 export function CurateFromSelectionSheet({
   open,
@@ -105,27 +86,31 @@ export function CurateFromSelectionSheet({
   });
 
   /** Name clash / Add to it — any live album. */
+  const ownedPacks = Array.isArray(owned.data) ? owned.data : [];
   const nameTargets = useMemo(
-    () => curateExistingTargets(owned.data ?? []),
-    [owned.data],
+    () => curateExistingTargets(ownedPacks),
+    [ownedPacks],
   );
   /** Add to existing path — published only. */
   const publishedTargets = useMemo(
-    () => curatePublishedTargets(owned.data ?? []),
-    [owned.data],
+    () => curatePublishedTargets(ownedPacks),
+    [ownedPacks],
   );
   const filteredPublished = useMemo(
     () => filterCurateTargetsByQuery(publishedTargets, query),
     [publishedTargets, query],
   );
 
+  const wasOpen = useRef(false);
   useEffect(() => {
-    if (!open) return;
-    setName(defaultName?.trim() ?? '');
-    setMode('choose');
-    setQuery('');
-    setSheetError(null);
-    setAskingKey(null);
+    if (open && !wasOpen.current) {
+      setName(defaultName?.trim() ?? '');
+      setMode('choose');
+      setQuery('');
+      setSheetError(null);
+      setAskingKey(null);
+    }
+    wasOpen.current = open;
   }, [open, defaultName]);
 
   const { ids, entries } = useMemo(
@@ -164,18 +149,7 @@ export function CurateFromSelectionSheet({
   });
 
   const { allowed, blocked } = partitionCurateByCheck(entries, curateCheck.data);
-  const skipLine = curateSkipSummary(allowed.length, blocked.length);
   const pendingByProductId = relistAccess.data?.pendingByProductId ?? {};
-
-  const relistAskable = blocked.filter((row) =>
-    mayAskToPutInPack({
-      trading,
-      ownCompany: Boolean(myCompanyId) && row.companyId === myCompanyId,
-      waiting: Boolean(pendingByProductId[row.productId]),
-      packLocked: curateAskKind(row.code) === 'relist',
-      lookOnly: row.code === 'FOLLOW_LOOK_ONLY',
-    }),
-  );
 
   const nameClash = findOwnedPackByName(nameTargets, name);
   /** Enable while check loads (entries stand in); after check, need ≥1 allowed. */
@@ -235,7 +209,13 @@ export function CurateFromSelectionSheet({
       setSheetError(CURATE_NAME_TAKEN);
       return;
     }
-    const firstThumb = allowed.find((item) => isHttpUrl(item.thumbUrl))?.thumbUrl;
+    const firstThumb = repostCoverUrl(allowed.find((item) => item.thumbUrl)?.thumbUrl);
+    const hop = uniqueSharedRepostHop(
+      allowed.map((entry) => ({
+        collectionId: entry.sourceCollectionId,
+        productId: entry.productId,
+      })),
+    );
     setSaving(true);
     setSheetError(null);
     let createdId: string | undefined;
@@ -244,6 +224,7 @@ export function CurateFromSelectionSheet({
         name: packName,
         categories: [],
         ...(firstThumb ? { coverImage: firstThumb } : {}),
+        ...hop,
       } satisfies CreateCollectionDto);
       createdId = created.id;
       const toPut = allowed.map((entry) => entry.productId);
@@ -371,92 +352,26 @@ export function CurateFromSelectionSheet({
     }
   };
 
-  const blockedList = (rows: BlockedRow[]) => (
-    <ul className="flex max-h-44 flex-col gap-2 overflow-y-auto" data-testid="curate-blocked-list">
-      {rows.map((row) => {
-        const waiting = Boolean(pendingByProductId[row.productId]);
-        const showAsk = mayAskToPutInPack({
-          trading,
-          ownCompany: Boolean(myCompanyId) && row.companyId === myCompanyId,
-          waiting,
-          packLocked: curateAskKind(row.code) === 'relist',
-          lookOnly: row.code === 'FOLLOW_LOOK_ONLY',
-        });
-        return (
-          <li
-            key={row.productId}
-            className="flex items-center gap-2.5 rounded-xl border border-line bg-foam/60 px-2.5 py-2"
-            data-testid="curate-blocked-row"
-          >
-            <div className="h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-foam">
-              {row.thumbUrl && isHttpUrl(row.thumbUrl) ? (
-                <ManagedImage src={row.thumbUrl} alt="" variant={MEDIA_VARIANT.Thumbnail1} className="h-full w-full object-cover" />
-              ) : (
-                <span className="flex h-full w-full items-center justify-center text-sm font-body text-muted">
-                  {row.name.slice(0, 1).toUpperCase()}
-                </span>
-              )}
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-emphasis text-ink">{row.name}</p>
-              <p className="truncate text-[12px] text-muted">{row.companyName}</p>
-              <p className="mt-0.5 text-[12px] font-body text-muted">
-                {waiting ? 'Waiting for Allow' : curateBlockReason(row.code)}
-              </p>
-            </div>
-            {showAsk ? (
-              <button
-                type="button"
-                className="shrink-0 text-meta font-emphasis text-accent disabled:opacity-50"
-                disabled={askingKey != null}
-                data-testid="curate-blocked-ask"
-                onClick={() => {
-                  setAskingKey(row.productId);
-                  askRelist.mutate([row]);
-                }}
-              >
-                {askingKey === row.productId ? 'Asking…' : CURATE_ASK_RELIST}
-              </button>
-            ) : null}
-          </li>
-        );
-      })}
-    </ul>
-  );
-
   const skipChrome =
-    blocked.length > 0 ? (
-      <div className="flex flex-col gap-2">
-        {skipLine ? (
-          <div className="flex items-center gap-1">
-            <p className="min-w-0 flex-1 text-sm text-muted" data-testid="curate-skip-summary">
-              {skipLine}
-            </p>
-            <CurateWhyHint
-              codes={blocked.map((row) => row.code)}
-              extra={sheetError}
-              testId="curate-skip-info"
-            />
-          </div>
-        ) : null}
-        {blockedList(blocked)}
-        {relistAskable.length > 1 ? (
-          <Button
-            variant="secondary"
-            fullWidth
-            disabled={askingKey != null}
-            data-testid="curate-ask-all-relist"
-            onClick={() => {
-              setAskingKey('all-relist');
-              askRelist.mutate(relistAskable);
-            }}
-          >
-            {askingKey === 'all-relist'
-              ? 'Asking…'
-              : curateAskAllLabel(relistAskable.length)}
-          </Button>
-        ) : null}
-      </div>
+    blocked.length > 0 || (allowed.length > 0 && !curateCheck.isLoading) ? (
+      <RepostSkipSection
+        allowed={blocked.length > 0 ? allowed : []}
+        blocked={blocked}
+        extraHint={sheetError}
+        allowRelistAsk
+        trading={trading}
+        myCompanyId={myCompanyId}
+        pendingByProductId={pendingByProductId}
+        askingKey={askingKey}
+        onAsk={(row) => {
+          setAskingKey(row.productId);
+          askRelist.mutate([row]);
+        }}
+        onAskAll={(rows) => {
+          setAskingKey('all-relist');
+          askRelist.mutate(rows);
+        }}
+      />
     ) : null;
 
   const designSummary = (
@@ -515,6 +430,7 @@ export function CurateFromSelectionSheet({
           ) : (
             skipChrome
           )}
+          {curateCheck.isLoading || allowed.length >= 1 ? (
           <div className="flex flex-col gap-2" data-testid="repost-path-choose">
             <button
               type="button"
@@ -564,6 +480,7 @@ export function CurateFromSelectionSheet({
               </span>
             </button>
           </div>
+          ) : null}
         </div>
       ) : null}
 
@@ -678,6 +595,7 @@ export function CurateFromSelectionSheet({
               placeholder="e.g. Festive 2026"
               autoComplete="off"
               autoFocus
+              data-testid="repost-name"
             />
           </Field>
           {nameClash ? (

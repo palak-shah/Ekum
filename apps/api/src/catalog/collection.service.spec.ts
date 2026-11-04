@@ -7,7 +7,11 @@ import {
   PublishAudience,
   RepostOrigin,
 } from '@ekum/domain-types';
-import { CollectionService, peerRepostOmitsCategoryPick } from './collection.service';
+import {
+  CollectionService,
+  peerRepostOmitsCategoryPick,
+  publishOmitsCategoryPick,
+} from './collection.service';
 import type { PrismaService } from '../core/prisma/prisma.service';
 import type { CatalogSerializer } from './catalog.serializer';
 import type { JobQueue } from '../jobs/job-queue.service';
@@ -471,6 +475,73 @@ describe('CollectionService.setProducts', () => {
       service.setProducts('company-1', 'u1', 'col-1', ['foreign-1']),
     ).resolves.toEqual({ id: 'col-1' });
     expect(transaction).toHaveBeenCalled();
+  });
+
+  it('stamps unique shared identity after mixed PUT and omits when they differ', async () => {
+    const collectionUpdate = vi.fn(async () => ({}));
+    const transaction = vi.fn(async (ops: unknown[]) => ops);
+    const prisma = {
+      collection: {
+        findFirst: async () => ({
+          id: 'col-1',
+          companyId: 'company-1',
+          status: CollectionStatus.Draft,
+        }),
+        update: collectionUpdate,
+      },
+      product: {
+        findMany: async () => [
+          {
+            ...foreignPublishedProduct,
+            id: 'a',
+            masterCategoryId: 'silk',
+            categories: ['Sarees'],
+          },
+          {
+            ...foreignPublishedProduct,
+            id: 'b',
+            masterCategoryId: 'silk',
+            categories: ['Sarees'],
+          },
+        ],
+        count: async () => 0,
+      },
+      connection: { findMany: async () => [] },
+      follow: followSourceShop(),
+      collectionProduct: {
+        findMany: async () => [],
+        deleteMany: vi.fn(async () => ({})),
+        createMany: vi.fn(async () => ({})),
+      },
+      productRelistGrant: { findMany: async () => [] },
+      $transaction: transaction,
+    } as unknown as PrismaService;
+    const service = new CollectionService(
+      prisma,
+      { toCollectionDetail: () => ({ id: 'col-1' }) } as unknown as CatalogSerializer,
+      jobs,
+    );
+    vi.spyOn(service, 'get').mockResolvedValue({ id: 'col-1' } as never);
+    await service.setProducts('company-1', 'u1', 'col-1', ['a', 'b']);
+    expect(collectionUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          masterCategoryId: 'silk',
+          categories: ['Sarees'],
+        }),
+      }),
+    );
+
+    collectionUpdate.mockClear();
+    prisma.product.findMany = async () => [
+      { ...foreignPublishedProduct, id: 'a', masterCategoryId: 'silk', categories: ['Sarees'] },
+      { ...foreignPublishedProduct, id: 'b', masterCategoryId: 'cotton', categories: ['Fabric'] },
+    ];
+    await service.setProducts('company-1', 'u1', 'col-1', ['a', 'b']);
+    expect(collectionUpdate.mock.calls.some((call) => {
+      const data = (call[0] as { data?: Record<string, unknown> }).data;
+      return data && ('masterCategoryId' in data || 'categories' in data);
+    })).toBe(false);
   });
 
   it('rejects foreign product when allowForward is false', async () => {
@@ -1572,6 +1643,8 @@ describe('CollectionService.create repost source', () => {
           id: 'src-col',
           companyId: 'peer',
           status: CollectionStatus.Published,
+          masterCategoryId: 'cat-mill',
+          categories: ['Sarees'],
         }),
         create,
         update: vi.fn(async (args: { data: Record<string, unknown> }) => args.data),
@@ -1595,6 +1668,7 @@ describe('CollectionService.create repost source', () => {
         data: expect.objectContaining({
           repostSourceCollectionId: 'src-col',
           repostSourceProductId: null,
+          categories: ['Sarees'],
         }),
       }),
     );
@@ -1701,6 +1775,12 @@ describe('peerRepostOmitsCategoryPick', () => {
     expect(peerRepostOmitsCategoryPick({ repostSourceCollectionId: 'src' })).toBe(true);
     expect(peerRepostOmitsCategoryPick({ repostSourceProductId: 'p1' })).toBe(true);
     expect(peerRepostOmitsCategoryPick({})).toBe(false);
+  });
+
+  it('skips Category on publish for a hop or any foreign member', () => {
+    expect(publishOmitsCategoryPick({}, true)).toBe(true);
+    expect(publishOmitsCategoryPick({ repostSourceCollectionId: 'src' }, false)).toBe(true);
+    expect(publishOmitsCategoryPick({}, false)).toBe(false);
   });
 });
 
@@ -1833,5 +1913,131 @@ describe('CollectionService.publishMembers', () => {
     const service = new CollectionService(prisma, {} as CatalogSerializer, jobs);
     await expect(service.publishMembers('company-1', 'u1', 'col-1', ['p1'])).rejects.toThrow();
     expect(productUpdateMany).not.toHaveBeenCalled();
+  });
+});
+
+describe('CollectionService.publish category inherit', () => {
+  function resolveCategory() {
+    return vi.fn(async (_companyId: string, _id: unknown, opts?: { required?: boolean }) => {
+      if (opts?.required) {
+        throw new BadRequestException({
+          code: 'CATEGORY_REQUIRED',
+          message: 'Pick which category this collection is for.',
+        });
+      }
+      return null;
+    });
+  }
+
+  it('skips Category when members are foreign even without a hop', async () => {
+    const resolve = resolveCategory();
+    const collectionUpdate = vi.fn(async () => ({
+      id: 'col-1',
+      status: CollectionStatus.Published,
+      endsAt: null,
+      _count: { products: 1 },
+    }));
+    const prisma = {
+      collection: {
+        findFirst: async () => ({
+          id: 'col-1',
+          companyId: 'company-1',
+          status: CollectionStatus.Draft,
+          masterCategoryId: null,
+          startsAt: null,
+          endsAt: null,
+        }),
+        update: collectionUpdate,
+        findUniqueOrThrow: async () => ({
+          id: 'col-1',
+          status: CollectionStatus.Published,
+          endsAt: null,
+          _count: { products: 1 },
+        }),
+      },
+      company: {
+        findUniqueOrThrow: async () => ({ canPublish: true, canRelist: true }),
+        update: vi.fn(async () => ({})),
+      },
+      collectionProduct: {
+        findMany: async () => [
+          { productId: 'foreign-1', product: foreignPublishedProduct },
+        ],
+      },
+      product: {
+        findMany: async () => [foreignPublishedProduct],
+        updateMany: vi.fn(async () => ({ count: 0 })),
+      },
+      connection: { findMany: async () => [] },
+      follow: followSourceShop(),
+      companySettings: {
+        findUnique: async () => null,
+        upsert: vi.fn(async () => ({})),
+      },
+    } as unknown as PrismaService;
+    const service = new CollectionService(
+      prisma,
+      { toCollectionView: (row: unknown) => row } as unknown as CatalogSerializer,
+      jobs,
+      { resolveCategoryIdForCompany: resolve } as never,
+    );
+    await service.publish('company-1', 'u1', 'col-1', {
+      audience: 'followers',
+      rateVisibility: 'on_request',
+      allowForward: true,
+    });
+    expect(resolve).toHaveBeenCalledWith('company-1', null, { required: false });
+    expect(collectionUpdate).toHaveBeenCalled();
+  });
+
+  it('still requires Category on an own-only pack', async () => {
+    const resolve = resolveCategory();
+    const prisma = {
+      collection: {
+        findFirst: async () => ({
+          id: 'col-1',
+          companyId: 'company-1',
+          status: CollectionStatus.Draft,
+          masterCategoryId: null,
+          startsAt: null,
+          endsAt: null,
+        }),
+      },
+      company: {
+        findUniqueOrThrow: async () => ({ canPublish: true }),
+      },
+      collectionProduct: {
+        findMany: async () => [
+          {
+            productId: 'p1',
+            product: {
+              id: 'p1',
+              companyId: 'company-1',
+              audience: 'followers',
+              audienceCompanyIds: [],
+              allowForward: true,
+              status: ProductStatus.Published,
+              postedToMarketAt: new Date(),
+            },
+          },
+        ],
+      },
+    } as unknown as PrismaService;
+    const service = new CollectionService(
+      prisma,
+      {} as CatalogSerializer,
+      jobs,
+      { resolveCategoryIdForCompany: resolve } as never,
+    );
+    await expect(
+      service.publish('company-1', 'u1', 'col-1', {
+        audience: 'followers',
+        rateVisibility: 'on_request',
+        allowForward: true,
+      }),
+    ).rejects.toSatisfy((error: unknown) => {
+      expectBadRequestCode(error, 'CATEGORY_REQUIRED');
+      return true;
+    });
   });
 });

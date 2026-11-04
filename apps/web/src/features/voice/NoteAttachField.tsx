@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { chatComposerHeightPx } from '@/features/chats/chatComposerHeight';
 import { uploadAudio, uploadImage } from '@/lib/mediaUpload';
 import { ApiError } from '@/lib/apiClient';
 import { MEDIA_VARIANT } from '@ekum/domain-types';
@@ -25,6 +26,13 @@ type Props = {
   images: string[];
   onImagesChange: (urls: string[]) => void;
   onBusyChange?: (busy: boolean) => void;
+  /**
+   * Composer layout: Enter (no Shift) calls this when note/voice/photos are ready.
+   * Shift+Enter stays a newline and the field grows.
+   */
+  onComposerSubmit?: () => void;
+  /** When true, Enter does not submit (e.g. add in flight). */
+  composerSubmitDisabled?: boolean;
   rows?: number;
   optional?: boolean;
   /** When false, + menu offers photos only (Manual order no.). */
@@ -37,9 +45,9 @@ type Props = {
   className?: string;
   /** Default textarea. `text` = single-line kit TextInput (Manual order no.). */
   control?: 'textarea' | 'text';
-  /** `composer` = chat well: + | field | Add inside `COMPOSER_SHELL_CLASS`. */
+  /** `composer` = chat well: + | field | Send inside `COMPOSER_SHELL_CLASS`. */
   layout?: 'labeled' | 'composer';
-  /** Trailing control on the composer row (ticket Add). */
+  /** Trailing control on the composer row (ticket Send). */
   endSlot?: ReactNode;
   placeholder?: string;
   addLabel?: string;
@@ -62,6 +70,8 @@ export function NoteAttachField({
   images,
   onImagesChange,
   onBusyChange,
+  onComposerSubmit,
+  composerSubmitDisabled = false,
   rows = 2,
   optional = true,
   allowVoice = true,
@@ -92,6 +102,7 @@ export function NoteAttachField({
   const micBusyRef = useRef(false);
   const hasContent = Boolean(note.trim() || voice || images.length > 0);
   const showComposer = !collapseEmpty || expanded || hasContent;
+  const composerGrow = layout === 'composer' && control === 'textarea';
 
   useEffect(() => {
     if (hasContent) setExpanded(true);
@@ -101,6 +112,17 @@ export function NoteAttachField({
     if (!showComposer || !collapseEmpty) return;
     noteRef.current?.focus();
   }, [showComposer, collapseEmpty]);
+
+  useLayoutEffect(() => {
+    if (!composerGrow) return;
+    const el = noteRef.current;
+    if (!el) return;
+    el.style.height = '0px';
+    const measured = el.scrollHeight;
+    const next = chatComposerHeightPx(measured);
+    el.style.height = `${next}px`;
+    el.style.overflowY = measured > next ? 'auto' : 'hidden';
+  }, [composerGrow, note]);
 
   useEffect(() => {
     onBusyChange?.(
@@ -301,17 +323,26 @@ export function NoteAttachField({
             />
           ) : null}
           {showComposer && control === 'textarea' ? (
-            <TextArea
+            <textarea
               ref={noteRef}
               value={note}
               onChange={(event) => onNoteChange(event.target.value)}
-              rows={rows}
+              rows={1}
+              enterKeyHint="send"
+              data-testid={inputTestId}
               placeholder={placeholder}
               className={cx(
-                'ekum-no-scrollbar min-w-0 flex-1 resize-none overflow-y-auto border-0 bg-transparent px-1 py-2 shadow-none focus:border-0 focus:bg-transparent',
-                rows <= 2 && '!h-9 !min-h-9 !max-h-24',
+                'ekum-no-scrollbar max-h-[120px] min-h-9 min-w-0 flex-1 resize-none overflow-y-auto border-0 bg-transparent px-1 py-2 text-base font-body leading-5 text-ink shadow-none outline-none ring-0 placeholder:text-muted focus:border-0 focus:outline-none focus:ring-0 focus-visible:outline-none',
                 className,
               )}
+              onKeyDown={(event) => {
+                if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing) {
+                  return;
+                }
+                event.preventDefault();
+                if (!hasContent || composerSubmitDisabled) return;
+                onComposerSubmit?.();
+              }}
             />
           ) : null}
           {endSlot}

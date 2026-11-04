@@ -154,7 +154,7 @@ Re-inspection of current code (2026-11-02), after 1:1 chrome shipped. Prior `202
 | Recommendation | Either forward those trail rows (as trader, hop-scoped) **or** hide Forward unless the API allows it. Prefer hide until a later notes slice — do not invent a third note type. |
 | Priority | Required before implementation |
 
-### G-008 — Amend rematch can swap duplicate SKUs
+### G-008 — Amend rematch can swap duplicate SKUs — **Closed (Slice D)**
 
 | Field | Content |
 |-------|---------|
@@ -163,6 +163,7 @@ Re-inspection of current code (2026-11-02), after 1:1 chrome shipped. Prior `202
 | Impact if ignored | Qty/remove land on the wrong hop line; audit `orderItemId` lies. |
 | Recommendation | Restamp hop mapping from the new parent ids in one pass (stable productId+name order, or carry mapping through amend instead of delete-all). Keep `matchParentItemId` sourceItemId-first. |
 | Priority | Required before implementation |
+| Resolution | Slice D `2026-11-03-slice-d-amend-rematch-completeness`: update-in-place + amend `orderItemId`; hop prefer-`sourceItemId`; held mapped deletes; no You backfill. |
 
 ---
 

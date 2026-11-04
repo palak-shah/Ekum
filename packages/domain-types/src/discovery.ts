@@ -159,6 +159,11 @@ export interface CollectionCard {
    * Viewer already Reposted this pack (Explore once). False when unknown / anonymous.
    */
   viewerReposted: boolean;
+  /**
+   * How many members this viewer can Curate (`checkCurateProducts`).
+   * Explore Repost is on when > 0 (and Trading, not own, not already done).
+   */
+  repostEligibleCount?: number;
   company: PublicCompanySummary;
 }
 
@@ -196,6 +201,10 @@ export interface ExploreProductCard {
    * Viewer already Reposted this design post (Explore once). False when unknown.
    */
   viewerReposted: boolean;
+  /**
+   * 1 when this viewer can Curate this design; 0 when locked / pack-only / look-only.
+   */
+  repostEligibleCount?: number;
   company: PublicCompanySummary;
 }
 
