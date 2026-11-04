@@ -2,6 +2,9 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { cx } from '@/ui/kit';
 import {
   designSubtextClass,
+  sheetStepperBtnClass,
+  sheetStepperQtyInputClass,
+  sheetStepperTrackClass,
   stepperBtnClass,
   stepperQtyInputClass,
   stepperTrackClass,
@@ -40,6 +43,7 @@ export function QtyStepper({
   unitLabel,
   inputTestId,
   align = 'end',
+  chrome = 'pill',
   'aria-label': ariaLabel = 'Pieces',
 }: {
   value: number | null;
@@ -57,10 +61,13 @@ export function QtyStepper({
   /** Inner count field — Confirm / Dispatch keep their line test ids. */
   inputTestId?: string;
   align?: 'start' | 'end';
+  /** `sheet` = Confirm / Dispatch bordered surface; default foam pill (How many). */
+  chrome?: 'pill' | 'sheet';
   'aria-label'?: string;
 }) {
   const [focused, setFocused] = useState(false);
   const [draft, setDraft] = useState(qtyDraft(value));
+  const sheet = chrome === 'sheet';
 
   useEffect(() => {
     if (!focused) setDraft(qtyDraft(value));
@@ -71,21 +78,28 @@ export function QtyStepper({
   };
 
   return (
-    <div className={cx('flex flex-col gap-0.5', align === 'start' ? 'items-start' : 'items-end')}>
+    <div
+      className={cx(
+        'flex flex-col gap-0.5',
+        sheet ? 'w-full' : null,
+        align === 'start' ? 'items-start' : 'items-end',
+      )}
+    >
       {unitLabel?.trim() ? (
         <span className={designSubtextClass} data-testid="qty-stepper-unit">
           {unitLabel.trim()}
         </span>
       ) : null}
     <div
-      className={stepperTrackClass}
+      className={sheet ? sheetStepperTrackClass : stepperTrackClass}
       role="group"
       aria-label={ariaLabel}
       data-testid="qty-stepper"
+      data-chrome={chrome}
     >
       <button
         type="button"
-        className={stepperBtnClass}
+        className={sheet ? sheetStepperBtnClass : stepperBtnClass}
         disabled={disabled || value == null || value <= 1}
         aria-label={`Decrease ${ariaLabel}`}
         onClick={() => onChange(Math.max(1, (value ?? 1) - step))}
@@ -101,7 +115,7 @@ export function QtyStepper({
         disabled={disabled}
         aria-label={ariaLabel}
         data-testid={inputTestId}
-        className={stepperQtyInputClass}
+        className={sheet ? sheetStepperQtyInputClass : stepperQtyInputClass}
         value={draft}
         {...(chainQty ? { [ORDER_QTY_ATTR]: '' } : {})}
         onFocus={(event) => {
@@ -126,7 +140,7 @@ export function QtyStepper({
       />
       <button
         type="button"
-        className={stepperBtnClass}
+        className={sheet ? sheetStepperBtnClass : stepperBtnClass}
         disabled={disabled}
         aria-label={`Increase ${ariaLabel}`}
         onClick={() => onChange(Math.min(1_000_000, (value ?? 0) + step))}

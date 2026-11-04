@@ -59,3 +59,37 @@ describe('QtyStepper step', () => {
     expect(onChange).toHaveBeenLastCalledWith(4);
   });
 });
+
+describe('QtyStepper sheet chrome', () => {
+  it('Confirm / Dispatch track is bordered surface, not foam pill', () => {
+    render(
+      <QtyStepper
+        chrome="sheet"
+        value={12}
+        aria-label="This LR"
+        onChange={vi.fn()}
+      />,
+    );
+    const track = screen.getByTestId('qty-stepper');
+    expect(track).toHaveAttribute('data-chrome', 'sheet');
+    expect(track.className).toMatch(/border-line/);
+    expect(track.className).toMatch(/bg-surface/);
+    expect(track.className).toMatch(/justify-between/);
+    expect(track.className).not.toMatch(/bg-input/);
+    expect(track.className).not.toMatch(/rounded-full/);
+    const box = screen.getByRole('textbox', { name: 'This LR' });
+    expect(box.className).toMatch(/flex-1/);
+    expect(box.className).not.toMatch(/w-8/);
+    const decrease = screen.getByRole('button', { name: 'Decrease This LR' });
+    expect(decrease.className).toMatch(/h-\[34px\]/);
+    expect(decrease.className).toMatch(/w-\[34px\]/);
+  });
+
+  it('How many default stays foam pill', () => {
+    render(<QtyStepper value={12} aria-label="Pieces" onChange={vi.fn()} />);
+    const track = screen.getByTestId('qty-stepper');
+    expect(track).toHaveAttribute('data-chrome', 'pill');
+    expect(track.className).toMatch(/rounded-full/);
+    expect(track.className).toMatch(/bg-input/);
+  });
+});

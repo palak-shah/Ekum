@@ -6,9 +6,20 @@ import { FIELD_IDLE_FILL_CLASS } from '@/ui/fieldFill';
  * Matches catalog cards / chat titles (not an order-only look).
  */
 
-export const designNameClass = 'text-name font-emphasis tracking-tight text-ink';
+/** Catalog / ticket / chat design name — shared 16px title weight. */
+export const designNameClass = 'text-name font-title tracking-tight text-ink';
 
 export const designSubtextClass = 'truncate text-meta font-body text-muted';
+
+/**
+ * Order ticket + Confirm/Dispatch rows — proto `.dl b` / `.dd .hd b`.
+ * Name 14px/600 (not catalog 16px).
+ */
+export const sheetDesignNameClass =
+  'text-[14px] font-title leading-snug tracking-tight text-ink';
+
+export const sheetLineCueClass =
+  'block text-[12.5px] font-body leading-snug text-muted';
 
 /** Ticket qty under the name — muted pair with rate (prototype ladder). */
 export const designQtyClass =
@@ -52,5 +63,48 @@ export const compactSheetRateInputClass = [
 export const stepperBtnClass =
   'flex h-7 w-7 shrink-0 items-center justify-center text-base font-emphasis text-muted disabled:opacity-45';
 
+/** Confirm / Dispatch sheet − / + — ~proto 34px hits. */
+export const sheetStepperBtnClass =
+  'flex h-[34px] w-[34px] shrink-0 items-center justify-center text-base font-emphasis text-muted disabled:opacity-45';
+
 export const compactQtyFieldLabelClass =
   'text-[10px] font-body uppercase tracking-wide text-muted';
+
+/**
+ * Confirm / Dispatch / Settle editors — bordered surface (no bg-input).
+ * How many / Amend keep foam-pill `stepperTrackClass`.
+ */
+/** Full-width track: − left · qty center · + right (not a left-clustered pill). */
+export const sheetStepperTrackClass =
+  'flex h-10 w-full items-center justify-between rounded-lg border border-line bg-surface px-0.5';
+
+/** Number in the sheet track — grows so − / + sit on the ends (proto `.step span`). */
+export const sheetStepperQtyInputClass = [
+  'min-w-0 flex-1 h-8 min-h-8 border-0 bg-transparent px-0 text-center text-base font-title tabular-nums outline-none',
+  QTY_SPIN_HIDE,
+].join(' ');
+
+export const sheetNumInputClass = [
+  'h-10 min-h-10 w-full min-w-0 rounded-lg border border-line bg-surface px-2 text-center text-base font-emphasis tabular-nums',
+  QTY_SPIN_HIDE,
+].join(' ');
+
+export const sheetRateInputClass = [
+  'h-10 min-h-10 w-full min-w-0 rounded-lg border border-line bg-surface px-2.5 text-left text-base font-emphasis tabular-nums',
+  QTY_SPIN_HIDE,
+].join(' ');
+
+/** Free-text on order sheets (Manual, transporter, LR, parcels). */
+export const sheetTextInputClass =
+  'h-10 min-h-10 w-full rounded-lg border border-line bg-surface px-3 text-base font-body';
+
+/** Multi-line Personal / expand notes — same border+surface, not fixed h-10. */
+export const sheetTextAreaClass =
+  'w-full rounded-lg border border-line bg-surface px-3 py-2 text-base font-body';
+
+export const sheetFieldLabelClass =
+  'mb-1 block text-[11.5px] font-emphasis leading-none text-muted';
+
+/** Hop note composer well on Confirm / Dispatch / Settle. */
+export const SHEET_COMPOSER_SHELL_CLASS =
+  'rounded-2xl border border-line bg-surface';

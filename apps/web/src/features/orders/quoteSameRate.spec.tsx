@@ -113,6 +113,12 @@ describe('SameQtyRateForAll', () => {
       'decide-rows',
     );
     expect(screen.getByTestId('same-for-all-thumb')).toHaveTextContent('Same for all');
+    const qty = screen.getByTestId('same-qty-for-all-input');
+    const rate = screen.getByTestId('same-rate-for-all-input');
+    expect(qty.className).toMatch(/bg-surface/);
+    expect(qty.className).not.toMatch(/bg-input/);
+    expect(rate.className).toMatch(/bg-surface/);
+    expect(rate.className).not.toMatch(/bg-input/);
   });
 
   it('disables Apply when both drafts are empty', () => {

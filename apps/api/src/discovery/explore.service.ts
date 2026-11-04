@@ -1995,10 +1995,17 @@ export class ExploreService {
   private async allowedProductIdSet(
     viewerCompanyId: string,
     productIds: string[],
+    opts?: { sourceCollectionId?: string },
   ): Promise<Set<string>> {
     const unique = [...new Set(productIds.filter(Boolean))];
     if (unique.length === 0) return new Set();
-    const check = await this.collectionService.checkCurateProducts(viewerCompanyId, unique);
+    const check = await this.collectionService.checkCurateProducts(
+      viewerCompanyId,
+      unique,
+      opts?.sourceCollectionId
+        ? { sourceCollectionId: opts.sourceCollectionId }
+        : undefined,
+    );
     return new Set(check.allowedProductIds);
   }
 
@@ -2037,17 +2044,17 @@ export class ExploreService {
     rows: CollectionCardRow[],
   ): Promise<Map<string, number>> {
     const queried = await this.queryMemberIdsByCollection(rows.map((row) => row.id));
-    const allowed = await this.allowedProductIdSet(
-      viewerCompanyId,
-      rows.flatMap((row) => this.membersForCollection(row, queried)),
-    );
     const map = new Map<string, number>();
-    for (const row of rows) {
-      map.set(
-        row.id,
-        this.membersForCollection(row, queried).filter((id) => allowed.has(id)).length,
-      );
-    }
+    // Per pack: widen pack-only Published members (no solo Explore stamp).
+    await Promise.all(
+      rows.map(async (row) => {
+        const members = this.membersForCollection(row, queried);
+        const allowed = await this.allowedProductIdSet(viewerCompanyId, members, {
+          sourceCollectionId: row.id,
+        });
+        map.set(row.id, members.filter((id) => allowed.has(id)).length);
+      }),
+    );
     return map;
   }
 
@@ -2071,17 +2078,20 @@ export class ExploreService {
         productIds.push(row.product.id);
       }
     }
-    const allowed = await this.allowedProductIdSet(viewerCompanyId, [
-      ...[...membersByCollection.values()].flat(),
-      ...productIds,
-    ]);
     const collections = new Map<string, number>();
-    for (const [id, members] of membersByCollection) {
-      collections.set(id, members.filter((memberId) => allowed.has(memberId)).length);
-    }
+    await Promise.all(
+      [...membersByCollection.entries()].map(async ([id, members]) => {
+        const allowed = await this.allowedProductIdSet(viewerCompanyId, members, {
+          sourceCollectionId: id,
+        });
+        collections.set(id, members.filter((memberId) => allowed.has(memberId)).length);
+      }),
+    );
+    // Solo design tiles still need their own market stamp — no pack widen.
+    const allowedProducts = await this.allowedProductIdSet(viewerCompanyId, productIds);
     const products = new Map<string, number>();
     for (const id of productIds) {
-      products.set(id, allowed.has(id) ? 1 : 0);
+      products.set(id, allowedProducts.has(id) ? 1 : 0);
     }
     return { collections, products };
   }

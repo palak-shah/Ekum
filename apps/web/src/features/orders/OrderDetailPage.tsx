@@ -240,12 +240,21 @@ import {
   listRowClass,
 } from '@/ui/kit';
 import { listSquareButtonClass } from '@/ui/ListSearchRow';
-import { COMPACT_QTY_INPUT_CLASS, COMPACT_SHEET_NUM_INPUT_CLASS, COMPACT_SHEET_RATE_INPUT_CLASS } from '@/ui/mobileOverflow';
+import {
+  COMPACT_QTY_INPUT_CLASS,
+  COMPACT_SHEET_NUM_INPUT_CLASS,
+  COMPACT_SHEET_RATE_INPUT_CLASS,
+  SHEET_NUM_INPUT_CLASS,
+  SHEET_RATE_INPUT_CLASS,
+  SHEET_TEXT_AREA_CLASS,
+  SHEET_TEXT_INPUT_CLASS,
+} from '@/ui/mobileOverflow';
 import {
   compactQtyFieldLabelClass,
   designSubtextClass,
-} from '@/ui/designLineChrome';
-import {
+  sheetFieldLabelClass,
+  SHEET_COMPOSER_SHELL_CLASS,
+} from '@/ui/designLineChrome';import {
   SettleLinePreview,
   SettleLineRemainder,
 } from '@/features/orders/SettleLinePreview';
@@ -707,6 +716,7 @@ function OrderLineCantSupplyFace({
       }
       title={
         <OrderDesignTitle
+          chrome={ticketLayout ? 'sheet' : 'default'}
           name={item.name}
           muted={faded}
           rate={ticketLayout ? orderTicketLineRateCopy(item) : undefined}
@@ -3257,38 +3267,42 @@ export function OrderDetailPage() {
                       size="lg"
                     />
                   }
-                  title={<OrderDesignTitle name={item.name} muted={!on} />}
+                  title={
+                    <OrderDesignTitle
+                      chrome="sheet"
+                      name={item.name}
+                      muted={!on}
+                      subtext={
+                        on ? confirmLineAskedCue(item) : 'Declined'
+                      }
+                      subtextTestId={
+                        on
+                          ? `order-lines-asked-${item.id}`
+                          : undefined
+                      }
+                    />
+                  }
                   cues={
-                    <>
-                      <p
-                        className={designSubtextClass}
-                        data-testid={`order-lines-asked-${item.id}`}
-                      >
-                        {confirmLineAskedCue(item)}
+                    orderLineLeftoverCue(item) ? (
+                      <p className={designSubtextClass}>
+                        {orderLineLeftoverCue(item)}
                       </p>
-                      {orderLineLeftoverCue(item) ? (
-                        <p className={designSubtextClass}>
-                          {orderLineLeftoverCue(item)}
-                        </p>
-                      ) : null}
-                      {on ? null : (
-                        <p className={designSubtextClass}>Declined</p>
-                      )}
-                    </>
+                    ) : null
                   }
                   facts={
                     on ? (
                       <div
-                        className="mt-0.5 flex gap-2"
+                        className="mt-2.5 flex items-end gap-2.5"
                         data-testid={`order-lines-qty-rate-${item.id}`}
                       >
                         <div className="min-w-0 flex-1">
-                          <p className={compactQtyFieldLabelClass}>
+                          <p className={sheetFieldLabelClass}>
                             {confirmQtyFieldLabel(item.unit)}
                           </p>
                           <QtyStepper
                             value={Number(lineConfirmQty[item.id]) || item.quantity}
                             chainQty
+                            chrome="sheet"
                             align="start"
                             enterKeyHint={item.id === lastConfirmQtyId ? 'done' : 'next'}
                             inputTestId={`order-lines-qty-${item.id}`}
@@ -3301,10 +3315,10 @@ export function OrderDetailPage() {
                             }
                           />
                         </div>
-                        <div className="min-w-0 flex-[1.15]">
+                        <div className="min-w-0 flex-1">
                           <label
                             htmlFor={`confirm-rate-${item.id}`}
-                            className={compactQtyFieldLabelClass}
+                            className={sheetFieldLabelClass}
                           >
                             {confirmRateFieldLabel(item)}
                           </label>
@@ -3313,7 +3327,7 @@ export function OrderDetailPage() {
                             inputMode="decimal"
                             data-testid={`order-lines-rate-${item.id}`}
                             aria-label={`Rate for ${item.name}`}
-                            className={COMPACT_SHEET_RATE_INPUT_CLASS}
+                            className={SHEET_RATE_INPUT_CLASS}
                             value={lineConfirmRates[item.id] ?? ''}
                             onClick={(event) => event.stopPropagation()}
                             onChange={(event) =>
@@ -3348,6 +3362,7 @@ export function OrderDetailPage() {
             placeholder="Your book / PO number"
             inputTestId="order-lines-manual-ref-number"
             testId="order-lines-manual-ref"
+            className={SHEET_TEXT_INPUT_CLASS}
           />
           <NoteAttachField
             label="Personal note"
@@ -3360,10 +3375,12 @@ export function OrderDetailPage() {
             collapseEmpty
             addLabel="Add personal note"
             testId="order-lines-personal-note"
+            className={SHEET_TEXT_AREA_CLASS}
           />
           <NoteAttachField
             label="Note"
             layout="composer"
+            shellClass={SHEET_COMPOSER_SHELL_CLASS}
             collapseEmpty={false}
             optional
             placeholder="Add a note on this order"
@@ -3559,9 +3576,9 @@ export function OrderDetailPage() {
                   <div
                     key={item.id}
                     className={cx(
-                      'flex flex-col gap-1.5 rounded-xl px-2.5 py-2',
-                      orderLineBalanceRowClass(factsItem) ||
-                        (on ? 'bg-accent/5' : 'bg-foam/50'),
+                      'flex flex-col gap-1.5 border-b border-line/80 py-3 last:border-b-0',
+                      orderLineBalanceRowClass(factsItem),
+                      !on && 'opacity-60',
                     )}
                     data-testid="order-dispatch-line"
                   >
@@ -3610,34 +3627,33 @@ export function OrderDetailPage() {
                         }
                         title={
                           <OrderDesignTitle
+                            chrome="sheet"
                             name={item.name}
                             nameTestId="order-dispatch-line-name"
+                            subtext={dispatchLineProgressCue(item)}
+                            subtextTestId="order-dispatch-line-progress"
                           />
                         }
                         cues={
-                          <>
-                            <p
-                              className={designSubtextClass}
-                              data-testid="order-dispatch-line-progress"
-                            >
-                              {dispatchLineProgressCue(item)}
+                          orderLineLeftoverCue(item) ? (
+                            <p className={designSubtextClass}>
+                              {orderLineLeftoverCue(item)}
                             </p>
-                            {orderLineLeftoverCue(item) ? (
-                              <p className={designSubtextClass}>
-                                {orderLineLeftoverCue(item)}
-                              </p>
-                            ) : null}
-                          </>
+                          ) : null
                         }
                         facts={
                           on ? (
-                            <div data-testid="order-dispatch-line-preview">
-                              <p className={compactQtyFieldLabelClass}>
+                            <div
+                              className="mt-2.5 w-full max-w-[11rem]"
+                              data-testid="order-dispatch-line-preview"
+                            >
+                              <p className={sheetFieldLabelClass}>
                                 {confirmQtyFieldLabel(item.unit)}
                               </p>
                               <QtyStepper
                                 value={thisLr}
                                 chainQty
+                                chrome="sheet"
                                 align="start"
                                 enterKeyHint={item.id === lastDispatchQtyId ? 'done' : 'next'}
                                 inputTestId="order-dispatch-line-qty"
@@ -3704,6 +3720,7 @@ export function OrderDetailPage() {
             <div className="flex flex-col gap-1.5 pt-1">
               <div className="grid grid-cols-2 gap-2">
                 <TransporterField
+                  sheetChrome
                   value={dispatch.transporter ?? ''}
                   onChange={(next) =>
                     setDispatch((prev) => ({ ...prev, transporter: next }))
@@ -3715,6 +3732,7 @@ export function OrderDetailPage() {
                     min={1}
                     value={dispatch.parcelCount ?? ''}
                     placeholder="1"
+                    className={SHEET_TEXT_INPUT_CLASS}
                     onChange={(event) => {
                       const raw = event.target.value;
                       if (!raw) {
@@ -3943,6 +3961,7 @@ export function OrderDetailPage() {
                             </OrderUnitGroupedList>
                             <div className="grid grid-cols-2 gap-2">
                               <TransporterField
+                                sheetChrome
                                 value={editDispatch.transporter ?? ''}
                                 onChange={(next) =>
                                   setEditDispatch((prev) => ({
@@ -3958,6 +3977,7 @@ export function OrderDetailPage() {
                                   min={1}
                                   value={editDispatch.parcelCount ?? ''}
                                   placeholder="1"
+                                  className={SHEET_TEXT_INPUT_CLASS}
                                   onChange={(event) => {
                                     const raw = event.target.value;
                                     if (!raw) {
@@ -4046,6 +4066,7 @@ export function OrderDetailPage() {
           <NoteAttachField
             label="Note"
             layout="composer"
+            shellClass={SHEET_COMPOSER_SHELL_CLASS}
             collapseEmpty={false}
             optional
             placeholder="Add a note on this order"
@@ -4136,7 +4157,7 @@ export function OrderDetailPage() {
                             max={item.shippedQuantity ?? 0}
                             data-testid="order-settle-line-qty"
                             aria-label={`Final quantity for ${item.name}`}
-                            className={COMPACT_QTY_INPUT_CLASS}
+                            className={SHEET_NUM_INPUT_CLASS}
                             value={settleQty[item.id] ?? String(finalQty)}
                             onChange={(event) => {
                               const shipped = item.shippedQuantity ?? 0;
@@ -4159,6 +4180,7 @@ export function OrderDetailPage() {
           <NoteAttachField
             label="Note"
             layout="composer"
+            shellClass={SHEET_COMPOSER_SHELL_CLASS}
             collapseEmpty={false}
             optional
             placeholder="Add a note on this order"

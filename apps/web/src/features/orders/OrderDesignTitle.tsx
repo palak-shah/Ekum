@@ -4,6 +4,8 @@ import {
   designNameClass,
   designRateClass,
   designSubtextClass,
+  sheetDesignNameClass,
+  sheetLineCueClass,
 } from '@/ui/designLineChrome';
 
 /** Design name + optional quiet line — one component so type stays shared. */
@@ -14,6 +16,8 @@ export function OrderDesignTitle({
   rate,
   muted,
   nameTestId,
+  subtextTestId,
+  chrome = 'default',
 }: {
   name: string;
   subtext?: ReactNode;
@@ -22,7 +26,11 @@ export function OrderDesignTitle({
   rate?: ReactNode;
   muted?: boolean;
   nameTestId?: string;
+  subtextTestId?: string;
+  /** `sheet` = ticket `.dl b` / Confirm `.hd b` — 14px title (not catalog 16px). */
+  chrome?: 'default' | 'sheet';
 }) {
+  const sheet = chrome === 'sheet';
   return (
     <div className="min-w-0 flex-1">
       <div className="flex min-w-0 items-baseline justify-between gap-2">
@@ -30,7 +38,7 @@ export function OrderDesignTitle({
           className={cx(
             'min-w-0 text-pretty',
             rate ? 'flex-1 truncate' : null,
-            designNameClass,
+            sheet ? sheetDesignNameClass : designNameClass,
             muted && 'text-muted',
           )}
           data-testid={nameTestId}
@@ -44,7 +52,12 @@ export function OrderDesignTitle({
         ) : null}
       </div>
       {subtext ? (
-        <p className={cx('mt-0.5', designSubtextClass)}>{subtext}</p>
+        <p
+          className={cx('mt-0.5', sheet ? sheetLineCueClass : designSubtextClass)}
+          data-testid={subtextTestId}
+        >
+          {subtext}
+        </p>
       ) : null}
       {extra}
     </div>

@@ -47,6 +47,8 @@ type Props = {
   control?: 'textarea' | 'text';
   /** `composer` = chat well: + | field | Send inside `COMPOSER_SHELL_CLASS`. */
   layout?: 'labeled' | 'composer';
+  /** Override composer well classes (Confirm / Dispatch / Settle use surface + border). */
+  shellClass?: string;
   /** Trailing control on the composer row (ticket Send). */
   endSlot?: ReactNode;
   placeholder?: string;
@@ -79,6 +81,7 @@ export function NoteAttachField({
   className,
   control = 'textarea',
   layout = 'labeled',
+  shellClass,
   endSlot,
   placeholder,
   addLabel = 'Add note',
@@ -307,7 +310,10 @@ export function NoteAttachField({
       {layout === 'composer' ? (
         <div
           data-testid="note-attach-composer-shell"
-          className={cx('flex min-w-0 items-end gap-1 px-2 py-1.5', COMPOSER_SHELL_CLASS)}
+          className={cx(
+            'flex min-w-0 items-end gap-1 px-2 py-1.5',
+            shellClass ?? COMPOSER_SHELL_CLASS,
+          )}
         >
           {plusMenu}
           {showComposer && control === 'text' ? (

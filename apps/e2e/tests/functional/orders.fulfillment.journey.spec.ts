@@ -38,11 +38,24 @@ test.describe('order fulfillment @functional @release @orders', () => {
     await page.getByTestId('order-dispatch-open').click();
 
     const dispatchSheet = page.getByRole('dialog');
-    await expect(dispatchSheet.getByRole('heading', { name: 'Dispatch', exact: true })).toBeVisible();
+    await expect(
+      dispatchSheet.getByRole('heading', { name: /^Dispatch/ }),
+    ).toBeVisible();
     await expect(dispatchSheet.getByTestId('order-line-photo').first()).toBeVisible();
+    const dispatchLine = dispatchSheet.getByTestId('order-dispatch-line').first();
+    await expect(dispatchLine).toHaveClass(/border-b/);
+    await expect(dispatchLine).not.toHaveClass(/rounded-xl/);
+    await expect(dispatchLine).not.toHaveClass(/bg-accent\/5/);
+    await expect(dispatchLine).not.toHaveClass(/bg-foam/);
     const lineName = dispatchSheet.getByTestId('order-dispatch-line-name').first();
     const lineQty = dispatchSheet.getByTestId('order-dispatch-line-qty').first();
     await expect(lineName).toBeVisible();
+    const thisLrTrack = dispatchSheet.getByTestId('qty-stepper').first();
+    await expect(thisLrTrack).toHaveAttribute('data-chrome', 'sheet');
+    await expect(thisLrTrack).toHaveClass(/bg-surface/);
+    await expect(thisLrTrack).not.toHaveClass(/bg-input/);
+    const decrease = thisLrTrack.getByRole('button', { name: /Decrease/i });
+    await expect(decrease).toHaveClass(/h-\[34px\]/);
     const nameBox = await lineName.boundingBox();
     const qtyBox = await lineQty.boundingBox();
     expect(nameBox?.width ?? 0).toBeGreaterThan(80);

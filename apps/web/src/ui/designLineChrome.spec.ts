@@ -7,6 +7,17 @@ import {
   designQtyClass,
   designRateClass,
   designSubtextClass,
+  sheetDesignNameClass,
+  sheetFieldLabelClass,
+  sheetLineCueClass,
+  sheetNumInputClass,
+  sheetRateInputClass,
+  sheetStepperBtnClass,
+  sheetStepperQtyInputClass,
+  sheetStepperTrackClass,
+  sheetTextAreaClass,
+  sheetTextInputClass,
+  SHEET_COMPOSER_SHELL_CLASS,
   stepperBtnClass,
   stepperQtyInputClass,
   stepperTrackClass,
@@ -33,9 +44,19 @@ describe('designLineChrome', () => {
 
   it('name and subtext match catalog cards / chat titles', () => {
     expect(designNameClass).toContain('text-name');
-    expect(designNameClass).toContain('font-emphasis');
+    expect(designNameClass).toContain('font-title');
+    expect(designNameClass).not.toContain('font-emphasis');
     expect(designSubtextClass).toContain('text-meta');
     expect(designSubtextClass).toContain('text-muted');
+  });
+
+  it('ticket + Confirm/Dispatch name match proto .dl b / .hd b (14px)', () => {
+    expect(sheetDesignNameClass).toContain('text-[14px]');
+    expect(sheetDesignNameClass).toContain('font-title');
+    expect(designNameClass).toContain('text-name');
+    expect(sheetLineCueClass).toContain('text-[12.5px]');
+    expect(sheetLineCueClass).toContain('text-muted');
+    expect(sheetLineCueClass).not.toContain('text-meta');
   });
 
   it('ticket qty and rate are muted meta (prototype ladder)', () => {
@@ -58,5 +79,36 @@ describe('designLineChrome', () => {
     expect(compactSheetRateInputClass).toContain(FIELD_IDLE_FILL_CLASS);
     expect(stepperQtyInputClass).toContain('text-base');
     expect(stepperQtyInputClass).toContain('font-emphasis');
+  });
+
+  it('order-sheet editors are bordered surface (no bg-input)', () => {
+    expect(sheetStepperTrackClass).toContain('h-10');
+    expect(sheetStepperTrackClass).toContain('border-line');
+    expect(sheetStepperTrackClass).toContain('bg-surface');
+    expect(sheetStepperTrackClass).toContain('justify-between');
+    expect(sheetStepperTrackClass).not.toContain(FIELD_IDLE_FILL_CLASS);
+    expect(sheetStepperTrackClass).not.toContain('rounded-full');
+    expect(sheetStepperQtyInputClass).toContain('flex-1');
+    expect(sheetStepperQtyInputClass).not.toContain('w-8');
+    expect(sheetNumInputClass).toContain('bg-surface');
+    expect(sheetNumInputClass).toContain('border-line');
+    expect(sheetNumInputClass).not.toContain(FIELD_IDLE_FILL_CLASS);
+    expect(sheetRateInputClass).toContain('bg-surface');
+    expect(sheetRateInputClass).toContain('text-left');
+    expect(sheetRateInputClass).toContain('px-2.5');
+    expect(sheetRateInputClass).not.toContain('text-center');
+    expect(sheetRateInputClass).not.toContain(FIELD_IDLE_FILL_CLASS);
+    expect(sheetStepperBtnClass).toContain('h-[34px]');
+    expect(sheetStepperBtnClass).toContain('w-[34px]');
+    expect(sheetTextInputClass).toContain('bg-surface');
+    expect(sheetTextAreaClass).toContain('bg-surface');
+    expect(sheetTextAreaClass).toContain('border-line');
+    expect(sheetTextAreaClass).not.toContain('h-10');
+    expect(sheetTextAreaClass).not.toContain(FIELD_IDLE_FILL_CLASS);
+    expect(sheetFieldLabelClass).toContain('text-[11.5px]');
+    expect(sheetFieldLabelClass).not.toContain('uppercase');
+    expect(sheetFieldLabelClass).not.toContain('text-center');
+    expect(SHEET_COMPOSER_SHELL_CLASS).toContain('bg-surface');
+    expect(SHEET_COMPOSER_SHELL_CLASS).not.toContain(FIELD_IDLE_FILL_CLASS);
   });
 });

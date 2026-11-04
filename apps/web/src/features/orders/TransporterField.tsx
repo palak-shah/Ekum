@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Field, TextInput, cx } from '@/ui/kit';
 import { filterTransporterHistory } from '@/features/orders/transporterMemory';
+import { SHEET_TEXT_INPUT_CLASS } from '@/ui/mobileOverflow';
 
 export function TransporterField({
   value,
@@ -10,6 +11,8 @@ export function TransporterField({
   testId = 'transporter-field',
   /** How many sticky footer — one input, no stacked Field label. */
   compact,
+  /** Dispatch sheet — bordered surface (no foam fill). */
+  sheetChrome = false,
 }: {
   value: string;
   onChange: (next: string) => void;
@@ -17,6 +20,7 @@ export function TransporterField({
   disabled?: boolean;
   testId?: string;
   compact?: boolean;
+  sheetChrome?: boolean;
 }) {
   const [focused, setFocused] = useState(false);
   const suggestions = useMemo(
@@ -37,6 +41,7 @@ export function TransporterField({
         placeholder="Transporter · optional"
         aria-label="Transporter"
         autoComplete="off"
+        className={sheetChrome ? SHEET_TEXT_INPUT_CLASS : undefined}
         onFocus={() => setFocused(true)}
         onBlur={() => {
           // Let suggestion tap land before closing.

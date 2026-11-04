@@ -31,6 +31,10 @@ describe('DispatchLrBillInputs', () => {
     expect(screen.getByLabelText('LR number 1').parentElement).toHaveClass(
       'grid-cols-2',
     );
+    const lr = screen.getByLabelText('LR number 1');
+    expect(lr.className).toMatch(/bg-surface/);
+    expect(lr.className).toMatch(/border-line/);
+    expect(lr.className).not.toMatch(/bg-input/);
   });
 
   it('keeps the Nth parcel labeled after the first row', () => {

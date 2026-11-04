@@ -893,6 +893,7 @@ describe('ExploreService.collectionDetail trust rules', () => {
   it('counts only Published members for feed Repost eligibility', async () => {
     let memberWhere: unknown;
     let checkedIds: string[] = [];
+    let checkedSource: string | undefined;
     const peerPack = {
       id: 'peer-col',
       companyId: 'peer',
@@ -941,8 +942,13 @@ describe('ExploreService.collectionDetail trust rules', () => {
       {} as CatalogSerializer,
       discovery,
       {
-        checkCurateProducts: async (_companyId: string, productIds: string[]) => {
+        checkCurateProducts: async (
+          _companyId: string,
+          productIds: string[],
+          opts?: { sourceCollectionId?: string },
+        ) => {
           checkedIds = productIds;
+          checkedSource = opts?.sourceCollectionId;
           return { allowedProductIds: productIds, blocked: [] };
         },
       } as never,
@@ -953,7 +959,107 @@ describe('ExploreService.collectionDetail trust rules', () => {
       product: { status: 'published' },
     });
     expect(checkedIds).toEqual(['p1']);
+    expect(checkedSource).toBe('peer-col');
     expect(page.results[0]?.repostEligibleCount).toBe(1);
+  });
+
+  it('feed eligibility widens pack-only members with pack sourceCollectionId', async () => {
+    const peerPack = {
+      id: 'peer-col',
+      companyId: 'peer',
+      name: 'Peer Pack',
+      status: 'published',
+      coverImage: null,
+      exploreActivityAt: new Date('2026-10-01T00:00:00.000Z'),
+      createdAt: new Date('2026-10-01T00:00:00.000Z'),
+      company: { id: 'peer', name: 'Peer Shop' },
+      products: [
+        { product: { id: 'pack-only-1', status: 'published' } },
+        { product: { id: 'pack-only-2', status: 'published' } },
+      ],
+      _count: { products: 2 },
+    };
+    const prisma = {
+      follow: { findMany: async () => [{ followedCompanyId: 'peer' }] },
+      company: {
+        findUnique: async () => ({
+          buyCategories: ['saree'],
+          superCategories: [],
+          city: 'Surat',
+        }),
+      },
+      collection: { findMany: async () => [peerPack] },
+      collectionProduct: {
+        findMany: async () => [
+          { collectionId: 'peer-col', productId: 'pack-only-1' },
+          { collectionId: 'peer-col', productId: 'pack-only-2' },
+        ],
+      },
+    } as unknown as PrismaService;
+    const discovery = {
+      toCollectionCard: (
+        row: { id: string },
+        opts?: { viewerReposted?: boolean; repostEligibleCount?: number },
+      ) => ({
+        id: row.id,
+        viewerReposted: opts?.viewerReposted === true,
+        repostEligibleCount: opts?.repostEligibleCount ?? 0,
+      }),
+    } as unknown as DiscoverySerializer;
+
+    const withoutPack = new ExploreService(
+      prisma,
+      {} as VisibilityService,
+      {} as CatalogSerializer,
+      discovery,
+      {
+        // Simulate solo-stamp gate: no source pack → none allowed.
+        checkCurateProducts: async (
+          _companyId: string,
+          productIds: string[],
+          opts?: { sourceCollectionId?: string },
+        ) => {
+          if (!opts?.sourceCollectionId) {
+            return {
+              allowedProductIds: [],
+              blocked: productIds.map((productId) => ({
+                productId,
+                code: 'NOT_DISCOVERABLE',
+              })),
+            };
+          }
+          return { allowedProductIds: productIds, blocked: [] };
+        },
+      } as never,
+    );
+    // Feed always passes pack id now — eligible.
+    const withPackPage = await withoutPack.collections('me', { limit: 20, following: true });
+    expect(withPackPage.results[0]?.repostEligibleCount).toBe(2);
+
+    const flatBlocked = new ExploreService(
+      prisma,
+      {} as VisibilityService,
+      {} as CatalogSerializer,
+      discovery,
+      {
+        checkCurateProducts: async (
+          _companyId: string,
+          productIds: string[],
+          opts?: { sourceCollectionId?: string },
+        ) => {
+          expect(opts?.sourceCollectionId).toBe('peer-col');
+          return {
+            allowedProductIds: [],
+            blocked: productIds.map((productId) => ({
+              productId,
+              code: 'NOT_DISCOVERABLE',
+            })),
+          };
+        },
+      } as never,
+    );
+    const blockedPage = await flatBlocked.collections('me', { limit: 20, following: true });
+    expect(blockedPage.results[0]?.repostEligibleCount).toBe(0);
   });
 
   it('does not stamp done for draft or automatic Selected hops', async () => {

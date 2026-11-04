@@ -574,6 +574,78 @@ describe('CollectionService.setProducts', () => {
     });
     expect(transaction).not.toHaveBeenCalled();
   });
+
+  it('allows pack-on-Explore members without solo stamp when sourceCollectionId is viewable', async () => {
+    const packOnly = { ...foreignPublishedProduct, postedToMarketAt: null };
+    const transaction = vi.fn(async (ops: unknown[]) => ops);
+    const prisma = {
+      collection: {
+        findFirst: async () => ({
+          id: 'col-1',
+          companyId: 'company-1',
+          status: CollectionStatus.Draft,
+        }),
+        findUnique: async () => ({
+          id: 'src-pack',
+          companyId: 'other-co',
+          status: CollectionStatus.Published,
+          audience: 'followers',
+          audienceCompanyIds: [],
+          startsAt: null,
+          endsAt: null,
+          products: [
+            {
+              productId: 'foreign-1',
+              product: { id: 'foreign-1', status: ProductStatus.Published },
+            },
+          ],
+        }),
+        update: vi.fn(async () => ({})),
+      },
+      product: {
+        findMany: async () => [packOnly],
+        count: async () => 0,
+      },
+      connection: {
+        findMany: async () => [],
+        findFirst: async () => null,
+      },
+      follow: {
+        ...followSourceShop(),
+        findUnique: async () => ({ status: 'allowed' }),
+      },
+      collectionViewGrant: { findUnique: async () => null },
+      collectionProduct: {
+        findMany: async () => [],
+        deleteMany: vi.fn(async () => ({})),
+        createMany: vi.fn(async () => ({})),
+      },
+      productRelistGrant: { findMany: async () => [] },
+      $transaction: transaction,
+    } as unknown as PrismaService;
+
+    const service = new CollectionService(
+      prisma,
+      { toCollectionDetail: () => ({ id: 'col-1' }) } as unknown as CatalogSerializer,
+      jobs,
+    );
+    vi.spyOn(service, 'get').mockResolvedValue({ id: 'col-1' } as never);
+
+    await expect(
+      service.setProducts('company-1', 'u1', 'col-1', ['foreign-1']),
+    ).rejects.toSatisfy((error: unknown) => {
+      expectBadRequestCode(error, 'NOT_DISCOVERABLE');
+      return true;
+    });
+    expect(transaction).not.toHaveBeenCalled();
+
+    await expect(
+      service.setProducts('company-1', 'u1', 'col-1', ['foreign-1'], {
+        sourceCollectionId: 'src-pack',
+      }),
+    ).resolves.toEqual({ id: 'col-1' });
+    expect(transaction).toHaveBeenCalled();
+  });
 });
 
 describe('CollectionService.checkCurateProducts', () => {

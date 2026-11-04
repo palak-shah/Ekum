@@ -2,6 +2,10 @@ import {
   compactQtyInputClass,
   compactSheetNumInputClass,
   compactSheetRateInputClass,
+  sheetNumInputClass,
+  sheetRateInputClass,
+  sheetTextAreaClass,
+  sheetTextInputClass,
 } from '@/ui/designLineChrome';
 import { FIELD_IDLE_AND_FOCUS_FILL_CLASS } from '@/ui/fieldFill';
 
@@ -126,3 +130,10 @@ export const COMPACT_SHEET_NUM_INPUT_CLASS = compactSheetNumInputClass;
 
 /** Quiet rate — soft chrome; pad so 4–6 digit rupees stay readable. */
 export const COMPACT_SHEET_RATE_INPUT_CLASS = compactSheetRateInputClass;
+
+/** Confirm / Dispatch / Settle — bordered surface (no bg-input). */
+export const SHEET_NUM_INPUT_CLASS = sheetNumInputClass;
+export const SHEET_RATE_INPUT_CLASS = sheetRateInputClass;
+export const SHEET_TEXT_INPUT_CLASS = sheetTextInputClass;
+export const SHEET_TEXT_AREA_CLASS = sheetTextAreaClass;
+

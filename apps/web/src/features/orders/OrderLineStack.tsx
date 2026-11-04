@@ -32,11 +32,14 @@ export function OrderLineStack({
   className?: string;
   muted?: boolean;
 }) {
+  // Name + secondary/subtext (Asked) are one caption. Extra cues (leftover) sit below.
   const titleBlock = (
-    <div className={cx('min-w-0 flex-1 leading-tight', muted && 'opacity-50')}>
-      {title}
-      {secondary}
-      {cues}
+    <div className={cx('min-w-0 flex-1', muted && 'opacity-50')}>
+      <div className="leading-tight">
+        {title}
+        {secondary}
+      </div>
+      {cues ? <div className="mt-1 flex flex-col gap-0.5">{cues}</div> : null}
     </div>
   );
   const nameRow = (

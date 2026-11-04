@@ -5,9 +5,10 @@ import {
   sameQtyRateForAllChipLabel,
 } from '@/features/orders/QtyStepper';
 import { TextInput } from '@/ui/kit';
+import { sheetFieldLabelClass } from '@/ui/designLineChrome';
 import {
-  COMPACT_SHEET_NUM_INPUT_CLASS,
-  COMPACT_SHEET_RATE_INPUT_CLASS,
+  SHEET_NUM_INPUT_CLASS,
+  SHEET_RATE_INPUT_CLASS,
 } from '@/ui/mobileOverflow';
 
 /** Apply one wholesale rate to every line; blank shared rate restores defaults. */
@@ -132,10 +133,7 @@ function SameQtyRateFields({
       data-testid="same-qty-rate-for-all-fields"
     >
       <div className="min-w-0 flex-1 pr-2">
-        <label
-          htmlFor="same-for-all-qty"
-          className="text-[10px] font-body uppercase tracking-wide text-muted"
-        >
+        <label htmlFor="same-for-all-qty" className={sheetFieldLabelClass}>
           Qty
         </label>
         <TextInput
@@ -154,10 +152,7 @@ function SameQtyRateFields({
         />
       </div>
       <div className="min-w-0 flex-[1.4] pl-2">
-        <label
-          htmlFor="same-for-all-rate"
-          className="text-[10px] font-body uppercase tracking-wide text-muted"
-        >
+        <label htmlFor="same-for-all-rate" className={sheetFieldLabelClass}>
           Rate
         </label>
         <TextInput
@@ -221,8 +216,8 @@ export function SameQtyRateForAll({
       rateDraft={rateDraft}
       onQtyDraftChange={onQtyDraftChange}
       onRateDraftChange={onRateDraftChange}
-      inputClassQty={COMPACT_SHEET_NUM_INPUT_CLASS}
-      inputClassRate={COMPACT_SHEET_RATE_INPUT_CLASS}
+      inputClassQty={SHEET_NUM_INPUT_CLASS}
+      inputClassRate={SHEET_RATE_INPUT_CLASS}
     />
   );
   const actions = (
@@ -249,7 +244,7 @@ export function SameQtyRateForAll({
       <form
         data-testid="same-for-all-editor"
         data-align="decide-rows"
-        className="rounded-xl border border-line bg-foam/80 px-2 py-2"
+        className="rounded-xl border border-line bg-surface px-2 py-2"
         onSubmit={(event) => {
           event.preventDefault();
           if (!canApply) return;
