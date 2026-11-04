@@ -828,10 +828,10 @@ describe('iHandleDesk', () => {
         status: 'requested',
         passHeld: false,
       })),
-    ).toBe('Buying #EFGH · waiting to accept');
+    ).toBe('Buying #EFGH · waiting to confirm');
     expect(tradeSummaryGoodsGo('Jaipur Emporium')).toBe('Supplier → Jaipur Emporium');
     expect(millHopAcceptWaitLabel('Ahmedabad Loom Co')).toBe(
-      'Waiting for Ahmedabad Loom Co to accept',
+      'Waiting for Ahmedabad Loom Co to confirm',
     );
     expect(
       millFulfilmentWaitLabel({
@@ -839,7 +839,7 @@ describe('iHandleDesk', () => {
         status: 'requested',
         passHeld: false,
       }),
-    ).toBe('waiting to accept');
+    ).toBe('waiting to confirm');
     expect(
       millFulfilmentWaitLabel({
         held: false,

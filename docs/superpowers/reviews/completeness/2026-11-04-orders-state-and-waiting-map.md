@@ -152,10 +152,10 @@ Core writer: `OrderService.transition` — role + `from` whitelist.
 | `Waiting on mills to dispatch` | same | Manage | same | 2+ | Mills | | Detail | |
 | `Your move: Confirm your lots` | `youFulfilmentDeskCue` | Manage + You hop | parent `requested`, You `requested` | You silent-released | Trader on You hop | Confirm on You | Detail wait | |
 | `Waiting on You to dispatch` | same | Manage + You | confirmed/part_shipped | | Trader You hop | Dispatch You | Detail | |
-| `Buying #{TAIL} · waiting to accept` | `millFulfilmentOpenSubtitle` + `millFulfilmentWaitLabel` | Mill card | hop `requested` | released | Mill | Confirm | Mill card open row | **confirm vs accept** |
+| `Buying #{TAIL} · waiting to confirm` | `millFulfilmentOpenSubtitle` + `millFulfilmentWaitLabel` | Mill card | hop `requested` | released | Mill | Confirm | Mill card open row | Unified confirm verb (`2026-11-04-mill-wait-confirm-verb`) |
 | `Buying #{TAIL} · waiting to dispatch` | same | Mill card | needs dispatch | released | Mill | Dispatch | Mill card | |
 | `Buying #{TAIL} · Held` | same + `passHeld` | Mill card | released + passHeld | passHeld | Trader Resume | Resume | Mill card | |
-| `Waiting for {mill} to accept` | `millHopAcceptWaitLabel` | Trader opens mill hop | hop `requested` | released | Mill | Confirm | Mill hop **dock** | Third wording for same ball |
+| `Waiting for {mill} to confirm` | `millHopAcceptWaitLabel` | Trader opens mill hop | hop `requested` | released | Mill | Confirm | Mill hop **dock** | Same confirm verb as parent/card |
 | `Dispatched · complete` / `Settled · complete` | `traderDeskNextAction` | Manage | terminal | | — | — | Detail wait (also pill-ish) | Overlaps status chrome |
 
 **Not found as live UI wait:** `Waiting for rates`, `awaitingRates`, `for rates` on OrderDetailPage.  
@@ -176,7 +176,7 @@ Orders **list** does not paint StatusPill; uses glance Needs-you or Waiting cloc
 |---------|------------|-----|
 | Waiting for buyer | Yes | `Waiting: buyer` (selling idle) |
 | Waiting for trader | Partial | Needs-you Forward / Confirm your lots / Send to mill — not a single “Waiting: trader” string |
-| Waiting for supplier/mill accept or confirm | Yes | Three strings: confirm (parent) / waiting to accept (card) / Waiting for {mill} to accept (hop) |
+| Waiting for supplier/mill confirm | Yes | Unified **confirm** on parent / card / hop dock (list stays `Waiting: supplier`) |
 | Waiting for mill release / Send | Yes | Needs you Accept & forward + Your move: Send…; held cards show Send not wait |
 | Waiting for dispatch | Yes | Waiting on {mill}/mills/You to dispatch; card `waiting to dispatch` |
 | Waiting for settlement | Via Needs you Settle | No idle “Waiting: settle” string found |
@@ -221,7 +221,7 @@ Orders **list** does not paint StatusPill; uses glance Needs-you or Waiting cloc
 1. Place handle → parent `manage` `requested` + mill hop held (`upstreamReleasedAt` null).  
 2. Buyer sees parent Buying; trader Selling Trading row; mill **cannot** list hop.  
 3. Wait list: Needs you Accept & forward → Forward. Detail: Send on mill card; ticket wait silent while held.  
-4. `sendUp` → released; mill sees hop; parent wait → Waiting on {mill} to confirm; card `Buying # · waiting to accept`.
+4. `sendUp` → released; mill sees hop; parent wait → Waiting on {mill} to confirm; card `Buying # · waiting to confirm`.
 
 ### G. I-handle multiple mills
 
@@ -275,11 +275,8 @@ Orders **list** does not paint StatusPill; uses glance Needs-you or Waiting cloc
 
 ### Confirmed defects / high risk
 
-1. **Three wordings for “released mill still requested”**  
-   - Parent: `Waiting on {X} to confirm`  
-   - Mill card: `waiting to accept`  
-   - Mill hop dock: `Waiting for {X} to accept`  
-   Risk: trader thinks confirm ≠ accept.
+1. **~~Three wordings for “released mill still requested”~~ — fixed**  
+   - Parent / card / hop dock all use **confirm** (`2026-11-04-mill-wait-confirm-verb`). List remains generic `Waiting: supplier`.
 
 2. **List vs detail on Manage after Send**  
    - List: generic `Waiting: supplier`  
@@ -348,7 +345,7 @@ Orders **list** does not paint StatusPill; uses glance Needs-you or Waiting cloc
 
 ### All live waiting / needs-you families
 - Needs you: Accept & forward · Confirm · Accept quote · Dispatch · Settle · bare Needs you  
-- Idle: Waiting: supplier/buyer · Your move: Send… · Waiting on {mill\|mills\|You} to confirm/dispatch · Confirm your lots · Buying # · waiting to accept/dispatch/Held · Waiting for {mill} to accept  
+- Idle: Waiting: supplier/buyer · Your move: Send… · Waiting on {mill\|mills\|You} to confirm/dispatch · Confirm your lots · Buying # · waiting to confirm/dispatch/Held · Waiting for {mill} to confirm  
 - Complete cues: Dispatched · complete / Settled · complete (desk)
 
 ### What triggers / who acts / what clears (pattern)
@@ -361,7 +358,7 @@ Orders **list** does not paint StatusPill; uses glance Needs-you or Waiting cloc
 | Needs Confirm/Dispatch/Settle | Seller capability flags | Seller | Matching POST |
 
 ### Highest-risk inconsistencies
-1. **confirm vs accept** triple wording for the same released-mill `requested` state.  
+1. ~~**confirm vs accept** triple wording~~ — **resolved** (confirm everywhere on Manage card/hop/parent).  
 2. **List generic Waiting: supplier** vs **detail mill-named** waits on Manage.  
 3. **Dead rates-wait strings** in `nextOrderAction` vs product “no rates wait”.  
 4. **Docs “Waiting until Send”** vs **held flag + status requested**.  

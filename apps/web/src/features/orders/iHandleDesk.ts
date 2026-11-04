@@ -580,22 +580,22 @@ export function millFulfilmentOpenSubtitle(
 
 /**
  * Wait cue for mill open-row subline — never wait-for-rates.
- * Held → Held; requested → waiting to accept; else dispatch.
+ * Held → Held; requested → waiting to confirm; else dispatch.
  */
 export function millFulfilmentWaitLabel(
   desk: Pick<OrderMillDeskView, 'held' | 'status' | 'passHeld'>,
 ): string | null {
   if (desk.held || millDeskDropped(desk)) return null;
   if (desk.passHeld) return 'Held';
-  if (desk.status === 'requested') return 'waiting to accept';
+  if (desk.status === 'requested') return 'waiting to confirm';
   if (millNeedsDispatch(desk)) return 'waiting to dispatch';
   return null;
 }
 
-/** Mill hop idle dock wait — trader as buyer of mill ticket. */
+/** Mill hop idle dock wait — trader as buyer of mill ticket (Confirm verb). */
 export function millHopAcceptWaitLabel(sellerName: string): string {
   const name = sellerName.trim() || 'supplier';
-  return `Waiting for ${name} to accept`;
+  return `Waiting for ${name} to confirm`;
 }
 
 /**

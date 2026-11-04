@@ -122,7 +122,7 @@ test.describe('I-handle desk @functional @orders', () => {
     const millHopLink = page.getByTestId(`order-mill-hop-link-${millId}`);
     await expect(millHopLink).toBeVisible({ timeout: 15_000 });
     await expect(millHopLink).toContainText(/Buying #/);
-    await expect(millHopLink).toContainText(/waiting to accept/i);
+    await expect(millHopLink).toContainText(/waiting to confirm/i);
     await expect(millHopLink).not.toContainText(/Order #/);
     await expect(millHopLink).not.toContainText(/for rates/i);
     await expect(page.getByTestId('order-mill-line-progress').first()).toBeVisible();
@@ -148,7 +148,7 @@ test.describe('I-handle desk @functional @orders', () => {
     await expect(hop).toContainText('your selling order');
     await expect(hop).toContainText('Dispatch goes straight to');
     await expect(page.getByTestId('order-action-dock').getByTestId('order-ticket-waiting')).toContainText(
-      /Waiting for .+ to accept/,
+      /Waiting for .+ to confirm/,
     );
     await expect(page.getByTestId('order-open-chat')).toBeVisible();
     await expect(page.getByTestId('order-dock-cancel')).toHaveCount(0);

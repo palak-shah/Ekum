@@ -10,7 +10,7 @@
 | Lens | Summary findings |
 |------|------------------|
 | Product Manager | No rate haggling on ticket. Supplier edits rate on Confirm; buyer qty until Confirm; supplier qty anytime. Buy≠Sell shown on mill card. |
-| UX Designer | Open row: Buying # · waiting to accept. Dock: Chat + wait + qty Edit. One wait place. Kit type/space. |
+| UX Designer | Open row: Buying # · waiting to confirm. Dock: Chat + wait + qty Edit. One wait place. Kit type/space. (Verb locked to confirm: `2026-11-04-mill-wait-confirm-verb`.) |
 | Solution Architect | One DB rule: `OrderItem.rate` per ticket line; hop→parent via `sourceItemId` only. No buyRate/sellRate columns. |
 
 ## Platform consistency
@@ -18,7 +18,7 @@
 1. **Existing patterns?** FulfilmentDeskCard, SellingDockChat, mill desks join, amend qty.  
 2. **Duplicates?** Replaces From/To column grid with Buy≈/Sell line chrome.  
 3. **Reuse?** Existing desk `millRate` / parent `item.rate`.  
-4. **Naming?** Waiting to accept / Waiting for {shop} to accept.  
+4. **Naming?** Waiting to confirm / Waiting for {shop} to confirm.  
 5. **Units?** Qty = order unit; ₹ = Rate per on design line; whose = pack member design on mill card.
 
 **Philosophy conflict?** No.
