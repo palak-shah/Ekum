@@ -66,13 +66,16 @@ export function OrderTicketNotes({
     <>
       <Card className="flex flex-col gap-3" data-testid="order-ticket-notes">
         <div className="flex items-baseline justify-between gap-8">
-          <p className="text-sm font-emphasis text-ink">Notes & comments</p>
-          <p className="text-xs font-body text-muted" data-testid="order-notes-audience">
+          <p className="text-sm font-title text-ink">Notes & comments</p>
+          <p
+            className="text-meta font-body text-muted"
+            data-testid="order-notes-audience"
+          >
             {audienceCue}
           </p>
         </div>
         {notes.length === 0 ? (
-          <p className="text-sm text-muted">No notes yet.</p>
+          <p className="text-meta text-muted">No notes yet.</p>
         ) : (
           <ul className="flex flex-col gap-2">
             {moreCue ? (
@@ -92,18 +95,18 @@ export function OrderTicketNotes({
               <li
                 key={row.id}
                 className={cx(
-                  'rounded-lg px-2.5 py-2 text-[13.5px] leading-snug text-ink',
+                  'rounded-lg px-2.5 py-2 text-[13.5px] leading-snug text-slate',
                   row.mine ? 'bg-chat-out' : 'bg-foam',
                 )}
                 data-testid="order-ticket-note"
               >
                 <div className="mb-0.5 flex items-baseline justify-between gap-8 text-xs text-muted">
-                  <b className="font-emphasis text-ink">{row.who}</b>
+                  <b className="font-title text-ink">{row.who}</b>
                   <span>{explorePostedWhen(row.at)}</span>
                 </div>
                 {row.cue ? <p className="mb-0.5 text-xs text-muted">{row.cue}</p> : null}
                 {row.note ? (
-                  <p className="whitespace-pre-wrap text-ink">{row.note}</p>
+                  <p className="whitespace-pre-wrap text-slate">{row.note}</p>
                 ) : null}
                 {row.forwarded ? (
                   <p className="mt-0.5 text-xs text-muted" data-testid="order-note-forwarded">
@@ -173,21 +176,21 @@ export function OrderTicketNotes({
           testId="order-ticket-note-attach"
           inputTestId="order-ticket-note-input"
           endSlot={
-            canSubmit ? (
-              <button
-                type="button"
-                data-testid="order-ticket-note-send"
-                aria-label="Send"
-                disabled={adding}
-                onClick={onAdd}
-                className={cx(
-                  THREAD_COMPOSER_CONTROL_CLASS,
-                  'bg-accent text-on-accent disabled:opacity-40',
-                )}
-              >
-                <SendIcon width={18} height={18} />
-              </button>
-            ) : null
+            <button
+              type="button"
+              data-testid="order-ticket-note-send"
+              aria-label="Send"
+              disabled={!canSubmit || adding}
+              onClick={onAdd}
+              className={cx(
+                THREAD_COMPOSER_CONTROL_CLASS,
+                canSubmit
+                  ? 'bg-accent text-on-accent disabled:opacity-40'
+                  : 'text-muted opacity-45',
+              )}
+            >
+              <SendIcon width={18} height={18} />
+            </button>
           }
         />
         {error ? <InlineNotice message={error} /> : null}

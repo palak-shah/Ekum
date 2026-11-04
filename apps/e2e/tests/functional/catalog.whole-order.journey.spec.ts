@@ -235,7 +235,7 @@ test.describe('catalog Order as whole @functional @catalog @orders', () => {
     await expect(page.getByTestId('order-dock-confirm')).toBeVisible({ timeout: 20_000 });
     await page.getByTestId('order-dock-confirm').click();
     const confirm = page.getByRole('dialog');
-    await expect(confirm.getByRole('heading', { name: 'Confirm / decline lines' })).toBeVisible();
+    await expect(confirm.getByRole('heading', { name: 'Confirm order' })).toBeVisible();
     await expect(confirm.getByTestId('order-lines-decide-row')).toHaveCount(1);
     await expect(confirm.getByText(catalogName).first()).toBeVisible();
   });

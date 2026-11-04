@@ -113,7 +113,7 @@ test.describe('orders chrome @functional @release @orders', () => {
 
     await page.getByTestId('order-dock-confirm').click();
     const sheet = page.getByRole('dialog');
-    await expect(sheet.getByRole('heading', { name: 'Confirm / decline lines' })).toBeVisible();
+    await expect(sheet.getByRole('heading', { name: 'Confirm order' })).toBeVisible();
     await sheet.getByRole('button', { name: 'Decline Georgette Party Saree' }).click();
     await sheet.getByTestId('order-lines-confirm').click();
     await expect(sheet).toBeHidden({ timeout: 15_000 });
@@ -226,7 +226,7 @@ test.describe('orders chrome @functional @release @orders', () => {
     await expect(dock).toBeVisible({ timeout: 15_000 });
     await expect(page.getByTestId('app-bottom-nav')).toBeHidden();
     await expect(page.getByRole('button', { name: 'Confirm all open' })).toHaveCount(0);
-    await expect(page.getByRole('button', { name: 'Confirm / decline lines' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Confirm order' })).toHaveCount(0);
 
     const decline = dock.getByTestId('order-dock-decline');
     const confirm = dock.getByTestId('order-dock-confirm');
@@ -240,17 +240,18 @@ test.describe('orders chrome @functional @release @orders', () => {
     expect(declineBox!.x).toBeLessThan(confirmBox!.x);
 
     await confirm.click();
-    await expect(page.getByRole('heading', { name: 'Confirm / decline lines' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Confirm order' })).toBeVisible();
     const sheet = page.getByRole('dialog');
     const sheetConfirm = sheet.getByTestId('order-lines-confirm');
     const sheetDecline = sheet.getByTestId('order-lines-decline');
     await expect(sheetConfirm).toBeVisible();
     await expect(sheetDecline).toBeVisible();
+    await expect(sheetConfirm).toContainText(/Confirm 1 of 1 design/);
     const sheetConfirmBox = await sheetConfirm.boundingBox();
     const sheetDeclineBox = await sheetDecline.boundingBox();
     expect(sheetConfirmBox && sheetDeclineBox).toBeTruthy();
     expect(sheetDeclineBox!.x).toBeLessThan(sheetConfirmBox!.x);
-    await expect(sheet.locator('[data-testid^="order-lines-asked-"]')).toHaveCount(0);
+    await expect(sheet.locator('[data-testid^="order-lines-asked-"]')).toHaveCount(1);
     await expect(sheet.locator('input[data-testid^="order-lines-qty-"]')).toBeVisible();
     const rateInput = sheet.locator('input[data-testid^="order-lines-rate-"]');
     await expect(rateInput).toBeVisible();
@@ -340,20 +341,30 @@ test.describe('orders chrome @functional @release @orders', () => {
     await page.goto(`/orders/${order.id}`);
     await page.getByTestId('order-dock-confirm').click();
     const sheet = page.getByRole('dialog');
-    await expect(sheet.getByRole('heading', { name: 'Confirm / decline lines' })).toBeVisible();
+    await expect(sheet.getByRole('heading', { name: 'Confirm order' })).toBeVisible();
+    await expect(sheet.getByTestId('order-lines-why')).toBeVisible();
+    await expect(sheet.getByTestId('order-lines-tally')).toHaveCount(0);
+    await expect(sheet.getByTestId('order-sheet-unit-heading')).toHaveCount(0);
+    await expect(sheet.getByTestId('order-lines-decline')).toBeVisible();
+    await expect(sheet.getByTestId('order-lines-confirm')).toBeVisible();
+    await expect(sheet.locator('[data-testid^="order-lines-asked-"]')).toHaveCount(1);
     await expect(sheet.getByTestId('order-lines-manual-ref')).toBeVisible();
     await expect(sheet.getByTestId('order-lines-manual-ref-number')).toBeVisible();
     await expect(sheet.getByTestId('order-lines-personal-note').getByTestId('note-attach-add')).toHaveText(
       'Add personal note',
     );
-    await expect(sheet.getByText('Note to buyer')).toBeVisible();
-    await expect(sheet.getByText('Note to buyer')).toContainText('(optional)');
+    await expect(sheet.getByTestId('order-lines-buyer-note')).toBeVisible();
+    await expect(
+      sheet.getByTestId('order-lines-buyer-note').getByTestId('note-attach-composer-shell'),
+    ).toBeVisible();
+    await expect(sheet.getByTestId('order-lines-buyer-note-input')).toHaveAttribute(
+      'placeholder',
+      'Add a note on this order',
+    );
+    await expect(sheet.getByText('Only your company sees this — not the other party.')).toHaveCount(0);
 
     await sheet.getByTestId('order-lines-manual-ref-number').fill(bookNo);
     await sheet.getByTestId('order-lines-personal-note').getByTestId('note-attach-add').click();
-    await expect(
-      sheet.getByText('Only your company sees this — not the other party.'),
-    ).toBeVisible();
     await sheet.getByTestId('order-lines-personal-note').locator('textarea').fill('Pack in brown');
     await sheet.getByTestId('order-lines-confirm').click();
     await expect(sheet).toBeHidden({ timeout: 15_000 });
@@ -395,7 +406,8 @@ test.describe('orders chrome @functional @release @orders', () => {
     await expect(page.getByTestId('order-ticket-notes').getByText('No notes yet.')).toBeVisible();
     await expect(page.getByTestId('order-ticket-notes').getByText('Notes & comments')).toBeVisible();
     await expect(page.getByTestId('note-attach-plus')).toBeVisible();
-    await expect(page.getByTestId('order-ticket-note-send')).toHaveCount(0);
+    await expect(page.getByTestId('order-ticket-note-send')).toBeVisible();
+    await expect(page.getByTestId('order-ticket-note-send')).toBeDisabled();
 
     await expect(page.getByTestId('order-ticket-bill-total')).toHaveCount(0);
     await expect(page.getByTestId('order-timeline-more')).toContainText(/Timeline · /);

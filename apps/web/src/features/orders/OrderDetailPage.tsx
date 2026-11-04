@@ -50,6 +50,10 @@ import {
   shipmentLegImageUrls,
   shipmentPrimaryLabel,
   dispatchesHeadingCount,
+  dispatchSheetTitle,
+  dispatchSheetSubtitle,
+  dispatchLineProgressCue,
+  dispatchCardLineQty,
   fulfillDispatchItems,
   dispatchQtyAfterSelect,
   cantSupplyDispatchItems,
@@ -74,6 +78,10 @@ import {
 } from '@/features/orders/orderTimelineDisplay';
 import { explorePostedWhen } from '@/ui/cards';
 import {
+  confirmLineAskedCue,
+  confirmPrimaryLabel,
+  confirmQtyFieldLabel,
+  confirmRateFieldLabel,
   decideLinesConfirmExtras,
   decideLinesConfirmReady,
   decideLinesPayload,
@@ -233,11 +241,10 @@ import {
 } from '@/ui/kit';
 import { listSquareButtonClass } from '@/ui/ListSearchRow';
 import { COMPACT_QTY_INPUT_CLASS, COMPACT_SHEET_NUM_INPUT_CLASS, COMPACT_SHEET_RATE_INPUT_CLASS } from '@/ui/mobileOverflow';
-import { compactQtyFieldLabelClass } from '@/ui/designLineChrome';
 import {
-  DispatchLinePreview,
-  DispatchLineRemainder,
-} from '@/features/orders/DispatchLinePreview';
+  compactQtyFieldLabelClass,
+  designSubtextClass,
+} from '@/ui/designLineChrome';
 import {
   SettleLinePreview,
   SettleLineRemainder,
@@ -708,7 +715,7 @@ function OrderLineCantSupplyFace({
       }
       secondary={
         identity ? (
-          <p className="mt-0.5 truncate text-[12px] font-body text-muted" data-testid="order-line-identity">
+          <p className={cx('mt-0.5', designSubtextClass)} data-testid="order-line-identity">
             {identity}
           </p>
         ) : null
@@ -717,14 +724,14 @@ function OrderLineCantSupplyFace({
         <>
           {leftover ? (
             <p
-              className="text-xs font-emphasis text-ink"
+              className={designSubtextClass}
               data-testid="order-line-no-longer-available"
             >
               {leftover}
             </p>
           ) : null}
           {cue ? (
-            <p className="text-xs font-emphasis text-ink" data-testid="order-line-cant-supply-cue">
+            <p className={designSubtextClass} data-testid="order-line-cant-supply-cue">
               {cue}
             </p>
           ) : null}
@@ -1892,67 +1899,46 @@ export function OrderDetailPage() {
   const shipmentsCard =
     data.shipments.length > 0 ? (
       <Card className="flex flex-col gap-3 text-sm" data-testid="order-shipments">
-        {oneToOneTicket ? (
-          <div className="flex items-baseline justify-between gap-8">
-            <p className="font-emphasis text-ink">Dispatches</p>
-            <p className="text-xs font-body text-muted">
-              {dispatchesHeadingCount(data.shipments.length)}
-            </p>
-          </div>
-        ) : (
-          <p className="font-emphasis text-ink">Shipments</p>
-        )}
+        <div className="flex items-baseline justify-between gap-8">
+          <p className="font-emphasis text-ink">Dispatches</p>
+          <p className="text-xs font-body text-muted">
+            {dispatchesHeadingCount(data.shipments.length)}
+          </p>
+        </div>
         {data.shipments.map((shipment) => {
-          const legLines = shipmentLegDisplayLines(shipment);
           const meta = [shipment.transporter?.trim(), formatDate(shipment.dispatchedAt)]
             .filter(Boolean)
             .join(' · ');
           return (
             <div key={shipment.id} className="border-t border-line pt-2 first:border-0 first:pt-0">
-              {oneToOneTicket ? (
-                <div className="flex items-baseline justify-between gap-8">
-                  <p className="font-emphasis text-ink">{shipmentPrimaryLabel(shipment)}</p>
-                  {meta ? (
-                    <p className="shrink-0 text-right text-[12.5px] text-muted">{meta}</p>
-                  ) : null}
-                </div>
-              ) : (
-                <>
-                  {legLines.length > 0 ? (
-                    legLines.map((line) => (
-                      <p key={line} className="font-emphasis text-ink">
-                        {line}
-                      </p>
-                    ))
-                  ) : (
-                    <p className="font-emphasis text-ink">Dispatch</p>
-                  )}
-                </>
-              )}
+              <div className="flex items-baseline justify-between gap-8">
+                <p className="font-emphasis text-ink">{shipmentPrimaryLabel(shipment)}</p>
+                {meta ? (
+                  <p className="shrink-0 text-right text-[12.5px] text-muted">{meta}</p>
+                ) : null}
+              </div>
               <LegPhotoThumbs
                 images={shipmentLegImageUrls(shipment)}
                 testId={`order-shipment-lr-photos-${shipment.id}`}
               />
-              {!oneToOneTicket && shipment.transporter ? (
-                <p className="text-muted">Transporter · {shipment.transporter}</p>
-              ) : null}
               <div className="mt-1 flex flex-col gap-0.5" data-testid="order-shipment-lines">
-                {shipment.items.map((line) => (
-                  <p
-                    key={`${shipment.id}-${line.orderItemId}`}
-                    className={cx(
-                      'text-ink',
-                      oneToOneTicket && 'flex justify-between gap-8',
-                    )}
-                  >
-                    <span className="font-emphasis">{line.name}</span>
-                    <span className="font-title tabular-nums"> × {line.quantity}</span>
-                  </p>
-                ))}
+                {shipment.items.map((line) => {
+                  const orderLine = data.items.find((row) => row.id === line.orderItemId);
+                  return (
+                    <p
+                      key={`${shipment.id}-${line.orderItemId}`}
+                      className="flex justify-between gap-8 text-ink"
+                    >
+                      <span className="min-w-0 truncate font-body text-muted">
+                        {line.name}
+                      </span>
+                      <span className="shrink-0 font-emphasis tabular-nums text-ink">
+                        {dispatchCardLineQty(line.quantity, orderLine?.unit)}
+                      </span>
+                    </p>
+                  );
+                })}
               </div>
-              {!oneToOneTicket ? (
-                <p className="mt-1 text-[12px] text-muted">Sent {formatDate(shipment.dispatchedAt)}</p>
-              ) : null}
               <div className="mt-1.5 flex items-center gap-0.5">
                 {data.status !== 'settled' && data.direction === 'selling' ? (
                   <button
@@ -3125,8 +3111,8 @@ export function OrderDetailPage() {
       <Sheet
         open={linesOpen}
         onClose={() => closeSheet('lines')}
-        title="Confirm / decline lines"
-        titleInfo="Tick what you can supply; set qty — rate if you have it. Confirm locks the ticket. Decline all drops every design."
+        title="Confirm order"
+        titleInfo="As the seller you can change qty or rate. The buyer gets an update. Tick what you can supply — Confirm locks; Decline all drops every design."
         titleInfoTestId="order-lines-why"
         footer={
           <div className="flex flex-col gap-2">
@@ -3154,34 +3140,20 @@ export function OrderDetailPage() {
                   decideLines.isPending
                 }
                 onClick={() => decideLines.mutate('confirm')}
-                aria-label={`Confirm ${linesTally.confirm} ticked design${linesTally.confirm === 1 ? '' : 's'}; unticked become decline`}
+                aria-label={`${confirmPrimaryLabel(linesTally.confirm, openItems.length)}; unticked become decline`}
               >
                 {decideLines.isPending && decideLines.variables === 'confirm'
                   ? 'Saving…'
-                  : 'Confirm'}
+                  : confirmPrimaryLabel(linesTally.confirm, openItems.length)}
               </Button>
             </div>
           </div>
         }
       >
         <div className="flex flex-col gap-2 pb-2" {...{ [ORDER_QTY_SCOPE_ATTR]: '' }}>
-          {openItems.length > 0 ? (
-            <div
-              className="flex items-center justify-between gap-2 rounded-xl border border-accent/40 bg-accent/5 px-3 py-2"
-              data-testid="order-lines-tally"
-            >
-              <p className="min-w-0 truncate text-sm font-emphasis text-accent">
-                {linesTally.confirm} confirm
-              </p>
-              {linesTally.decline > 0 ? (
-                <p className="shrink-0 text-[12px] font-body text-muted">
-                  {linesTally.decline} decline
-                </p>
-              ) : null}
-            </div>
-          ) : (
+          {openItems.length === 0 ? (
             <InlineNotice message="No open designs left." />
-          )}
+          ) : null}
           {openItems.filter((item) => lineActions[item.id] !== 'decline').length > 1 &&
           !howManyOrderUnitsMixed(
             openItems.filter((item) => lineActions[item.id] !== 'decline'),
@@ -3239,30 +3211,18 @@ export function OrderDetailPage() {
             items={openItems}
             unitOf={(row) => row.unit}
             getKey={(row) => row.id}
+            hideHeadings
             headingTestId="order-sheet-unit-heading"
             testId="order-lines-unit-groups"
           >
           {(item) => {
             const on = lineActions[item.id] !== 'decline';
-            const typedQty = Number(lineConfirmQty[item.id]);
-            const typedRate = quoteRateNumber(lineConfirmRates[item.id]);
-            const factsQty =
-              on && Number.isFinite(typedQty) && typedQty >= 1 ? typedQty : item.quantity;
-            const factsItem = {
-              ...item,
-              quantity: factsQty,
-              rate: typedRate ?? item.rate,
-            };
             return (
               <div
                 key={item.id}
                 className={cx(
-                  'flex items-start gap-2 rounded-xl px-2 py-2',
-                  on
-                    ? orderLineBalance(factsItem)
-                      ? orderLineBalanceRowClass(factsItem)
-                      : 'bg-accent/5'
-                    : 'bg-foam/50',
+                  'flex items-start gap-2 border-b border-line/80 py-3 last:border-b-0',
+                  !on && 'opacity-60',
                 )}
                 data-testid="order-lines-decide-row"
               >
@@ -3300,24 +3260,32 @@ export function OrderDetailPage() {
                   title={<OrderDesignTitle name={item.name} muted={!on} />}
                   cues={
                     <>
+                      <p
+                        className={designSubtextClass}
+                        data-testid={`order-lines-asked-${item.id}`}
+                      >
+                        {confirmLineAskedCue(item)}
+                      </p>
                       {orderLineLeftoverCue(item) ? (
-                        <p className="truncate text-meta font-emphasis text-ink">
+                        <p className={designSubtextClass}>
                           {orderLineLeftoverCue(item)}
                         </p>
                       ) : null}
                       {on ? null : (
-                        <p className="truncate text-meta font-body text-muted">Declined</p>
+                        <p className={designSubtextClass}>Declined</p>
                       )}
                     </>
                   }
                   facts={
                     on ? (
                       <div
-                        className="flex divide-x divide-line/80"
+                        className="mt-0.5 flex gap-2"
                         data-testid={`order-lines-qty-rate-${item.id}`}
                       >
-                        <div className="min-w-0 flex-1 pr-2">
-                          <p className={compactQtyFieldLabelClass}>Qty</p>
+                        <div className="min-w-0 flex-1">
+                          <p className={compactQtyFieldLabelClass}>
+                            {confirmQtyFieldLabel(item.unit)}
+                          </p>
                           <QtyStepper
                             value={Number(lineConfirmQty[item.id]) || item.quantity}
                             chainQty
@@ -3333,12 +3301,12 @@ export function OrderDetailPage() {
                             }
                           />
                         </div>
-                        <div className="min-w-0 flex-[1.4] pl-2">
+                        <div className="min-w-0 flex-[1.15]">
                           <label
                             htmlFor={`confirm-rate-${item.id}`}
                             className={compactQtyFieldLabelClass}
                           >
-                            Rate
+                            {confirmRateFieldLabel(item)}
                           </label>
                           <TextInput
                             id={`confirm-rate-${item.id}`}
@@ -3366,6 +3334,7 @@ export function OrderDetailPage() {
           </OrderUnitGroupedList>
             );
           })()}
+          <div className="mt-1 flex flex-col gap-2">
           <NoteAttachField
             label="Manual order no."
             note={linesManualOrderNo}
@@ -3390,11 +3359,14 @@ export function OrderDetailPage() {
             onImagesChange={setLinesPersonalNoteImages}
             collapseEmpty
             addLabel="Add personal note"
-            hint="Only your company sees this — not the other party."
             testId="order-lines-personal-note"
           />
           <NoteAttachField
-            label="Note to buyer"
+            label="Note"
+            layout="composer"
+            collapseEmpty={false}
+            optional
+            placeholder="Add a note on this order"
             note={linesNote}
             onNoteChange={setLinesNote}
             voice={linesNoteVoice}
@@ -3402,7 +3374,9 @@ export function OrderDetailPage() {
             images={linesNoteImages}
             onImagesChange={setLinesNoteImages}
             testId="order-lines-buyer-note"
+            inputTestId="order-lines-buyer-note-input"
           />
+          </div>
         </div>
       </Sheet>
 
@@ -3526,7 +3500,7 @@ export function OrderDetailPage() {
       <Sheet
         open={dispatchOpen}
         onClose={() => closeSheet('dispatch')}
-        title="Dispatch"
+        title={dispatchSheetTitle(data.buyerName || data.counterpart?.name)}
         footer={
           editingShipmentId || dispatchLines.length === 0 ? undefined : (
           <div className="flex flex-col gap-1.5">
@@ -3545,7 +3519,7 @@ export function OrderDetailPage() {
               onClick={submitDispatch}
               disabled={dispatchOrder.isPending || dispatchTally.designs < 1}
             >
-              {dispatchOrder.isPending ? 'Saving…' : 'Confirm dispatch'}
+              {dispatchOrder.isPending ? 'Saving…' : 'Send dispatch'}
             </Button>
           </div>
           )
@@ -3556,6 +3530,14 @@ export function OrderDetailPage() {
             <p className="px-1 text-sm text-muted">Nothing left for a new LR.</p>
           ) : (
             <>
+              {(() => {
+                const sub = dispatchSheetSubtitle(dispatchLines);
+                return sub ? (
+                  <p className="px-1 text-[12.5px] text-muted" data-testid="order-dispatch-subtitle">
+                    {sub}
+                  </p>
+                ) : null;
+              })()}
               <OrderUnitGroupedList
                 items={dispatchLines}
                 unitOf={(row) => row.unit}
@@ -3563,6 +3545,7 @@ export function OrderDetailPage() {
                 role="dispatching"
                 headingTestId="order-sheet-unit-heading"
                 testId="order-dispatch-unit-groups"
+                hideHeadingWhenSingle
               >
               {(item) => {
                 const on = shipOn[item.id] === true;
@@ -3629,45 +3612,45 @@ export function OrderDetailPage() {
                           <OrderDesignTitle
                             name={item.name}
                             nameTestId="order-dispatch-line-name"
-                            extra={<OrderLineMoneyLine item={item} />}
                           />
                         }
                         cues={
-                          orderLineLeftoverCue(item) ? (
-                            <p className="truncate text-meta font-emphasis text-ink">
-                              {orderLineLeftoverCue(item)}
+                          <>
+                            <p
+                              className={designSubtextClass}
+                              data-testid="order-dispatch-line-progress"
+                            >
+                              {dispatchLineProgressCue(item)}
                             </p>
-                          ) : null
-                        }
-                        trailing={
-                          <DispatchLineRemainder
-                            item={item}
-                            thisLrQty={thisLr}
-                            includeThisLr={on}
-                          />
+                            {orderLineLeftoverCue(item) ? (
+                              <p className={designSubtextClass}>
+                                {orderLineLeftoverCue(item)}
+                              </p>
+                            ) : null}
+                          </>
                         }
                         facts={
-                          <DispatchLinePreview
-                            item={item}
-                            thisLrControl={
+                          on ? (
+                            <div data-testid="order-dispatch-line-preview">
+                              <p className={compactQtyFieldLabelClass}>
+                                {confirmQtyFieldLabel(item.unit)}
+                              </p>
                               <QtyStepper
-                                value={on ? thisLr : 0}
-                                disabled={!on}
+                                value={thisLr}
                                 chainQty
                                 align="start"
                                 enterKeyHint={item.id === lastDispatchQtyId ? 'done' : 'next'}
                                 inputTestId="order-dispatch-line-qty"
                                 aria-label={`This LR quantity for ${item.name}`}
                                 onChange={(next) => {
-                                  if (!on) return;
                                   setShipQty((prev) => ({
                                     ...prev,
                                     [item.id]: String(next ?? 1),
                                   }));
                                 }}
                               />
-                            }
-                          />
+                            </div>
+                          ) : null
                         }
                       />
                     </div>
@@ -4062,12 +4045,18 @@ export function OrderDetailPage() {
           ) : null}
           <NoteAttachField
             label="Note"
+            layout="composer"
+            collapseEmpty={false}
+            optional
+            placeholder="Add a note on this order"
             note={dispatchNote}
             onNoteChange={setDispatchNote}
             voice={dispatchNoteVoice}
             onVoiceChange={setDispatchNoteVoice}
             images={dispatchNoteImages}
             onImagesChange={setDispatchNoteImages}
+            testId="order-dispatch-note"
+            inputTestId="order-dispatch-note-input"
           />
         </div>
       </Sheet>
@@ -4169,12 +4158,18 @@ export function OrderDetailPage() {
           </OrderUnitGroupedList>
           <NoteAttachField
             label="Note"
+            layout="composer"
+            collapseEmpty={false}
+            optional
+            placeholder="Add a note on this order"
             note={settleNote}
             onNoteChange={setSettleNote}
             voice={settleNoteVoice}
             onVoiceChange={setSettleNoteVoice}
             images={settleNoteImages}
             onImagesChange={setSettleNoteImages}
+            testId="order-settle-note"
+            inputTestId="order-settle-note-input"
           />
         </div>
       </Sheet>
@@ -4429,7 +4424,6 @@ export function OrderDetailPage() {
         }
       >
         <div className="flex flex-col gap-3">
-          <p className="text-sm text-muted">Only your company sees this — not the other party.</p>
           <NoteAttachField
             label="Note"
             note={personalNote}

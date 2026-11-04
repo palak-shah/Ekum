@@ -64,9 +64,7 @@ export function curateWhyHintLines(codes: string[], extra?: string | null): stri
     lines.push('They’ve only allowed looking — not putting designs in a collection.');
   }
   if (set.has('NOT_DISCOVERABLE') || set.has('INVALID_PRODUCTS')) {
-    lines.push(
-      'These designs aren’t listed for adding to a collection. A pack category doesn’t unlock that.',
-    );
+    lines.push(CURATE_PACK_ONLY_SUMMARY);
   }
   if (set.has('CURATED_AUDIENCE_TOO_WIDE')) {
     lines.push('Your Who is wider than a sourced design allows.');

@@ -10,6 +10,14 @@ export const designNameClass = 'text-name font-emphasis tracking-tight text-ink'
 
 export const designSubtextClass = 'truncate text-meta font-body text-muted';
 
+/** Ticket qty under the name — muted pair with rate (prototype ladder). */
+export const designQtyClass =
+  'text-meta font-body tabular-nums leading-tight text-muted';
+
+/** Ticket rate on the name row — same quiet rung as qty. */
+export const designRateClass =
+  'shrink-0 text-meta font-body tabular-nums text-muted';
+
 const QTY_SPIN_HIDE =
   '[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none';
 

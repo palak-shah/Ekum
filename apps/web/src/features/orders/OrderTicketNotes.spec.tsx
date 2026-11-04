@@ -49,6 +49,24 @@ const idle = {
 };
 
 describe('OrderTicketNotes', () => {
+  it('uses prototype Notes type (title weight, muted empty, slate body)', () => {
+    const { rerender } = render(<OrderTicketNotes {...idle} notes={[]} />);
+    expect(screen.getByText('Notes & comments')).toHaveClass('font-title');
+    expect(screen.getByTestId('order-notes-audience')).toHaveClass('text-meta');
+    expect(screen.getByText('No notes yet.')).toHaveClass('text-meta');
+
+    rerender(
+      <OrderTicketNotes
+        {...idle}
+        notes={[note({ id: 'them', note: 'Will cut Friday', mine: false })]}
+      />,
+    );
+    const bubble = screen.getByTestId('order-ticket-note');
+    expect(bubble).toHaveClass('text-slate');
+    expect(screen.getByText('Will cut Friday')).toHaveClass('text-slate');
+    expect(screen.getByText('Surat Silk House')).toHaveClass('font-title');
+  });
+
   it('washes You as chat-out and them as foam', () => {
     render(
       <OrderTicketNotes
@@ -154,15 +172,19 @@ describe('OrderTicketNotes', () => {
     );
   });
 
-  it('keeps Send quiet until note/voice/photos are ready (BM-11)', () => {
+  it('keeps Send visible but grayed until note/voice/photos are ready (BM-11)', () => {
     const { rerender } = render(<OrderTicketNotes {...idle} notes={[]} />);
-    expect(screen.queryByTestId('order-ticket-note-send')).toBeNull();
+    const idleSend = screen.getByTestId('order-ticket-note-send');
+    expect(idleSend).toBeDisabled();
+    expect(idleSend).toHaveClass('text-muted');
     expect(screen.queryByRole('button', { name: 'Add' })).toBeNull();
     expect(screen.queryByText('Add')).toBeNull();
 
     rerender(<OrderTicketNotes {...idle} notes={[]} note="Need lining" />);
     const send = screen.getByTestId('order-ticket-note-send');
     expect(send).toHaveAttribute('aria-label', 'Send');
+    expect(send).not.toBeDisabled();
+    expect(send).toHaveClass('bg-accent');
     expect(send).not.toHaveTextContent('Add');
   });
 

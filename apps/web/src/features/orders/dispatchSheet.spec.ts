@@ -19,6 +19,10 @@ import {
   seedDispatchLegsFromShipment,
   shipmentLegDisplayLines,
   dispatchesHeadingCount,
+  dispatchSheetTitle,
+  dispatchLineProgressCue,
+  dispatchCardLineQty,
+  shipmentPrimaryLabel,
   cantSupplyDispatchItems,
   lineDispatchOverBy,
   lineDispatchQty,
@@ -250,5 +254,24 @@ describe('dispatchSheet', () => {
   it('Dispatches heading counts LRs', () => {
     expect(dispatchesHeadingCount(1)).toBe('1 LR');
     expect(dispatchesHeadingCount(2)).toBe('2 LRs');
+  });
+
+  it('Dispatch sheet title, progress cue, card qty, LR label', () => {
+    expect(dispatchSheetTitle('Surat Silk House')).toBe('Dispatch to Surat Silk House');
+    expect(dispatchSheetTitle('  ')).toBe('Dispatch');
+    expect(
+      dispatchLineProgressCue({
+        quantity: 10,
+        shippedQuantity: 6,
+        rate: 91,
+        unit: 'set',
+        dispatchUnit: 'mtr',
+        catalogRateUnit: 'mtr',
+      }),
+    ).toMatch(/₹91\/mtr · 6 of 10 sent/);
+    expect(dispatchCardLineQty(10, 'set')).toBe('10 sets');
+    expect(
+      shipmentPrimaryLabel({ lrNumber: '2280', legs: [] }),
+    ).toBe('LR 2280');
   });
 });

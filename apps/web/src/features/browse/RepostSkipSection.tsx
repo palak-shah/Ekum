@@ -195,8 +195,15 @@ export function RepostSkipSection({
       ) : null}
 
       {blocked.length > 0 && !zeroEligible ? (
-        <div className="flex items-center gap-1">
-          <CurateWhyHint codes={codes} extra={extraHint} testId="curate-skip-info" />
+        <div className="flex flex-col gap-1">
+          {!showPerRowReason && sharedReason ? (
+            <p className="text-sm font-body text-muted" data-testid="repost-skip-reason">
+              {sharedReason}
+            </p>
+          ) : null}
+          <div className="flex items-center gap-1">
+            <CurateWhyHint codes={codes} extra={extraHint} testId="curate-skip-info" />
+          </div>
         </div>
       ) : null}
 

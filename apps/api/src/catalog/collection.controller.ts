@@ -84,7 +84,9 @@ export class CollectionController {
     @CurrentCompanyId() companyId: string,
     @Body(new ZodValidationPipe(curateCheckSchema)) dto: CurateCheckDto,
   ) {
-    return this.collections.checkCurateProducts(companyId, dto.productIds);
+    return this.collections.checkCurateProducts(companyId, dto.productIds, {
+      sourceCollectionId: dto.sourceCollectionId,
+    });
   }
 
   @Post(':id/other-pack-counts')
@@ -107,6 +109,7 @@ export class CollectionController {
   ) {
     return this.collections.setProducts(companyId, user.userId, id, dto.productIds, {
       relocateExclusive: dto.relocateExclusive,
+      sourceCollectionId: dto.sourceCollectionId,
     });
   }
 

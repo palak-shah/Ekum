@@ -131,10 +131,20 @@ export function RepostSheet({
     return ceilingMembers.some((row) => row.companyId !== myCompanyId);
   }, [myCompanyId, ceilingMembers]);
 
+  const sourceCollectionId = target?.kind === 'collection' ? target.collectionId : undefined;
   const curateCheck = useQuery({
-    queryKey: ['collections', 'curate-check', 'repost', productIds.join('|')],
+    queryKey: [
+      'collections',
+      'curate-check',
+      'repost',
+      productIds.join('|'),
+      sourceCollectionId ?? '',
+    ],
     queryFn: () =>
-      api.post<CurateCheckView>('/collections/curate-check', { productIds }),
+      api.post<CurateCheckView>('/collections/curate-check', {
+        productIds,
+        ...(sourceCollectionId ? { sourceCollectionId } : {}),
+      }),
     enabled: open && productIds.length > 0,
   });
 
@@ -273,6 +283,7 @@ export function RepostSheet({
       );
       await api.put<CollectionDetailView>(`/collections/${pack.id}/products`, {
         productIds: productIdsMerged,
+        ...(sourceCollectionId ? { sourceCollectionId } : {}),
       } satisfies SetCollectionProductsDto);
       void queryClient.invalidateQueries({ queryKey: ['my-collections'] });
       showToast(`Added to ${pack.name}`);
@@ -340,6 +351,7 @@ export function RepostSheet({
       createdId = created.id;
       await api.put<CollectionDetailView>(`/collections/${created.id}/products`, {
         productIds: allowedIds,
+        ...(sourceCollectionId ? { sourceCollectionId } : {}),
       } satisfies SetCollectionProductsDto);
 
       const dto: PublishCollectionDto = {

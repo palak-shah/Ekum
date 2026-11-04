@@ -1,4 +1,60 @@
+import { catalogRateDisplayUnit } from '@/lib/catalogRate';
+import { formatOrderQty } from '@/features/orders/orderLineBilling';
+import { orderRateText, qtyStepperUnitLabel } from '@/features/orders/howManyLineMeta';
+
 export type DecideLineAction = 'confirm' | 'decline';
+
+/** Quiet Asked cue under Confirm design name — buyer ask qty + rate when set. */
+export function confirmLineAskedCue(item: {
+  requestedQuantity: number;
+  quantity: number;
+  unit?: string | null;
+  rate?: number | null;
+  dispatchUnit?: string | null;
+  catalogRateUnit?: string | null;
+}): string {
+  const asked =
+    Number.isFinite(item.requestedQuantity) && item.requestedQuantity > 0
+      ? item.requestedQuantity
+      : item.quantity;
+  const qtyBit = formatOrderQty({ quantity: asked, unit: item.unit });
+  const rate = orderRateText({
+    rate: item.rate,
+    unit: item.unit,
+    dispatchUnit: item.dispatchUnit,
+    catalogRateUnit: item.catalogRateUnit,
+  });
+  return rate ? `Asked: ${qtyBit} · ${rate}` : `Asked: ${qtyBit}`;
+}
+
+/** Confirm rate field label — `₹ per mtr`. */
+export function confirmRateFieldLabel(item: {
+  unit?: string | null;
+  dispatchUnit?: string | null;
+  catalogRateUnit?: string | null;
+}): string {
+  const unit =
+    catalogRateDisplayUnit({
+      unit: item.unit,
+      dispatchUnit: item.dispatchUnit,
+      catalogRateUnit: item.catalogRateUnit,
+    }) ??
+    item.unit?.trim() ??
+    'pc';
+  return `₹ per ${unit}`;
+}
+
+export function confirmQtyFieldLabel(unit: string | null | undefined): string {
+  return qtyStepperUnitLabel(unit);
+}
+
+/** Primary Confirm CTA — `Confirm 11 of 11 designs`. */
+export function confirmPrimaryLabel(confirmCount: number, openCount: number): string {
+  const n = Math.max(0, confirmCount);
+  const m = Math.max(0, openCount);
+  return `Confirm ${n} of ${m} design${m === 1 ? '' : 's'}`;
+}
+
 
 export function defaultLineActions(itemIds: string[]): Record<string, DecideLineAction> {
   const next: Record<string, DecideLineAction> = {};

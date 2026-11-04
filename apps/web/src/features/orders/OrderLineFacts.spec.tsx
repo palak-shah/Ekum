@@ -331,7 +331,7 @@ describe('orderLineBalance', () => {
         remainingQuantity: 0,
         shippedQuantity: 25,
       }),
-    ).not.toMatch(/bg-success-soft|bg-tangerine/);
+    ).toContain('bg-warning-soft');
   });
 
   it('after confirm strip is Ordered · Shipped · Balance; money lives on the name', () => {
@@ -371,7 +371,11 @@ describe('orderLineBalance', () => {
       />,
     );
     expect(screen.getByTestId('order-line-facts')).toHaveAttribute('data-density', 'ticket');
-    expect(screen.getByTestId('order-line-fact-qty')).toHaveTextContent('4 sets');
+    const qty = screen.getByTestId('order-line-fact-qty');
+    expect(qty).toHaveTextContent('4 sets');
+    expect(qty).toHaveClass('text-muted');
+    expect(qty).toHaveClass('text-meta');
+    expect(qty).not.toHaveClass('font-emphasis');
     expect(
       orderTicketLineQtyCopy({
         quantity: 45,

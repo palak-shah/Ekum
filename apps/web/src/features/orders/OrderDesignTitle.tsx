@@ -1,6 +1,10 @@
 import type { ReactNode } from 'react';
 import { cx } from '@/ui/kit';
-import { designNameClass, designSubtextClass } from '@/ui/designLineChrome';
+import {
+  designNameClass,
+  designRateClass,
+  designSubtextClass,
+} from '@/ui/designLineChrome';
 
 /** Design name + optional quiet line — one component so type stays shared. */
 export function OrderDesignTitle({
@@ -34,10 +38,7 @@ export function OrderDesignTitle({
           {name}
         </p>
         {rate ? (
-          <span
-            className="shrink-0 text-[13px] font-emphasis tabular-nums text-ink"
-            data-testid="order-line-rate"
-          >
+          <span className={designRateClass} data-testid="order-line-rate">
             {rate}
           </span>
         ) : null}

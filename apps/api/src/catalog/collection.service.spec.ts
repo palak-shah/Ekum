@@ -618,6 +618,51 @@ describe('CollectionService.checkCurateProducts', () => {
     expect(result.allowedProductIds).toEqual(['own-1']);
     expect(result.blocked).toEqual([]);
   });
+
+  it('allows pack-on-Explore members without solo stamp when sourceCollectionId is viewable', async () => {
+    const packOnly = {
+      ...foreignPublishedProduct,
+      postedToMarketAt: null,
+    };
+    const prisma = {
+      product: { findMany: async () => [packOnly] },
+      connection: {
+        findMany: async () => [],
+        findFirst: async () => null,
+      },
+      follow: {
+        ...followSourceShop(),
+        findUnique: async () => ({ status: 'allowed' }),
+      },
+      productRelistGrant: { findMany: async () => [] },
+      collectionViewGrant: { findUnique: async () => null },
+      collection: {
+        findUnique: async () => ({
+          id: 'src-pack',
+          companyId: 'other-co',
+          status: CollectionStatus.Published,
+          audience: 'followers',
+          audienceCompanyIds: [],
+          startsAt: null,
+          endsAt: null,
+          products: [
+            {
+              productId: 'foreign-1',
+              product: { id: 'foreign-1', status: ProductStatus.Published },
+            },
+          ],
+        }),
+      },
+    } as unknown as PrismaService;
+    const service = new CollectionService(prisma, {} as CatalogSerializer, jobs);
+    const blocked = await service.checkCurateProducts('company-1', ['foreign-1']);
+    expect(blocked.blocked).toEqual([{ productId: 'foreign-1', code: 'NOT_DISCOVERABLE' }]);
+    const allowed = await service.checkCurateProducts('company-1', ['foreign-1'], {
+      sourceCollectionId: 'src-pack',
+    });
+    expect(allowed.allowedProductIds).toEqual(['foreign-1']);
+    expect(allowed.blocked).toEqual([]);
+  });
 });
 
 describe('CollectionService.remove', () => {

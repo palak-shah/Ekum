@@ -29,7 +29,7 @@ import { createdAtOrderBy, createdAtRangeFilter } from '../common/audit';
 import { PrismaService } from '../core/prisma/prisma.service';
 import { ensureSellingEnabled } from '../identity/trade-presence';
 import { JobQueue } from '../jobs/job-queue.service';
-import { canDiscoverCollection } from './audience-visibility';
+import { canDiscoverCollection, canViewCollectionProducts } from './audience-visibility';
 import {
   assertProductsCuratable,
   curatedPublishRateVisibility,
@@ -44,6 +44,7 @@ import {
 import { CatalogSerializer, collectionActorInclude, productActorInclude } from './catalog.serializer';
 import {
   assertValidLiveWindow,
+  isCollectionLiveForBuyers,
   parseScheduleInstant,
 } from './collection-schedule';
 import { rememberPublishDefaults } from './publish-policy';
@@ -658,7 +659,9 @@ export class CollectionService {
     }
 
     const products = members.map((row) => row.product);
-    const discoverableIds = await this.discoverableProductIds(companyId, products);
+    const discoverableIds = await this.discoverableProductIds(companyId, products, {
+      sourceCollectionId: existing.repostSourceCollectionId,
+    });
     const relistGrantedIds = await this.relistGrantedProductIds(companyId, products);
     const lookOnlyOwnerIds = await this.lookOnlyOwnerIds(companyId, products);
     assertProductsCuratable({
@@ -819,7 +822,11 @@ export class CollectionService {
     return this.serializer.toCollectionView(collection);
   }
 
-  async checkCurateProducts(companyId: string, productIds: string[]): Promise<CurateCheckView> {
+  async checkCurateProducts(
+    companyId: string,
+    productIds: string[],
+    opts?: { sourceCollectionId?: string },
+  ): Promise<CurateCheckView> {
     const uniqueIds = [...new Set(productIds)];
     const allowedProductIds: string[] = [];
     const blocked: CurateCheckView['blocked'] = [];
@@ -846,7 +853,9 @@ export class CollectionService {
       }
     }
 
-    const discoverableIds = await this.discoverableProductIds(companyId, products);
+    const discoverableIds = await this.discoverableProductIds(companyId, products, {
+      sourceCollectionId: opts?.sourceCollectionId,
+    });
     const relistGrantedIds = await this.relistGrantedProductIds(companyId, products);
     const lookOnlyOwnerIds = await this.lookOnlyOwnerIds(companyId, products);
     for (const product of products) {
@@ -990,7 +999,7 @@ export class CollectionService {
     userId: string,
     id: string,
     productIds: string[],
-    opts?: { relocateExclusive?: boolean },
+    opts?: { relocateExclusive?: boolean; sourceCollectionId?: string },
   ): Promise<CollectionDetailView> {
     const existing = await this.owned(companyId, id);
     assertNotGeneralMutation(
@@ -1040,7 +1049,9 @@ export class CollectionService {
     const newlyAddedIds = uniqueIds.filter((productId) => !previousIds.has(productId));
     const addedProducts = products.filter((product) => newlyAddedIds.includes(product.id));
     if (addedProducts.length > 0) {
-      const discoverableIds = await this.discoverableProductIds(companyId, addedProducts);
+      const discoverableIds = await this.discoverableProductIds(companyId, addedProducts, {
+        sourceCollectionId: opts?.sourceCollectionId ?? existing.repostSourceCollectionId,
+      });
       const relistGrantedIds = await this.relistGrantedProductIds(companyId, addedProducts);
       const lookOnlyOwnerIds = await this.lookOnlyOwnerIds(companyId, addedProducts);
       assertProductsCuratable({
@@ -1318,10 +1329,14 @@ export class CollectionService {
    * Builds the set of product ids the curator may discover (Explore/shop rules).
    * Always pass this into `assertProductsCuratable` — own-company ids are skipped
    * there, but foreign ids must be present.
+   *
+   * When `sourceCollectionId` is a live pack the curator may view, Published
+   * members of that pack count even without a solo Explore stamp (pack-on-Explore).
    */
   private async discoverableProductIds(
     viewerCompanyId: string,
     products: ProductCeilingRow[],
+    opts?: { sourceCollectionId?: string | null },
   ): Promise<Set<string>> {
     const discoverable = new Set<string>();
     const foreign = products.filter((product) => product.companyId !== viewerCompanyId);
@@ -1377,7 +1392,95 @@ export class CollectionService {
       }
     }
 
+    const sourceCollectionId = opts?.sourceCollectionId?.trim();
+    if (sourceCollectionId) {
+      await this.addSourcePackDiscoverableIds(
+        viewerCompanyId,
+        foreign,
+        sourceCollectionId,
+        discoverable,
+      );
+    }
+
     return discoverable;
+  }
+
+  /** Pack-on-Explore members: Published in a viewable source pack, solo stamp optional. */
+  private async addSourcePackDiscoverableIds(
+    viewerCompanyId: string,
+    foreign: ProductCeilingRow[],
+    sourceCollectionId: string,
+    discoverable: Set<string>,
+  ): Promise<void> {
+    const wanted = new Set(foreign.map((product) => product.id));
+    if (wanted.size === 0) return;
+
+    const pack = await this.prisma.collection.findUnique({
+      where: { id: sourceCollectionId },
+      select: {
+        id: true,
+        companyId: true,
+        status: true,
+        audience: true,
+        audienceCompanyIds: true,
+        startsAt: true,
+        endsAt: true,
+        products: {
+          select: {
+            productId: true,
+            product: { select: { id: true, status: true } },
+          },
+        },
+      },
+    });
+    if (!pack || pack.status !== CollectionStatus.Published) return;
+    if (!isCollectionLiveForBuyers(pack)) return;
+
+    if (pack.companyId !== viewerCompanyId) {
+      const [connection, follow, viewGrant] = await Promise.all([
+        this.prisma.connection.findFirst({
+          where: {
+            OR: [
+              { companyLowId: viewerCompanyId, companyHighId: pack.companyId },
+              { companyHighId: viewerCompanyId, companyLowId: pack.companyId },
+            ],
+          },
+          select: { status: true },
+        }),
+        this.prisma.follow.findUnique({
+          where: {
+            followerCompanyId_followedCompanyId: {
+              followerCompanyId: viewerCompanyId,
+              followedCompanyId: pack.companyId,
+            },
+          },
+          select: { status: true },
+        }),
+        this.prisma.collectionViewGrant.findUnique({
+          where: {
+            collectionId_companyId: {
+              collectionId: pack.id,
+              companyId: viewerCompanyId,
+            },
+          },
+          select: { id: true },
+        }),
+      ]);
+      if (connection?.status === ConnectionStatus.Blocked) return;
+      const connected = connection?.status === ConnectionStatus.Active;
+      const following = follow?.status === 'allowed';
+      if (
+        !canViewCollectionProducts(viewerCompanyId, pack, { connected, following }, Boolean(viewGrant))
+      ) {
+        return;
+      }
+    }
+
+    for (const entry of pack.products) {
+      if (entry.product.status !== ProductStatus.Published) continue;
+      if (!wanted.has(entry.product.id)) continue;
+      discoverable.add(entry.product.id);
+    }
   }
 
   /** Allowed look follow and not Connected — cannot curate that seller. */

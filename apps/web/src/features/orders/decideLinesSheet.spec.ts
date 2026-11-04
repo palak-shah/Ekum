@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+  confirmLineAskedCue,
+  confirmPrimaryLabel,
+  confirmQtyFieldLabel,
+  confirmRateFieldLabel,
   decideLinesConfirmExtras,
   decideLinesConfirmReady,
   decideLinesPayload,
@@ -11,6 +15,36 @@ import {
 
 describe('decideLinesSheet', () => {
   const ids = ['a', 'b', 'c'];
+
+  it('Asked cue uses requested qty and rate', () => {
+    expect(
+      confirmLineAskedCue({
+        requestedQuantity: 10,
+        quantity: 12,
+        unit: 'set',
+        rate: 90,
+        catalogRateUnit: 'mtr',
+        dispatchUnit: 'mtr',
+      }),
+    ).toMatch(/^Asked: 10 sets · ₹/);
+    expect(
+      confirmLineAskedCue({
+        requestedQuantity: 5,
+        quantity: 5,
+        unit: 'pc',
+        rate: null,
+      }),
+    ).toBe('Asked: 5 pcs');
+  });
+
+  it('Confirm field labels and CTA tally', () => {
+    expect(confirmQtyFieldLabel('set')).toBe('Sets');
+    expect(
+      confirmRateFieldLabel({ unit: 'set', dispatchUnit: 'mtr', catalogRateUnit: 'mtr' }),
+    ).toBe('₹ per mtr');
+    expect(confirmPrimaryLabel(11, 11)).toBe('Confirm 11 of 11 designs');
+    expect(confirmPrimaryLabel(1, 1)).toBe('Confirm 1 of 1 design');
+  });
 
   it('starts every line confirmed', () => {
     expect(defaultLineActions(ids)).toEqual({ a: 'confirm', b: 'confirm', c: 'confirm' });

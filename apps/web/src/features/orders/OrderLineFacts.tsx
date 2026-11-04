@@ -9,7 +9,7 @@ import {
 } from '@/features/orders/orderLineBilling';
 import { isPackOrderUnit } from '@/lib/catalogRate';
 import { orderRateText, qtyCountNoun } from '@/features/orders/howManyLineMeta';
-import { designSubtextClass } from '@/ui/designLineChrome';
+import { designQtyClass, designSubtextClass } from '@/ui/designLineChrome';
 
 export type OrderLineFactColumn = 'qty' | 'price' | 'bill' | 'ship' | 'thisLr' | 'balance';
 
@@ -23,7 +23,7 @@ const FACT_COLUMN_ORDER: OrderLineFactColumn[] = [
 
 function factTrackClass(tracks: number, even = false, editor = false): string {
   if (editor) {
-    // Dispatch: Ordered · Shipped · This LR (only editor). Remainder lives on the name.
+    // Dispatch sheet: progress cue + This LR stepper (prototype).
     return 'grid w-full min-w-0 grid-cols-[minmax(3.5rem,0.85fr)_minmax(3.5rem,0.85fr)_minmax(7.25rem,1.4fr)]';
   }
   if (even) {
@@ -390,10 +390,11 @@ export function OrderLineFactStrip({
   );
 }
 
-/** Fully shipped (exact 0) pale-green. Leftover / extra stay unwashed so −N / +N can scan. */
+/** Fully shipped (exact 0) pale-green. Extra → warning-soft; leftover unwashed. */
 export function orderLineBalanceRowClass(item: ItemFacts, className?: string): string {
   const balance = orderLineBalance(item);
   if (balance?.tone === 'done') return cx('bg-success-soft', className);
+  if (balance?.tone === 'over') return cx('bg-warning-soft', className);
   return cx(className);
 }
 
@@ -463,7 +464,7 @@ export function OrderLineFacts({
         data-testid="order-line-facts"
         data-density="ticket"
       >
-        <p className="text-[13px] text-ink" data-testid="order-line-fact-qty">
+        <p className={designQtyClass} data-testid="order-line-fact-qty">
           {orderTicketLineQtyCopy(item)}
         </p>
         {showShip && item.lineStatus !== 'declined' ? (

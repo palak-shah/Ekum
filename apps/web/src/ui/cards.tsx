@@ -32,6 +32,7 @@ import {
   exploreFeedCategoryLine,
   exploreFeedRateLine,
 } from '@/features/explore/exploreFeedCaptionLines';
+import { noteExploreCollectionOpen } from '@/features/explore/exploreScrollSession';
 import { useMyCompany } from '@/lib/queries';
 import { albumMediaAspectClass, albumOverflowLabel } from './albumMosaic';
 import { SelectableMediaFrame } from './selectMediaChrome';
@@ -228,6 +229,7 @@ export function OpportunityCollectionCard({
   const navigate = useNavigate();
   const selecting = selectMode && onToggleSelect;
   const openAlbum = () => {
+    noteExploreCollectionOpen(collection.id);
     onOpen?.();
     navigate(`/collections/${collection.id}`);
   };
@@ -298,7 +300,10 @@ export function OpportunityCollectionCard({
         to={`/collections/${collection.id}`}
         data-testid={`explore-collection-open-${collection.id}`}
         className={cx('block w-full text-left no-underline', EXPLORE_POST_MEDIA_INSET_CLASS)}
-        onClick={() => onOpen?.()}
+        onClick={() => {
+          noteExploreCollectionOpen(collection.id);
+          onOpen?.();
+        }}
       >
         <ExploreFeedCaption
           title={collection.name}
@@ -1025,7 +1030,10 @@ export function CollectionPost({ collection }: { collection: CollectionCard }) {
   const [photoIndex, setPhotoIndex] = useState(0);
   const previewUrls = collection.previewImages.slice(0, EXPLORE_COLLECTION_PREVIEW_CAP);
   const hasMore = collection.imageCount > previewUrls.length && previewUrls.length > 0;
-  const openAlbum = () => navigate(`/collections/${collection.id}`);
+  const openAlbum = () => {
+    noteExploreCollectionOpen(collection.id);
+    navigate(`/collections/${collection.id}`);
+  };
   return (
     <article className={EXPLORE_POST_ARTICLE_CLASS}>
       <ShopPostHeader
@@ -1065,7 +1073,9 @@ export function CollectionPost({ collection }: { collection: CollectionCard }) {
       </div>
       <Link
         to={`/collections/${collection.id}`}
+        data-testid={`explore-collection-open-${collection.id}`}
         className={cx('block no-underline', EXPLORE_POST_MEDIA_INSET_CLASS)}
+        onClick={() => noteExploreCollectionOpen(collection.id)}
       >
         <ExploreFeedCaption
           title={collection.name}

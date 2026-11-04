@@ -180,12 +180,19 @@ export const setCollectionProductsSchema = z.object({
   productIds: z.array(z.string().min(1)).max(1000),
   /** Leave the design's current catalog so it can join this pack. */
   relocateExclusive: z.boolean().optional(),
+  /**
+   * Explore pack Repost: treat Published members of this source pack as
+   * discoverable even without a solo Explore stamp (`postedToMarketAt`).
+   */
+  sourceCollectionId: z.string().min(1).optional(),
 });
 export type SetCollectionProductsDto = z.infer<typeof setCollectionProductsSchema>;
 
 /** Which designs this shop may put in a curated pack (same ceiling as set products). */
 export const curateCheckSchema = z.object({
   productIds: z.array(z.string().min(1)).max(1000),
+  /** Same as setProducts — pack-on-Explore listing unlocks members for that pack. */
+  sourceCollectionId: z.string().min(1).optional(),
 });
 export type CurateCheckDto = z.infer<typeof curateCheckSchema>;
 

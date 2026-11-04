@@ -195,7 +195,9 @@ describe('OrderLineFulfillExpand', () => {
     expect(screen.queryByTestId('order-line-identity')).toBeNull();
     expect(screen.queryByText('per mtr')).toBeNull();
     expect(screen.getByTestId('order-line-rate')).toHaveTextContent('₹128/mtr');
+    expect(screen.getByTestId('order-line-rate')).toHaveClass('text-muted');
     expect(screen.getByTestId('order-line-fact-qty')).toHaveTextContent('10 mtrs');
+    expect(screen.getByTestId('order-line-fact-qty')).toHaveClass('text-muted');
     expect(screen.getByText('Chiffon Roll')).toBeTruthy();
   });
 

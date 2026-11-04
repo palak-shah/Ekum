@@ -4,6 +4,8 @@ import {
   compactSheetNumInputClass,
   compactSheetRateInputClass,
   designNameClass,
+  designQtyClass,
+  designRateClass,
   designSubtextClass,
   stepperBtnClass,
   stepperQtyInputClass,
@@ -34,6 +36,17 @@ describe('designLineChrome', () => {
     expect(designNameClass).toContain('font-emphasis');
     expect(designSubtextClass).toContain('text-meta');
     expect(designSubtextClass).toContain('text-muted');
+  });
+
+  it('ticket qty and rate are muted meta (prototype ladder)', () => {
+    expect(designQtyClass).toContain('text-meta');
+    expect(designQtyClass).toContain('text-muted');
+    expect(designQtyClass).toContain('tabular-nums');
+    expect(designQtyClass).not.toContain('font-emphasis');
+    expect(designRateClass).toContain('text-meta');
+    expect(designRateClass).toContain('text-muted');
+    expect(designRateClass).toContain('tabular-nums');
+    expect(designRateClass).not.toContain('font-emphasis');
   });
 
   it('quote / confirm Qty | Rate match How many / Edit number type', () => {

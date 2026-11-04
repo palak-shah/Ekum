@@ -1,4 +1,11 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import {
@@ -22,6 +29,14 @@ import { SelectModeControls } from '@/features/browse/SelectModeControls';
 import { exploreShowSelectChrome } from './exploreSelectChrome';
 import { exploreStoryRingClass } from './exploreStoriesChrome';
 import { exitExploreSelectIfEmpty } from './exploreStagingSession';
+import {
+  applyExploreScrollRestore,
+  clearExploreScrollSession,
+  peekExploreScrollRestore,
+  shellMainScrollEl,
+  writeExploreHomeTailOpen,
+  writeExploreScrollTop,
+} from './exploreScrollSession';
 import {
   OpportunityBusinessCard,
   OpportunityCollectionCard,
@@ -493,9 +508,13 @@ export function ExplorePage() {
     () => searchParams.get('search') === '1' || Boolean(searchParams.get('q')),
   );
   const [searchTerm, setSearchTerm] = useState(() => searchParams.get('q') ?? '');
-  const [homeTailOpen, setHomeTailOpen] = useState(false);
+  const [homeTailOpen, setHomeTailOpen] = useState(
+    () => peekExploreScrollRestore()?.homeTailOpen ?? false,
+  );
   const searchQuery = searchTerm.trim();
   const showingResults = searchFocused && searchQuery.length >= 2;
+  const restoreAppliedRef = useRef(false);
+  const skipFilterResetOnceRef = useRef(true);
 
   // Honor /explore?search=1 from /search redirect (term comes from initial ?q=).
   useEffect(() => {
@@ -678,10 +697,29 @@ export function ExplorePage() {
       .sort((a, b) => b.at - a.at);
   }, [postsForYou, storyCompanyId]);
 
-  // Story filter and filter changes reset scroll-load expansion.
+  // Story filter and filter changes reset scroll-load expansion + return anchor.
+  // Skip the first mount so a pending Back-restore keeps homeTailOpen.
   useEffect(() => {
+    if (skipFilterResetOnceRef.current) {
+      skipFilterResetOnceRef.current = false;
+      return;
+    }
     setHomeTailOpen(false);
+    clearExploreScrollSession();
+    restoreAppliedRef.current = true;
   }, [storyCompanyId, contentMode, categories, cities, tradeSide]);
+
+  useEffect(() => {
+    writeExploreHomeTailOpen(homeTailOpen);
+  }, [homeTailOpen]);
+
+  useEffect(() => {
+    const main = shellMainScrollEl();
+    if (!main) return;
+    const onScroll = () => writeExploreScrollTop(main.scrollTop);
+    main.addEventListener('scroll', onScroll, { passive: true });
+    return () => main.removeEventListener('scroll', onScroll);
+  }, []);
 
   const homeHead = useMemo(() => {
     if (storyCompanyId) return filteredPosts;
@@ -788,6 +826,47 @@ export function ExplorePage() {
         (a, b) => Date.parse(b.product.postedAt) - Date.parse(a.product.postedAt),
       );
   }, [designsForYou, storyCompanyId]);
+
+  // Explore → album → Back: land on the opened pack card (not the top).
+  useLayoutEffect(() => {
+    if (restoreAppliedRef.current || landingBlocked) return;
+    const pending = peekExploreScrollRestore();
+    if (!pending?.focusCollectionId && !(pending && pending.scrollTop > 0)) {
+      return;
+    }
+
+    const focusId = pending.focusCollectionId;
+    const focusInVisible =
+      !focusId ||
+      visiblePosts.some(
+        (row) =>
+          row.kind === 'collection' && row.opportunity.collection.id === focusId,
+      ) ||
+      filteredCollections.some((row) => row.collection.id === focusId);
+
+    const waitingForOlder =
+      Boolean(focusId) &&
+      homeTailOpen &&
+      !focusInVisible &&
+      (olderFeed.isFetching || olderFeed.isFetchingNextPage || !olderFeed.isFetched);
+
+    if (waitingForOlder) return;
+
+    // Wait only when the pack should already be in the list but the card
+    // has not painted yet. Otherwise fall back to saved scrollTop.
+    const done = applyExploreScrollRestore({
+      waitForFocus: Boolean(focusId) && focusInVisible,
+    });
+    if (done) restoreAppliedRef.current = true;
+  }, [
+    landingBlocked,
+    visiblePosts,
+    homeTailOpen,
+    olderFeed.isFetching,
+    olderFeed.isFetchingNextPage,
+    olderFeed.isFetched,
+    filteredCollections,
+  ]);
 
   const storyCompany = data?.stories?.find((s) => s.company.id === storyCompanyId)?.company;
 

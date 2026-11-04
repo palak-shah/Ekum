@@ -1,5 +1,11 @@
 import type { OrderItemView, OrderShipmentView } from '@ekum/domain-types';
-import { howManyOrderFooterSummary } from '@/features/orders/howManyLineMeta';
+import {
+  howManyOrderFooterSummary,
+  orderRateText,
+  orderUnitSheetHeading,
+} from '@/features/orders/howManyLineMeta';
+import { formatOrderQty } from '@/features/orders/orderLineBilling';
+import { catalogRateDisplayUnit } from '@/lib/catalogRate';
 
 export type DispatchLegDraft = {
   lrNumber: string;
@@ -102,14 +108,80 @@ export function shipmentPrimaryLabel(
   fallback = 'Dispatch',
 ): string {
   const first = (shipment.legs ?? []).find((leg) => leg.lrNumber?.trim());
-  if (first?.lrNumber?.trim()) return `LR · ${first.lrNumber.trim()}`;
-  if (shipment.lrNumber?.trim()) return `LR · ${shipment.lrNumber.trim()}`;
+  if (first?.lrNumber?.trim()) return `LR ${first.lrNumber.trim()}`;
+  if (shipment.lrNumber?.trim()) return `LR ${shipment.lrNumber.trim()}`;
   return fallback;
 }
 
 /** Selling ticket Dispatches heading: `1 LR` / `N LRs`. */
 export function dispatchesHeadingCount(n: number): string {
   return n === 1 ? '1 LR' : `${n} LRs`;
+}
+
+/** Dispatch sheet title — `Dispatch to {shop}`. */
+export function dispatchSheetTitle(buyerName: string | null | undefined): string {
+  const name = buyerName?.trim();
+  return name ? `Dispatch to ${name}` : 'Dispatch';
+}
+
+/**
+ * Under Dispatch design name: `₹91/mtr · 6 of 10 sent`.
+ * Ordered denominator = live `quantity` (seller qty edits).
+ */
+export function dispatchLineProgressCue(
+  item: Pick<
+    OrderItemView,
+    | 'quantity'
+    | 'shippedQuantity'
+    | 'rate'
+    | 'unit'
+    | 'dispatchUnit'
+    | 'catalogRateUnit'
+  >,
+): string {
+  const shipped = item.shippedQuantity ?? 0;
+  const ordered = item.quantity;
+  const progress = `${shipped} of ${ordered} sent`;
+  const rate = orderRateText({
+    rate: item.rate,
+    unit: item.unit,
+    dispatchUnit: item.dispatchUnit,
+    catalogRateUnit: item.catalogRateUnit,
+  });
+  return rate ? `${rate} · ${progress}` : progress;
+}
+
+/** Ticket Dispatches line qty — `10 sets` (not `× 10`). */
+export function dispatchCardLineQty(
+  quantity: number,
+  unit: string | null | undefined,
+): string {
+  return formatOrderQty({ quantity, unit });
+}
+
+/** Quiet sheet subtitle when units are coherent — `Order in Sets · rate per mtr`. */
+export function dispatchSheetSubtitle(
+  items: Array<
+    Pick<OrderItemView, 'unit' | 'dispatchUnit' | 'catalogRateUnit'>
+  >,
+): string | null {
+  if (items.length === 0) return null;
+  const units = new Set(items.map((i) => i.unit?.trim() || 'pc'));
+  if (units.size !== 1) return null;
+  const unit = [...units][0];
+  const orderBit = orderUnitSheetHeading(unit, 'ordering');
+  const rateUnits = new Set(
+    items.map(
+      (i) =>
+        catalogRateDisplayUnit({
+          unit: i.unit,
+          dispatchUnit: i.dispatchUnit,
+          catalogRateUnit: i.catalogRateUnit,
+        }) ?? i.unit?.trim() ?? 'pc',
+    ),
+  );
+  if (rateUnits.size !== 1) return orderBit;
+  return `${orderBit} · rate per ${[...rateUnits][0]}`;
 }
 
 /** Confirmed / dispatched lines still pending — remaining > 0. */

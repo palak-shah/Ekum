@@ -72,7 +72,7 @@ describe('curateSkipSummary', () => {
 describe('curateWhyHintLines', () => {
   it('names skip why in trader words — pack category does not unlock', () => {
     expect(curateWhyHintLines(['NOT_DISCOVERABLE'])).toEqual([
-      'These designs aren’t listed for adding to a collection. A pack category doesn’t unlock that.',
+      CURATE_PACK_ONLY_SUMMARY,
     ]);
     expect(curateWhyHintLines(['RELIST_NOT_ALLOWED'])).toEqual([
       'They don’t allow putting these designs in a collection.',
@@ -91,7 +91,7 @@ describe('curateWhyHintLines', () => {
     ).toHaveLength(1);
     expect(curateWhyHintLines(['RELIST_NOT_ALLOWED', 'NOT_DISCOVERABLE'])).toEqual([
       'They don’t allow putting these designs in a collection.',
-      'These designs aren’t listed for adding to a collection. A pack category doesn’t unlock that.',
+      CURATE_PACK_ONLY_SUMMARY,
     ]);
   });
 
@@ -99,7 +99,7 @@ describe('curateWhyHintLines', () => {
     expect(
       curateWhyHintLines(['NOT_DISCOVERABLE'], 'Pick which category this collection is for.'),
     ).toEqual([
-      'These designs aren’t listed for adding to a collection. A pack category doesn’t unlock that.',
+      CURATE_PACK_ONLY_SUMMARY,
       'Pick which category this collection is for.',
     ]);
     expect(curateWhyHintLines([], 'Pick which category this collection is for.')).toEqual([
