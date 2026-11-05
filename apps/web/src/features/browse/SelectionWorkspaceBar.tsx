@@ -38,7 +38,11 @@ import { OrderCollectionResolveSheet } from '@/features/browse/OrderCollectionRe
 import {
   collectionIdForPackOrder,
 } from '@/features/browse/packOrderSource';
-import { packPlaceGoesToName } from '@/features/browse/packPlacePhases';
+import {
+  packPlaceGoesToName,
+  selectionCompanyIds,
+  selectionMessageShopName,
+} from '@/features/browse/packPlacePhases';
 import { SelectionMessageSheet } from '@/features/browse/SelectionMessageSheet';
 import {
   entriesAsProducts,
@@ -58,30 +62,6 @@ import { cx } from '@/ui/kit';
 
 /** @deprecated floater height — dock uses BottomTradeDock. Kept for tests. */
 export const SELECTION_FLOATER_MIN_H = 'min-h-12';
-
-function selectionCompanyIds(
-  shortlist: ReturnType<typeof useBrowseShortlist>['entries'],
-  albums: ReturnType<typeof useBrowseAlbumPick>['entries'],
-): string[] {
-  return [
-    ...new Set([
-      ...albums.map((entry) => entry.companyId),
-      ...shortlist.map((entry) => entry.companyId),
-    ]),
-  ].filter(Boolean);
-}
-
-function selectionShopName(
-  shopId: string,
-  shortlist: ReturnType<typeof useBrowseShortlist>['entries'],
-  albums: ReturnType<typeof useBrowseAlbumPick>['entries'],
-): string {
-  return (
-    albums.find((entry) => entry.companyId === shopId)?.companyName ||
-    shortlist.find((entry) => entry.companyId === shopId)?.companyName ||
-    ''
-  );
-}
 
 /**
  * Explore Selecting dock: Add to cart · Message · Share + Order (right).
@@ -136,7 +116,7 @@ export function SelectionWorkspaceBar() {
   );
   const singleShopId = companyIds.length === 1 ? companyIds[0]! : null;
   const singleShopName = singleShopId
-    ? selectionShopName(singleShopId, shortlist.entries, albumPick.entries)
+    ? selectionMessageShopName(singleShopId, shortlist.entries, albumPick.entries)
     : '';
   const ownShopVerbs = selectionOwnShopVerbs({
     singleShopId,

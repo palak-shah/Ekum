@@ -1,10 +1,11 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ComponentProps } from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import { ProductStatus } from '@ekum/domain-types';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { api } from '@/lib/apiClient';
 import { SELECTION_NEEDS_PUBLISHED_TOAST } from './selectionEligibility';
 import { DesignSheet } from './DesignSheet';
 
@@ -42,8 +43,32 @@ vi.mock('@/features/saved/useSaveToggle', () => ({
 }));
 
 vi.mock('@/features/orders/HowManyEachSheet', () => ({
-  HowManyEachSheet: ({ open }: { open: boolean }) =>
-    open ? <div data-testid="design-sheet-how-many" /> : null,
+  HowManyEachSheet: ({
+    open,
+    sellerId,
+    orderGoesToName,
+    onSendOrder,
+  }: {
+    open: boolean;
+    sellerId?: string;
+    orderGoesToName?: string;
+    onSendOrder?: (lines: Array<{ productId: string; quantity: number }>) => void;
+  }) =>
+    open ? (
+      <div
+        data-testid="design-sheet-how-many"
+        data-seller={sellerId}
+        data-goes={orderGoesToName ?? ''}
+      >
+        <button
+          type="button"
+          data-testid="design-sheet-place"
+          onClick={() => onSendOrder?.([{ productId: 'd1', quantity: 2 }])}
+        >
+          Place
+        </button>
+      </div>
+    ) : null,
 }));
 
 vi.mock('@/features/browse/browseCart', () => ({
@@ -177,6 +202,66 @@ describe('DesignSheet', () => {
     expect(screen.getByTestId('design-sheet-edit')).toBeTruthy();
     expect(screen.queryByTestId('design-sheet-remove')).toBeNull();
     expect(screen.getByTestId('design-sheet-delete')).toBeTruthy();
+  });
+
+  it('messages the pack owner when the design belongs to the mill', async () => {
+    const user = userEvent.setup();
+    renderSheet({
+      packStamp: {
+        collectionId: 'pack-1',
+        handlerName: 'Trader 1',
+        handlerCompanyId: 'trader-1',
+        path: 'handle',
+        allowForward: true,
+      },
+    });
+    await user.click(screen.getByTestId('design-sheet-message'));
+    expect(screen.getByTestId('selection-message-to')).toHaveTextContent('Trader 1');
+  });
+
+  it('messages the mill when that pack line is Direct', async () => {
+    const user = userEvent.setup();
+    renderSheet({
+      packStamp: {
+        collectionId: 'pack-1',
+        handlerName: 'Trader 1',
+        handlerCompanyId: 'trader-1',
+        path: 'direct',
+        sourceDirect: true,
+        allowForward: true,
+      },
+    });
+    await user.click(screen.getByTestId('design-sheet-message'));
+    expect(screen.getByTestId('selection-message-to')).toHaveTextContent('Other');
+  });
+
+  it('places a curated design through from-pack to the trader', async () => {
+    vi.mocked(api.post).mockResolvedValue({
+      downstream: { id: 'parent-1' },
+      failures: [],
+    });
+    const user = userEvent.setup();
+    renderSheet({
+      packStamp: {
+        collectionId: 'pack-1',
+        handlerName: 'Trader 1',
+        handlerCompanyId: 'trader-1',
+        path: 'handle',
+        allowForward: true,
+      },
+    });
+    await user.click(screen.getByTestId('design-sheet-order'));
+    const howMany = await screen.findByTestId('design-sheet-how-many');
+    expect(howMany).toHaveAttribute('data-seller', 'trader-1');
+    expect(howMany).toHaveAttribute('data-goes', 'Trader 1');
+    await user.click(screen.getByTestId('design-sheet-place'));
+    await waitFor(() => {
+      expect(api.post).toHaveBeenCalledWith(
+        '/orders/from-pack',
+        expect.objectContaining({ collectionId: 'pack-1' }),
+      );
+    });
+    expect(api.post).not.toHaveBeenCalledWith('/orders/batch', expect.anything());
   });
 
   it('Order opens How many without writing the cart', async () => {

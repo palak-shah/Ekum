@@ -62,6 +62,48 @@ export function packPlaceGoesToName(entries: PackPlaceLine[]): string | null {
   return packHandlerName(wave);
 }
 
+/**
+ * Chat counterpart for one line. Direct → mill. I-handle with a pack owner → trader.
+ * A bare design (no pack stamp) stays the design's shop.
+ * Show supplier name does not change this.
+ */
+export function messageCounterpart(entry: PackPlaceLine): { id: string; name: string } {
+  if (!isDirectPackLine(entry)) {
+    const handler = entry.sourceHandlerCompanyId?.trim();
+    if (handler) {
+      return { id: handler, name: entry.sourceHandlerName?.trim() || '' };
+    }
+  }
+  return { id: entry.companyId, name: entry.companyName?.trim() || '' };
+}
+
+/** Selection Message shops: album owner, or each line's Place counterpart. */
+export function selectionCompanyIds(
+  shortlist: PackPlaceLine[],
+  albums: Array<{ companyId: string }>,
+): string[] {
+  return [
+    ...new Set([
+      ...albums.map((entry) => entry.companyId),
+      ...shortlist.map((entry) => messageCounterpart(entry).id),
+    ]),
+  ].filter(Boolean);
+}
+
+export function selectionMessageShopName(
+  shopId: string,
+  shortlist: PackPlaceLine[],
+  albums: Array<{ companyId: string; companyName?: string | null }>,
+): string {
+  const albumName = albums.find((entry) => entry.companyId === shopId)?.companyName?.trim();
+  if (albumName) return albumName;
+  for (const entry of shortlist) {
+    const who = messageCounterpart(entry);
+    if (who.id === shopId && who.name) return who.name;
+  }
+  return '';
+}
+
 /** Direct wave = mill shop / multi; I-handle wave = pack owner (never mill names). */
 export function packPlaceGoesToSellerId(entries: PackPlaceLine[]): string {
   const wave = packPlaceWaveEntries(entries);

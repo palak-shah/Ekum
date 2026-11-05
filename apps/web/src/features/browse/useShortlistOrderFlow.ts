@@ -3,17 +3,17 @@ import { useNavigate } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   OrderIntent,
-  OrderKind,
   type CreateOrdersBatchResult,
   type OrderView,
   type ProductView,
 } from '@ekum/domain-types';
-import { api, ApiError } from '@/lib/apiClient';
+import { ApiError } from '@/lib/apiClient';
 import { clearBrowseCart } from '@/features/browse/browseCart';
 import { clearSelection } from '@/features/browse/clearSelection';
 import { type BrowseShortlistEntry } from '@/features/browse/browseShortlist';
 import { useBrowseShortlist } from '@/features/browse/useBrowseShortlist';
-import { collectionIdForPackOrder, shouldFallbackPackOrderToBatch } from '@/features/browse/packOrderSource';
+import { collectionIdForPackOrder } from '@/features/browse/packOrderSource';
+import { placeFromPackOrBatch } from '@/features/browse/placeFromPackOrBatch';
 import {
   isDirectPackLine,
   packPlaceGoesToSellerId,
@@ -28,67 +28,11 @@ import {
 } from '@/features/orders/placeNoteAttach';
 import { useToast } from '@/ui/Toast';
 
-function toBatchItems(lines: Array<{ productId: string; quantity: number; note?: string }>) {
-  return lines.map((line) => ({
-    productId: line.productId,
-    quantity: line.quantity,
-    images: [],
-    ...(line.note?.trim() ? { note: line.note.trim() } : {}),
-  }));
-}
-
 type PlaceFlowOpts = PlaceNoteAttach & {
   collectionId?: string;
   facilitatorCompanyId?: string;
   transporter?: string;
 };
-
-async function placeFromPackOrBatch(input: {
-  intent: typeof OrderIntent.Order | typeof OrderIntent.Inquiry;
-  lines: Array<{ productId: string; quantity: number; note?: string }>;
-  collectionId?: string;
-  facilitatorCompanyId?: string;
-  transporter?: string;
-} & PlaceNoteAttach): Promise<CreateOrdersBatchResult> {
-  const attach = placeNoteAttachFields(input);
-  const batchBody = {
-    kind: OrderKind.Standard,
-    intent: input.intent,
-    facilitatorCompanyId: input.facilitatorCompanyId,
-    ...(input.transporter ? { transporter: input.transporter } : {}),
-    ...attach,
-    items: toBatchItems(input.lines),
-  };
-  if (!input.collectionId) {
-    return api.post<CreateOrdersBatchResult>('/orders/batch', batchBody);
-  }
-  try {
-    const payload = await api.post<{
-      downstream: CreateOrdersBatchResult['orders'][number] | null;
-      directs?: CreateOrdersBatchResult['orders'];
-      failures: CreateOrdersBatchResult['failures'];
-    }>('/orders/from-pack', {
-      collectionId: input.collectionId,
-      kind: OrderKind.Standard,
-      intent: input.intent,
-      ...(input.transporter ? { transporter: input.transporter } : {}),
-      ...attach,
-      items: toBatchItems(input.lines),
-    });
-    return {
-      orders: [
-        ...(payload.downstream ? [payload.downstream] : []),
-        ...(payload.directs ?? []),
-      ],
-      failures: payload.failures ?? [],
-    };
-  } catch (err) {
-    if (err instanceof ApiError && shouldFallbackPackOrderToBatch(err.code)) {
-      return api.post<CreateOrdersBatchResult>('/orders/batch', batchBody);
-    }
-    throw err;
-  }
-}
 
 export function entriesAsProducts(entries: BrowseShortlistEntry[]): ProductView[] {
   return entries.map(

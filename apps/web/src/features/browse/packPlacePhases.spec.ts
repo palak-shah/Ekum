@@ -2,11 +2,14 @@ import { describe, expect, it } from 'vitest';
 import {
   forBuyerPlaceSubsets,
   isDirectPackLine,
+  messageCounterpart,
   packPlaceDirectEntries,
   packPlaceGoesToName,
   packPlaceGoesToSellerId,
   packPlaceHandleEntries,
   packPlaceWaveEntries,
+  selectionCompanyIds,
+  selectionMessageShopName,
   stampPackMillRoute,
 } from './packPlacePhases';
 
@@ -103,6 +106,23 @@ describe('packPlaceGoesTo', () => {
     };
     expect(packPlaceGoesToSellerId([mill1, mill1b, mill2])).toBe('multi');
     expect(packPlaceGoesToName([mill1, mill1b, mill2])).toBeNull();
+  });
+});
+
+describe('messageCounterpart', () => {
+  it('messages the trader on an I-handle line even when the design shop is the mill', () => {
+    expect(messageCounterpart(mill2)).toEqual({ id: 'meena', name: 'Jaipur Emporium' });
+    expect(
+      selectionCompanyIds([mill2, mill3], []),
+    ).toEqual(['meena']);
+    expect(selectionMessageShopName('meena', [mill2], [])).toBe('Jaipur Emporium');
+  });
+
+  it('messages the mill on a Direct line and the design shop when there is no pack', () => {
+    expect(messageCounterpart(mill1)).toEqual({ id: 'kavita', name: 'Ahmedabad Loom Co' });
+    expect(
+      messageCounterpart({ productId: 'solo', companyId: 'mill', companyName: 'Supplier 1' }),
+    ).toEqual({ id: 'mill', name: 'Supplier 1' });
   });
 });
 

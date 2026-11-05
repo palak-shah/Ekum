@@ -3,9 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   OrderIntent,
-  OrderKind,
   ProductStatus,
-  type CreateOrdersBatchResult,
   type ProductView,
 } from '@ekum/domain-types';
 import { addCartDesignsMany } from '@/features/browse/browseCart';
@@ -28,6 +26,12 @@ import { DockIconButton } from '@/features/browse/BottomTradeDock';
 import { SelectionMessageSheet } from '@/features/browse/SelectionMessageSheet';
 import { selectionOwnShopVerbs } from '@/features/browse/selectionOwnShopVerbs';
 import { entriesAsProducts } from '@/features/browse/useShortlistOrderFlow';
+import { placeFromPackOrBatch } from '@/features/browse/placeFromPackOrBatch';
+import {
+  messageCounterpart,
+  packPlaceGoesToName,
+  packPlaceGoesToSellerId,
+} from '@/features/browse/packPlacePhases';
 import {
   designSheetUnderPhoto,
   type DesignSheetUnderPhoto,
@@ -36,7 +40,6 @@ import { DesignSheetPhotoCarousel } from '@/features/collections/DesignSheetPhot
 import { batchConfirmTitle, batchSuccessLeave } from '@/features/orders/BatchOrderConfirmSheet';
 import { HowManyEachSheet } from '@/features/orders/HowManyEachSheet';
 import { navigateToOrderChat } from '@/features/orders/navigateToOrderChat';
-import { placeNoteAttachFields } from '@/features/orders/placeNoteAttach';
 import { useSaveToggle } from '@/features/saved/useSaveToggle';
 import { api, ApiError } from '@/lib/apiClient';
 import { formatCatalogRate } from '@/lib/catalogRate';
@@ -186,10 +189,6 @@ export function DesignSheet({
           }
         : undefined),
   );
-  const ownVerbs = selectionOwnShopVerbs({
-    singleShopId: product.companyId,
-    myCompanyId: me.data?.id,
-  });
   const canPublish = Boolean(canEdit && product.status === ProductStatus.Draft);
   const moreIds = designSheetMoreIds({
     canEdit: Boolean(canEdit && onEdit),
@@ -214,6 +213,14 @@ export function DesignSheet({
     },
   });
 
+  const placeLines = orderEntries ?? [entry];
+  const messageShop = messageCounterpart(entry);
+  const placeCollectionId = packStamp?.collectionId ?? collectionId ?? undefined;
+  const ownVerbs = selectionOwnShopVerbs({
+    singleShopId: messageShop.id,
+    myCompanyId: me.data?.id,
+  });
+
   const placeOrder = useMutation({
     mutationFn: (input: {
       lines: Array<{ productId: string; quantity: number; note?: string }>;
@@ -223,17 +230,15 @@ export function DesignSheet({
       noteVoiceDurationMs?: number;
       noteImageUrls?: string[];
     }) =>
-      api.post<CreateOrdersBatchResult>('/orders/batch', {
-        kind: OrderKind.Standard,
+      placeFromPackOrBatch({
         intent: OrderIntent.Order,
+        lines: input.lines,
+        collectionId: placeCollectionId,
         ...(input.transporter?.trim() ? { transporter: input.transporter.trim() } : {}),
-        ...placeNoteAttachFields(input),
-        items: input.lines.map((line) => ({
-          productId: line.productId,
-          quantity: line.quantity,
-          images: [],
-          ...(line.note?.trim() ? { note: line.note.trim() } : {}),
-        })),
+        note: input.note,
+        noteVoiceMediaId: input.noteVoiceMediaId,
+        noteVoiceDurationMs: input.noteVoiceDurationMs,
+        noteImageUrls: input.noteImageUrls,
       }),
     onSuccess: (payload) => {
       setQtyOpen(false);
@@ -497,8 +502,8 @@ export function DesignSheet({
       <SelectionMessageSheet
         open={messageOpen}
         onClose={() => setMessageOpen(false)}
-        shopId={product.companyId}
-        shopName={product.companyName ?? ''}
+        shopId={messageShop.id}
+        shopName={messageShop.name || product.companyName || ''}
         collections={[]}
         products={[
           {
@@ -535,15 +540,13 @@ export function DesignSheet({
           setOrderEntries(null);
           setLockedProductIds([]);
         }}
-        sellerId={packStamp?.handlerCompanyId || product.companyId}
-        products={entriesAsProducts(orderEntries ?? [entry])}
+        sellerId={packPlaceGoesToSellerId(placeLines)}
+        products={entriesAsProducts(placeLines)}
         lockedProductIds={lockedProductIds}
         submitting={placeOrder.isPending}
         error={orderError}
-        orderGoesToName={
-          packStamp?.handlerName?.trim() || product.companyName || undefined
-        }
-        collectionId={packStamp?.collectionId ?? collectionId ?? undefined}
+        orderGoesToName={packPlaceGoesToName(placeLines) ?? undefined}
+        collectionId={placeCollectionId}
         sheetJob="order"
         onSendOrder={(lines, place) => {
           setOrderError(null);
