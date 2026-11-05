@@ -31,6 +31,17 @@ function makeTradeAccess(options: {
       endsAt: Date | null;
     };
   }>;
+  /** Seller-owned curated pack for sourceCollectionId widen. */
+  sourcePack?: {
+    id: string;
+    companyId: string;
+    status: string;
+    audience: string;
+    audienceCompanyIds: string[];
+    startsAt: Date | null;
+    endsAt: Date | null;
+    products: Array<{ productId: string; product: { id: string; status: string } }>;
+  };
 }): TradeAccess {
   const visibilityPrisma = {
     connection: {
@@ -43,8 +54,12 @@ function makeTradeAccess(options: {
   const prisma = {
     company: { findUnique: async () => ({ id: 'seller' }) },
     product: {
-      findMany: async ({ where }: { where: { id: { in: string[] } } }) =>
-        products.filter((row) => where.id.in.includes(row.id)),
+      findMany: async ({ where }: { where: { id: { in: string[] }; companyId?: string } }) =>
+        products.filter(
+          (row) =>
+            where.id.in.includes(row.id) &&
+            (where.companyId == null || row.companyId === where.companyId),
+        ),
     },
     connection: {
       findFirst: async () =>
@@ -53,6 +68,10 @@ function makeTradeAccess(options: {
     follow: {
       findFirst: async () => (options.following ? { id: 'f1' } : null),
       findUnique: async () => (options.following ? { status: 'allowed' } : null),
+    },
+    collection: {
+      findUnique: async ({ where }: { where: { id: string } }) =>
+        options.sourcePack?.id === where.id ? options.sourcePack : null,
     },
     collectionProduct: {
       findMany: async () => options.collectionMemberships ?? [],
@@ -178,5 +197,78 @@ describe('TradeAccess.assertCanTrade', () => {
     await expect(
       trade.assertCanTrade('buyer', 'seller', { productIds: ['p1'] }),
     ).resolves.toBeUndefined();
+  });
+
+  it('allows curated mill SKUs via sourceCollectionId when buyer follows the trader', async () => {
+    const millProduct = {
+      id: 'mill-p1',
+      companyId: 'mill',
+      audience: 'followers',
+      audienceCompanyIds: [] as string[],
+      status: ProductStatus.Published,
+      postedToMarketAt: null as Date | null,
+    };
+    const trade = makeTradeAccess({
+      connectionStatus: null,
+      following: true,
+      products: [millProduct],
+      sourcePack: {
+        id: 'trader-pack',
+        companyId: 'seller',
+        status: 'published',
+        audience: 'followers',
+        audienceCompanyIds: [],
+        startsAt: null,
+        endsAt: null,
+        products: [
+          {
+            productId: 'mill-p1',
+            product: { id: 'mill-p1', status: ProductStatus.Published },
+          },
+        ],
+      },
+    });
+    await expect(
+      trade.assertCanTrade('buyer', 'seller', {
+        productIds: ['mill-p1'],
+        sourceCollectionId: 'trader-pack',
+      }),
+    ).resolves.toBeUndefined();
+  });
+
+  it('rejects curated mill SKUs without sourceCollectionId when not connected', async () => {
+    const millProduct = {
+      id: 'mill-p1',
+      companyId: 'mill',
+      audience: 'followers',
+      audienceCompanyIds: [] as string[],
+      status: ProductStatus.Published,
+      postedToMarketAt: null as Date | null,
+    };
+    const trade = makeTradeAccess({
+      connectionStatus: null,
+      following: true,
+      products: [millProduct],
+      sourcePack: {
+        id: 'trader-pack',
+        companyId: 'seller',
+        status: 'published',
+        audience: 'followers',
+        audienceCompanyIds: [],
+        startsAt: null,
+        endsAt: null,
+        products: [
+          {
+            productId: 'mill-p1',
+            product: { id: 'mill-p1', status: ProductStatus.Published },
+          },
+        ],
+      },
+    });
+    const { error, code } = await codeOf(
+      trade.assertCanTrade('buyer', 'seller', { productIds: ['mill-p1'] }),
+    );
+    expect(error).toBeInstanceOf(ForbiddenException);
+    expect(code).toBe('CONNECTION_REQUIRED');
   });
 });

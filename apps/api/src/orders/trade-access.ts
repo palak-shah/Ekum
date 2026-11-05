@@ -4,8 +4,11 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { CollectionStatus, ProductStatus } from '@ekum/domain-types';
 import { PrismaService } from '../core/prisma/prisma.service';
 import { VisibilityService } from '../access/visibility.service';
+import { canViewCollectionProducts } from '../catalog/audience-visibility';
+import { isCollectionLiveForBuyers } from '../catalog/collection-schedule';
 import {
   isProductOpenTradeDiscoverable,
   loadTradeAudienceCtx,
@@ -14,6 +17,11 @@ import {
 export type AssertCanTradeOptions = {
   /** When set, allow trade without Connection if every product is discoverable. */
   productIds?: string[];
+  /**
+   * Curated from-pack: Published members of this seller-owned pack count even when
+   * product.companyId is a mill (republish), if the buyer may view the pack.
+   */
+  sourceCollectionId?: string;
 };
 
 /**
@@ -55,6 +63,19 @@ export class TradeAccess {
     }
 
     const productIds = [...new Set((options.productIds ?? []).filter(Boolean))];
+    const sourceCollectionId = options.sourceCollectionId?.trim();
+    if (sourceCollectionId && productIds.length > 0) {
+      const viaPack = await this.packMembersTradeable(
+        buyerCompanyId,
+        sellerCompanyId,
+        sourceCollectionId,
+        productIds,
+      );
+      if (viaPack) {
+        return;
+      }
+    }
+
     if (productIds.length > 0) {
       const ok = await this.allProductsDiscoverable(buyerCompanyId, sellerCompanyId, productIds);
       if (ok) {
@@ -70,6 +91,66 @@ export class TradeAccess {
       code: 'CONNECTION_REQUIRED',
       message: 'Connect with this business before placing an order.',
     });
+  }
+
+  /** Buyer may view seller's live pack and every id is a Published member. */
+  private async packMembersTradeable(
+    buyerCompanyId: string,
+    sellerCompanyId: string,
+    sourceCollectionId: string,
+    productIds: string[],
+  ): Promise<boolean> {
+    const pack = await this.prisma.collection.findUnique({
+      where: { id: sourceCollectionId },
+      select: {
+        id: true,
+        companyId: true,
+        status: true,
+        audience: true,
+        audienceCompanyIds: true,
+        startsAt: true,
+        endsAt: true,
+        products: {
+          where: { productId: { in: productIds } },
+          select: {
+            productId: true,
+            product: { select: { id: true, status: true } },
+          },
+        },
+      },
+    });
+    if (!pack || pack.companyId !== sellerCompanyId) return false;
+    if (pack.status !== CollectionStatus.Published) return false;
+    if (!isCollectionLiveForBuyers(pack)) return false;
+
+    const ctx = await loadTradeAudienceCtx(this.prisma, buyerCompanyId, sellerCompanyId);
+    const hasViewGrant =
+      (await this.prisma.collectionViewGrant.findUnique({
+        where: {
+          collectionId_companyId: {
+            collectionId: pack.id,
+            companyId: buyerCompanyId,
+          },
+        },
+        select: { id: true },
+      })) != null;
+    if (
+      !canViewCollectionProducts(
+        buyerCompanyId,
+        pack,
+        { connected: ctx.connected, following: ctx.following },
+        hasViewGrant,
+      )
+    ) {
+      return false;
+    }
+
+    const publishedMemberIds = new Set(
+      pack.products
+        .filter((row) => row.product.status === ProductStatus.Published)
+        .map((row) => row.product.id),
+    );
+    return productIds.every((id) => publishedMemberIds.has(id));
   }
 
   private async allProductsDiscoverable(

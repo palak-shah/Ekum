@@ -3,11 +3,13 @@ import { render, screen } from '@testing-library/react';
 import {
   OrderLineFacts,
   OrderLineMoneyLine,
+  OrderLineShipProgressBar,
   formatOrderLineBalance,
   orderLineBalance,
   orderLineBalanceRowClass,
   orderLineFactsWithThisLr,
   orderLineMoneyCue,
+  orderLineShipProgressPct,
   orderTicketLineQtyCopy,
   orderTicketLineRateCopy,
 } from './OrderLineFacts';
@@ -300,7 +302,7 @@ describe('orderLineBalance', () => {
     ).toEqual({ value: -5, tone: 'open' });
   });
 
-  it('tints the whole row from Balance tone', () => {
+  it('washes over-ship only; done uses progress bar not pale-green fill', () => {
     expect(formatOrderLineBalance(40)).toBe('+40');
     expect(
       orderLineBalanceRowClass({
@@ -311,7 +313,7 @@ describe('orderLineBalance', () => {
         remainingQuantity: 0,
         shippedQuantity: 20,
       }),
-    ).toContain('bg-success-soft');
+    ).not.toMatch(/bg-warning-soft|bg-success-soft|bg-info-soft/);
     expect(
       orderLineBalanceRowClass({
         quantity: 20,
@@ -332,6 +334,65 @@ describe('orderLineBalance', () => {
         shippedQuantity: 25,
       }),
     ).toContain('bg-warning-soft');
+  });
+
+  it('ship progress pct is already-shipped fraction; bar is always success green', () => {
+    expect(
+      orderLineShipProgressPct({
+        quantity: 10,
+        rate: null,
+        unit: 'set',
+        lineStatus: 'confirmed',
+        remainingQuantity: 4,
+        shippedQuantity: 6,
+      }),
+    ).toBe(60);
+    expect(
+      orderLineShipProgressPct({
+        quantity: 10,
+        rate: null,
+        unit: 'set',
+        lineStatus: 'dispatched',
+        remainingQuantity: 0,
+        shippedQuantity: 10,
+      }),
+    ).toBe(100);
+    expect(
+      orderLineShipProgressPct({
+        quantity: 10,
+        rate: null,
+        unit: 'set',
+        lineStatus: 'requested',
+        remainingQuantity: 10,
+        shippedQuantity: 0,
+      }),
+    ).toBeNull();
+
+    const { container } = render(<OrderLineShipProgressBar pct={60} />);
+    const bar = screen.getByTestId('order-line-ship-progress');
+    expect(bar.className).toContain('bg-line');
+    expect(bar.querySelector('.bg-success')).toBeTruthy();
+    expect(bar.querySelector('.bg-success')).toHaveStyle({ width: '60%' });
+    expect(container.querySelector('.bg-accent\\/70')).toBeNull();
+  });
+
+  it('ticket layout renders green ship bar under qty copy', () => {
+    render(
+      <OrderLineFacts
+        layout="ticket"
+        item={{
+          quantity: 10,
+          rate: 90,
+          unit: 'set',
+          lineStatus: 'confirmed',
+          remainingQuantity: 0,
+          shippedQuantity: 10,
+        }}
+      />,
+    );
+    expect(screen.getByTestId('order-line-fact-qty')).toHaveTextContent('10 of 10 sets sent');
+    const bar = screen.getByTestId('order-line-ship-bar');
+    expect(bar.querySelector('.bg-success')).toHaveStyle({ width: '100%' });
   });
 
   it('after confirm strip is Ordered · Shipped · Balance; money lives on the name', () => {

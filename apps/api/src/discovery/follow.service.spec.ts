@@ -132,6 +132,7 @@ describe('FollowService.unfollow', () => {
 describe('FollowService.decide', () => {
   it('allows look on a pending ask', async () => {
     const update = vi.fn(async () => ({}));
+    const connectionUpsert = vi.fn(async () => ({}));
     const prisma = {
       follow: {
         findUnique: async () => ({
@@ -143,6 +144,10 @@ describe('FollowService.decide', () => {
         update,
         delete: vi.fn(),
       },
+      connection: {
+        findUnique: async () => null,
+        upsert: connectionUpsert,
+      },
     } as unknown as PrismaService;
     const service = new FollowService(
       prisma,
@@ -151,6 +156,7 @@ describe('FollowService.decide', () => {
     );
     await expect(service.decide('shop', 'me', 'look')).resolves.toEqual({ ok: true });
     expect(update).toHaveBeenCalled();
+    expect(connectionUpsert).toHaveBeenCalled();
   });
 
   it('denies a pending ask by deleting the row', async () => {
@@ -207,6 +213,7 @@ describe('FollowService.decide', () => {
 
   it('allows look again from stopped', async () => {
     const update = vi.fn(async () => ({}));
+    const connectionUpsert = vi.fn(async () => ({}));
     const prisma = {
       follow: {
         findUnique: async () => ({
@@ -217,6 +224,10 @@ describe('FollowService.decide', () => {
         }),
         update,
         delete: vi.fn(),
+      },
+      connection: {
+        findUnique: async () => null,
+        upsert: connectionUpsert,
       },
     } as unknown as PrismaService;
     const service = new FollowService(
@@ -229,6 +240,40 @@ describe('FollowService.decide', () => {
       where: { id: 'f3' },
       data: { status: 'allowed', accessKind: 'look', packAskPending: false },
     });
+    expect(connectionUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({ status: 'active' }),
+        update: expect.objectContaining({ status: 'active' }),
+      }),
+    );
+  });
+
+  it('Follow Allow does not lift a Blocked connection', async () => {
+    const update = vi.fn(async () => ({}));
+    const connectionUpsert = vi.fn(async () => ({}));
+    const prisma = {
+      follow: {
+        findUnique: async () => ({
+          id: 'f-block',
+          status: 'pending',
+          followerCompanyId: 'me',
+          followedCompanyId: 'shop',
+        }),
+        update,
+        delete: vi.fn(),
+      },
+      connection: {
+        findUnique: async () => ({ status: 'blocked' }),
+        upsert: connectionUpsert,
+      },
+    } as unknown as PrismaService;
+    const service = new FollowService(
+      prisma,
+      {} as VisibilityService,
+      {} as DiscoverySerializer,
+    );
+    await expect(service.decide('shop', 'me', 'look')).resolves.toEqual({ ok: true });
+    expect(connectionUpsert).not.toHaveBeenCalled();
   });
 
   it('grants Pack on a Share upgrade without dropping Look', async () => {

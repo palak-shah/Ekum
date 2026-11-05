@@ -73,13 +73,13 @@ flowchart LR
 
 | Mechanism | What it is |
 |-----------|------------|
-| **Request access** | Shop ask (was Follow / See new collections). Idle: lock + **Request access**. Pending: lock + **Requested** (outline; tap cancels). Owner **Allow** (default: they can see my collections) or **Decline**. Collection share is a later checkbox / Followers Change. Allowed: unlock + **Has access** — tap off deletes the follow. No Followers feed or Followers shop collections after that (Connection does not keep them). Does **not** unlock Connection. They never see which grant. Shop **⋯ → Remove connection** is the same unfollow / cancel-ask. |
-| **Message** | First shop chat. Recipient **Approve** → chat + **Connection**. After that the shop says **Chat**. Stays on the shop even from a 1:1. **Ignore** hides the thread. **Block** (More) is silent Network block. No shop **Request** button. |
-| **Access request** | Still used from invites / Find on Ekum. Shop path is **Message**. Incoming Approve is **Chats → Requests** (same Connection as first-write Approve). |
+| **Request access** | Shop ask (was Follow / See new collections). Idle: lock + **Request access**. Pending: lock + **Requested** (outline; tap cancels). Owner **Allow** (default: they can see my collections) or **Decline**. Collection share is a later checkbox / Followers Change. Allowed: unlock + **Has access** — and **Follow ⇒ Connect**: Allow also ensures an **Active Connection** so they can chat **without** a separate Connect Request (unless Blocked). Tap off deletes the follow only (no Followers feed); Connection may remain until Block. They never see which grant. Shop **⋯ → Remove connection** is the same unfollow / cancel-ask. |
+| **Message** | Cold first shop chat (no Follow needed). Recipient **Approve** → chat + **Connection**. After that the shop says **Chat**. Stays on the shop even from a 1:1. **Ignore** hides the thread. **Block** (More) is silent Network block. **Connect ⇏ Follow** — Message Approve does **not** create Follow / Followers feed. No shop **Request** button. |
+| **Access request** | Still used from invites / Find on Ekum. Shop path is **Message**. Incoming Approve is **Chats → Requests** (same Connection as first-write Approve). Independent of Follow asks. |
 | **Collection view Ask** | **Ask to see this collection** — open designs to look through. Owner Allow → **Granted on request** (not Connection, not collection/relist). Deny silent. |
 | **Collection / relist Ask** | **Ask to put in my collection** — unlock Curate when collection permission is off. Distinct chat card (“wants to put … in their collection”). Never bare **Ask**. Via **your** collection → **you** decide (your publish allow); via mill’s own post → mill. Mill Allow ≠ chain free pass. |
 | **Connect invite** | Open referral link (`/r/:token`) — redeem sends an access request to the sender (they approve); targeted vouch still needs the target’s approve. |
-| **Connection** | After approve: **one mutual pair** (`active`) — both companies are Connected. Each can see the other’s published shop content that Connection unlocks (Connections-audience included; Selected stays Selected). **Either** side can **block** (silent). **Only the company that blocked can unblock.** Chat noise is **Mute**, not a Connection pause. |
+| **Connection** | Mutual pair (`active`) from **Follow Allow** or **Message / access Approve**. Both can chat. Connection alone does **not** grant Follow or Followers packs. **Either** side can **block** (silent). **Only the company that blocked can unblock.** Chat noise is **Mute**, not a Connection pause. |
 | **Block** | Other party is not told and does not see the connection row. Shop/API **404** where relevant. Approve never reactivates a block — the **blocker** must **unblock** first. |
 
 ## Catalog lifecycle
@@ -122,7 +122,7 @@ When publishing (or updating visibility), the sheet sets:
 |----------|---------------------|
 | Everyone | Legacy value only — not offered on Publish; stored rows + access treated as Followers |
 | Connections | Legacy value only — not offered on new Publish; stored rows + access treated as Followers (allowed follow), not Connection |
-| Followers | Companies the seller **allowed** to follow (not pending asks; not necessarily connected) |
+| Followers | Companies the seller **allowed** to follow (not pending asks). Allow also Connects them for chat; Connection alone does not put someone on Followers |
 | Selected | Listed companies / buyer groups |
 
 **Layers (simple):** company usual (last publish remembered in `tradeDefaults.publishDefaults`) → selected buyer-group override(s), **strictest wins** if several → this item’s Publish sheet. Snapshot on `Product.allowForward` / `Collection.allowForward`. `audienceGroupIds` restores which groups were chosen on **Visibility** (expand who later without a second collection). One collection may include many groups (member union); not per-group policies on one card.

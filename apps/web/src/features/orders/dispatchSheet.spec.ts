@@ -20,6 +20,7 @@ import {
   shipmentLegDisplayLines,
   dispatchesHeadingCount,
   dispatchSheetTitle,
+  dispatchSheetShipProgress,
   dispatchLineProgressCue,
   dispatchCardLineQty,
   shipmentPrimaryLabel,
@@ -273,5 +274,16 @@ describe('dispatchSheet', () => {
     expect(
       shipmentPrimaryLabel({ lrNumber: '2280', legs: [] }),
     ).toBe('LR 2280');
+  });
+
+  it('Dispatch sheet ship progress aggregates already shipped', () => {
+    expect(
+      dispatchSheetShipProgress([
+        line({ id: 'a', quantity: 10, shippedQuantity: 10, unit: 'set', remainingQuantity: 0 }),
+        line({ id: 'b', quantity: 10, shippedQuantity: 6, unit: 'set', remainingQuantity: 4 }),
+        declined,
+      ]),
+    ).toEqual({ copy: '16 of 20 sets sent', pct: 80 });
+    expect(dispatchSheetShipProgress([declined])).toBeNull();
   });
 });

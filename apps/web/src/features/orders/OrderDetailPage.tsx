@@ -52,6 +52,7 @@ import {
   dispatchesHeadingCount,
   dispatchSheetTitle,
   dispatchSheetSubtitle,
+  dispatchSheetShipProgress,
   dispatchLineProgressCue,
   dispatchCardLineQty,
   fulfillDispatchItems,
@@ -146,10 +147,12 @@ import { DisclosureChevron } from '@/features/orders/DisclosureChevron';
 import {
   OrderLineFacts,
   OrderLineMoneyLine,
+  OrderLineShipProgressBar,
   formatOrderLinePriceAmount,
   orderLineBalance,
   orderLineBalanceRowClass,
   orderLineFactsWithThisLr,
+  orderLineShipProgressPct,
   orderTicketLineRateCopy,
 } from '@/features/orders/OrderLineFacts';
 import { QtyStepper } from '@/features/orders/QtyStepper';
@@ -2580,6 +2583,12 @@ export function OrderDetailPage() {
                           >
                             {progress}
                           </p>
+                          {!cantSupply ? (
+                            <OrderLineShipProgressBar
+                              pct={orderLineShipProgressPct(item)}
+                              testId="order-mill-line-ship-progress"
+                            />
+                          ) : null}
                           {rateCaption ? (
                             <p
                               className="mt-0.5 text-xs text-muted"
@@ -3548,6 +3557,22 @@ export function OrderDetailPage() {
           ) : (
             <>
               {(() => {
+                const ship = dispatchSheetShipProgress(dispatchLines);
+                return ship ? (
+                  <Card
+                    className="flex flex-col gap-2"
+                    data-testid="order-dispatch-ship-progress"
+                  >
+                    <p className="text-sm font-emphasis text-ink">{ship.copy}</p>
+                    <OrderLineShipProgressBar
+                      pct={ship.pct}
+                      className="mt-0"
+                      testId="order-dispatch-ship-progress-bar"
+                    />
+                  </Card>
+                ) : null;
+              })()}
+              {(() => {
                 const sub = dispatchSheetSubtitle(dispatchLines);
                 return sub ? (
                   <p className="px-1 text-[12.5px] text-muted" data-testid="order-dispatch-subtitle">
@@ -3572,6 +3597,7 @@ export function OrderDetailPage() {
                   dispatchLines.filter((line) => shipOn[line.id] === true),
                   (line) => line.unit,
                 )?.id;
+                const alreadyPct = orderLineShipProgressPct(item);
                 return (
                   <div
                     key={item.id}
@@ -3626,13 +3652,19 @@ export function OrderDetailPage() {
                           />
                         }
                         title={
-                          <OrderDesignTitle
-                            chrome="sheet"
-                            name={item.name}
-                            nameTestId="order-dispatch-line-name"
-                            subtext={dispatchLineProgressCue(item)}
-                            subtextTestId="order-dispatch-line-progress"
-                          />
+                          <div className="min-w-0 flex-1">
+                            <OrderDesignTitle
+                              chrome="sheet"
+                              name={item.name}
+                              nameTestId="order-dispatch-line-name"
+                              subtext={dispatchLineProgressCue(item)}
+                              subtextTestId="order-dispatch-line-progress"
+                            />
+                            <OrderLineShipProgressBar
+                              pct={alreadyPct}
+                              testId="order-dispatch-line-ship-progress"
+                            />
+                          </div>
                         }
                         cues={
                           orderLineLeftoverCue(item) ? (
@@ -4140,10 +4172,16 @@ export function OrderDetailPage() {
                       />
                     }
                     title={
-                      <OrderDesignTitle
-                        name={item.name}
-                        extra={<OrderLineMoneyLine item={item} />}
-                      />
+                      <div className="min-w-0 flex-1">
+                        <OrderDesignTitle
+                          name={item.name}
+                          extra={<OrderLineMoneyLine item={item} />}
+                        />
+                        <OrderLineShipProgressBar
+                          pct={orderLineShipProgressPct(previewItem)}
+                          testId="order-settle-line-ship-progress"
+                        />
+                      </div>
                     }
                     trailing={<SettleLineRemainder item={item} finalQty={finalQty} />}
                     facts={

@@ -22,7 +22,7 @@ Any company. Unconnected first messages land in the recipient’s **Requests** i
 |------|--------|
 | Participant states | `active` · `pending` (requests) · `archived` (silent — decline / leave / block) |
 | Unconnected first message | Recipient starts **pending**; reply/accept activates |
-| Open-catalog order | Order / Ask rates on a discoverable post opens/activates a **trade thread** (both Active) with a living order card — **no** Connection and **not** the pending inbox. Distinct from cold Message |
+| Open-catalog order | Order / Ask rates on a discoverable post opens/activates a **trade thread** (both Active) with a living order card — **not** the pending Connect inbox. Follow Allow already Connects; curated republish Place uses pack viewability (Followers + allowed Follow) even if Connection is missing (legacy). Distinct from cold Message |
 | Block | Sender may still see a thread; recipient side is silently archived |
 | Owner on cards | Design/collection cards show **Order goes to** the ticket party: **I handle** → sharer (you); **Direct** → design owner. Header is collection/design name (no Design/Collection label); who-acted lives under the header |
 | Forward | **Text, photo, document, design, collection, order card** (not payment/system). Catalog: free for live published (not blocked); view on **open**. Order: forward card OK; **open** needs party (buyer/seller/facilitator) + hold/reveal. Non-party order teaser is **stripped** (no names/thumbs/amounts). Relist/Curate ≠ Forward. Locked collections: blurred thumbs; no PhotoViewer. |

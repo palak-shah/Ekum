@@ -390,12 +390,52 @@ export function OrderLineFactStrip({
   );
 }
 
-/** Fully shipped (exact 0) pale-green. Extra → warning-soft; leftover unwashed. */
+/**
+ * Row wash from Balance tone. Done uses a green progress bar (not pale fill).
+ * Extra → warning-soft; leftover / done unwashed.
+ */
 export function orderLineBalanceRowClass(item: ItemFacts, className?: string): string {
   const balance = orderLineBalance(item);
-  if (balance?.tone === 'done') return cx('bg-success-soft', className);
   if (balance?.tone === 'over') return cx('bg-warning-soft', className);
   return cx(className);
+}
+
+/**
+ * Already-shipped fraction for the green track bar (0–100).
+ * Null when ship facts do not apply or ordered qty is zero.
+ */
+export function orderLineShipProgressPct(item: ItemFacts): number | null {
+  if (!orderLineShowsShipFacts(item)) return null;
+  const ordered = item.quantity;
+  if (!Number.isFinite(ordered) || ordered <= 0) return null;
+  const shipped = Math.max(0, item.shippedQuantity ?? 0);
+  return Math.min(100, Math.round((shipped / ordered) * 100));
+}
+
+/** Track + success fill — partial and full both green (Dispatch mockup). */
+export function OrderLineShipProgressBar({
+  pct,
+  className,
+  testId = 'order-line-ship-progress',
+}: {
+  pct: number | null | undefined;
+  className?: string;
+  testId?: string;
+}) {
+  if (pct == null || !Number.isFinite(pct)) return null;
+  const width = Math.max(0, Math.min(100, pct));
+  return (
+    <div
+      className={cx('mt-1 h-1.5 overflow-hidden rounded-full bg-line', className)}
+      data-testid={testId}
+      role="progressbar"
+      aria-valuenow={width}
+      aria-valuemin={0}
+      aria-valuemax={100}
+    >
+      <div className="h-full rounded-full bg-success" style={{ width: `${width}%` }} />
+    </div>
+  );
 }
 
 /** − remaining and + extra scan amber; 0 stays ink. */
@@ -455,9 +495,7 @@ export function OrderLineFacts({
       : [];
 
   if (layout === 'ticket') {
-    const extra = orderLineOverShipped(item);
-    const pct =
-      qty > 0 ? Math.min(100, Math.round((shipped / qty) * 100)) : 0;
+    const pct = orderLineShipProgressPct(item);
     return (
       <div
         className={cx('flex w-full min-w-0 flex-col', className)}
@@ -468,18 +506,7 @@ export function OrderLineFacts({
           {orderTicketLineQtyCopy(item)}
         </p>
         {showShip && item.lineStatus !== 'declined' ? (
-          <span
-            className="mt-1 block h-1.5 overflow-hidden rounded-full bg-foam"
-            data-testid="order-line-ship-bar"
-          >
-            <span
-              className={cx(
-                'block h-full rounded-full',
-                extra > 0 ? 'bg-warning' : 'bg-accent/70',
-              )}
-              style={{ width: `${pct}%` }}
-            />
-          </span>
+          <OrderLineShipProgressBar pct={pct} testId="order-line-ship-bar" />
         ) : null}
       </div>
     );

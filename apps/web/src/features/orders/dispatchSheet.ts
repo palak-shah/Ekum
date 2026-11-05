@@ -3,6 +3,7 @@ import {
   howManyOrderFooterSummary,
   orderRateText,
   orderUnitSheetHeading,
+  qtyCountNoun,
 } from '@/features/orders/howManyLineMeta';
 import { formatOrderQty } from '@/features/orders/orderLineBilling';
 import { catalogRateDisplayUnit } from '@/lib/catalogRate';
@@ -182,6 +183,34 @@ export function dispatchSheetSubtitle(
   );
   if (rateUnits.size !== 1) return orderBit;
   return `${orderBit} · rate per ${[...rateUnits][0]}`;
+}
+
+/**
+ * Dispatch sheet summary — already shipped vs ordered across fulfill lines.
+ * `{shipped} of {ordered} {noun} sent` + pct for the green track bar.
+ */
+export function dispatchSheetShipProgress(
+  items: Array<
+    Pick<OrderItemView, 'quantity' | 'shippedQuantity' | 'unit' | 'lineStatus'>
+  >,
+): { copy: string; pct: number } | null {
+  const rows = items.filter(
+    (item) => item.lineStatus === 'confirmed' || item.lineStatus === 'dispatched',
+  );
+  if (rows.length === 0) return null;
+  const shipped = rows.reduce((sum, item) => sum + Math.max(0, item.shippedQuantity ?? 0), 0);
+  const ordered = rows.reduce((sum, item) => sum + Math.max(0, item.quantity ?? 0), 0);
+  if (ordered < 1 && shipped < 1) return null;
+  const total = ordered > 0 ? ordered : shipped;
+  const units = new Set(
+    rows.map((item) => item.unit?.trim()).filter((unit): unit is string => Boolean(unit)),
+  );
+  const noun = units.size === 1 ? qtyCountNoun([...units][0]!) : null;
+  const copy = noun
+    ? `${shipped} of ${total} ${noun} sent`
+    : `${shipped} of ${total} sent`;
+  const pct = total > 0 ? Math.min(100, Math.round((shipped / total) * 100)) : 0;
+  return { copy, pct };
 }
 
 /** Confirmed / dispatched lines still pending — remaining > 0. */

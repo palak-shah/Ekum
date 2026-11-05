@@ -582,7 +582,10 @@ export class OrderService {
       });
     }
 
-    await this.tradeAccess.assertCanTrade(actorCompanyId, collection.companyId, { productIds });
+    await this.tradeAccess.assertCanTrade(actorCompanyId, collection.companyId, {
+      productIds,
+      sourceCollectionId: collection.id,
+    });
 
     const groups = new Map<
       string,
