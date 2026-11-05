@@ -291,6 +291,7 @@ Verification: Functional · Regression · Unit-only · Untested
 | Network | Follow-ask extra gate (look / pack / deny) | Works | Unit + Functional | Required | Completeness 2026-09-24-follow-ask; They see mine Instagram list + search + revoke 2026-09-28-they-see-mine-instagram-list; Stop keeps Stopped 2026-09-28-they-see-mine-stopped; Asked inline + chip 2026-09-28-they-see-mine-asked-inline |
 | Company | Shop profile chrome (hero + 2-col photos) | Works | Unit + Functional | Required | Completeness 2026-09-23-company-profile-shop-chrome; no names on cells; no collection cover |
 | Network | Connections hub (Block; no Pause) | Works | Functional | Required | Completeness 2026-09-29-drop-connection-pause; Approve is Chats Requests |
+| Network | Follow Allow ⇒ Active Connection; backfill older Allowed rows | Works | Unit | Required | Completeness 2026-11-05-follow-allow-connection-backfill; seed + one-shot script |
 | Referrals | Connect-with-me invite create + Share/Copy | Works | Functional + Unit | Required | Presentable OG + ＋ one-tap share 2026-09-11; `network.referrals.journey` |
 | Referrals | Open invite redeem → access request (approve gate) | Works | Functional | Required | Focused `/r/` landing (no bottom nav); `network.referrals.journey.spec.ts` |
 | Referrals | Login/onboarding return path (`?invite=` / `/r/:token`) | Works | Unit-only | Required | `inviteReturn` + Login/onboarding wiring |

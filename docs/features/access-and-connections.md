@@ -52,12 +52,12 @@ When a design/album is locked for Curate, **Ask to put in my pack** → chat All
 
 | Rule | Detail |
 |------|--------|
-| Follow ≠ Access | Follow is an ask; Allow does not create a Connection. Restricted (connections/selected) posts stay on those audiences. |
+| Follow Allow ⇒ Connection | Follow is an ask; **Allow** upserts a mutual **Active Connection** (chat / trade without a separate Connect approve). Never lifts **Block**. Connect ⇏ Follow. Older Allowed rows are backfilled the same way. |
 | Follow pending | Same unique pair; `pending` is not a follower for audience / stories / shop Followers-audience. |
-| Follow access | Shop-facing **They can see** (see Followers posts) vs **They can share** (put in their pack if Trading + `allowForward`). Look-only and not Connected cannot curate that seller. |
+| Follow access | Shop-facing **They can see** (see Followers posts) vs **They can share** (put in their pack if Trading + `allowForward`). Look-only without Share cannot curate that seller’s pack lines. |
 | Home Needs | Incoming follow asks → **They see mine** Asked chip (`/network/followers?tab=asked`). Incoming Connect / first chat → **Chats → Requests** (pending thread). |
-| Catalog visibility | Post **audience** (+ block rules). Legacy Everyone/Connections enforce as Followers. Selected stays Selected. Connection is for trade / other doors, not open catalog. |
-| Open order | Discoverable catalog lines can be ordered without Connection; does **not** auto-create a Network connection |
+| Catalog visibility | Post **audience** (+ block rules). Legacy Everyone/Connections enforce as Followers. Selected stays Selected. Connection unlocks trade / other doors. |
+| Open order | Place needs Active Connection (from Allow or Connect). Discoverable catalog still gates *what* you can order; Allow ⇒ Connection so followers are not stuck on **Connect with this business**. |
 | Connection states | `active` · `paused` (legacy only) · `blocked` |
 | Silent block | Other party is not notified and **does not see** the connection row; they lose Connection catalog access. Shop 404. |
 | Approve vs block | Approving **never** reactivates a block — the **blocker** must Unblock first |
@@ -78,9 +78,9 @@ See [concepts](./00-concepts.md) for the trust ladder diagram.
 
 ## Seed walkthrough
 
-1. Seed: Meena **allowed follow** of Ravi (look); Ravi **allowed follow** of Kavita; **active** connections Ravi↔Meena and Ravi↔Kavita. Seeded shop catalogs are **Followers** (not Everyone) so Has access off hides those packs.
-2. As **Ravi**: Network → Connections — one Meena card (Connected).
-3. As **Meena**: Network → Connections — one Surat Silk House card (Connected).
+1. Seed: Meena **allowed follow** of Ravi (look); Ravi **allowed follow** of Kavita; Meena **allowed follow** of Kavita — seed backfill ensures **Active** connections for every Allowed pair (Ravi↔Meena, Ravi↔Kavita, Meena↔Kavita). Seeded shop catalogs are **Followers** (not Everyone) so Has access off hides those packs.
+2. As **Ravi**: Network → Connections — Meena (and Kavita) Connected.
+3. As **Meena**: Network → Connections — Surat Silk House and Ahmedabad Loom Co Connected (from Allow).
 4. (Optional QA) Block as either side → other loses the shop (404); **only the blocker** can Unblock.
 
 ## Where it lives

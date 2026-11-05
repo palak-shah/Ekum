@@ -7,14 +7,13 @@ import {
   Optional,
 } from '@nestjs/common';
 import {
-  ConnectionStatus,
   FollowAccessKind as FollowAccessKindDto,
   MessageType,
 } from '@ekum/domain-types';
 import type { CompanyCard, FollowAskResult, FollowAskView, ShopFollowerView } from '@ekum/domain-types';
 import { PrismaService } from '../core/prisma/prisma.service';
 import { VisibilityService } from '../access/visibility.service';
-import { connectionPairWhere } from '../access/connection-pair';
+import { ensureActiveConnectionUnlessBlocked } from '../access/ensure-active-connection';
 import { ThreadService } from '../conversation/thread.service';
 import { DiscoverySerializer } from './discovery.serializer';
 import { allowedFollowWhere, FollowAccessKind, FollowStatus } from './follow-access';
@@ -265,36 +264,8 @@ export class FollowService {
       },
     });
     // Follow ⇒ Connect: Allow also ensures Active Connection (chat without Requests).
-    await this.ensureActiveConnectionUnlessBlocked(shopCompanyId, followerCompanyId);
+    await ensureActiveConnectionUnlessBlocked(this.prisma, shopCompanyId, followerCompanyId);
     return { ok: true };
-  }
-
-  /** Follow Allow → mutual Active Connection. Never lifts Block. Connect ⇏ Follow. */
-  private async ensureActiveConnectionUnlessBlocked(
-    shopCompanyId: string,
-    followerCompanyId: string,
-  ): Promise<void> {
-    const pair = connectionPairWhere(shopCompanyId, followerCompanyId);
-    const existing = await this.prisma.connection.findUnique({
-      where: { companyLowId_companyHighId: pair },
-      select: { status: true },
-    });
-    if (existing?.status === ConnectionStatus.Blocked) {
-      return;
-    }
-    if (existing?.status === ConnectionStatus.Active) {
-      return;
-    }
-    await this.prisma.connection.upsert({
-      where: { companyLowId_companyHighId: pair },
-      create: {
-        companyLowId: pair.companyLowId,
-        companyHighId: pair.companyHighId,
-        status: ConnectionStatus.Active,
-        statusSetByCompanyId: null,
-      },
-      update: { status: ConnectionStatus.Active, statusSetByCompanyId: null },
-    });
   }
 
   async setAccess(

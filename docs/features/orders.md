@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Trade execution after trust **or discoverable catalog**: place and fulfill **orders** (standard or photo) and request **samples**. **Returns are not in the product.** Shop issues go through **1:1 chat ＋ complaint**. **Discoverable** designs/collections (Followers with allowed follow, Selected list, or Connection for trade) can be ordered without inventing a second gate; legacy Everyone/Connections rows behave as Followers. Photo orders and samples without a discoverable product still need a connection.
+Trade execution after trust: place and fulfill **orders** (standard or photo) and request **samples**. **Returns are not in the product.** Shop issues go through **1:1 chat ＋ complaint**. **Follow Allow** upserts an **Active Connection** (older Allowed follows are backfilled), so Place is not stuck on Connect when **I see theirs**. Catalog audience (Followers / Selected) still gates *what* is orderable; legacy Everyone/Connections rows behave as Followers. Photo orders and samples without a discoverable product still need a connection.
 
 Sellers can fulfill **partially**: quote fewer qty / skip designs, confirm or decline lines, and split dispatch across multiple LRs.
 

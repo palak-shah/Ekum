@@ -30,6 +30,7 @@ import {
 } from '@ekum/domain-types';
 import { ensureSeedImages } from '../src/common/seed-media';
 import { seedOfficialCatalogTags } from '../src/catalog/official-tags.seed';
+import { backfillActiveConnectionsForAllowedFollows } from '../src/access/ensure-active-connection';
 
 const prisma = new PrismaClient();
 
@@ -1283,8 +1284,11 @@ async function main(): Promise<void> {
 
   const tagCount = await seedOfficialCatalogTags(prisma);
 
+  // Follow Allow ⇒ Active Connection (incl. older Allowed-only pairs like Meena→Kavita).
+  const connBackfill = await backfillActiveConnectionsForAllowedFollows(prisma);
+
   console.log(
-    `Seed complete: 3 companies (Ravi, Meena, Kavita), catalog, follows, 4 orders (I-handle pair held), 1 thread, ${tagCount} official tags.`,
+    `Seed complete: 3 companies (Ravi, Meena, Kavita), catalog, follows, 4 orders (I-handle pair held), 1 thread, ${tagCount} official tags; connection backfill created=${connBackfill.created} already=${connBackfill.alreadyActive}.`,
   );
 }
 
