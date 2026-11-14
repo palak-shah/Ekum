@@ -302,7 +302,7 @@ describe('orderLineBalance', () => {
     ).toEqual({ value: -5, tone: 'open' });
   });
 
-  it('washes over-ship only; done uses progress bar not pale-green fill', () => {
+  it('no row wash for ship state — bar carries partial / done / extra', () => {
     expect(formatOrderLineBalance(40)).toBe('+40');
     expect(
       orderLineBalanceRowClass({
@@ -333,10 +333,10 @@ describe('orderLineBalance', () => {
         remainingQuantity: 0,
         shippedQuantity: 25,
       }),
-    ).toContain('bg-warning-soft');
+    ).not.toMatch(/bg-warning-soft|bg-success-soft|bg-info-soft/);
   });
 
-  it('ship progress pct is already-shipped fraction; bar is always success green', () => {
+  it('ship progress bar: accent partial, success exact, warning over', () => {
     expect(
       orderLineShipProgressPct({
         quantity: 10,
@@ -368,15 +368,24 @@ describe('orderLineBalance', () => {
       }),
     ).toBeNull();
 
-    const { container } = render(<OrderLineShipProgressBar pct={60} />);
+    const { container, rerender } = render(<OrderLineShipProgressBar pct={60} />);
     const bar = screen.getByTestId('order-line-ship-progress');
     expect(bar.className).toContain('bg-line');
-    expect(bar.querySelector('.bg-success')).toBeTruthy();
-    expect(bar.querySelector('.bg-success')).toHaveStyle({ width: '60%' });
-    expect(container.querySelector('.bg-accent\\/70')).toBeNull();
+    expect(bar.querySelector('.bg-accent\\/70')).toHaveStyle({ width: '60%' });
+    expect(container.querySelector('.bg-success')).toBeNull();
+
+    rerender(<OrderLineShipProgressBar pct={100} />);
+    expect(screen.getByTestId('order-line-ship-progress').querySelector('.bg-success')).toHaveStyle({
+      width: '100%',
+    });
+
+    rerender(<OrderLineShipProgressBar pct={100} over />);
+    const overBar = screen.getByTestId('order-line-ship-progress');
+    expect(overBar.querySelector('.bg-warning')).toHaveStyle({ width: '100%' });
+    expect(overBar.querySelector('.bg-success')).toBeNull();
   });
 
-  it('ticket layout renders green ship bar under qty copy', () => {
+  it('ticket layout renders success ship bar under qty copy when fully shipped', () => {
     render(
       <OrderLineFacts
         layout="ticket"
@@ -393,6 +402,26 @@ describe('orderLineBalance', () => {
     expect(screen.getByTestId('order-line-fact-qty')).toHaveTextContent('10 of 10 sets sent');
     const bar = screen.getByTestId('order-line-ship-bar');
     expect(bar.querySelector('.bg-success')).toHaveStyle({ width: '100%' });
+  });
+
+  it('ticket layout warning bar when over-shipped', () => {
+    render(
+      <OrderLineFacts
+        layout="ticket"
+        item={{
+          quantity: 10,
+          rate: 90,
+          unit: 'set',
+          lineStatus: 'dispatched',
+          remainingQuantity: 0,
+          shippedQuantity: 12,
+        }}
+      />,
+    );
+    expect(screen.getByTestId('order-line-fact-qty')).toHaveTextContent(/extra/);
+    expect(screen.getByTestId('order-line-ship-bar').querySelector('.bg-warning')).toHaveStyle({
+      width: '100%',
+    });
   });
 
   it('after confirm strip is Ordered · Shipped · Balance; money lives on the name', () => {

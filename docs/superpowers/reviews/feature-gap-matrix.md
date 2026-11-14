@@ -1,6 +1,6 @@
 # Feature gap matrix
 
-**Updated:** 2026-11-04 (Confirm/Dispatch prototype chrome + extra wash)  
+**Updated:** 2026-11-05 (Followers skip-list = Explore only; Place/share open)  
 **Source:** Completeness reviews under `docs/superpowers/reviews/completeness/`  
 **Tracks:** Regression (`@smoke @regression` / BM-* units) · Functional (`@functional`)  
 **Audit:** [2026-10-22-functional-gap-audit.md](./2026-10-22-functional-gap-audit.md) — requirements vs code vs tests. Does not replace rows below.
@@ -10,6 +10,8 @@ Verification: Functional · Regression · Unit-only · Untested
 
 | Module | Capability | Product status | Verification | Completeness priority | Notes |
 |--------|------------|----------------|--------------|----------------------|-------|
+| Catalog / Explore | Followers skip-list: Explore feed hide only; Allowed follow opens album / Place / Saved / share | Works | Unit | Required | Completeness 2026-11-05-followers-skip-list-access; Redesign of 2026-10-29 detail-leak |
+| Catalog / Explore | Dead ends: soft shell Ask; share claim grant; DesignAlbum chat; destination CTA | Works | Unit | Required | Completeness 2026-11-06-catalog-dead-end-access |
 | Explore | Collection post: one photo, swipe up to 5, last card View more, name/rate/tags; iPhone can scroll the feed from the photo | Works | Unit | Required | Completeness 2026-10-19-explore-feed-carousel; BM-07 `PHOTO_STRIP_TOUCH_CLASS` pan-x pan-y |
 | Platform | Typography: Noto Sans; body 16 / page+tab title 20 / sheet 18; weights body 400 / emphasis 500 / title 600 | Works | Unit | Required | Completeness 2026-10-29-ekum-leaf-theme (supersedes 2026-10-17 size lock); `font-body`/`font-emphasis`/`font-title`; bold only badges+Avatar |
 | Platform | Quiet info (circle i): instructional copy on tap; one `InfoHint` / `InfoIcon` | Works | Unit | Required | Completeness 2026-10-21-quiet-info-hint; Confirm title + collection Apply-all; Field `info` |
@@ -288,7 +290,8 @@ Verification: Functional · Regression · Unit-only · Untested
 | Network | One header: Back · Network (no shell duplicate) | Works | Unit | Required | Completeness 2026-09-29-network-one-header |
 | Company | Business profile lecture: you choose who sees collections | Rejected | — | Reject | Product: no line on `/settings/profile`; CSV sr 88 T6 |
 | Network | I see theirs / They see mine lists | Works | Unit + Functional | Required | Completeness 2026-09-28-network-see-theirs-mine; hub order 2026-09-29-network-hub-order; routes still following/followers |
-| Network | Follow-ask extra gate (look / pack / deny) | Works | Unit + Functional | Required | Completeness 2026-09-24-follow-ask; They see mine Instagram list + search + revoke 2026-09-28-they-see-mine-instagram-list; Stop keeps Stopped 2026-09-28-they-see-mine-stopped; Asked inline + chip 2026-09-28-they-see-mine-asked-inline |
+| Network | Follow-ask extra gate (look / pack / deny) | Works | Unit + Functional | Required | Completeness 2026-09-24-follow-ask; They see mine Instagram list + search + revoke 2026-09-28-they-see-mine-instagram-list; Stop keeps Stopped 2026-09-28-they-see-mine-stopped; Asked inline + chip 2026-09-28-they-see-mine-asked-inline; pack-grant UI Share→Repost 2026-11-14-pack-grant-share-to-repost |
+| Network | Pack-grant trader copy is **Repost** (not Share sheet) | Works | Unit + Functional | Required | Completeness 2026-11-14-pack-grant-share-to-repost; They see mine / Requests / Request repost; API id `share` unchanged |
 | Company | Shop profile chrome (hero + 2-col photos) | Works | Unit + Functional | Required | Completeness 2026-09-23-company-profile-shop-chrome; no names on cells; no collection cover |
 | Network | Connections hub (Block; no Pause) | Works | Functional | Required | Completeness 2026-09-29-drop-connection-pause; Approve is Chats Requests |
 | Network | Follow Allow ⇒ Active Connection; backfill older Allowed rows | Works | Unit | Required | Completeness 2026-11-05-follow-allow-connection-backfill; seed + one-shot script |
@@ -424,7 +427,7 @@ Full register: [2026-10-22-functional-gap-audit.md](./2026-10-22-functional-gap-
 | Orders | Hop↔parent line mapping (`sourceItemId`); photo + duplicate SKU | Works | Unit | Required | Unambiguous historical backfill only |
 | Orders | Qty/price history (trail payload + confirm snapshot); buyer cannot edit after confirm | Works | Unit | Required | Restore uses confirm snapshot, not original ask |
 | Settings | Your paths **＋** create mill×buyer; behaviors persisted, locked | Redesigned | Unit + Functional | Required | Moved to Network Direct links; completeness 2026-10-28-direct-links-network |
-| Network | Direct links (TradeLane) supplier×buyer; mill compact filled **Request share** until Pack; gray row + same button when Share off (lanes kept); trio at first Direct order (exact three shops any name order); compact Supplier\|Buyer\|red delete | Works | Unit + Functional | Required | Completeness 2026-10-31-direct-link-request-share-button + 2026-10-31-direct-link-share-gate (Redesign of group-on-Save 2026-10-28-direct-link-reuse-group) + 2026-10-28-direct-links-network + compact-list + delete-icon; `/settings/paths` redirect |
+| Network | Direct links (TradeLane) supplier×buyer; mill compact filled **Request repost** until Pack; gray row + same button when Repost off (lanes kept); trio at first Direct order (exact three shops any name order); compact Supplier\|Buyer\|red delete | Works | Unit + Functional | Required | Completeness 2026-10-31-direct-link-request-share-button + 2026-10-31-direct-link-share-gate (Redesign of group-on-Save 2026-10-28-direct-link-reuse-group) + 2026-10-28-direct-links-network + compact-list + delete-icon; pack-grant copy Repost 2026-11-14; `/settings/paths` redirect |
 | Catalog | Auto-repost: one pack per trader × canonical root; Selected Direct Link buyers; `From {shop}`; no backfill of live albums; manual Followers reuses pack and skips those buyers on Explore | Works | Unit + Functional | Required | Completeness 2026-10-28-auto-repost-selected-buyer + 2026-10-28-auto-repost-future-only-supplier + 2026-10-29-auto-repost-followers-skip-linked; JobQueue `collection.propagate`; unique retry |
 | Catalog | Repost revision watermark; feed one card per post; no duplicate bump | Works | Unit | Required | `repostSyncedSourceAt`; Explore `exploreActivityAt` |
 | Chat | Direct-link trio read-only after unlink (`messagingClosedAt`) | Works | Unit | Required | Close only `TradeLane.groupThreadId`; 1:1 stays |

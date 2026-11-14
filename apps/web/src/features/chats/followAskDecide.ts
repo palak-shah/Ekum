@@ -8,8 +8,8 @@ export const FOLLOW_ASK_GRANT_OPTIONS = [
   },
   {
     id: 'share',
-    label: 'They can share my collections',
-    shortLabel: 'Share',
+    label: 'They can repost my collections',
+    shortLabel: 'Repost',
     defaultOn: false,
   },
 ] as const;
@@ -29,7 +29,7 @@ export function followAskGrantsForKind(kind: 'see' | 'share'): FollowAskGrants {
   return defaultFollowAskGrants();
 }
 
-/** Checked grants → decide. Share (pack) wins over see (look). None → Allow stays off. */
+/** Checked grants → decide. Repost (pack) wins over see (look). None → Allow stays off. */
 export function followAskAllowDecision(
   grants: Record<string, boolean>,
 ): 'look' | 'pack' | null {

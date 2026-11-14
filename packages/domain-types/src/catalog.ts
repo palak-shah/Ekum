@@ -480,6 +480,13 @@ export interface ShareLinkView {
   path: string;
 }
 
+/** Authenticated redeem of a 48h share link. */
+export interface ShareLinkClaimView {
+  kind: ShareLinkView['kind'];
+  targetId: string;
+  path: string;
+}
+
 /**
  * The immutable shape captured onto an order line at order time. Defined here so
  * the Orders domain and the future Flutter client share one contract. Prices and

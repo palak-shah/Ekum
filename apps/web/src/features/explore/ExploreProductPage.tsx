@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ExploreProductPreviewView } from '@ekum/domain-types';
 import { DesignSheet } from '@/features/browse/DesignSheet';
@@ -8,7 +8,8 @@ import { api, ApiError } from '@/lib/apiClient';
 import { useMyCompany } from '@/lib/queries';
 import { PageHeader } from '@/ui/PageHeader';
 import { useToast } from '@/ui/Toast';
-import { ErrorState, LoadingBlock } from '@/ui/kit';
+import { Button, Card, ErrorState, LoadingBlock } from '@/ui/kit';
+import { LockIcon } from '@/ui/icons';
 
 /**
  * Deep-link / Explore open host for the shared DesignSheet (Back closes).
@@ -47,14 +48,45 @@ export function ExploreProductPage() {
     return (
       <>
         <PageHeader title="Design" onBack={() => navigate(-1)} />
-        <ErrorState message="This design isn't available." />
+        <div className="flex flex-col gap-3 px-4 pb-8">
+          <ErrorState message="This design isn't available." />
+          <Button fullWidth variant="secondary" onClick={() => navigate('/explore')}>
+            Go to Explore
+          </Button>
+        </div>
       </>
     );
   }
 
   const data = product.data;
-  const sheetProduct = exploreProductToSheet(data);
   const isOwner = Boolean(me.data?.id && me.data.id === data.company.id);
+
+  if (!data.visible && !isOwner) {
+    return (
+      <div className="flex min-h-[40vh] flex-col gap-4 px-4 pb-8" data-testid="explore-product-locked">
+        <PageHeader title={data.name} onBack={() => navigate(-1)} />
+        <Card className="flex flex-col items-center gap-3 text-center">
+          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-foam text-muted">
+            <LockIcon />
+          </span>
+          <div>
+            <p className="text-sm font-emphasis text-ink">This design isn’t open to you yet</p>
+            <p className="text-xs text-muted">
+              Ask {data.company.name} for access on their shop.
+            </p>
+          </div>
+          <Link
+            to={`/company/${data.company.id}`}
+            className="text-sm font-emphasis text-accent"
+          >
+            Request access on their shop
+          </Link>
+        </Card>
+      </div>
+    );
+  }
+
+  const sheetProduct = exploreProductToSheet(data);
 
   return (
     <div className="min-h-[40vh]" data-testid="explore-product-page">

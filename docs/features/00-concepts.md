@@ -52,7 +52,7 @@ Some companies are dual-network (**traders** in product language only): buy, cur
 | Explore trade-side | **All** (default) · **Buying** · **Selling** — see [explore](./explore.md) |
 | Surfaces | **Home** = light **New collections** (curated received, 7 days / 5); **Buying** Explore = followed posts + received by day/business |
 | Dual trade | Company may **buy/pay upstream** and **sell/send orders downstream**. **Trading** gates Curate + TradeLane (not a Profile switch). Product default off (QA may treat unset as on). Linking/split in Slice B |
-| Orders | No Direct Link (or mill Share off): **I handle**, buyer–trader private until Send. Direct Link (Network) with mill shop-wide Share: mill ticket; **one** mill–buyer–trader group at first Direct order (same three shops, any name order — not on Save). Completeness: `2026-10-31-direct-link-share-gate-completeness`. Mill **Send** is I-handle only; mill **Confirm** (qty + optional rate) / Decline on the mill ticket; **Handle myself** when taking a Direct onto your desk |
+| Orders | No Direct Link (or mill Repost off): **I handle**, buyer–trader private until Send. Direct Link (Network) with mill shop-wide Repost: mill ticket; **one** mill–buyer–trader group at first Direct order (same three shops, any name order — not on Save). Completeness: `2026-10-31-direct-link-share-gate-completeness`. Mill **Send** is I-handle only; mill **Confirm** (qty + optional rate) / Decline on the mill ticket; **Handle myself** when taking a Direct onto your desk |
 
 See [mvp-garmenthub-gap-matrix.md](../superpowers/reviews/mvp-garmenthub-gap-matrix.md) for Keep / Missing / slice tracking.
 

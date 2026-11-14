@@ -187,13 +187,13 @@ export function dispatchSheetSubtitle(
 
 /**
  * Dispatch sheet summary — already shipped vs ordered across fulfill lines.
- * `{shipped} of {ordered} {noun} sent` + pct for the green track bar.
+ * `{shipped} of {ordered} {noun} sent` + pct for the track bar.
  */
 export function dispatchSheetShipProgress(
   items: Array<
     Pick<OrderItemView, 'quantity' | 'shippedQuantity' | 'unit' | 'lineStatus'>
   >,
-): { copy: string; pct: number } | null {
+): { copy: string; pct: number; over: boolean } | null {
   const rows = items.filter(
     (item) => item.lineStatus === 'confirmed' || item.lineStatus === 'dispatched',
   );
@@ -209,8 +209,9 @@ export function dispatchSheetShipProgress(
   const copy = noun
     ? `${shipped} of ${total} ${noun} sent`
     : `${shipped} of ${total} sent`;
+  const over = shipped > total;
   const pct = total > 0 ? Math.min(100, Math.round((shipped / total) * 100)) : 0;
-  return { copy, pct };
+  return { copy, pct, over };
 }
 
 /** Confirmed / dispatched lines still pending — remaining > 0. */

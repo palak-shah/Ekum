@@ -391,17 +391,15 @@ export function OrderLineFactStrip({
 }
 
 /**
- * Row wash from Balance tone. Done uses a green progress bar (not pale fill).
- * Extra → warning-soft; leftover / done unwashed.
+ * No row wash — ship state is the progress bar fill (accent / success / warning).
+ * Kept so call sites stay stable; always pass-through.
  */
-export function orderLineBalanceRowClass(item: ItemFacts, className?: string): string {
-  const balance = orderLineBalance(item);
-  if (balance?.tone === 'over') return cx('bg-warning-soft', className);
+export function orderLineBalanceRowClass(_item: ItemFacts, className?: string): string {
   return cx(className);
 }
 
 /**
- * Already-shipped fraction for the green track bar (0–100).
+ * Already-shipped fraction for the track bar (0–100).
  * Null when ship facts do not apply or ordered qty is zero.
  */
 export function orderLineShipProgressPct(item: ItemFacts): number | null {
@@ -412,18 +410,25 @@ export function orderLineShipProgressPct(item: ItemFacts): number | null {
   return Math.min(100, Math.round((shipped / ordered) * 100));
 }
 
-/** Track + success fill — partial and full both green (Dispatch mockup). */
+/**
+ * Track fill: accent while partial; success at exact full; warning when over
+ * (full track). No row wash — the bar is the signal.
+ */
 export function OrderLineShipProgressBar({
   pct,
+  over = false,
   className,
   testId = 'order-line-ship-progress',
 }: {
   pct: number | null | undefined;
+  /** Shipped past ordered — warning fill at 100% width. */
+  over?: boolean;
   className?: string;
   testId?: string;
 }) {
   if (pct == null || !Number.isFinite(pct)) return null;
-  const width = Math.max(0, Math.min(100, pct));
+  const width = over ? 100 : Math.max(0, Math.min(100, pct));
+  const fill = over ? 'bg-warning' : width >= 100 ? 'bg-success' : 'bg-accent/70';
   return (
     <div
       className={cx('mt-1 h-1.5 overflow-hidden rounded-full bg-line', className)}
@@ -433,7 +438,7 @@ export function OrderLineShipProgressBar({
       aria-valuemin={0}
       aria-valuemax={100}
     >
-      <div className="h-full rounded-full bg-success" style={{ width: `${width}%` }} />
+      <div className={cx('h-full rounded-full', fill)} style={{ width: `${width}%` }} />
     </div>
   );
 }
@@ -506,7 +511,11 @@ export function OrderLineFacts({
           {orderTicketLineQtyCopy(item)}
         </p>
         {showShip && item.lineStatus !== 'declined' ? (
-          <OrderLineShipProgressBar pct={pct} testId="order-line-ship-bar" />
+          <OrderLineShipProgressBar
+            pct={pct}
+            over={orderLineOverShipped(item) > 0}
+            testId="order-line-ship-bar"
+          />
         ) : null}
       </div>
     );

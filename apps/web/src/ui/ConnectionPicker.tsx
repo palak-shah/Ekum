@@ -36,7 +36,7 @@ type CommonProps = {
   onMessageFound?: (companyId: string) => void;
   /** Find on Ekum finished with zero hits. */
   onFindMissChange?: (miss: boolean) => void;
-  /** Direct Link mill: Request share when Share is off. */
+  /** Direct Link mill: Request repost when Repost (pack) is off. */
   rowAction?: (companyId: string) => {
     selectable: boolean;
     label: string;

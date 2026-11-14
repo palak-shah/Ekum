@@ -35,7 +35,7 @@ test.describe('follow-ask extra gate @functional @network', () => {
     await expect(page.getByRole('button', { name: /Asked/ })).toBeVisible();
     const askRow = page.getByTestId('follow-ask-row');
     await expect(askRow.getByRole('checkbox', { name: 'They can see my collections' })).toBeChecked();
-    await expect(askRow.getByRole('checkbox', { name: 'They can share my collections' })).not.toBeChecked();
+    await expect(askRow.getByRole('checkbox', { name: 'They can repost my collections' })).not.toBeChecked();
     await page.getByRole('button', { name: 'Allow' }).click();
     await expect(page.getByTestId('follow-ask-row')).toHaveCount(0, { timeout: 10_000 });
 

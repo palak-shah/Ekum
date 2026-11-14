@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueries } from '@tanstack/react-query';
 import type { ExploreProductPreviewView } from '@ekum/domain-types';
 import { parseDesignSetIds } from '@/features/browse/designSetPath';
@@ -41,7 +41,13 @@ import { LockIcon } from '@/ui/icons';
 import { BrowseLayoutToggle } from '@/ui/BrowseLayoutToggle';
 type SetTile =
   | { id: string; status: 'ok'; product: ExploreProductPreviewView }
-  | { id: string; status: 'locked'; name: string }
+  | {
+      id: string;
+      status: 'locked';
+      name: string;
+      companyId?: string;
+      companyName?: string;
+    }
   | { id: string; status: 'missing' };
 
 /**
@@ -83,7 +89,13 @@ export function DesignSetPage() {
     const q = queries[index];
     if (q?.isSuccess && q.data) {
       if (!q.data.visible) {
-        return { id, status: 'locked', name: q.data.name };
+        return {
+          id,
+          status: 'locked',
+          name: q.data.name,
+          companyId: q.data.company.id,
+          companyName: q.data.company.name,
+        };
       }
       return { id, status: 'ok', product: q.data };
     }
@@ -280,8 +292,29 @@ export function DesignSetPage() {
         })}
       </div>
       {visibleCount === 0 ? (
-        <div className="px-3 pb-6">
+        <div className="flex flex-col gap-3 px-3 pb-6">
           <ErrorState message="None of these designs are open to you." />
+          {(() => {
+            const shop = tiles.find(
+              (tile): tile is Extract<SetTile, { status: 'locked' }> =>
+                tile.status === 'locked' && Boolean(tile.companyId),
+            );
+            if (!shop?.companyId) {
+              return (
+                <Button fullWidth variant="secondary" onClick={() => navigate('/explore')}>
+                  Go to Explore
+                </Button>
+              );
+            }
+            return (
+              <Link
+                to={`/company/${shop.companyId}`}
+                className="text-center text-sm font-emphasis text-accent"
+              >
+                Request access on {shop.companyName ?? 'their shop'}
+              </Link>
+            );
+          })()}
         </div>
       ) : null}
       {dockUp ? (

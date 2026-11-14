@@ -77,7 +77,7 @@ export class FollowService {
     return { following: false, pending: true };
   }
 
-  /** Direct Link Request share — Pack upgrade while Look stays. */
+  /** Direct Link Request repost — Pack upgrade while Look stays. */
   async requestShare(
     followerCompanyId: string,
     followedCompanyId: string,

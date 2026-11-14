@@ -106,7 +106,7 @@ describe('Direct links create sheet', () => {
     );
   });
 
-  it('shows Request share instead of Select when the mill has not granted Share', async () => {
+  it('shows Request repost instead of Select when the mill has not granted Repost', async () => {
     vi.mocked(api.get).mockImplementation(async (path: string) => {
       if (path === '/trade-lanes') return [];
       if (path === '/follows/following') {
@@ -130,17 +130,17 @@ describe('Direct links create sheet', () => {
     const user = userEvent.setup();
     renderPage();
     await user.click(screen.getByTestId('paths-new'));
-    const ask = await screen.findByRole('button', { name: 'Request share' });
+    const ask = await screen.findByRole('button', { name: 'Request repost' });
     expect(ask.className).toMatch(/bg-accent/);
     expect(ask.className).toMatch(/h-8/);
     expect(screen.queryByText('Select')).toBeNull();
-    await user.click(screen.getByRole('button', { name: 'Request share' }));
+    await user.click(screen.getByRole('button', { name: 'Request repost' }));
     expect(api.post).toHaveBeenCalledWith('/follows/share-ask', { companyId: 'mill-look' });
   });
 });
 
-describe('Direct links gray when Share is off', () => {
-  it('mutes the row and offers Request share', async () => {
+describe('Direct links gray when Repost is off', () => {
+  it('mutes the row and offers Request repost', async () => {
     vi.mocked(api.get).mockImplementation(async (path: string) => {
       if (path === '/trade-lanes') return [{ ...lane, shareActive: false }];
       if (path === '/follows/following') {
@@ -164,7 +164,7 @@ describe('Direct links gray when Share is off', () => {
     const row = await screen.findByTestId('path-row-lane-1');
     expect(row.querySelector('.text-muted')).toBeTruthy();
     const ask = screen.getByTestId('path-request-share-lane-1');
-    expect(ask).toHaveTextContent('Request share');
+    expect(ask).toHaveTextContent('Request repost');
     expect(ask.className).toMatch(/bg-accent/);
     expect(ask.className).toMatch(/h-8/);
   });

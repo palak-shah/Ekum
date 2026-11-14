@@ -1232,11 +1232,9 @@ export class ExploreService {
         select: { status: true },
       }))?.status === 'allowed';
     const audienceCtx = { connected, following };
-    // Forward free: a chat share unlocks the album shell. Designs stay gated —
-    // if audience is not enough, products is null and the UI shows Ask (owner).
-    const sharedInChat =
-      !isOwner &&
-      (await this.wasSharedInChat(viewerCompanyId, id, MessageType.CollectionCard));
+    // Forward free / soft shell: live pack + known shop always returns the shell.
+    // Designs stay gated — products null → Ask UI. Chat share no longer needed
+    // just to reach the shell (was only bypassing the old hard 404).
     const hasViewGrant =
       !isOwner &&
       (await this.prisma.collectionViewGrant.findUnique({
@@ -1252,13 +1250,8 @@ export class ExploreService {
       if (!isCollectionLiveForBuyers(collection)) {
         throw notFound();
       }
-      if (
-        !sharedInChat &&
-        !hasViewGrant &&
-        !canDiscoverCollection(viewerCompanyId, collection, audienceCtx)
-      ) {
-        throw notFound();
-      }
+      // Live published + known shop → soft shell (products null) so Ask can show.
+      // Hard 404 only when blocked / not live / missing (above).
     }
 
     const showProducts =
@@ -1484,7 +1477,8 @@ export class ExploreService {
       canDiscoverCollection(viewerCompanyId, product, audienceCtx);
     const sharedInChat =
       !isOwner &&
-      (await this.wasSharedInChat(viewerCompanyId, id, MessageType.ProductCard));
+      ((await this.wasSharedInChat(viewerCompanyId, id, MessageType.ProductCard)) ||
+        (await this.wasSharedInDesignAlbum(viewerCompanyId, id)));
 
     let viaOpenCollection = false;
     if (!isOwner) {
@@ -1495,6 +1489,7 @@ export class ExploreService {
         throw notFound();
       }
       // Market post, connection, chat share, or still visible in an openable album.
+      // Otherwise soft preview (visible: false) so Request access can show.
       if (!connected && !onMarket && !sharedInChat) {
         viaOpenCollection = await productAccessibleViaCollection(
           this.prisma,
@@ -1503,9 +1498,6 @@ export class ExploreService {
           id,
           { wasSharedInChat: (viewer, ref, type) => this.wasSharedInChat(viewer, ref, type) },
         );
-        if (!viaOpenCollection) {
-          throw notFound();
-        }
       }
     }
 
@@ -1547,6 +1539,33 @@ export class ExploreService {
             some: { companyId: viewerCompanyId, leftAt: null },
           },
         },
+      },
+      select: { id: true },
+    });
+    return Boolean(hit);
+  }
+
+  /** Design album chat cards list product ids in metadata — same unlock as ProductCard. */
+  private async wasSharedInDesignAlbum(
+    viewerCompanyId: string,
+    productId: string,
+  ): Promise<boolean> {
+    const hit = await this.prisma.message.findFirst({
+      where: {
+        type: MessageType.DesignAlbum,
+        thread: {
+          participants: {
+            some: { companyId: viewerCompanyId, leftAt: null },
+          },
+        },
+        AND: [
+          {
+            metadata: {
+              path: ['productIds'],
+              array_contains: productId,
+            },
+          },
+        ],
       },
       select: { id: true },
     });

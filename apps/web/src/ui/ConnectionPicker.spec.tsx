@@ -115,7 +115,7 @@ describe('ConnectionPicker empty network', () => {
 });
 
 describe('ConnectionPicker rowAction', () => {
-  it('does not select when Request share is shown', async () => {
+  it('does not select when Request repost is shown', async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
     const onAction = vi.fn();
@@ -145,12 +145,12 @@ describe('ConnectionPicker rowAction', () => {
         onChange={onChange}
         rowAction={() => ({
           selectable: false,
-          label: 'Request share',
+          label: 'Request repost',
           onAction,
         })}
       />,
     );
-    const ask = screen.getByRole('button', { name: 'Request share' });
+    const ask = screen.getByRole('button', { name: 'Request repost' });
     expect(ask.className).toMatch(/bg-accent/);
     expect(ask.className).toMatch(/h-8/);
     await user.click(ask);

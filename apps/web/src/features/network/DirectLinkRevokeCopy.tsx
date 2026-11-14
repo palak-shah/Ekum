@@ -1,9 +1,9 @@
-/** Shared confirm copy. `remove` = trader ×. `off` = mill Share / unfollow. */
+/** Shared confirm copy. `remove` = trader ×. `off` = mill Repost / unfollow. */
 export function DirectLinkRevokeCopy({ mode = 'remove' }: { mode?: 'remove' | 'off' }) {
   if (mode === 'off') {
     return (
       <p className="text-sm text-ink" data-testid="direct-link-revoke-copy">
-        Direct links for this shop will go off until they can share your collections again.
+        Direct links for this shop will go off until they can repost your collections again.
         Existing orders stay as they are.
       </p>
     );

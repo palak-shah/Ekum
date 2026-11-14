@@ -63,15 +63,19 @@ describe('audience visibility', () => {
     ).toBe(true);
   });
 
-  it('hides Followers hops from Direct Link buyers already delivered', () => {
+  it('lets Direct Link buyers open Followers hops when they still follow (Explore hides separately)', () => {
     const collection = {
       companyId: 'trader',
       audience: 'followers',
       audienceCompanyIds: ['buyer-1'],
     };
+    // Detail / Place / Saved / share — Allowed follow opens products too.
     expect(
       canDiscoverCollection('buyer-1', collection, { connected: false, following: true }),
-    ).toBe(false);
+    ).toBe(true);
+    expect(
+      canViewCollectionProducts('buyer-1', collection, { connected: false, following: true }),
+    ).toBe(true);
     expect(
       canDiscoverCollection('buyer-2', collection, { connected: false, following: true }),
     ).toBe(true);
@@ -81,6 +85,15 @@ describe('audience visibility', () => {
     expect(
       canDiscoverCollection('trader', collection, { connected: false, following: false }),
     ).toBe(true);
+    // Explore shelf still excludes Direct Link buyers listed on the hop.
+    const feed = audienceVisibilityOr('buyer-1').find(
+      (row) =>
+        typeof row === 'object' &&
+        row !== null &&
+        'NOT' in row &&
+        typeof (row as { NOT?: unknown }).NOT === 'object',
+    ) as { NOT?: { audienceCompanyIds?: { has?: string } } };
+    expect(feed.NOT?.audienceCompanyIds?.has).toBe('buyer-1');
   });
 
   it('leaves ordinary Followers packs visible to all followers when ids are empty', () => {

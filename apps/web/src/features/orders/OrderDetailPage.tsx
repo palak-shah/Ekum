@@ -2272,15 +2272,17 @@ export function OrderDetailPage() {
         const pct = progress.over
           ? 100
           : Math.min(100, Math.round((progress.shipped / progress.total) * 100));
+        const fill = progress.over
+          ? 'bg-warning'
+          : pct >= 100
+            ? 'bg-success'
+            : 'bg-accent/70';
         return (
-          <Card
-            className={cx('flex flex-col gap-2', progress.over && 'bg-warning-soft')}
-            data-testid="order-ticket-progress"
-          >
+          <Card className="flex flex-col gap-2" data-testid="order-ticket-progress">
             <p className="text-sm font-emphasis text-ink">{progress.copy}</p>
             <div className="h-1.5 overflow-hidden rounded-full bg-line">
               <div
-                className={cx('h-full rounded-full', progress.over ? 'bg-warning' : 'bg-accent/70')}
+                className={cx('h-full rounded-full', fill)}
                 style={{ width: `${pct}%` }}
               />
             </div>
@@ -2586,6 +2588,7 @@ export function OrderDetailPage() {
                           {!cantSupply ? (
                             <OrderLineShipProgressBar
                               pct={orderLineShipProgressPct(item)}
+                              over={orderLineOverShipped(item) > 0}
                               testId="order-mill-line-ship-progress"
                             />
                           ) : null}
@@ -3566,6 +3569,7 @@ export function OrderDetailPage() {
                     <p className="text-sm font-emphasis text-ink">{ship.copy}</p>
                     <OrderLineShipProgressBar
                       pct={ship.pct}
+                      over={ship.over}
                       className="mt-0"
                       testId="order-dispatch-ship-progress-bar"
                     />
@@ -3662,6 +3666,7 @@ export function OrderDetailPage() {
                             />
                             <OrderLineShipProgressBar
                               pct={alreadyPct}
+                              over={orderLineOverShipped(item) > 0}
                               testId="order-dispatch-line-ship-progress"
                             />
                           </div>
@@ -4179,6 +4184,7 @@ export function OrderDetailPage() {
                         />
                         <OrderLineShipProgressBar
                           pct={orderLineShipProgressPct(previewItem)}
+                          over={orderLineOverShipped(previewItem) > 0}
                           testId="order-settle-line-ship-progress"
                         />
                       </div>

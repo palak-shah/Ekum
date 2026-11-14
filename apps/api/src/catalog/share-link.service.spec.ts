@@ -183,4 +183,65 @@ describe('ShareLinkService', () => {
     expect(view.designs).toEqual([]);
     expect(findMany).not.toHaveBeenCalled();
   });
+
+  it('claims a collection token into a view grant then album path', async () => {
+    const upsert = vi.fn(async () => ({}));
+    const prisma = {
+      catalogShareLink: {
+        findUnique: vi.fn(async () => ({
+          token: 'tok',
+          collectionId: 'c1',
+          productId: null,
+          productIds: [],
+          expiresAt: new Date(Date.now() + 60_000),
+        })),
+      },
+      collection: {
+        findUnique: vi
+          .fn()
+          .mockResolvedValueOnce(liveCollection())
+          .mockResolvedValueOnce({ id: 'c1', companyId: 'owner' }),
+      },
+      collectionProduct: { findMany: vi.fn(async () => []) },
+      collectionViewGrant: { upsert },
+    } as unknown as PrismaService;
+    const svc = new ShareLinkService(prisma);
+    const claimed = await svc.claim('buyer', 'tok');
+    expect(claimed.path).toBe('/collections/c1');
+    expect(claimed.kind).toBe('collection');
+    expect(upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          collectionId_companyId: { collectionId: 'c1', companyId: 'buyer' },
+        },
+      }),
+    );
+  });
+
+  it('does not grant the owner a view grant on claim', async () => {
+    const upsert = vi.fn(async () => ({}));
+    const prisma = {
+      catalogShareLink: {
+        findUnique: vi.fn(async () => ({
+          token: 'tok',
+          collectionId: 'c1',
+          productId: null,
+          productIds: [],
+          expiresAt: new Date(Date.now() + 60_000),
+        })),
+      },
+      collection: {
+        findUnique: vi
+          .fn()
+          .mockResolvedValueOnce(liveCollection())
+          .mockResolvedValueOnce({ id: 'c1', companyId: 'owner' }),
+      },
+      collectionProduct: { findMany: vi.fn(async () => []) },
+      collectionViewGrant: { upsert },
+    } as unknown as PrismaService;
+    const svc = new ShareLinkService(prisma);
+    const claimed = await svc.claim('owner', 'tok');
+    expect(claimed.path).toBe('/collections/c1');
+    expect(upsert).not.toHaveBeenCalled();
+  });
 });

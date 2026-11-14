@@ -4,6 +4,7 @@ import {
   ProductStatus,
   designAlbumCaption,
   type CreateShareLinkDto,
+  type ShareLinkClaimView,
   type ShareLinkDesignPreview,
   type ShareLinkView,
 } from '@ekum/domain-types';
@@ -95,6 +96,67 @@ export class ShareLinkService {
       createdByCompanyId: actorCompanyId,
     });
     return this.get(token);
+  }
+
+  /**
+   * Authenticated redeem: collection → view grant (open designs); then path to open.
+   * Product / designs links still hand off to the viewer (soft Ask when locked).
+   */
+  async claim(actorCompanyId: string, token: string): Promise<ShareLinkClaimView> {
+    const view = await this.get(token);
+    if (view.kind === 'collection') {
+      const collection = await this.prisma.collection.findUnique({
+        where: { id: view.targetId },
+        select: { id: true, companyId: true },
+      });
+      if (!collection) {
+        throw new NotFoundException({ code: 'NOT_FOUND', message: 'This link has expired.' });
+      }
+      if (collection.companyId !== actorCompanyId) {
+        await this.prisma.collectionViewGrant.upsert({
+          where: {
+            collectionId_companyId: {
+              collectionId: collection.id,
+              companyId: actorCompanyId,
+            },
+          },
+          create: {
+            collectionId: collection.id,
+            companyId: actorCompanyId,
+          },
+          update: { grantedAt: new Date() },
+        });
+      }
+      return {
+        kind: 'collection',
+        targetId: view.targetId,
+        path: `/collections/${view.targetId}`,
+      };
+    }
+    if (view.kind === 'designs') {
+      const ids = view.designs.map((d) => d.id);
+      const fallbackIds =
+        ids.length > 0
+          ? ids
+          : (
+              await this.prisma.catalogShareLink.findUnique({
+                where: { token },
+                select: { productIds: true },
+              })
+            )?.productIds ?? [];
+      const params = new URLSearchParams();
+      params.set('ids', fallbackIds.join(','));
+      return {
+        kind: 'designs',
+        targetId: view.targetId,
+        path: `/designs/set?${params.toString()}`,
+      };
+    }
+    return {
+      kind: 'product',
+      targetId: view.targetId,
+      path: `/explore/products/${view.targetId}`,
+    };
   }
 
   async get(token: string): Promise<ShareLinkView> {

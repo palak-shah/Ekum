@@ -1,4 +1,4 @@
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { MEDIA_VARIANT, type ProductRelistGrantView, type ProductView } from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
@@ -6,11 +6,12 @@ import { formatRate } from '@/lib/format';
 import { useMyCompany } from '@/lib/queries';
 import { PageHeader } from '@/ui/PageHeader';
 import { useToast } from '@/ui/Toast';
-import { Card, ErrorState, LoadingBlock, StatusPill, Tag } from '@/ui/kit';
+import { Button, Card, ErrorState, LoadingBlock, StatusPill, Tag } from '@/ui/kit';
 import { ManagedImage } from '@/ui/ManagedImage';
 
 export function ProductDetailPage() {
   const { id = '' } = useParams();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { showToast } = useToast();
   const me = useMyCompany();
@@ -45,8 +46,13 @@ export function ProductDetailPage() {
   if (product.isError || !product.data) {
     return (
       <>
-        <PageHeader title="Design" />
-        <ErrorState message="This design isn't available." />
+        <PageHeader title="Design" onBack={() => navigate(-1)} />
+        <div className="flex flex-col gap-3 px-4 pb-8">
+          <ErrorState message="This design isn't available." />
+          <Button fullWidth variant="secondary" onClick={() => navigate('/explore')}>
+            Go to Explore
+          </Button>
+        </div>
       </>
     );
   }

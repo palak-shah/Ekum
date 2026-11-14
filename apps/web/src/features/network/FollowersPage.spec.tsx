@@ -61,7 +61,7 @@ describe('FollowersPage inbox', () => {
       await screen.findByRole('checkbox', { name: 'They can see my collections' }),
     ).toHaveAttribute('aria-checked', 'true');
     expect(
-      screen.getByRole('checkbox', { name: 'They can share my collections' }),
+      screen.getByRole('checkbox', { name: 'They can repost my collections' }),
     ).toHaveAttribute('aria-checked', 'false');
     expect(screen.getByRole('button', { name: 'Allow' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Decline' })).toBeInTheDocument();
@@ -69,7 +69,7 @@ describe('FollowersPage inbox', () => {
     expect(screen.getByTestId('they-see-mine-asked')).toHaveTextContent('Asked · 1');
   });
 
-  it('shows see and share checks on Seeing packs, without Change', async () => {
+  it('shows see and repost checks on Seeing packs, without Change', async () => {
     vi.mocked(api.get).mockImplementation(async (path: string) => {
       if (path === '/follows/asks') return [];
       if (path === '/follows/followers') {
@@ -101,7 +101,7 @@ describe('FollowersPage inbox', () => {
       'aria-disabled',
       'true',
     );
-    expect(screen.getByRole('checkbox', { name: 'They can share my collections' })).toHaveAttribute(
+    expect(screen.getByRole('checkbox', { name: 'They can repost my collections' })).toHaveAttribute(
       'aria-checked',
       'false',
     );

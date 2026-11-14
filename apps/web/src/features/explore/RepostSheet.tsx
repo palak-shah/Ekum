@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   RateVisibility,
@@ -494,7 +495,18 @@ export function RepostSheet({
           ) : null}
 
           {packLocked ? (
-            <InlineNotice message="Open this collection first — designs aren’t visible to put in a collection yet." />
+            <div className="flex flex-col gap-2" data-testid="repost-pack-locked">
+              <InlineNotice message="Open this collection first — designs aren’t visible to put in a collection yet." />
+              {target?.kind === 'collection' ? (
+                <Link
+                  to={`/collections/${target.collectionId}`}
+                  className="text-sm font-emphasis text-accent"
+                  onClick={() => onClose()}
+                >
+                  Open collection · Ask to see
+                </Link>
+              ) : null}
+            </div>
           ) : null}
 
           {previewPending ? (
@@ -502,7 +514,18 @@ export function RepostSheet({
           ) : null}
 
           {previewFailed ? (
-            <InlineNotice message={previewErrorMessage} />
+            <div className="flex flex-col gap-2" data-testid="repost-preview-failed">
+              <InlineNotice message={previewErrorMessage} />
+              {target?.kind === 'collection' ? (
+                <Link
+                  to={`/collections/${target.collectionId}`}
+                  className="text-sm font-emphasis text-accent"
+                  onClick={() => onClose()}
+                >
+                  Open collection
+                </Link>
+              ) : null}
+            </div>
           ) : null}
 
           {noMembers ? (

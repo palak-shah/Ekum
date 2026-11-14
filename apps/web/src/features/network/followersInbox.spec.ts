@@ -45,6 +45,6 @@ describe('filterTheySeeMine', () => {
 describe('followAccessLabel', () => {
   it('uses trader copy', () => {
     expect(followAccessLabel('look')).toBe('They can see');
-    expect(followAccessLabel('pack')).toBe('They can share');
+    expect(followAccessLabel('pack')).toBe('They can repost');
   });
 });

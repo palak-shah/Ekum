@@ -25,6 +25,11 @@ export class ShareLinkController {
     return this.links.create(companyId, dto);
   }
 
+  @Post(':token/claim')
+  claim(@CurrentCompanyId() companyId: string, @Param('token') token: string) {
+    return this.links.claim(companyId, token);
+  }
+
   @Public()
   @Get(':token/card')
   @Header('Content-Type', 'text/html; charset=utf-8')

@@ -12,7 +12,7 @@ describe('FollowAskDecideRow', () => {
       'aria-checked',
       'true',
     );
-    expect(screen.getByRole('checkbox', { name: 'They can share my collections' })).toHaveAttribute(
+    expect(screen.getByRole('checkbox', { name: 'They can repost my collections' })).toHaveAttribute(
       'aria-checked',
       'false',
     );
@@ -20,11 +20,11 @@ describe('FollowAskDecideRow', () => {
     expect(onAllow).toHaveBeenCalledWith('look');
   });
 
-  it('Allows pack when they can share is checked', async () => {
+  it('Allows pack when they can repost is checked', async () => {
     const user = userEvent.setup();
     const onAllow = vi.fn();
     render(<FollowAskDecideRow onAllow={onAllow} onDecline={() => undefined} />);
-    await user.click(screen.getByRole('checkbox', { name: 'They can share my collections' }));
+    await user.click(screen.getByRole('checkbox', { name: 'They can repost my collections' }));
     await user.click(screen.getByRole('button', { name: 'Allow' }));
     expect(onAllow).toHaveBeenCalledWith('pack');
   });
@@ -36,14 +36,14 @@ describe('FollowAskDecideRow', () => {
     expect(screen.getByRole('button', { name: 'Allow' })).toBeDisabled();
   });
 
-  it('locks See and defaults Share on for an all-collections Share ask', async () => {
+  it('locks See and defaults Repost on for an all-collections Repost ask', async () => {
     const user = userEvent.setup();
     const onAllow = vi.fn();
     render(
       <FollowAskDecideRow kind="share" onAllow={onAllow} onDecline={() => undefined} />,
     );
     const see = screen.getByRole('checkbox', { name: 'They can see my collections' });
-    const share = screen.getByRole('checkbox', { name: 'They can share my collections' });
+    const share = screen.getByRole('checkbox', { name: 'They can repost my collections' });
     expect(see).toHaveAttribute('aria-checked', 'true');
     expect(see).toHaveAttribute('aria-disabled', 'true');
     expect(share).toHaveAttribute('aria-checked', 'true');

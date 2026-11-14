@@ -55,10 +55,8 @@ export function canDiscoverCollection(
   }
   const audience = effectivePublishAudience(collection.audience);
   if (audience === PublishAudience.Followers) {
-    // Non-empty ids = Direct Link buyers already auto-delivered — skip on Explore.
-    if (collection.audienceCompanyIds.includes(viewerCompanyId)) {
-      return false;
-    }
+    // Explore shelf still hides Direct Link buyers via audienceVisibilityOr NOT has.
+    // Detail / Place / Saved / share open use Allowed follow only.
     return ctx.following;
   }
   if (audience === PublishAudience.Selected) {

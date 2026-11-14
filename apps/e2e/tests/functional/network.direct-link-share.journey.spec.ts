@@ -77,7 +77,7 @@ async function ensureRaviFollowsMeena(page: Page, meenaToken: string): Promise<v
   });
 }
 
-test.describe('Direct Link Request share @functional @network', () => {
+test.describe('Direct Link Request repost @functional @network', () => {
   test.setTimeout(120_000);
 
   test('Look mill cannot be selected until Share is granted; revoke grays the row', async ({
@@ -97,14 +97,14 @@ test.describe('Direct Link Request share @functional @network', () => {
     await page.getByTestId('paths-new').click();
     await expect(page.getByRole('heading', { name: 'New Direct link' })).toBeVisible();
     const requestShare = page.getByTestId(KAVITA_REQUEST);
-    await expect(requestShare).toHaveText('Request share');
+    await expect(requestShare).toHaveText('Request repost');
     await requestShare.click();
     await expect(requestShare).toHaveText('Requested', { timeout: 10_000 });
 
     await loginAsKavita(page);
     await page.goto('/chats?inbox=requests');
     const millAsk = page.getByTestId(`chats-see-packs-ask-${MEENA}`);
-    await expect(millAsk.getByText('Wants to share all your collections')).toBeVisible({
+    await expect(millAsk.getByText('Wants to repost all your collections')).toBeVisible({
       timeout: 15_000,
     });
     await expect(
@@ -136,6 +136,6 @@ test.describe('Direct Link Request share @functional @network', () => {
     await loginAsMeena(page);
     await page.goto('/network/direct-links');
     await expect(page.getByTestId('direct-links-page')).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByText('Request share').first()).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText('Request repost').first()).toBeVisible({ timeout: 15_000 });
   });
 });

@@ -179,11 +179,12 @@ describe('ExploreService.collections follow-then-interest ranking', () => {
 });
 
 describe('ExploreService.collectionDetail trust rules', () => {
-  it('404s followers-audience collections without an allowed follow', async () => {
+  it('soft-shells followers-audience collections without an allowed follow (Ask UI)', async () => {
     const service = makeService(publishedCollection, { blocked: false, connected: false });
-    await expect(service.collectionDetail('viewer', 'col1')).rejects.toBeInstanceOf(
-      NotFoundException,
-    );
+    const view = await service.collectionDetail('viewer', 'col1');
+    expect(view.products).toBeNull();
+    expect(view.company.id).toBe('owner');
+    expect(view.coverImage).toBeNull();
   });
 
   it('unlocks the full product list once the viewer is an allowed follower', async () => {
@@ -196,6 +197,21 @@ describe('ExploreService.collectionDetail trust rules', () => {
     expect(view.connected).toBe(true);
     expect(view.products).toHaveLength(2);
     expect(view.description).toBe('Festive sets for Diwali counters.');
+  });
+
+  it('opens Followers-widened auto hops for Direct Link buyers who still follow', async () => {
+    const service = makeService(
+      {
+        ...publishedCollection,
+        audience: 'followers',
+        audienceCompanyIds: ['viewer'],
+      },
+      { blocked: false, connected: false },
+      { following: true },
+    );
+    const view = await service.collectionDetail('viewer', 'col1');
+    expect(view.products).toHaveLength(2);
+    expect(view.company.id).toBe('owner');
   });
 
   it('returns 404 to a blocked viewer, never a 403 that would confirm the block', async () => {
@@ -227,7 +243,7 @@ describe('ExploreService.collectionDetail trust rules', () => {
     expect(view.products?.[0]?.rate).toBeNull();
   });
 
-  it('404s selected-audience collections for companies not on the list', async () => {
+  it('soft-shells selected-audience collections for companies not on the list (Ask UI)', async () => {
     const service = makeService(
       {
         ...publishedCollection,
@@ -236,9 +252,9 @@ describe('ExploreService.collectionDetail trust rules', () => {
       },
       { blocked: false, connected: false },
     );
-    await expect(service.collectionDetail('viewer', 'col1')).rejects.toBeInstanceOf(
-      NotFoundException,
-    );
+    const view = await service.collectionDetail('viewer', 'col1');
+    expect(view.products).toBeNull();
+    expect(view.company.id).toBe('owner');
   });
 
   it('unlocks products for a company on the selected list', async () => {
@@ -383,26 +399,26 @@ describe('ExploreService.collectionDetail trust rules', () => {
     expect(view.description).toBe('Festive sets for Diwali counters.');
   });
 
-  it('still 404s a Followers pack with no follow and no chat share', async () => {
+  it('soft-shells a Followers pack with no follow and no chat share (Ask UI)', async () => {
     const service = makeService(
       { ...publishedCollection, audience: 'followers' },
       { blocked: false, connected: false },
       { sharedInChat: false, following: false },
     );
-    await expect(service.collectionDetail('viewer', 'col1')).rejects.toBeInstanceOf(
-      NotFoundException,
-    );
+    const view = await service.collectionDetail('viewer', 'col1');
+    expect(view.products).toBeNull();
+    expect(view.company.id).toBe('owner');
   });
 
-  it('404s a Followers pack after unfollow even when Connected', async () => {
+  it('soft-shells a Followers pack after unfollow even when Connected (Ask UI)', async () => {
     const service = makeService(
       { ...publishedCollection, audience: 'followers' },
       { blocked: false, connected: true },
       { sharedInChat: false, following: false },
     );
-    await expect(service.collectionDetail('viewer', 'col1')).rejects.toBeInstanceOf(
-      NotFoundException,
-    );
+    const view = await service.collectionDetail('viewer', 'col1');
+    expect(view.products).toBeNull();
+    expect(view.company.id).toBe('owner');
   });
 
   it('masks foreign member rates when source is on_request and viewer is not connected to source', async () => {

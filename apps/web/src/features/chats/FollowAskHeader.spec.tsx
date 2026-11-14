@@ -15,7 +15,7 @@ describe('FollowAskHeader', () => {
     expect(screen.getByTestId('follow-ask-why')).toHaveTextContent(SEE_PACKS_ASK_LINE);
   });
 
-  it('names all-collections Share on a Direct Link ask', () => {
+  it('names all-collections Repost on a Direct Link ask', () => {
     render(
       <MemoryRouter>
         <FollowAskHeader name="Yash Fabrics" logoUrl={null} kind="share" />

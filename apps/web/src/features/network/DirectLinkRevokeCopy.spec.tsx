@@ -16,10 +16,10 @@ describe('Direct Link revoke confirm copy', () => {
     );
   });
 
-  it('says Direct links go off when mill Share is revoked', () => {
+  it('says Direct links go off when mill Repost is revoked', () => {
     render(<DirectLinkRevokeCopy mode="off" />);
     expect(screen.getByTestId('direct-link-revoke-copy')).toHaveTextContent(
-      /go off until they can share/,
+      /go off until they can repost/,
     );
     expect(screen.getByTestId('direct-link-revoke-copy')).not.toHaveTextContent(/remove the affected/);
   });

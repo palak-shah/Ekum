@@ -1128,10 +1128,21 @@ export function CollectionViewerPage() {
     return <LoadingBlock label="Loading collection…" />;
   }
   if (collection.isError || !collection.data) {
+    const apiMessage =
+      collection.error instanceof ApiError ? collection.error.message.trim() : '';
+    const unavailableMessage =
+      apiMessage && apiMessage.toLowerCase() !== 'not found'
+        ? apiMessage
+        : "This collection isn't available.";
     return (
       <>
-        <PageHeader title="Collection" />
-        <ErrorState message="This collection isn't available." />
+        <PageHeader title="Collection" onBack={() => navigate(-1)} />
+        <div className="flex flex-col gap-3 px-4 pb-8">
+          <ErrorState message={unavailableMessage} />
+          <Button fullWidth variant="secondary" onClick={() => navigate('/explore')}>
+            Go to Explore
+          </Button>
+        </div>
       </>
     );
   }

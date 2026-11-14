@@ -1,6 +1,7 @@
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { MEDIA_VARIANT, type ShareLinkView } from '@ekum/domain-types';
+import { MEDIA_VARIANT, type ShareLinkClaimView, type ShareLinkView } from '@ekum/domain-types';
 import { designSetPath } from '@/features/browse/designSetPath';
 import { DesignAlbumGrid } from '@/features/chats/DesignAlbumGrid';
 import { api } from '@/lib/apiClient';
@@ -10,7 +11,7 @@ import { toAbsoluteMediaUrl } from '@/lib/mediaUrl';
 import { Button, ErrorState, LoadingBlock } from '@/ui/kit';
 import { ManagedImage } from '@/ui/ManagedImage';
 
-function viewerPath(data: ShareLinkView): string {
+function fallbackViewerPath(data: ShareLinkView): string {
   if (data.kind === 'collection') return `/collections/${data.targetId}`;
   if (data.kind === 'designs') {
     return designSetPath(data.designs.map((d) => d.id));
@@ -28,6 +29,9 @@ export function ShareLinkLandingPage() {
   const { token = '' } = useParams();
   const navigate = useNavigate();
   const { status, session } = useAuth();
+  const claimed = useRef(false);
+  const [claimError, setClaimError] = useState(false);
+  const [claiming, setClaiming] = useState(false);
 
   const link = useQuery({
     queryKey: ['share-link', token],
@@ -41,7 +45,29 @@ export function ShareLinkLandingPage() {
     navigate('/login', { state: { from: returnTo } });
   };
 
-  if (status === 'loading' || link.isLoading) {
+  const authenticated =
+    status === 'authenticated' && session && !session.needsOnboarding;
+
+  useEffect(() => {
+    if (!authenticated || !token || claimed.current || link.isLoading || link.isError) {
+      return;
+    }
+    if (!link.data || link.data.expired) return;
+    claimed.current = true;
+    setClaiming(true);
+    void (async () => {
+      try {
+        const result = await api.post<ShareLinkClaimView>(`/share-links/${token}/claim`);
+        navigate(result.path || fallbackViewerPath(link.data), { replace: true });
+      } catch {
+        setClaimError(true);
+        setClaiming(false);
+        claimed.current = false;
+      }
+    })();
+  }, [authenticated, token, link.isLoading, link.isError, link.data, navigate]);
+
+  if (status === 'loading' || link.isLoading || (authenticated && claiming && !claimError)) {
     return <LoadingBlock label="Opening…" />;
   }
 
@@ -49,19 +75,35 @@ export function ShareLinkLandingPage() {
     return (
       <div className="mx-auto flex min-h-full w-full max-w-md flex-col bg-canvas px-4 pb-10 pt-[max(1.5rem,env(safe-area-inset-top))]">
         <ErrorState message="This link has expired." />
+        <Button className="mt-4" fullWidth variant="secondary" onClick={() => navigate('/explore')}>
+          Go to Explore
+        </Button>
       </div>
     );
   }
 
   const data = link.data;
-  const authenticated =
-    status === 'authenticated' && session && !session.needsOnboarding;
 
   if (status === 'authenticated' && session?.needsOnboarding) {
     return <Navigate to="/onboarding" replace state={{ from: `/s/${token}` }} />;
   }
+
+  if (authenticated && claimError) {
+    return (
+      <div className="mx-auto flex min-h-full w-full max-w-md flex-col bg-canvas px-4 pb-10 pt-[max(1.5rem,env(safe-area-inset-top))]">
+        <ErrorState message="Couldn’t open this link." />
+        <Button className="mt-4" fullWidth onClick={() => navigate(fallbackViewerPath(data), { replace: true })}>
+          Try opening anyway
+        </Button>
+        <Button className="mt-2" fullWidth variant="secondary" onClick={() => navigate('/explore')}>
+          Go to Explore
+        </Button>
+      </div>
+    );
+  }
+
   if (authenticated) {
-    return <Navigate to={viewerPath(data)} replace />;
+    return <LoadingBlock label="Opening…" />;
   }
 
   return (

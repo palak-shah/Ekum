@@ -22,7 +22,7 @@ describe('followAskDecide', () => {
     expect(followAskAllowDecision({ see: false, share: true })).toBe('pack');
   });
 
-  it('Share upgrade starts with see and share on', () => {
+  it('Repost upgrade starts with see and share on', () => {
     expect(followAskGrantsForKind('share')).toEqual({ see: true, share: true });
     expect(followAskAllowDecision(followAskGrantsForKind('share'))).toBe('pack');
   });

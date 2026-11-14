@@ -217,12 +217,12 @@ describe('ChatsPage tabs', () => {
       screen.getByRole('checkbox', { name: 'They can see my collections' }),
     ).toHaveAttribute('aria-checked', 'true');
     expect(
-      screen.getByRole('checkbox', { name: 'They can share my collections' }),
+      screen.getByRole('checkbox', { name: 'They can repost my collections' }),
     ).toHaveAttribute('aria-checked', 'false');
     expect(screen.getByRole('button', { name: 'Allow' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Decline' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'They can see' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'They can share' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'They can repost' })).toBeNull();
   });
 });
 
