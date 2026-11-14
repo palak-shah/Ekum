@@ -209,6 +209,7 @@ import { MUTE_FOR_OPTIONS } from './ChatMuteDurationFlyout';
 import { ChatMentionPicker } from './ChatMentionPicker';
 import { highlightMentionText } from './chatMentions';
 import { threadMoreMenuOrder, type ThreadMoreMenuId } from './threadMoreMenuOrder';
+import { staysOnThreadAfterInboxAction } from './threadInboxStay';
 
 type AttachStep = 'menu' | 'product' | 'collection' | 'order';
 
@@ -1102,17 +1103,17 @@ export function ThreadPage() {
       void queryClient.invalidateQueries({ queryKey: ['threads', 'unread-count'] });
       void queryClient.invalidateQueries({ queryKey: ['thread', id] });
       void queryClient.invalidateQueries({ queryKey: ['thread', id, 'messages'] });
-      if (action === 'clear') {
-        showToast('Chat cleared');
-        return;
-      }
       showToast(
-        action === 'archive'
-          ? 'Chat archived'
+        action === 'clear'
+          ? 'Chat cleared'
           : action === 'unread'
             ? 'Marked unread'
-            : 'Chat deleted',
+            : action === 'archive'
+              ? 'Chat archived'
+              : 'Chat deleted',
       );
+      // Clear / unread stay; archive / delete leave the conversation.
+      if (staysOnThreadAfterInboxAction(action)) return;
       navigate(chatsInboxHref());
     },
     onError: (err) => {

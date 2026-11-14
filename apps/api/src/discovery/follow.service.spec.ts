@@ -2,7 +2,13 @@ import { describe, expect, it, vi } from 'vitest';
 import { FollowService } from './follow.service';
 import type { PrismaService } from '../core/prisma/prisma.service';
 import type { VisibilityService } from '../access/visibility.service';
+import type { ThreadService } from '../conversation/thread.service';
 import type { DiscoverySerializer } from './discovery.serializer';
+
+/** Stub ThreadService — FollowService requires it (Accept follow must not silently skip Direct). */
+const noopThreads = {
+  findDirectThreadId: async () => null,
+} as unknown as ThreadService;
 
 function setup(options: {
   target: { id: string } | null;
@@ -22,7 +28,7 @@ function setup(options: {
   } as unknown as PrismaService;
   const visibility = { isBlocked: async () => options.blocked } as unknown as VisibilityService;
   const serializer = {} as unknown as DiscoverySerializer;
-  return { service: new FollowService(prisma, visibility, serializer), create };
+  return { service: new FollowService(prisma, visibility, serializer, noopThreads), create };
 }
 
 describe('FollowService.follow', () => {
@@ -93,7 +99,7 @@ describe('FollowService.follow', () => {
       },
     } as unknown as PrismaService;
     const visibility = { isBlocked: async () => false } as unknown as VisibilityService;
-    const service = new FollowService(prisma, visibility, {} as DiscoverySerializer);
+    const service = new FollowService(prisma, visibility, {} as DiscoverySerializer, noopThreads);
     await expect(service.follow('me', 'target')).resolves.toEqual({
       following: false,
       pending: true,
@@ -121,6 +127,7 @@ describe('FollowService.unfollow', () => {
       prisma,
       {} as VisibilityService,
       {} as DiscoverySerializer,
+    noopThreads,
     );
     await expect(service.unfollow('me', 'shop')).resolves.toEqual({
       following: false,
@@ -149,7 +156,7 @@ describe('FollowService.unfollow', () => {
       prisma,
       {} as VisibilityService,
       {} as DiscoverySerializer,
-      threads as never,
+      threads as unknown as ThreadService,
     );
     await service.unfollow('trader', 'mill');
     expect(create).toHaveBeenCalledWith(
@@ -187,6 +194,7 @@ describe('FollowService.decide', () => {
       prisma,
       {} as VisibilityService,
       {} as DiscoverySerializer,
+    noopThreads,
     );
     await expect(service.decide('shop', 'me', 'look')).resolves.toEqual({ ok: true });
     expect(update).toHaveBeenCalled();
@@ -211,6 +219,7 @@ describe('FollowService.decide', () => {
       prisma,
       {} as VisibilityService,
       {} as DiscoverySerializer,
+    noopThreads,
     );
     await expect(service.decide('shop', 'me', 'deny')).resolves.toEqual({ ok: true });
     expect(del).toHaveBeenCalledWith({ where: { id: 'f1' } });
@@ -236,6 +245,7 @@ describe('FollowService.decide', () => {
       prisma,
       {} as VisibilityService,
       {} as DiscoverySerializer,
+    noopThreads,
     );
     await expect(service.decide('shop', 'me', 'deny')).resolves.toEqual({ ok: true });
     expect(del).not.toHaveBeenCalled();
@@ -268,6 +278,7 @@ describe('FollowService.decide', () => {
       prisma,
       {} as VisibilityService,
       {} as DiscoverySerializer,
+    noopThreads,
     );
     await expect(service.decide('shop', 'me', 'look')).resolves.toEqual({ ok: true });
     expect(update).toHaveBeenCalledWith({
@@ -309,9 +320,11 @@ describe('FollowService.decide', () => {
       prisma,
       {} as VisibilityService,
       {} as DiscoverySerializer,
-      threads as never,
+      threads as unknown as ThreadService,
     );
     await expect(service.decide('shop', 'me', 'look')).resolves.toEqual({ ok: true });
+    // Must resolve Direct via ThreadService — never optional-skip Accept → Active.
+    expect(threads.findDirectThreadId).toHaveBeenCalledWith('shop', 'me');
     expect(updateMany).toHaveBeenCalledWith({
       where: {
         threadId: 'thread-pending',
@@ -345,6 +358,7 @@ describe('FollowService.decide', () => {
       prisma,
       {} as VisibilityService,
       {} as DiscoverySerializer,
+    noopThreads,
     );
     await expect(service.decide('shop', 'me', 'look')).resolves.toEqual({ ok: true });
     expect(connectionUpsert).not.toHaveBeenCalled();
@@ -370,6 +384,7 @@ describe('FollowService.decide', () => {
       prisma,
       {} as VisibilityService,
       {} as DiscoverySerializer,
+    noopThreads,
     );
     await expect(service.decide('mill', 'trader', 'pack')).resolves.toEqual({ ok: true });
     expect(update).toHaveBeenCalledWith({
@@ -398,6 +413,7 @@ describe('FollowService.decide', () => {
       prisma,
       {} as VisibilityService,
       {} as DiscoverySerializer,
+    noopThreads,
     );
     await expect(service.decide('mill', 'trader', 'look')).resolves.toEqual({ ok: true });
     expect(update).toHaveBeenCalledWith({
@@ -428,7 +444,7 @@ describe('FollowService.decide', () => {
       prisma,
       {} as VisibilityService,
       {} as DiscoverySerializer,
-      threads as never,
+      threads as unknown as ThreadService,
     );
     await expect(service.decide('mill', 'trader', 'deny')).resolves.toEqual({ ok: true });
     expect(update).toHaveBeenCalledWith({
@@ -460,6 +476,7 @@ describe('FollowService.listFollowers', () => {
       prisma,
       {} as VisibilityService,
       { toCompanyCard } as unknown as DiscoverySerializer,
+    noopThreads,
     );
     await expect(service.listFollowers('shop')).resolves.toEqual([
       {
@@ -499,7 +516,7 @@ describe('FollowService.requestShare', () => {
       },
     } as unknown as PrismaService;
     const visibility = { isBlocked: async () => false } as unknown as VisibilityService;
-    const service = new FollowService(prisma, visibility, {} as DiscoverySerializer);
+    const service = new FollowService(prisma, visibility, {} as DiscoverySerializer, noopThreads);
     await expect(service.requestShare('trader', 'mill')).resolves.toEqual({
       following: true,
       pending: false,
@@ -526,7 +543,7 @@ describe('FollowService.requestShare', () => {
       },
     } as unknown as PrismaService;
     const visibility = { isBlocked: async () => false } as unknown as VisibilityService;
-    const service = new FollowService(prisma, visibility, {} as DiscoverySerializer);
+    const service = new FollowService(prisma, visibility, {} as DiscoverySerializer, noopThreads);
     await expect(service.requestShare('trader', 'mill')).resolves.toEqual({
       following: false,
       pending: true,
@@ -565,6 +582,7 @@ describe('FollowService.listAsks', () => {
       prisma,
       {} as VisibilityService,
       { toCompanyCard } as unknown as DiscoverySerializer,
+    noopThreads,
     );
     await expect(service.listAsks('mill')).resolves.toEqual([
       {
@@ -610,6 +628,7 @@ describe('FollowService.listAsks', () => {
       prisma,
       {} as VisibilityService,
       { toCompanyCard } as unknown as DiscoverySerializer,
+    noopThreads,
     );
     await expect(service.listAsks('mill')).resolves.toEqual([
       {

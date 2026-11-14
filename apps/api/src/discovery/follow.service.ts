@@ -4,7 +4,6 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
-  Optional,
 } from '@nestjs/common';
 import {
   FollowAccessKind as FollowAccessKindDto,
@@ -32,7 +31,8 @@ export class FollowService {
     private readonly prisma: PrismaService,
     private readonly visibility: VisibilityService,
     private readonly serializer: DiscoverySerializer,
-    @Optional() private readonly threads?: ThreadService,
+    /** Required: Accept follow must activate Pending/Archived Direct (no silent skip). */
+    private readonly threads: ThreadService,
   ) {}
 
   /** Ask to follow — never auto-allow. */
@@ -303,7 +303,7 @@ export class FollowService {
     shopCompanyId: string,
     counterpartCompanyId: string,
   ): Promise<void> {
-    const threadId = await this.threads?.findDirectThreadId(shopCompanyId, counterpartCompanyId);
+    const threadId = await this.threads.findDirectThreadId(shopCompanyId, counterpartCompanyId);
     if (!threadId) return;
     await this.prisma.threadParticipant.updateMany({
       where: {
@@ -352,7 +352,7 @@ export class FollowService {
   }
 
   private async notifyShareOff(millCompanyId: string, traderCompanyId: string): Promise<void> {
-    const threadId = await this.threads?.findDirectThreadId(millCompanyId, traderCompanyId);
+    const threadId = await this.threads.findDirectThreadId(millCompanyId, traderCompanyId);
     if (!threadId) return;
     await this.prisma.message.create({
       data: {
