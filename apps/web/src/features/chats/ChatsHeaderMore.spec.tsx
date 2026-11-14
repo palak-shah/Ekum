@@ -55,6 +55,7 @@ describe('ChatsHeaderMore', () => {
     expect(screen.getByRole('heading', { name: 'Chats' })).toBeInTheDocument();
     expect(screen.getByTestId('chats-starred')).toBeInTheDocument();
     expect(screen.getByTestId('chats-archived')).toBeInTheDocument();
+    expect(screen.getByTestId('chats-blocked')).toBeInTheDocument();
     expect(screen.getByTestId('chats-mark-all-read')).toBeInTheDocument();
     expect(screen.queryByTestId('chats-select')).toBeNull();
     expect(screen.getByTestId('chats-invite-connect')).toHaveTextContent('Invite to connect');

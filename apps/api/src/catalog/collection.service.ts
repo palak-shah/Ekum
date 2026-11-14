@@ -664,6 +664,9 @@ export class CollectionService {
     });
     const relistGrantedIds = await this.relistGrantedProductIds(companyId, products);
     const lookOnlyOwnerIds = await this.lookOnlyOwnerIds(companyId, products);
+    const sourcePackAudience = await this.sourcePackAudience(
+      existing.repostSourceCollectionId as string | null | undefined,
+    );
     assertProductsCuratable({
       curatorCompanyId: companyId,
       products,
@@ -671,6 +674,7 @@ export class CollectionService {
       discoverableIds,
       relistGrantedIds,
       lookOnlyOwnerIds,
+      sourcePackAudience,
     });
 
     const rateVisibility = curatedPublishRateVisibility({
@@ -858,6 +862,7 @@ export class CollectionService {
     });
     const relistGrantedIds = await this.relistGrantedProductIds(companyId, products);
     const lookOnlyOwnerIds = await this.lookOnlyOwnerIds(companyId, products);
+    const sourcePackAudience = await this.sourcePackAudience(opts?.sourceCollectionId);
     for (const product of products) {
       try {
         assertProductsCuratable({
@@ -866,6 +871,7 @@ export class CollectionService {
           discoverableIds,
           relistGrantedIds,
           lookOnlyOwnerIds,
+          sourcePackAudience,
         });
         allowedProductIds.push(product.id);
       } catch (err) {
@@ -1049,17 +1055,21 @@ export class CollectionService {
     const newlyAddedIds = uniqueIds.filter((productId) => !previousIds.has(productId));
     const addedProducts = products.filter((product) => newlyAddedIds.includes(product.id));
     if (addedProducts.length > 0) {
+      const sourceCollectionId =
+        opts?.sourceCollectionId ?? (existing.repostSourceCollectionId as string | null | undefined);
       const discoverableIds = await this.discoverableProductIds(companyId, addedProducts, {
-        sourceCollectionId: opts?.sourceCollectionId ?? existing.repostSourceCollectionId,
+        sourceCollectionId,
       });
       const relistGrantedIds = await this.relistGrantedProductIds(companyId, addedProducts);
       const lookOnlyOwnerIds = await this.lookOnlyOwnerIds(companyId, addedProducts);
+      const sourcePackAudience = await this.sourcePackAudience(sourceCollectionId);
       assertProductsCuratable({
         curatorCompanyId: companyId,
         products: addedProducts,
         discoverableIds,
         relistGrantedIds,
         lookOnlyOwnerIds,
+        sourcePackAudience,
       });
     }
 
@@ -1483,7 +1493,19 @@ export class CollectionService {
     }
   }
 
-  /** Allowed look follow and not Connected — cannot curate that seller. */
+  private async sourcePackAudience(
+    sourceCollectionId: string | null | undefined,
+  ): Promise<string | undefined> {
+    const id = sourceCollectionId?.trim();
+    if (!id) return undefined;
+    const pack = await this.prisma.collection.findUnique({
+      where: { id },
+      select: { audience: true },
+    });
+    return pack?.audience;
+  }
+
+  /** Allowed look follow — cannot curate that seller (Connection does not unlock). */
   private async lookOnlyOwnerIds(
     curatorCompanyId: string,
     products: ProductCeilingRow[],
@@ -1495,33 +1517,16 @@ export class CollectionService {
     ];
     if (ownerIds.length === 0) return new Set();
 
-    const [follows, connections] = await Promise.all([
-      this.prisma.follow.findMany({
-        where: {
-          followerCompanyId: curatorCompanyId,
-          followedCompanyId: { in: ownerIds },
-          status: 'allowed',
-          accessKind: FollowAccessKind.Look,
-        },
-        select: { followedCompanyId: true },
-      }),
-      this.prisma.connection.findMany({
-        where: {
-          status: ConnectionStatus.Active,
-          OR: [
-            { companyLowId: curatorCompanyId, companyHighId: { in: ownerIds } },
-            { companyHighId: curatorCompanyId, companyLowId: { in: ownerIds } },
-          ],
-        },
-        select: { companyLowId: true, companyHighId: true },
-      }),
-    ]);
-    const connected = new Set(
-      connections.map((row) => counterpartCompanyId(curatorCompanyId, row)),
-    );
-    return new Set(
-      follows.map((row) => row.followedCompanyId).filter((id) => !connected.has(id)),
-    );
+    const follows = await this.prisma.follow.findMany({
+      where: {
+        followerCompanyId: curatorCompanyId,
+        followedCompanyId: { in: ownerIds },
+        status: 'allowed',
+        accessKind: FollowAccessKind.Look,
+      },
+      select: { followedCompanyId: true },
+    });
+    return new Set(follows.map((row) => row.followedCompanyId));
   }
 
   /** Product ids with a ProductRelistGrant OR open via another company's pack allow. */

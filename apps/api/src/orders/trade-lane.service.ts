@@ -21,7 +21,7 @@ import {
   removeDirectLinkBuyer,
   unionDirectLinkBuyer,
 } from '../catalog/direct-link-repost-audience';
-import { millShareActive, millShareActiveSet } from './mill-share';
+import { buyerFollowsTrader, millShareActive, millShareActiveSet } from './mill-share';
 import { DEFAULT_LANE_BEHAVIORS, effectivePathFromLane, laneBehaviorsFromJson } from './trade-lane';
 import { findAffectedDirectLinks, revokeAffectedDirectLinks } from './trade-lane-revoke';
 
@@ -198,7 +198,9 @@ export class TradeLaneService {
     });
     if (effectivePathFromLane(lane?.ticket) !== 'direct') return 'handle';
     const share = await millShareActive(this.prisma, traderCompanyId, sellerCompanyId);
-    return share ? 'direct' : 'handle';
+    if (!share) return 'handle';
+    const buyerFollows = await buyerFollowsTrader(this.prisma, buyerCompanyId, traderCompanyId);
+    return buyerFollows ? 'direct' : 'handle';
   }
 
   async previewAffected(

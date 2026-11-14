@@ -62,6 +62,7 @@ const ReturnsPage = page(() => import('@/features/orders/ReturnsPage'), 'Returns
 const ChatsPage = page(() => import('@/features/chats/ChatsPage'), 'ChatsPage');
 const ChatFindPage = page(() => import('@/features/chats/ChatFindPage'), 'ChatFindPage');
 const ArchivedChatsPage = page(() => import('@/features/chats/ArchivedChatsPage'), 'ArchivedChatsPage');
+const BlockedChatsPage = page(() => import('@/features/chats/BlockedChatsPage'), 'BlockedChatsPage');
 const ThreadPage = page(() => import('@/features/chats/ThreadPage'), 'ThreadPage');
 const GroupInfoPage = page(() => import('@/features/chats/GroupInfoPage'), 'GroupInfoPage');
 const GroupInviteLandingPage = page(
@@ -243,6 +244,7 @@ export const router = createBrowserRouter([
               { path: 'chats', element: <ChatsPage /> },
               { path: 'chats/find', element: <ChatFindPage /> },
               { path: 'chats/archived', element: <ArchivedChatsPage /> },
+              { path: 'chats/blocked', element: <BlockedChatsPage /> },
               { path: 'chats/starred', element: <StarredMessagesPage /> },
               { path: 'chats/:id', element: <ThreadPage /> },
               { path: 'chats/:id/info', element: <GroupInfoPage /> },

@@ -112,7 +112,7 @@ test.describe('Direct Link Request repost @functional @network', () => {
         'They can put your collections in their catalog and send them to their buyers.',
       ),
     ).toBeVisible();
-    await millAsk.getByRole('button', { name: 'Allow' }).click();
+    await millAsk.getByRole('button', { name: 'Accept' }).click();
     await expect(page.getByTestId(`chats-see-packs-ask-${MEENA}`)).toHaveCount(0, {
       timeout: 10_000,
     });

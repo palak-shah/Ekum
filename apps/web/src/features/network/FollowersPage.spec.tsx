@@ -49,22 +49,19 @@ describe('FollowersPage inbox', () => {
     });
   });
 
-  it('shows see-collections checkbox plus Allow / Decline on asked rows', async () => {
+  it('shows Allow Repost plus Accept / Reject on asked rows', async () => {
     renderPage('/network/followers');
     expect(await screen.findByRole('heading', { name: 'They see mine' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Asked' })).toBeNull();
     expect(await screen.findByTestId('follow-ask-row')).toBeInTheDocument();
-    expect(screen.getByTestId('follow-ask-why')).toHaveTextContent(
-      'Wants to see your new collections',
+    expect(screen.getByTestId('follow-ask-why')).toHaveTextContent('Wants to see your collections');
+    expect(screen.queryByRole('checkbox', { name: 'They can see my collections' })).toBeNull();
+    expect(screen.getByRole('checkbox', { name: 'Allow Repost' })).toHaveAttribute(
+      'aria-checked',
+      'false',
     );
-    expect(
-      await screen.findByRole('checkbox', { name: 'They can see my collections' }),
-    ).toHaveAttribute('aria-checked', 'true');
-    expect(
-      screen.getByRole('checkbox', { name: 'They can repost my collections' }),
-    ).toHaveAttribute('aria-checked', 'false');
-    expect(screen.getByRole('button', { name: 'Allow' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Decline' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Accept' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Reject' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'All' })).toBeInTheDocument();
     expect(screen.getByTestId('they-see-mine-asked')).toHaveTextContent('Asked · 1');
   });
@@ -178,7 +175,7 @@ describe('FollowersPage inbox', () => {
     renderPage('/network/followers');
     expect(await screen.findByRole('heading', { name: 'They see mine' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Asked' })).toBeNull();
-    expect(await screen.findByRole('button', { name: 'Allow' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Accept' })).toBeInTheDocument();
     expect(screen.getByText('Surat Silk House')).toBeInTheDocument();
     const ask = screen.getByTestId('follow-ask-row');
     const seeing = screen.getByTestId('follow-allowed-row-c-see');

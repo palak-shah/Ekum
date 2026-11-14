@@ -17,7 +17,7 @@ import {
   categoryDisplayLabel,
 } from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
-import { seePacksShopLabel, shopWriteLabel } from './seePacksCopy';
+import { seePacksShopLabel, shopWriteLabel, UNBLOCK_ACCESS_CLEARED_TOAST } from './seePacksCopy';
 import { shopShelfLoading } from './shopShelfLoading';
 import {
   ChatIcon,
@@ -203,11 +203,13 @@ export function CompanyProfilePage() {
     (following.data?.some((item) => item.id === id) ?? false);
   const isFollowPending = profile.data?.followPending === true;
   const directThread = findDirectThreadForCompany(threads.data?.results, id);
+  const canUnblock = connection?.canUnblock === true;
   const overflowItems = shopOverflowItems({
     isOwn,
     hasDirectThread: Boolean(directThread),
     followPending: isFollowPending,
     following: isFollowing,
+    canUnblock,
   });
 
   const contacts = useQuery({
@@ -364,18 +366,33 @@ export function CompanyProfilePage() {
   const blockShop = useMutation({
     mutationFn: async () => {
       await api.post(`/connections/company/${id}/block`, {});
-      if (directThread) {
-        await api.post(`/threads/${directThread.id}/decline`, {});
-      }
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['threads'] });
       void queryClient.invalidateQueries({ queryKey: ['connections'] });
+      void queryClient.invalidateQueries({ queryKey: ['follows'] });
+      void queryClient.invalidateQueries({ queryKey: ['trade-lanes'] });
       showToast('Blocked');
       navigate(-1);
     },
     onError: (error) =>
       showToast(error instanceof ApiError ? error.message : 'Could not block this shop.', 'danger'),
+  });
+
+  const unblockShop = useMutation({
+    mutationFn: async () => {
+      if (!connection?.id) throw new Error('No connection');
+      await api.post(`/connections/${connection.id}/unblock`, {});
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['connections'] });
+      void queryClient.invalidateQueries({ queryKey: ['follows'] });
+      void queryClient.invalidateQueries({ queryKey: ['trade-lanes'] });
+      showToast(UNBLOCK_ACCESS_CLEARED_TOAST);
+      setMoreOpen(false);
+    },
+    onError: (error) =>
+      showToast(error instanceof ApiError ? error.message : 'Could not unblock this shop.', 'danger'),
   });
 
   const placeShopOrder = useMutation({
@@ -489,6 +506,7 @@ export function CompanyProfilePage() {
                   }
                   blockShop.mutate();
                 }}
+                onUnblock={() => unblockShop.mutate()}
                 onRemove={() => toggleFollow.mutate()}
               />
             </div>

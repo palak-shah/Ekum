@@ -67,7 +67,7 @@ describe('ChatsPage tabs', () => {
 
     const allChip = await screen.findByRole('button', { name: 'All' });
     expect(allChip).toBeInTheDocument();
-    expect(allChip.className).toContain('bg-foam');
+    expect(allChip.className).toContain('bg-chip-on');
     expect(allChip.className).not.toContain('border-accent');
     expect(screen.getByRole('button', { name: /Requests/ })).toBeInTheDocument();
     expect(screen.queryByTestId('chats-more')).toBeNull();
@@ -212,17 +212,14 @@ describe('ChatsPage tabs', () => {
     });
     renderPage();
     await user.click(await screen.findByRole('button', { name: /Requests/ }));
-    expect(await screen.findByText('Wants to see your new collections')).toBeInTheDocument();
-    expect(
-      screen.getByRole('checkbox', { name: 'They can see my collections' }),
-    ).toHaveAttribute('aria-checked', 'true');
-    expect(
-      screen.getByRole('checkbox', { name: 'They can repost my collections' }),
-    ).toHaveAttribute('aria-checked', 'false');
-    expect(screen.getByRole('button', { name: 'Allow' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Decline' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'They can see' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'They can repost' })).toBeNull();
+    expect(await screen.findByText('Wants to see your collections')).toBeInTheDocument();
+    expect(screen.queryByRole('checkbox', { name: 'They can see my collections' })).toBeNull();
+    expect(screen.getByRole('checkbox', { name: 'Allow Repost' })).toHaveAttribute(
+      'aria-checked',
+      'false',
+    );
+    expect(screen.getByRole('button', { name: 'Accept' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Reject' })).toBeInTheDocument();
   });
 });
 

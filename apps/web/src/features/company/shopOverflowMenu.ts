@@ -5,15 +5,21 @@ export type ShopOverflowFlags = {
   hasDirectThread: boolean;
   followPending: boolean;
   following: boolean;
+  /** Blocker-only: connection is Blocked and we may Unblock. */
+  canUnblock?: boolean;
 };
 
-export type ShopOverflowItem = 'share' | 'mute' | 'block' | 'remove';
+export type ShopOverflowItem = 'share' | 'mute' | 'block' | 'unblock' | 'remove';
 
 export function shopOverflowItems(flags: ShopOverflowFlags): ShopOverflowItem[] {
   if (flags.isOwn) return ['share'];
   const items: ShopOverflowItem[] = ['share'];
   if (flags.hasDirectThread) items.push('mute');
-  items.push('block');
+  if (flags.canUnblock) {
+    items.push('unblock');
+  } else {
+    items.push('block');
+  }
   if (flags.followPending || flags.following) items.push('remove');
   return items;
 }

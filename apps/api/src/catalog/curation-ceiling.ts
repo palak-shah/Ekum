@@ -24,9 +24,23 @@ export type AssertProductsCuratableInput = {
   discoverableIds?: Set<string>;
   /** Product ids with a ProductRelistGrant for the curator (Slice B). */
   relistGrantedIds?: Set<string>;
-  /** Foreign owners with look-only follow and no Connection — cannot curate. */
+  /**
+   * Foreign owners with allowed look follow — cannot curate (Connection does not unlock).
+   * Everyone + allowForward (or grant) still skips FOLLOW_LOOK_ONLY.
+   */
   lookOnlyOwnerIds?: Set<string>;
+  /** When Reposting a pack, use the source collection audience for look-only exemption. */
+  sourcePackAudience?: string;
 };
+
+function skipsLookOnlyBlock(
+  product: CuratableProduct,
+  granted: boolean,
+  sourcePackAudience?: string,
+): boolean {
+  const audience = sourcePackAudience ?? product.audience;
+  return audience === 'everyone' && (product.allowForward || granted);
+}
 
 export function audienceRank(audience: string): number {
   const rank = AUDIENCE_RANK[audience];
@@ -51,6 +65,7 @@ export function assertProductsCuratable(input: AssertProductsCuratableInput): vo
     discoverableIds,
     relistGrantedIds,
     lookOnlyOwnerIds,
+    sourcePackAudience,
   } = input;
 
   for (const product of products) {
@@ -58,14 +73,18 @@ export function assertProductsCuratable(input: AssertProductsCuratableInput): vo
       continue;
     }
 
-    if (lookOnlyOwnerIds?.has(product.companyId) === true) {
+    const granted = relistGrantedIds?.has(product.id) === true;
+
+    if (
+      lookOnlyOwnerIds?.has(product.companyId) === true &&
+      !skipsLookOnlyBlock(product, granted, sourcePackAudience)
+    ) {
       throw new BadRequestException({
         code: 'FOLLOW_LOOK_ONLY',
         message: "They haven't allowed putting their designs in a collection.",
       });
     }
 
-    const granted = relistGrantedIds?.has(product.id) === true;
     if (!product.allowForward && !granted) {
       throw new BadRequestException({
         code: 'RELIST_NOT_ALLOWED',

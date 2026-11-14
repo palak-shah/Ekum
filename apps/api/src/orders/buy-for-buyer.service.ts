@@ -35,7 +35,7 @@ import { OrderService } from './order.service';
 import { OrderTrailService } from './order-trail.service';
 import { OrderAuditService, auditQtyNumber } from './order-audit.service';
 import { groupForBuyerLines } from './for-buyer-groups';
-import { millShareActive } from './mill-share';
+import { buyerFollowsTrader, millShareActive } from './mill-share';
 import { effectivePathFromLane, trioMillLaneWhere } from './trade-lane';
 import { phoneDigits, phoneVariants } from './order-invite-claim';
 
@@ -548,7 +548,9 @@ export class BuyForBuyerService {
     });
     if (effectivePathFromLane(lane?.ticket) !== 'direct') return 'handle';
     const millPack = await millShareActive(this.prisma, traderCompanyId, millCompanyId);
-    return millPack ? 'direct' : 'handle';
+    if (!millPack) return 'handle';
+    const buyerFollows = await buyerFollowsTrader(this.prisma, buyerCompanyId, traderCompanyId);
+    return buyerFollows ? 'direct' : 'handle';
   }
 
   private async resolveBuyer(

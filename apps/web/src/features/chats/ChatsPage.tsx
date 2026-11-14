@@ -398,16 +398,15 @@ export function ChatsPage() {
           onBlock={
             menuThread.counterpart
               ? () => {
-                  const id = menuThread.id;
                   const companyId = menuThread.counterpart!.id;
                   setMenuThread(null);
                   setMenuAnchor(null);
                   void (async () => {
                     try {
                       await api.post(`/connections/company/${companyId}/block`, {});
-                      await api.post(`/threads/${id}/decline`, {});
                       void queryClient.invalidateQueries({ queryKey: ['threads'] });
                       void queryClient.invalidateQueries({ queryKey: ['connections'] });
+                      void queryClient.invalidateQueries({ queryKey: ['follows'] });
                       showToast('Blocked');
                     } catch (err) {
                       showToast(

@@ -4,60 +4,52 @@ import { describe, expect, it, vi } from 'vitest';
 import { FollowAskDecideRow } from './FollowAskDecideRow';
 
 describe('FollowAskDecideRow', () => {
-  it('defaults see-collections on and Allows look', async () => {
+  it('Accepts look with Allow Repost off by default', async () => {
     const user = userEvent.setup();
     const onAllow = vi.fn();
     render(<FollowAskDecideRow onAllow={onAllow} onDecline={() => undefined} />);
-    expect(screen.getByRole('checkbox', { name: 'They can see my collections' })).toHaveAttribute(
-      'aria-checked',
-      'true',
-    );
-    expect(screen.getByRole('checkbox', { name: 'They can repost my collections' })).toHaveAttribute(
+    expect(screen.queryByRole('checkbox', { name: 'They can see my collections' })).toBeNull();
+    expect(screen.getByRole('checkbox', { name: 'Allow Repost' })).toHaveAttribute(
       'aria-checked',
       'false',
     );
-    await user.click(screen.getByRole('button', { name: 'Allow' }));
+    await user.click(screen.getByRole('button', { name: 'Accept' }));
     expect(onAllow).toHaveBeenCalledWith('look');
   });
 
-  it('Allows pack when they can repost is checked', async () => {
+  it('Accepts pack when Allow Repost is checked', async () => {
     const user = userEvent.setup();
     const onAllow = vi.fn();
     render(<FollowAskDecideRow onAllow={onAllow} onDecline={() => undefined} />);
-    await user.click(screen.getByRole('checkbox', { name: 'They can repost my collections' }));
-    await user.click(screen.getByRole('button', { name: 'Allow' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Allow Repost' }));
+    await user.click(screen.getByRole('button', { name: 'Accept' }));
     expect(onAllow).toHaveBeenCalledWith('pack');
   });
 
-  it('turns Allow off when the grant is unchecked', async () => {
-    const user = userEvent.setup();
+  it('keeps Accept enabled without a See checkbox', () => {
     render(<FollowAskDecideRow onAllow={() => undefined} onDecline={() => undefined} />);
-    await user.click(screen.getByRole('checkbox', { name: 'They can see my collections' }));
-    expect(screen.getByRole('button', { name: 'Allow' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Accept' })).not.toBeDisabled();
   });
 
-  it('locks See and defaults Repost on for an all-collections Repost ask', async () => {
+  it('defaults Allow Repost on for a Direct Link Repost ask', async () => {
     const user = userEvent.setup();
     const onAllow = vi.fn();
     render(
       <FollowAskDecideRow kind="share" onAllow={onAllow} onDecline={() => undefined} />,
     );
-    const see = screen.getByRole('checkbox', { name: 'They can see my collections' });
-    const share = screen.getByRole('checkbox', { name: 'They can repost my collections' });
-    expect(see).toHaveAttribute('aria-checked', 'true');
-    expect(see).toHaveAttribute('aria-disabled', 'true');
-    expect(share).toHaveAttribute('aria-checked', 'true');
-    await user.click(see);
-    expect(see).toHaveAttribute('aria-checked', 'true');
-    await user.click(screen.getByRole('button', { name: 'Allow' }));
+    expect(screen.getByRole('checkbox', { name: 'Allow Repost' })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    );
+    await user.click(screen.getByRole('button', { name: 'Accept' }));
     expect(onAllow).toHaveBeenCalledWith('pack');
   });
 
-  it('Declines', async () => {
+  it('Rejects', async () => {
     const user = userEvent.setup();
     const onDecline = vi.fn();
     render(<FollowAskDecideRow onAllow={() => undefined} onDecline={onDecline} />);
-    await user.click(screen.getByRole('button', { name: 'Decline' }));
+    await user.click(screen.getByRole('button', { name: 'Reject' }));
     expect(onDecline).toHaveBeenCalled();
   });
 });

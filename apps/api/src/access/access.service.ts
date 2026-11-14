@@ -19,6 +19,7 @@ import { AuditService } from '../audit/audit.service';
 import { ThreadService } from '../conversation/thread.service';
 import { CompanySerializer } from './company.serializer';
 import { connectionPairWhere } from './connection-pair';
+import { applyBlockSideEffects } from './block-side-effects';
 import { DomainEvents } from '../events/events.module';
 import type { AuthPrincipal } from '../auth/auth.types';
 
@@ -225,15 +226,18 @@ export class AccessService {
       });
     }
     const pair = connectionPairWhere(actorCompanyId, counterpartCompanyId);
-    await this.prisma.connection.upsert({
-      where: { companyLowId_companyHighId: pair },
-      create: {
-        companyLowId: pair.companyLowId,
-        companyHighId: pair.companyHighId,
-        status: ConnectionStatus.Blocked,
-        statusSetByCompanyId: actorCompanyId,
-      },
-      update: { status: ConnectionStatus.Blocked, statusSetByCompanyId: actorCompanyId },
+    await this.prisma.$transaction(async (tx) => {
+      await applyBlockSideEffects(tx, actorCompanyId, counterpartCompanyId);
+      await tx.connection.upsert({
+        where: { companyLowId_companyHighId: pair },
+        create: {
+          companyLowId: pair.companyLowId,
+          companyHighId: pair.companyHighId,
+          status: ConnectionStatus.Blocked,
+          statusSetByCompanyId: actorCompanyId,
+        },
+        update: { status: ConnectionStatus.Blocked, statusSetByCompanyId: actorCompanyId },
+      });
     });
     await this.audit.record({
       actorUserId: actor.userId,

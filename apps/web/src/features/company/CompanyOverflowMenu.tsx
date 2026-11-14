@@ -15,6 +15,7 @@ export function CompanyOverflowMenu({
   onMute,
   onPickMute,
   onBlock,
+  onUnblock,
   onRemove,
   title = 'Shop',
 }: {
@@ -27,6 +28,7 @@ export function CompanyOverflowMenu({
   onMute: () => void;
   onPickMute: (muteFor: MuteFor) => void;
   onBlock: () => void;
+  onUnblock?: () => void;
   onRemove: () => void;
   title?: string;
 }) {
@@ -76,6 +78,18 @@ export function CompanyOverflowMenu({
         onClick: () => {
           onClose();
           onBlock();
+        },
+      };
+    }
+    if (item === 'unblock') {
+      return {
+        id: 'unblock',
+        label: 'Unblock',
+        icon: <LockIcon width={20} height={20} />,
+        testId: 'company-overflow-unblock',
+        onClick: () => {
+          onClose();
+          onUnblock?.();
         },
       };
     }

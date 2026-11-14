@@ -38,3 +38,21 @@ export async function millShareActiveSet(
   });
   return new Set(rows.map((row) => row.followedCompanyId));
 }
+
+/** Buyer must still Allowed-follow the trader for Direct Place (list gray stays mill-only). */
+export async function buyerFollowsTrader(
+  prisma: FollowDb,
+  buyerCompanyId: string,
+  traderCompanyId: string,
+): Promise<boolean> {
+  const row = await prisma.follow.findUnique({
+    where: {
+      followerCompanyId_followedCompanyId: {
+        followerCompanyId: buyerCompanyId,
+        followedCompanyId: traderCompanyId,
+      },
+    },
+    select: { status: true },
+  });
+  return row?.status === FollowStatus.Allowed;
+}

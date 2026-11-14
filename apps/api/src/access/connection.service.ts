@@ -5,7 +5,7 @@ import { AuditService } from '../audit/audit.service';
 import { CompanySerializer } from './company.serializer';
 import type { AuthPrincipal } from '../auth/auth.types';
 import { counterpartCompanyId } from './connection-pair';
-import { revokeAffectedDirectLinks } from '../orders/trade-lane-revoke';
+import { applyBlockSideEffects } from './block-side-effects';
 
 type ConnectionAction = 'pause' | 'resume' | 'block' | 'unblock';
 
@@ -99,7 +99,7 @@ export class ConnectionService {
 
     const updated = await this.prisma.$transaction(async (tx) => {
       if (action === 'block') {
-        await revokeAffectedDirectLinks(tx, companyId, otherId);
+        await applyBlockSideEffects(tx, companyId, otherId);
       }
       return tx.connection.update({
         where: { id: connection.id },

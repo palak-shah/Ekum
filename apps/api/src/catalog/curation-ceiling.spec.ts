@@ -55,16 +55,37 @@ describe('assertProductsCuratable', () => {
     ).not.toThrow();
   });
 
-  it('rejects look-only follow when not connected', () => {
+  it('allows look-only when Everyone + allowForward', () => {
+    expect(() =>
+      assertProductsCuratable({
+        curatorCompanyId: 'me',
+        products: [base],
+        lookOnlyOwnerIds: new Set(['other']),
+      }),
+    ).not.toThrow();
+  });
+
+  it('rejects look-only on Followers packs even when Connected-style look set', () => {
     expectBadRequest(
       () =>
         assertProductsCuratable({
           curatorCompanyId: 'me',
-          products: [base],
+          products: [{ ...base, audience: 'followers' }],
           lookOnlyOwnerIds: new Set(['other']),
         }),
       'FOLLOW_LOOK_ONLY',
     );
+  });
+
+  it('allows look-only Followers members when source pack is Everyone', () => {
+    expect(() =>
+      assertProductsCuratable({
+        curatorCompanyId: 'me',
+        products: [{ ...base, audience: 'followers' }],
+        lookOnlyOwnerIds: new Set(['other']),
+        sourcePackAudience: 'everyone',
+      }),
+    ).not.toThrow();
   });
 
   it('rejects locked forward on foreign product', () => {

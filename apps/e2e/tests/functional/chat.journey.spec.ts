@@ -111,7 +111,7 @@ test.describe('chat journey @functional @chat', () => {
     await expect(page.getByText('@Surat Silk House')).toBeVisible();
   });
 
-  test('owner more menu has mute and not Private', async ({ page }) => {
+  test('owner more menu has mute hygiene and not Private', async ({ page }) => {
     await loginAsMeena(page);
     await page.goto('/chats/seed-thread-1');
 
@@ -119,8 +119,15 @@ test.describe('chat journey @functional @chat', () => {
     await expect(page.getByTestId('thread-more-menu')).toBeVisible({ timeout: 15_000 });
     await expect(page.getByTestId('thread-pin')).toBeVisible();
     await expect(page.getByTestId('thread-mute')).toBeVisible();
+    await expect(page.getByTestId('thread-people')).toBeVisible();
+    await expect(page.getByTestId('thread-archive')).toBeVisible();
+    await expect(page.getByTestId('thread-clear')).toBeVisible();
+    await expect(page.getByTestId('thread-delete')).toBeVisible();
+    await expect(page.getByTestId('thread-block')).toBeVisible();
     await expect(page.getByTestId('thread-open-private')).toHaveCount(0);
     await expect(page.getByText('Private')).toHaveCount(0);
+    const items = page.getByTestId('thread-more-menu').getByRole('menuitem');
+    await expect(items.last()).toHaveAttribute('data-testid', 'thread-block');
   });
 
   test('plus sheet is New chat without Private', async ({ page }) => {

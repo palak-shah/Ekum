@@ -78,7 +78,7 @@ import {
   trimHopShipmentItemsToFinal,
 } from './i-handle-desk';
 import { buyerSafePassThroughSummary } from './i-handle-soft-hide';
-import { millShareActive } from './mill-share';
+import { buyerFollowsTrader, millShareActive } from './mill-share';
 import { shouldRouteToTrio, effectivePathFromLane, isReleasedMillSubset, manageParentOpenChatThreadId, laneRoutesDirect, qtyChangeSummary, DEFAULT_LANE_BEHAVIORS, trioMillLaneWhere } from './trade-lane';
 import { millLaneVisibleToBuyer } from './mill-desk-visibility';
 import type { Env } from '../core/config/config.schema';
@@ -6614,7 +6614,9 @@ export class OrderService {
     });
     if (effectivePathFromLane(lane?.ticket) !== 'direct') return 'handle';
     const millPack = await millShareActive(this.prisma, traderCompanyId, sellerCompanyId);
-    return millPack ? 'direct' : 'handle';
+    if (!millPack) return 'handle';
+    const buyerFollows = await buyerFollowsTrader(this.prisma, buyerCompanyId, traderCompanyId);
+    return buyerFollows ? 'direct' : 'handle';
   }
 
   /** Direct mill ticket Open chat is the trio; I-handle parent stays buyer↔trader 1:1. */

@@ -1,4 +1,4 @@
-/** Grants on a See new packs ask. Add rows here — do not add more primary CTAs. */
+/** Grants on They see mine allowed cards (See + Repost). */
 export const FOLLOW_ASK_GRANT_OPTIONS = [
   {
     id: 'see',
@@ -14,6 +14,9 @@ export const FOLLOW_ASK_GRANT_OPTIONS = [
   },
 ] as const;
 
+/** Ask-row checkbox — Accept always implies see; this only adds pack. */
+export const FOLLOW_ASK_REPOST_LABEL = 'Allow Repost';
+
 export type FollowAskGrantId = (typeof FOLLOW_ASK_GRANT_OPTIONS)[number]['id'];
 
 export type FollowAskGrants = Record<FollowAskGrantId, boolean>;
@@ -26,14 +29,13 @@ export function defaultFollowAskGrants(): FollowAskGrants {
 
 export function followAskGrantsForKind(kind: 'see' | 'share'): FollowAskGrants {
   if (kind === 'share') return { see: true, share: true };
-  return defaultFollowAskGrants();
+  return { see: true, share: false };
 }
 
-/** Checked grants → decide. Repost (pack) wins over see (look). None → Allow stays off. */
+/** Accept → look, or pack when Allow Repost is on. Always a decision (Accept never disabled). */
 export function followAskAllowDecision(
   grants: Record<string, boolean>,
-): 'look' | 'pack' | null {
+): 'look' | 'pack' {
   if (grants.share) return 'pack';
-  if (grants.see) return 'look';
-  return null;
+  return 'look';
 }

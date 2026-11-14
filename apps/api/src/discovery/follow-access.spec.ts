@@ -8,7 +8,7 @@ describe('follow-access', () => {
     });
   });
 
-  it('blocks curate for look-only when not connected', () => {
+  it('blocks curate for look-only even when connected', () => {
     expect(
       isLookOnlyFollowBlock({
         connected: false,
@@ -20,7 +20,12 @@ describe('follow-access', () => {
         connected: true,
         follow: { status: 'allowed', accessKind: 'look' },
       }),
-    ).toBe(false);
+    ).toBe(true);
     expect(isPackFollow({ status: 'allowed', accessKind: 'pack' })).toBe(true);
+    expect(
+      isLookOnlyFollowBlock({
+        follow: { status: 'allowed', accessKind: 'pack' },
+      }),
+    ).toBe(false);
   });
 });

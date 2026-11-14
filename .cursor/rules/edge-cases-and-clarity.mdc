@@ -1,0 +1,31 @@
+---
+description: Force edge-case thinking and surface clarity gaps before shipping — client bugs often come from silent assumptions
+alwaysApply: true
+---
+
+# Edge cases and clarity (Required)
+
+Ekum hits many client bugs from **unspoken exceptions** (e.g. Connection bypassing look-only; unfollow notifying the wrong hop; Place not checking buyer follow). When developing or expanding a feature:
+
+## Before coding
+
+1. Name **who** (supplier / trader / buyer), **which grant** (See / Repost-Pack / Connection / Direct Link / allowForward / audience), and **which surface** (Explore Repost, shop Share/Forward, Place, chat system line).
+2. Walk **revoke and empty hops**: Pack → look; unfollow; no thread; look-only + Connected; Everyone vs Followers; mixed members.
+3. If product copy uses the same word for two jobs (**Share** vs **Repost** vs **Forward**), say so and lock which gate applies.
+4. **Ask the user** when an edge is unclear — do not invent a silent bypass (especially Connection unlocking a grant).
+
+## While implementing
+
+- Prefer **one enforcement path** (API ceiling + UI that reads the same check). Dual `pathForPair` copies must stay in sync.
+- Notify only the party who needs to act; do not leak trader-only concepts (Direct Link) to mill/buyer in shared chat unless product says so.
+- List chrome vs Place eligibility can differ — document both (e.g. gray CTA mill-only; Place also needs buyer follow).
+
+## In the reply to the user
+
+Call out explicitly:
+
+- **Edge cases covered** (short list).
+- **Fixes or clarity still needed** — open product questions, deferred Later items, or known holes (do not bury in Completeness only).
+- Anything that **conflicts** with an older Completeness rule (mark Redesign).
+
+Green tests are not enough if a revoke hop or naming collision was never considered.

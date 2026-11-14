@@ -101,6 +101,7 @@ import {
   OrdersIcon,
   MoreHorizontalIcon,
   PencilIcon,
+  LockIcon,
   PinIcon,
   PlusIcon,
   ProductIcon,
@@ -207,6 +208,7 @@ import { chatsInboxHref } from './chatsInboxFilter';
 import { MUTE_FOR_OPTIONS } from './ChatMuteDurationFlyout';
 import { ChatMentionPicker } from './ChatMentionPicker';
 import { highlightMentionText } from './chatMentions';
+import { threadMoreMenuOrder, type ThreadMoreMenuId } from './threadMoreMenuOrder';
 
 type AttachStep = 'menu' | 'product' | 'collection' | 'order';
 
@@ -346,7 +348,9 @@ export function ThreadPage() {
   const [peopleClone, setPeopleClone] = useState<{ threadId: string; title: string | null } | null>(
     null,
   );
-  const [confirmAction, setConfirmAction] = useState<'leave' | 'remove' | null>(null);
+  const [confirmAction, setConfirmAction] = useState<
+    'leave' | 'exit' | 'remove' | 'clear' | 'delete' | null
+  >(null);
   const searchFilterAnchorRef = useRef<HTMLButtonElement>(null);
   const [searchFilterOpen, setSearchFilterOpen] = useState(false);
   const [searchView, setSearchView] = useState<ThreadMessageViewScope>('all');
@@ -1050,15 +1054,24 @@ export function ThreadPage() {
   });
 
   const leaveThread = useMutation({
-    mutationFn: () => api.post(`/threads/${id}/leave`, {}),
-    onSuccess: () => {
+    mutationFn: (_kind: 'leave' | 'exit') => api.post(`/threads/${id}/leave`, {}),
+    onSuccess: (_data, kind) => {
       setConfirmAction(null);
       void queryClient.invalidateQueries({ queryKey: ['threads'] });
+      void queryClient.invalidateQueries({ queryKey: ['threads', 'unread-count'] });
+      showToast(kind === 'exit' ? 'Left the group' : 'Left the chat');
       navigate(chatsInboxHref());
     },
-    onError: (err) => {
+    onError: (err, kind) => {
       setConfirmAction(null);
-      showToast(err instanceof ApiError ? err.message : 'Could not leave this chat.', 'danger');
+      showToast(
+        err instanceof ApiError
+          ? err.message
+          : kind === 'exit'
+            ? 'Could not exit this group.'
+            : 'Could not leave this chat.',
+        'danger',
+      );
     },
   });
 
@@ -1072,6 +1085,54 @@ export function ThreadPage() {
     onError: (err) => {
       setConfirmAction(null);
       showToast(err instanceof ApiError ? err.message : 'Could not remove this group.', 'danger');
+    },
+  });
+
+  type ThreadInboxAction = 'archive' | 'clear' | 'delete' | 'unread';
+  const inboxAct = useMutation({
+    mutationFn: (action: ThreadInboxAction) =>
+      api.post<{ ok: true; count: number }>('/threads/inbox-actions', {
+        action,
+        threadIds: [id],
+      }),
+    onSuccess: (_data, action) => {
+      setConfirmAction(null);
+      setMoreOpen(false);
+      void queryClient.invalidateQueries({ queryKey: ['threads'] });
+      void queryClient.invalidateQueries({ queryKey: ['threads', 'unread-count'] });
+      void queryClient.invalidateQueries({ queryKey: ['thread', id] });
+      void queryClient.invalidateQueries({ queryKey: ['thread', id, 'messages'] });
+      if (action === 'clear') {
+        showToast('Chat cleared');
+        return;
+      }
+      showToast(
+        action === 'archive'
+          ? 'Chat archived'
+          : action === 'unread'
+            ? 'Marked unread'
+            : 'Chat deleted',
+      );
+      navigate(chatsInboxHref());
+    },
+    onError: (err) => {
+      setConfirmAction(null);
+      showToast(err instanceof ApiError ? err.message : 'Could not update chat.', 'danger');
+    },
+  });
+
+  const blockCounterpart = useMutation({
+    mutationFn: (companyId: string) => api.post(`/connections/company/${companyId}/block`, {}),
+    onSuccess: () => {
+      setMoreOpen(false);
+      void queryClient.invalidateQueries({ queryKey: ['threads'] });
+      void queryClient.invalidateQueries({ queryKey: ['connections'] });
+      void queryClient.invalidateQueries({ queryKey: ['follows'] });
+      showToast('Blocked');
+      navigate(chatsInboxHref());
+    },
+    onError: (err) => {
+      showToast(err instanceof ApiError ? err.message : 'Could not block this shop.', 'danger');
     },
   });
 
@@ -1891,85 +1952,127 @@ export function ThreadPage() {
           : 'Share an order';
 
   const muted = detail.alertLevel === 'muted';
-  const threadMoreRootItems: MoreActionItem[] = [
-    {
-      id: 'pin',
-      label: detail.pinned ? 'Unpin chat' : 'Pin chat',
-      icon: <PinIcon width={20} height={20} />,
-      testId: 'thread-pin',
-      disabled: pinThread.isPending,
-      onClick: () => {
+  const moreMenuBusy =
+    pinThread.isPending ||
+    setAlert.isPending ||
+    leaveThread.isPending ||
+    archiveGroup.isPending ||
+    inboxAct.isPending ||
+    blockCounterpart.isPending;
+  const runThreadMoreAction = (menuId: ThreadMoreMenuId) => {
+    switch (menuId) {
+      case 'pin':
         setMoreOpen(false);
         pinThread.mutate(!detail.pinned);
-      },
-    },
-    {
-      id: 'mute',
-      label: muted ? 'Unmute' : 'Mute',
-      icon: <BellIcon width={20} height={20} />,
-      testId: 'thread-mute',
-      disabled: setAlert.isPending,
-      active: !muted && moreStep === 'mute',
-      onClick: () => {
+        return;
+      case 'mute':
         if (muted) {
           setAlert.mutate({ alertLevel: 'all' });
           return;
         }
         setMoreStep('mute');
-      },
-    },
-  ];
-  if (detail.type === 'group' && detail.canManagePeople) {
-    threadMoreRootItems.push({
-      id: 'group-photo',
-      label: 'Group photo',
-      icon: <CameraIcon width={20} height={20} />,
-      testId: 'thread-group-profile',
-      onClick: () => {
+        return;
+      case 'group-photo':
         setMoreOpen(false);
         setGroupProfileOpen(true);
-      },
-    });
-  }
-  if (detail.canManagePeople) {
-    threadMoreRootItems.push({
-      id: 'people',
-      label: 'Team on chat',
-      icon: <UserIcon width={20} height={20} />,
-      testId: 'thread-people',
-      onClick: () => {
+        return;
+      case 'people':
         setMoreOpen(false);
         setPeopleOpen(true);
-      },
-    });
-  }
-  if (detail.canLeave) {
-    threadMoreRootItems.push({
-      id: 'leave',
-      label: 'Leave',
-      icon: <TrashIcon width={20} height={20} />,
-      testId: 'thread-leave',
-      disabled: leaveThread.isPending,
-      onClick: () => {
+        return;
+      case 'unread':
+        inboxAct.mutate('unread');
+        return;
+      case 'archive':
+        inboxAct.mutate('archive');
+        return;
+      case 'clear':
+        setMoreOpen(false);
+        setConfirmAction('clear');
+        return;
+      case 'leave':
         setMoreOpen(false);
         setConfirmAction('leave');
-      },
-    });
-  }
-  if (detail.canRemoveGroup) {
-    threadMoreRootItems.push({
-      id: 'remove-group',
-      label: 'Remove group',
-      icon: <TrashIcon width={20} height={20} />,
-      testId: 'thread-remove-group',
-      disabled: archiveGroup.isPending,
-      danger: true,
-      onClick: () => {
+        return;
+      case 'exit':
+        setMoreOpen(false);
+        setConfirmAction('exit');
+        return;
+      case 'delete':
+        setMoreOpen(false);
+        setConfirmAction('delete');
+        return;
+      case 'remove-group':
         setMoreOpen(false);
         setConfirmAction('remove');
-      },
-    });
-  }
+        return;
+      case 'block': {
+        const companyId = detail.counterpart?.id;
+        if (!companyId) return;
+        setMoreOpen(false);
+        blockCounterpart.mutate(companyId);
+        return;
+      }
+      default:
+        return;
+    }
+  };
+  const threadMoreIcon = (menuId: ThreadMoreMenuId) => {
+    switch (menuId) {
+      case 'pin':
+        return <PinIcon width={20} height={20} />;
+      case 'mute':
+      case 'unread':
+        return <BellIcon width={20} height={20} />;
+      case 'group-photo':
+        return <CameraIcon width={20} height={20} />;
+      case 'people':
+        return <UserIcon width={20} height={20} />;
+      case 'archive':
+        return <CollectionIcon width={20} height={20} />;
+      case 'block':
+        return <LockIcon width={20} height={20} />;
+      case 'clear':
+      case 'leave':
+      case 'exit':
+      case 'delete':
+      case 'remove-group':
+        return <TrashIcon width={20} height={20} />;
+      default:
+        return <TrashIcon width={20} height={20} />;
+    }
+  };
+  const threadMoreTestId = (menuId: ThreadMoreMenuId) => {
+    switch (menuId) {
+      case 'group-photo':
+        return 'thread-group-profile';
+      case 'people':
+        return 'thread-people';
+      case 'remove-group':
+        return 'thread-remove-group';
+      default:
+        return `thread-${menuId}`;
+    }
+  };
+  const threadMoreRootItems: MoreActionItem[] = threadMoreMenuOrder({
+    pinned: detail.pinned,
+    muted,
+    type: detail.type,
+    canManagePeople: Boolean(detail.canManagePeople),
+    unreadCount: detail.unreadCount,
+    canLeave: Boolean(detail.canLeave),
+    canRemoveGroup: Boolean(detail.canRemoveGroup),
+    hasCounterpart: Boolean(detail.counterpart),
+  }).map((row) => ({
+    id: row.id,
+    label: row.label,
+    icon: threadMoreIcon(row.id),
+    testId: threadMoreTestId(row.id),
+    danger: row.danger,
+    disabled: moreMenuBusy,
+    active: row.id === 'mute' && !muted && moreStep === 'mute',
+    onClick: () => runThreadMoreAction(row.id),
+  }));
   const threadMuteItems: MoreActionItem[] = MUTE_FOR_OPTIONS.map((row) => ({
     id: row.id,
     label: row.label,
@@ -1997,7 +2100,37 @@ export function ThreadPage() {
         testId="thread-leave-confirm"
         busy={leaveThread.isPending}
         onCancel={() => setConfirmAction(null)}
-        onConfirm={() => leaveThread.mutate()}
+        onConfirm={() => leaveThread.mutate('leave')}
+      />
+      <ConfirmActionSheet
+        open={confirmAction === 'exit'}
+        title="Exit this group?"
+        body="Off your inbox. Other shops stay in the group."
+        confirmLabel="Exit group"
+        testId="thread-exit-confirm"
+        busy={leaveThread.isPending}
+        onCancel={() => setConfirmAction(null)}
+        onConfirm={() => leaveThread.mutate('exit')}
+      />
+      <ConfirmActionSheet
+        open={confirmAction === 'clear'}
+        title="Clear chat?"
+        body="Your shop only. They keep the chat and the messages. The chat stays in the list."
+        confirmLabel="Clear"
+        testId="thread-clear-confirm"
+        busy={inboxAct.isPending}
+        onCancel={() => setConfirmAction(null)}
+        onConfirm={() => inboxAct.mutate('clear')}
+      />
+      <ConfirmActionSheet
+        open={confirmAction === 'delete'}
+        title="Delete chat?"
+        body="Your shop only. They keep the chat. New messages from them can bring it back."
+        confirmLabel="Delete"
+        testId="thread-delete-confirm"
+        busy={inboxAct.isPending}
+        onCancel={() => setConfirmAction(null)}
+        onConfirm={() => inboxAct.mutate('delete')}
       />
       <ConfirmActionSheet
         open={confirmAction === 'remove'}

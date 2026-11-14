@@ -32,11 +32,10 @@ export function isPackFollow(
   return row?.status === FollowStatus.Allowed && row.accessKind === FollowAccessKind.Pack;
 }
 
-/** Look-only (not Connected) must not curate that seller. */
+/** Allowed look follow must not curate that seller (Connection does not unlock). */
 export function isLookOnlyFollowBlock(opts: {
-  connected: boolean;
+  connected?: boolean;
   follow: { status: string; accessKind: string | null } | null | undefined;
 }): boolean {
-  if (opts.connected) return false;
   return isAllowedFollow(opts.follow) && !isPackFollow(opts.follow);
 }

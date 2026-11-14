@@ -57,6 +57,7 @@ function setup(connection: ConnRow | null) {
       findMany: vi.fn(async () => []),
       deleteMany: vi.fn(async () => ({ count: 0 })),
     },
+    follow: { deleteMany: vi.fn(async () => ({ count: 0 })) },
     thread: { updateMany: vi.fn(async () => ({ count: 0 })) },
     $transaction: async (fn: (tx: unknown) => Promise<unknown>) => fn(prisma),
   } as unknown as PrismaService;
@@ -71,7 +72,7 @@ function setup(connection: ConnRow | null) {
     }),
   };
   const service = new ConnectionService(prisma, audit, serializer as never);
-  return { service, update, audit };
+  return { service, update, audit, prisma };
 }
 
 describe('ConnectionService.applyOwnerAction', () => {
@@ -155,8 +156,8 @@ describe('ConnectionService.applyOwnerAction', () => {
     expect(update).not.toHaveBeenCalled();
   });
 
-  it('revokes affected Direct Links in the same transaction as block', async () => {
-    const { service, update } = setup({
+  it('revokes Direct Links and clears both Follows in the same transaction as block', async () => {
+    const { service, update, prisma } = setup({
       id: 'conn-1',
       companyLowId: 'co-a',
       companyHighId: 'co-b',
@@ -169,6 +170,14 @@ describe('ConnectionService.applyOwnerAction', () => {
         data: { status: ConnectionStatus.Blocked, statusSetByCompanyId: 'co-a' },
       }),
     );
+    expect(prisma.follow.deleteMany).toHaveBeenCalledWith({
+      where: {
+        OR: [
+          { followerCompanyId: 'co-a', followedCompanyId: 'co-b' },
+          { followerCompanyId: 'co-b', followedCompanyId: 'co-a' },
+        ],
+      },
+    });
   });
 
   it('hides connections the caller is not on', async () => {

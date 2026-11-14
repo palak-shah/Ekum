@@ -34,9 +34,8 @@ test.describe('follow-ask extra gate @functional @network', () => {
     await expect(page.getByText(/Jaipur Emporium/i).first()).toBeVisible();
     await expect(page.getByRole('button', { name: /Asked/ })).toBeVisible();
     const askRow = page.getByTestId('follow-ask-row');
-    await expect(askRow.getByRole('checkbox', { name: 'They can see my collections' })).toBeChecked();
-    await expect(askRow.getByRole('checkbox', { name: 'They can repost my collections' })).not.toBeChecked();
-    await page.getByRole('button', { name: 'Allow' }).click();
+    await expect(askRow.getByRole('checkbox', { name: 'Allow Repost' })).not.toBeChecked();
+    await page.getByRole('button', { name: 'Accept' }).click();
     await expect(page.getByTestId('follow-ask-row')).toHaveCount(0, { timeout: 10_000 });
 
     await page.goto('/network/followers');

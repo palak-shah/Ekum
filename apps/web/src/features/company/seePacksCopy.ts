@@ -12,7 +12,9 @@ export function shopWriteLabel(connected: boolean): string {
   return connected ? 'Chat' : 'Message';
 }
 
-export const SEE_PACKS_ASK_LINE = 'Wants to see your new collections';
+export const SEE_PACKS_ASK_LINE = 'Wants to see your collections';
+export const UNBLOCK_ACCESS_CLEARED_TOAST =
+  'Collection access was cleared on both sides. Ask again to see theirs; they must ask to see yours.';
 export const SHARE_PACKS_ASK_LINE = 'Wants to repost all your collections';
 export const SHARE_PACKS_ASK_SUBLINE =
   'They can put your collections in their catalog and send them to their buyers.';

@@ -3,9 +3,10 @@ import { Link } from 'react-router-dom';
 import { Avatar, compactCta, cx } from '@/ui/kit';
 import { SEE_PACKS_ASK_LINE, SHARE_PACKS_ASK_LINE, SHARE_PACKS_ASK_SUBLINE } from '@/features/company/seePacksCopy';
 import {
+  FOLLOW_ASK_GRANT_OPTIONS,
+  FOLLOW_ASK_REPOST_LABEL,
   followAskAllowDecision,
   followAskGrantsForKind,
-  FOLLOW_ASK_GRANT_OPTIONS,
   type FollowAskGrantId,
   type FollowAskGrants,
 } from './followAskDecide';
@@ -125,6 +126,53 @@ export function FollowGrantChecks({
   );
 }
 
+function AllowRepostCheck({
+  on,
+  disabled,
+  onToggle,
+}: {
+  on: boolean;
+  disabled?: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="checkbox"
+      aria-label={FOLLOW_ASK_REPOST_LABEL}
+      aria-checked={on}
+      disabled={disabled}
+      data-testid="follow-ask-grant-share"
+      className={cx('flex min-h-6 items-center gap-1.5 text-left', disabled && 'opacity-45')}
+      onClick={() => {
+        if (disabled) return;
+        onToggle();
+      }}
+    >
+      <span
+        className={cx(
+          'flex h-4 w-4 shrink-0 items-center justify-center rounded border-[1.5px]',
+          on ? 'border-accent bg-accent text-on-accent' : 'border-line bg-surface',
+        )}
+        aria-hidden
+      >
+        {on ? (
+          <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+            <path
+              d="M2.5 6.2 4.8 8.5 9.5 3.5"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        ) : null}
+      </span>
+      <span className="text-meta font-emphasis leading-snug text-ink">{FOLLOW_ASK_REPOST_LABEL}</span>
+    </button>
+  );
+}
+
 export function FollowAskDecideRow({
   disabled,
   onAllow,
@@ -141,21 +189,19 @@ export function FollowAskDecideRow({
 
   return (
     <div className="flex flex-col gap-1.5">
-      <FollowGrantChecks
-        compact
-        grants={grants}
+      <AllowRepostCheck
+        on={grants.share}
         disabled={disabled}
-        locked={kind === 'share' ? ['see'] : undefined}
-        onToggle={(id) => setGrants((prev) => ({ ...prev, [id]: !prev[id] }))}
+        onToggle={() => setGrants((prev) => ({ ...prev, share: !prev.share }))}
       />
       <div className="flex gap-2">
         <button
           type="button"
           className={cx(compactCta, 'bg-accent text-on-accent')}
-          disabled={disabled || !decision}
-          onClick={() => decision && onAllow(decision)}
+          disabled={disabled}
+          onClick={() => onAllow(decision)}
         >
-          Allow
+          Accept
         </button>
         <button
           type="button"
@@ -163,7 +209,7 @@ export function FollowAskDecideRow({
           disabled={disabled}
           onClick={onDecline}
         >
-          Decline
+          Reject
         </button>
       </div>
     </div>

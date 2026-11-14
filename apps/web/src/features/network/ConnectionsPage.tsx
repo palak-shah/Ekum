@@ -1,9 +1,11 @@
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ConnectionView } from '@ekum/domain-types';
-import { api } from '@/lib/apiClient';
+import { api, ApiError } from '@/lib/apiClient';
+import { UNBLOCK_ACCESS_CLEARED_TOAST } from '@/features/company/seePacksCopy';
 import { PageHeader } from '@/ui/PageHeader';
 import { Avatar, Card, EmptyState, LoadingBlock, StatusPill } from '@/ui/kit';
+import { useToast } from '@/ui/Toast';
 import { useDirectLinkRevoke } from './useDirectLinkRevoke';
 
 function connectionSubtitle(status: string): string {
@@ -14,6 +16,7 @@ function connectionSubtitle(status: string): string {
 
 export function ConnectionsPage() {
   const queryClient = useQueryClient();
+  const { showToast } = useToast();
   const connections = useQuery({
     queryKey: ['connections'],
     queryFn: () => api.get<ConnectionView[]>('/connections'),
@@ -22,9 +25,16 @@ export function ConnectionsPage() {
   const connectionAction = useMutation({
     mutationFn: ({ id, action }: { id: string; action: 'resume' | 'block' | 'unblock' }) =>
       api.post(`/connections/${id}/${action}`, {}),
-    onSuccess: () => {
+    onSuccess: (_data, vars) => {
       void queryClient.invalidateQueries({ queryKey: ['connections'] });
       void queryClient.invalidateQueries({ queryKey: ['trade-lanes'] });
+      void queryClient.invalidateQueries({ queryKey: ['follows'] });
+      if (vars.action === 'unblock') {
+        showToast(UNBLOCK_ACCESS_CLEARED_TOAST);
+      }
+    },
+    onError: (err) => {
+      showToast(err instanceof ApiError ? err.message : 'Could not update connection.', 'danger');
     },
   });
   const revoke = useDirectLinkRevoke((companyId) => {

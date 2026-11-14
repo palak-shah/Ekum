@@ -45,6 +45,18 @@ describe('shopOverflowItems', () => {
       }),
     ).toEqual(['share', 'block', 'remove']);
   });
+
+  it('shows Unblock instead of Block when canUnblock', () => {
+    expect(
+      shopOverflowItems({
+        isOwn: false,
+        hasDirectThread: true,
+        followPending: false,
+        following: false,
+        canUnblock: true,
+      }),
+    ).toEqual(['share', 'mute', 'unblock']);
+  });
 });
 
 describe('findDirectThreadForCompany', () => {

@@ -13,6 +13,7 @@ import {
   BookmarkIcon,
   CheckIcon,
   CollectionIcon,
+  LockIcon,
   MegaphoneIcon,
   MoreHorizontalIcon,
 } from '@/ui/icons';
@@ -79,6 +80,16 @@ export function ChatsHeaderMore() {
             onClick: () => {
               setOpen(false);
               navigate('/chats/archived');
+            },
+          },
+          {
+            id: 'blocked',
+            label: 'Blocked',
+            icon: <LockIcon width={20} height={20} />,
+            testId: 'chats-blocked',
+            onClick: () => {
+              setOpen(false);
+              navigate('/chats/blocked');
             },
           },
           {

@@ -163,7 +163,7 @@ describe('TradeLaneService', () => {
     await expect(service.pathForPair('trader', 'mill', 'buyer')).resolves.toBe('handle');
   });
 
-  it('routes Place Direct when mill Share is on', async () => {
+  it('routes Place Direct when mill Share is on and buyer follows', async () => {
     const prisma = {
       tradeLane: {
         findUnique: vi.fn(async () => ({ ticket: TradeLaneTicket.Mill })),
@@ -174,5 +174,21 @@ describe('TradeLaneService', () => {
     } as unknown as PrismaService;
     const service = new TradeLaneService(prisma);
     await expect(service.pathForPair('trader', 'mill', 'buyer')).resolves.toBe('direct');
+  });
+
+  it('routes Place I-handle when mill Pack is on but buyer does not follow', async () => {
+    const prisma = {
+      tradeLane: {
+        findUnique: vi.fn(async () => ({ ticket: TradeLaneTicket.Mill })),
+      },
+      follow: {
+        findUnique: vi
+          .fn()
+          .mockResolvedValueOnce({ status: 'allowed', accessKind: 'pack' })
+          .mockResolvedValueOnce(null),
+      },
+    } as unknown as PrismaService;
+    const service = new TradeLaneService(prisma);
+    await expect(service.pathForPair('trader', 'mill', 'buyer')).resolves.toBe('handle');
   });
 });

@@ -116,10 +116,18 @@ describe('AccessService.approve', () => {
     expect(upsert).toHaveBeenCalled();
   });
 
-  it('blockCounterpart upserts a blocked pair', async () => {
+  it('blockCounterpart upserts a blocked pair and clears Follows', async () => {
     const upsert = vi.fn(async () => ({}));
+    const deleteMany = vi.fn(async () => ({ count: 0 }));
     const prisma = {
       connection: { upsert },
+      tradeLane: {
+        findMany: vi.fn(async () => []),
+        deleteMany: vi.fn(async () => ({ count: 0 })),
+      },
+      follow: { deleteMany },
+      thread: { updateMany: vi.fn(async () => ({ count: 0 })) },
+      $transaction: async (fn: (tx: unknown) => Promise<unknown>) => fn(prisma),
     } as unknown as PrismaService;
     const audit = { record: vi.fn(async () => undefined) } as unknown as AuditService;
     const service = new AccessService(prisma, audit, {} as CompanySerializer, events, threads as never);
@@ -129,6 +137,7 @@ describe('AccessService.approve', () => {
         update: expect.objectContaining({ status: ConnectionStatus.Blocked }),
       }),
     );
+    expect(deleteMany).toHaveBeenCalled();
   });
 });
 
