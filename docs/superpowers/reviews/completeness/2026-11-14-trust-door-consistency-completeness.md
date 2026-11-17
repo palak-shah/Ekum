@@ -11,9 +11,9 @@
 
 | Lens | Summary findings |
 |------|------------------|
-| Product Manager | Block must not mean “hide chat” from shop and “leave chat” from inbox. Accept follow undoes Ignore so dual-request feels one yes. Reject never “keeps Look” on a Repost upgrade. |
+| Product Manager | Block must not mean “hide chat” from shop and “leave chat” from inbox. Accept follow undoes Ignore so dual-request feels one yes. **Superseded by 4E:** Reject Ask to repost keeps Look (Repost denied only). |
 | UX Designer | Shop ⋯ shows Unblock when `canUnblock`. Same toast as Chats Blocked / Connections. |
-| Solution Architect | Shop Block drops thread decline. `acceptPendingDirectWith` Pending\|Archived. packAskPending: look keeps Look; deny → Stopped. |
+| Solution Architect | Shop Block drops thread decline. `acceptPendingDirectWith` Pending\|Archived. packAskPending: look keeps Look; deny → clear ask, Look stays (4E). |
 
 ---
 
@@ -34,7 +34,7 @@
 | Area | Status | Notes |
 |------|--------|-------|
 | Functionality | OK | |
-| Business rules | OK | Reject DL upgrade revokes Look |
+| Business rules | OK | Reject DL upgrade keeps Look (4E) |
 | Workflows | OK | Ignore then Accept follow restores chat |
 | Edge cases | OK | Already Active Direct = no-op |
 | Permissions | OK | |
@@ -61,7 +61,7 @@ None Required.
 - Shop Block = chat Block (no decline; invalidate follows).  
 - Shop ⋯ Unblock when blocked.  
 - Accept follow activates Pending or Archived Direct.  
-- packAskPending deny → Stopped; look → keep Look.  
+- packAskPending deny → keep Look, clear ask (4E); look accept → keep Look.  
 - Docs + tests.
 
 ## Explicitly deferred / rejected

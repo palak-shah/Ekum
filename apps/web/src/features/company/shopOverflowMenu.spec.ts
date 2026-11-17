@@ -24,7 +24,7 @@ describe('shopOverflowItems', () => {
     ).toEqual(['share', 'block']);
   });
 
-  it('puts Mute after Share when 1:1 exists; Remove last when Has access', () => {
+  it('puts Mute after Share when 1:1 exists; Remove last when Following', () => {
     expect(
       shopOverflowItems({
         isOwn: false,

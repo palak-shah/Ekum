@@ -1,6 +1,12 @@
 import { CollectionKind, CollectionStatus } from '@ekum/domain-types';
 import type { YouLibraryTab } from '@/features/saved/youSavedHref';
 
+export {
+  UNDERLINE_TAB_BAR_BASE_CLASS,
+  underlineTabChrome,
+  youLibraryKindTabSelectedClass,
+} from '@/ui/underlineTabChrome';
+
 export const YOU_LIBRARY_TABS: Array<{ id: YouLibraryTab; label: string; testId: string }> = [
   { id: 'collections', label: 'Collections', testId: 'you-tab-collections' },
   { id: 'catalogs', label: 'Catalogs', testId: 'you-tab-catalogs' },

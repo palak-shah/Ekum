@@ -6,7 +6,7 @@ import { PageHeader } from '@/ui/PageHeader';
 import { useToast } from '@/ui/Toast';
 import { Avatar, Button, Card, EmptyState, LoadingBlock } from '@/ui/kit';
 import { invalidateFollowCatalog } from './invalidateFollowCatalog';
-import { I_SEE_THEIRS } from './networkSeeLabels';
+import { NETWORK_FOLLOWING } from './networkSeeLabels';
 import { useDirectLinkRevoke } from './useDirectLinkRevoke';
 
 export function FollowingPage() {
@@ -22,16 +22,16 @@ export function FollowingPage() {
     onSuccess: () => {
       invalidateFollowCatalog(queryClient);
       void queryClient.invalidateQueries({ queryKey: ['trade-lanes'] });
-      showToast('Stopped seeing');
+      showToast('Unfollowed');
     },
     onError: (err) =>
-      showToast(err instanceof ApiError ? err.message : 'Could not stop seeing.', 'danger'),
+      showToast(err instanceof ApiError ? err.message : 'Could not unfollow.', 'danger'),
   });
   const revoke = useDirectLinkRevoke((companyId) => unfollow.mutate(companyId), unfollow.isPending);
 
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader title={I_SEE_THEIRS.title} />
+      <PageHeader title={NETWORK_FOLLOWING.title} subtitle={NETWORK_FOLLOWING.subtitle} />
       {following.isLoading ? (
         <LoadingBlock />
       ) : following.data && following.data.length > 0 ? (
@@ -50,7 +50,7 @@ export function FollowingPage() {
                 disabled={unfollow.isPending}
                 onClick={() => void revoke.maybeConfirm(company.id)}
               >
-                Stop seeing
+                Unfollow
               </Button>
             </Card>
           ))}
@@ -58,7 +58,7 @@ export function FollowingPage() {
       ) : (
         <EmptyState
           title="None yet"
-          message="Request access on Explore or a shop to add businesses here."
+          message="Follow on Explore or a shop to add businesses here."
         />
       )}
       {revoke.sheet}

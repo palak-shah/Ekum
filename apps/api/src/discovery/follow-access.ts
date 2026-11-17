@@ -1,3 +1,6 @@
+import type { Prisma } from '@prisma/client';
+import { ProfileVisibility } from '@ekum/domain-types';
+
 export const FollowStatus = {
   Pending: 'pending',
   Allowed: 'allowed',
@@ -12,6 +15,21 @@ export const FollowAccessKind = {
 /** Prisma filter: this viewer is an allowed follower of the post owner. */
 export function allowedFollowSome(followerCompanyId: string) {
   return { some: { followerCompanyId, status: FollowStatus.Allowed } };
+}
+
+/**
+ * Companies the viewer may discover as businesses: Public, or Private with an
+ * approved Follow. Does not grant collection audience or phone access.
+ */
+export function discoverableProfileWhere(
+  viewerCompanyId: string,
+): Prisma.CompanyWhereInput {
+  return {
+    OR: [
+      { profileVisibility: ProfileVisibility.Public },
+      { followers: allowedFollowSome(viewerCompanyId) },
+    ],
+  };
 }
 
 export function allowedFollowWhere(followerCompanyId: string, followedCompanyId?: string) {

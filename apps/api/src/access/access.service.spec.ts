@@ -35,8 +35,9 @@ describe('AccessService.approve', () => {
         }),
       },
       connection: {
-        findUnique: async () => ({ status: ConnectionStatus.Blocked }),
+        findUnique: async () => ({ status: ConnectionStatus.Active }),
       },
+      companyBlock: { count: async () => 1 },
       $transaction: transaction,
     } as unknown as PrismaService;
     const audit = { record: vi.fn(async () => undefined) } as unknown as AuditService;
@@ -63,6 +64,7 @@ describe('AccessService.approve', () => {
         findUnique: async () => null,
         upsert: vi.fn(async () => ({})),
       },
+      companyBlock: { count: async () => 0 },
       $transaction: transaction,
     } as unknown as PrismaService;
     const audit = { record: vi.fn(async () => undefined) } as unknown as AuditService;
@@ -109,6 +111,7 @@ describe('AccessService.approve', () => {
     const upsert = vi.fn(async () => ({}));
     const prisma = {
       connection: { findUnique: async () => null, upsert },
+      companyBlock: { count: async () => 0 },
     } as unknown as PrismaService;
     const audit = { record: vi.fn(async () => undefined) } as unknown as AuditService;
     const service = new AccessService(prisma, audit, {} as CompanySerializer, events, threads as never);
@@ -116,11 +119,27 @@ describe('AccessService.approve', () => {
     expect(upsert).toHaveBeenCalled();
   });
 
-  it('blockCounterpart upserts a blocked pair and clears Follows', async () => {
-    const upsert = vi.fn(async () => ({}));
+  it('blockCounterpart inserts directed CompanyBlock and clears Follows on first edge', async () => {
+    const companyBlocks: Array<{ blockerCompanyId: string; blockedCompanyId: string }> = [];
     const deleteMany = vi.fn(async () => ({ count: 0 }));
     const prisma = {
-      connection: { upsert },
+      connection: {
+        findUnique: async () => null,
+        create: vi.fn(async () => ({})),
+        update: vi.fn(async () => ({})),
+      },
+      companyBlock: {
+        findUnique: async () => null,
+        count: async () => companyBlocks.length,
+        create: async ({
+          data,
+        }: {
+          data: { blockerCompanyId: string; blockedCompanyId: string };
+        }) => {
+          companyBlocks.push(data);
+          return { id: 'b1', ...data };
+        },
+      },
       tradeLane: {
         findMany: vi.fn(async () => []),
         deleteMany: vi.fn(async () => ({ count: 0 })),
@@ -132,12 +151,69 @@ describe('AccessService.approve', () => {
     const audit = { record: vi.fn(async () => undefined) } as unknown as AuditService;
     const service = new AccessService(prisma, audit, {} as CompanySerializer, events, threads as never);
     await service.blockCounterpart('owner', 'viewer', actor);
-    expect(upsert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        update: expect.objectContaining({ status: ConnectionStatus.Blocked }),
-      }),
-    );
+    expect(companyBlocks).toEqual([{ blockerCompanyId: 'owner', blockedCompanyId: 'viewer' }]);
     expect(deleteMany).toHaveBeenCalled();
+  });
+
+  it('blockCounterpart second edge does not steal — adds own block without Follow wipe', async () => {
+    const companyBlocks = [{ blockerCompanyId: 'viewer', blockedCompanyId: 'owner' }];
+    const deleteMany = vi.fn(async () => ({ count: 0 }));
+    const prisma = {
+      connection: {
+        findUnique: async () => ({
+          status: ConnectionStatus.Active,
+          companyLowId: 'owner',
+          companyHighId: 'viewer',
+        }),
+        create: vi.fn(async () => ({})),
+        update: vi.fn(async () => ({})),
+      },
+      companyBlock: {
+        findUnique: async ({
+          where,
+        }: {
+          where: {
+            blockerCompanyId_blockedCompanyId: {
+              blockerCompanyId: string;
+              blockedCompanyId: string;
+            };
+          };
+        }) => {
+          const hit = companyBlocks.find(
+            (row) =>
+              row.blockerCompanyId ===
+                where.blockerCompanyId_blockedCompanyId.blockerCompanyId &&
+              row.blockedCompanyId === where.blockerCompanyId_blockedCompanyId.blockedCompanyId,
+          );
+          return hit ? { id: 'existing' } : null;
+        },
+        count: async () => companyBlocks.length,
+        create: async ({
+          data,
+        }: {
+          data: { blockerCompanyId: string; blockedCompanyId: string };
+        }) => {
+          companyBlocks.push(data);
+          return { id: 'b2', ...data };
+        },
+      },
+      tradeLane: {
+        findMany: vi.fn(async () => []),
+        deleteMany: vi.fn(async () => ({ count: 0 })),
+      },
+      follow: { deleteMany },
+      $transaction: async (fn: (tx: unknown) => Promise<unknown>) => fn(prisma),
+    } as unknown as PrismaService;
+    const audit = { record: vi.fn(async () => undefined) } as unknown as AuditService;
+    const service = new AccessService(prisma, audit, {} as CompanySerializer, events, threads as never);
+    await service.blockCounterpart('owner', 'viewer', actor);
+    expect(companyBlocks).toEqual(
+      expect.arrayContaining([
+        { blockerCompanyId: 'viewer', blockedCompanyId: 'owner' },
+        { blockerCompanyId: 'owner', blockedCompanyId: 'viewer' },
+      ]),
+    );
+    expect(deleteMany).not.toHaveBeenCalled();
   });
 });
 
@@ -162,6 +238,7 @@ describe('AccessService.createRequest', () => {
     const prisma = {
       company: { findUnique: async () => ({ id: 'owner' }) },
       connection: { findUnique: async () => null },
+      companyBlock: { count: async () => 0 },
       accessRequest: {
         // First lookup (fast path) sees nothing; the post-conflict lookup finds the winner.
         findFirst: async () => (findFirstCalls++ === 0 ? null : winner),

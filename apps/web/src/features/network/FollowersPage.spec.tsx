@@ -51,10 +51,12 @@ describe('FollowersPage inbox', () => {
 
   it('shows Allow Repost plus Accept / Reject on asked rows', async () => {
     renderPage('/network/followers');
-    expect(await screen.findByRole('heading', { name: 'They see mine' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Followers' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Asked' })).toBeNull();
     expect(await screen.findByTestId('follow-ask-row')).toBeInTheDocument();
-    expect(screen.getByTestId('follow-ask-why')).toHaveTextContent('Wants to see your collections');
+    expect(screen.getByTestId('follow-ask-why')).toHaveTextContent(
+      'Wants to follow you and see your collections.',
+    );
     expect(screen.queryByRole('checkbox', { name: 'They can see my collections' })).toBeNull();
     expect(screen.getByRole('checkbox', { name: 'Allow Repost' })).toHaveAttribute(
       'aria-checked',
@@ -173,7 +175,7 @@ describe('FollowersPage inbox', () => {
       return [];
     });
     renderPage('/network/followers');
-    expect(await screen.findByRole('heading', { name: 'They see mine' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Followers' })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Asked' })).toBeNull();
     expect(await screen.findByRole('button', { name: 'Accept' })).toBeInTheDocument();
     expect(screen.getByText('Surat Silk House')).toBeInTheDocument();

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { ForbiddenException } from '@nestjs/common';
 import { MessageType, ProductStatus, type SendMessageDto } from '@ekum/domain-types';
 import { MessageService } from './message.service';
@@ -29,6 +29,7 @@ function threadStub(membership = activeMembership) {
     nudgeArchivedRecipients: async () => [],
     notifyUserIdsForMessage: async () => ({ companyIds: [], userIds: [] }),
     revealActiveInboxes: async () => undefined,
+    accept: async () => ({ id: 't' }),
   } as unknown as ThreadService;
 }
 
@@ -53,6 +54,31 @@ describe('MessageService.send', () => {
     await expect(
       service.send(actor('c1'), 't', { type: MessageType.Text, body: 'hi' } as SendMessageDto),
     ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('rejects Direct send when the counterpart has blocked the sender', async () => {
+    const prisma = {
+      threadParticipant: {
+        findFirst: async () => ({ companyId: 'trader' }),
+      },
+    } as unknown as PrismaService;
+    const service = new MessageService(
+      prisma,
+      threadStub({
+        id: 'p',
+        state: 'active',
+        thread: { type: 'direct', messagingClosedAt: null },
+      }),
+      {} as ConversationSerializer,
+      {} as ReferenceResolver,
+      events,
+      visibilityStub({ blocked: true }),
+    );
+    await expect(
+      service.send(actor('buyer'), 't', { type: MessageType.Text, body: 'hi' } as SendMessageDto),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({ code: 'CANNOT_MESSAGE' }),
+    });
   });
 
   it('rejects when actor has no active company', async () => {
@@ -523,6 +549,47 @@ describe('MessageService.send', () => {
 
     const dto = { type: MessageType.Text, body: 'hello' } as SendMessageDto;
     await expect(service.send(actor('me'), 't', dto)).resolves.toMatchObject({ id: 'm1' });
+  });
+
+  it('Pending Direct send calls thread Accept so Connection is ensured', async () => {
+    const created = {
+      id: 'm-pend',
+      threadId: 't',
+      senderCompanyId: 'me',
+      type: 'text',
+      body: 'hello',
+      referenceId: null,
+      metadata: null,
+      createdAt: new Date(),
+    };
+    const prisma = {
+      $transaction: async (fn: (tx: unknown) => unknown) =>
+        fn({
+          message: { create: async () => created },
+          thread: { update: async () => ({}) },
+          threadParticipant: { update: async () => ({}) },
+        }),
+      threadParticipant: { findMany: async () => [], findFirst: async () => ({ companyId: 'them' }) },
+      user: { findUnique: async () => ({ name: 'Owner' }) },
+    } as unknown as PrismaService;
+    const accept = vi.fn(async () => ({ id: 't' }));
+    const threads = {
+      ...threadStub({
+        id: 'p',
+        state: 'pending',
+        thread: { type: 'direct', messagingClosedAt: null },
+      }),
+      accept,
+    } as unknown as ThreadService;
+    const serializer = {
+      toMessageView: (message: { id: string }) => ({ id: message.id, mine: true }),
+    } as unknown as ConversationSerializer;
+    const references = { resolve: async () => new Map() } as unknown as ReferenceResolver;
+    const service = new MessageService(prisma, threads, serializer, references, events, visibilityStub());
+    await expect(
+      service.send(actor('me'), 't', { type: MessageType.Text, body: 'hello' } as SendMessageDto),
+    ).resolves.toMatchObject({ id: 'm-pend' });
+    expect(accept).toHaveBeenCalledWith('me', 'owner', 't', expect.objectContaining({ companyId: 'me' }));
   });
 });
 

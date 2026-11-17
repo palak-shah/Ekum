@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Shared photo pipeline for design images, covers, chat photos, and photo orders: direct-to-blob upload, then async **thumbnail1** (max 480px) and **thumbnail2** (max 1080px) WebP siblings. Viewing uses a shared **PhotoViewer** (pinch / double-tap zoom, swipe within one design or chat album) on chat albums, album/Saved design sheets, Explore design pages, How many / order detail, and **Orders list** design stacks (and complaint row images).
+Shared photo pipeline for design images, **Business Profile cover / Showcase**, chat photos, and photo orders: direct-to-blob upload, then async **thumbnail1** (max 480px) and **thumbnail2** (max 1080px) WebP siblings. Viewing uses a shared **PhotoViewer** (pinch / double-tap zoom, swipe) on chat albums, album/Saved design sheets, Explore design pages, How many / order detail, Orders list stacks, complaint images, and **Business Profile cover gallery** (cover + showcase; view-only).
 
 ## Who uses it
 
@@ -61,7 +61,7 @@ Pixel thumbs for existing `Media` image rows are enqueued by `media.thumbnail.ba
 | `failed` | `media.thumbnail` job gave up after retries |
 
 - Kind: **image** / **audio** / **document**. Only images get thumbnails.
-- Who can see an image follows the parent object (catalog audience, chat, order) — media is not a second visibility system.
+- Who can see an image follows the parent object (catalog audience, chat, order, **or Business Profile access** for cover/showcase) — media is not a second visibility system. Profile cover / avatar / Showcase store URL **strings** on the company; `PATCH /companies/me` does **not** re-check Media/Product ownership (members who can edit are trusted to upload their own pictures). Removing them from the profile **unlinks** only (does not delete blobs or designs). Showcase is independent of collection audience.
 - Dev may serve local files; production uses blob storage + SAS-style upload URLs.
 - Feature records store original URL **strings**, not Media IDs.
 - Display: **thumbnail1** (max 480) for list / 48–64px thumbs; **thumbnail2** (max 1080) for Explore cards and design carousels; **original** for PhotoViewer. `mediaDisplayUrl` + `ManagedImage` pick the sibling; one `onError` falls back to the original.

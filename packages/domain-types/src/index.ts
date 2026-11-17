@@ -3,6 +3,7 @@ export * from './common';
 export * from './auth';
 export * from './master-categories';
 export * from './company';
+export * from './company-business-info';
 export * from './access';
 export * from './catalog';
 export * from './repost-hop';

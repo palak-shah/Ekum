@@ -554,14 +554,16 @@ export function DesignSheet({
         }}
         onAskRates={() => undefined}
       />
-      <BulkProductPublishSheet
-        open={publishOpen}
-        onClose={() => setPublishOpen(false)}
-        productIds={canPublish ? [product.id] : []}
-        onDone={() => {
-          void invalidateAfterPackMembership(queryClient);
-        }}
-      />
+      {canPublish ? (
+        <BulkProductPublishSheet
+          open={publishOpen}
+          onClose={() => setPublishOpen(false)}
+          productIds={[product.id]}
+          onDone={() => {
+            void invalidateAfterPackMembership(queryClient);
+          }}
+        />
+      ) : null}
     </>
   );
 }

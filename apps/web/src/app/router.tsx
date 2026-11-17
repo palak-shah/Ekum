@@ -38,6 +38,10 @@ const CompanyProfilePage = page(
   () => import('@/features/company/CompanyProfilePage'),
   'CompanyProfilePage',
 );
+const ShopCataloguePage = page(
+  () => import('@/features/company/CompanyProfilePage'),
+  'ShopCataloguePage',
+);
 const CollectionViewerPage = page(
   () => import('@/features/collections/CollectionViewerPage'),
   'CollectionViewerPage',
@@ -125,6 +129,10 @@ const UnitsSettingsPage = page(
   'UnitsSettingsPage',
 );
 const AboutEkumPage = page(() => import('@/features/settings/AboutEkumPage'), 'AboutEkumPage');
+const ProfileVisibilityPage = page(
+  () => import('@/features/settings/ProfileVisibilityPage'),
+  'ProfileVisibilityPage',
+);
 const MorePage = page(() => import('@/features/settings/MorePage'), 'MorePage');
 const SavedToYou = page(() => import('@/features/saved/SavedToYou'), 'SavedToYou');
 const SelectionPage = page(() => import('@/features/browse/SelectionPage'), 'SelectionPage');
@@ -231,6 +239,7 @@ export const router = createBrowserRouter([
               { path: 'explore/products/:id', element: <ExploreProductPage /> },
               { path: 'search', element: <SearchPage /> },
               { path: 'company/:id', element: <CompanyProfilePage /> },
+              { path: 'company/:id/catalogue', element: <ShopCataloguePage /> },
               { path: 'collections/new', element: <Navigate to="/catalog/collections/new" replace /> },
               { path: 'collections/:id', element: <CollectionViewerPage /> },
               { path: 'designs/set', element: <DesignSetPage /> },
@@ -276,6 +285,7 @@ export const router = createBrowserRouter([
               { path: 'settings/catalog-defaults', element: <CatalogDefaultsPage /> },
               { path: 'settings/units', element: <UnitsSettingsPage /> },
               { path: 'settings/about', element: <AboutEkumPage /> },
+              { path: 'settings/profile-visibility', element: <ProfileVisibilityPage /> },
               { path: 'team', element: <TeamPage /> },
               { path: 'saved', element: <SavedToYou /> },
               { path: 'selection', element: <SelectionPage /> },

@@ -176,7 +176,7 @@ test.describe('catalog Order as whole @functional @catalog @orders', () => {
     await page.getByTestId('company-shop-tab-collections').click();
     await expect(page.getByText(catalogName).first()).toBeVisible({ timeout: 20_000 });
     await page.getByTestId('company-shop-select').click();
-    await page.getByTestId(`company-shop-collection-${catalog.id}`).click();
+    await page.getByTestId(`you-collection-row-${catalog.id}`).click();
     await expect(page.getByTestId('company-shop-dock')).toBeVisible();
     await page.getByTestId('company-shop-order').click();
     await expectCatalogHowMany(page, catalogName, [silk, cotton]);
@@ -259,7 +259,7 @@ test.describe('catalog Order as whole @functional @catalog @orders', () => {
     await page.getByTestId('company-shop-tab-collections').click();
     await expect(page.getByText(catalogName).first()).toBeVisible({ timeout: 20_000 });
     await page.getByTestId('company-shop-select').click();
-    await page.getByTestId(`company-shop-collection-${catalog.id}`).click();
+    await page.getByTestId(`you-collection-row-${catalog.id}`).click();
     await expect(page.getByTestId('company-shop-dock')).toBeVisible();
     await page.getByTestId('company-shop-order').click();
     await expect(page.getByTestId('resolve-pick-designs')).toBeVisible({ timeout: 20_000 });

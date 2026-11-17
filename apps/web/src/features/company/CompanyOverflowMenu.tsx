@@ -95,7 +95,7 @@ export function CompanyOverflowMenu({
     }
     return {
       id: 'remove',
-      label: 'Remove connection',
+      label: 'Unfollow',
       icon: <TrashIcon width={20} height={20} />,
       testId: 'company-overflow-remove',
       danger: true,

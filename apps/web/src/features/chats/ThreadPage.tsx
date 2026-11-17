@@ -69,6 +69,7 @@ import { useDiscardGuard } from '@/ui/useDiscardGuard';
 import { LONG_PRESS_SURFACE_CLASS, useLongPress } from '@/ui/useLongPress';
 import { ThreadPeopleSheet } from '@/features/chats/ThreadPeopleSheet';
 import { GroupProfileSheet } from '@/features/chats/GroupProfileSheet';
+import { invalidateAfterBlock } from '@/features/network/invalidateFollowCatalog';
 import { productImagesFromChatReference } from '@/features/chats/productImagesFromChatReference';
 import { VoicePlayer } from '@/features/voice/VoicePlayer';
 import {
@@ -179,6 +180,7 @@ import {
   orderLifecycleOrderId,
   orderTagQuotePreview,
   orderTaggedUpdateText,
+  shareRevokedNoticeText,
 } from './chatSystemNotice';
 import { threadDateChip } from './threadDateChip';
 import { inboxThreadAvatarUrl } from './inboxThreadAvatar';
@@ -868,6 +870,7 @@ export function ThreadPage() {
       void queryClient.invalidateQueries({ queryKey: ['threads'] });
       void queryClient.invalidateQueries({ queryKey: ['connections'] });
       void queryClient.invalidateQueries({ queryKey: ['access-requests'] });
+      if (action === 'accept') showToast('Connected');
       if (action === 'decline') {
         navigate(chatsInboxHref());
       }
@@ -1126,9 +1129,7 @@ export function ThreadPage() {
     mutationFn: (companyId: string) => api.post(`/connections/company/${companyId}/block`, {}),
     onSuccess: () => {
       setMoreOpen(false);
-      void queryClient.invalidateQueries({ queryKey: ['threads'] });
-      void queryClient.invalidateQueries({ queryKey: ['connections'] });
-      void queryClient.invalidateQueries({ queryKey: ['follows'] });
+      invalidateAfterBlock(queryClient);
       showToast('Blocked');
       navigate(chatsInboxHref());
     },
@@ -4019,7 +4020,10 @@ function TimelineItem({
 }) {
   const navigate = useNavigate();
   if (isChatSystemNotice(message)) {
-    const text = message.body?.trim() || 'Notice';
+    const text =
+      shareRevokedNoticeText(message, viewerCompanyId) ??
+      message.body?.trim() ??
+      'Notice';
     const pill = <p className={CHAT_SYSTEM_PILL_CLASS}>{text}</p>;
     return (
       <div

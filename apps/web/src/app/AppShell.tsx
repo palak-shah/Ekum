@@ -40,6 +40,7 @@ import {
   shellShowsHomeBack,
   shellTitle,
 } from './shellTitle';
+import { youBackHomeHref } from '@/features/company/homeCatalogueTab';
 import { useToast } from '@/ui/Toast';
 import {
   chatsInboxHref,
@@ -178,7 +179,15 @@ export function AppShell() {
                 aria-label="Back"
                 data-testid={exploreSelecting ? 'explore-select-back' : 'you-back-home'}
                 className="-ml-1.5 flex h-12 w-12 items-center justify-center rounded-full text-ink hover:bg-foam"
-                onClick={() => navigate('/')}
+                onClick={() => {
+                  if (youRoot) {
+                    navigate(
+                      youBackHomeHref(new URLSearchParams(location.search).get('tab')),
+                    );
+                    return;
+                  }
+                  navigate('/');
+                }}
               >
                 <BackIcon />
               </button>

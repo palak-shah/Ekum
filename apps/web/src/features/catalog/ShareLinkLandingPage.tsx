@@ -184,7 +184,7 @@ export function ShareLinkLandingPage() {
         ) : null}
       </div>
       <Button fullWidth onClick={goJoin}>
-        {data.open ? 'Open on Ekum' : 'Request access'}
+        {data.open ? 'Open on Ekum' : 'Request to access'}
       </Button>
     </div>
   );

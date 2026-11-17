@@ -8,6 +8,7 @@ import type {
   TradeLaneView,
 } from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
+import { useMyCompany } from '@/lib/queries';
 import { useToast } from '@/ui/Toast';
 import { PageHeader } from '@/ui/PageHeader';
 import { ListSearchRow, ListSquareButton } from '@/ui/ListSearchRow';
@@ -63,6 +64,7 @@ export function PathLockedDefaults({ testIdPrefix }: { testIdPrefix: string }) {
 export function DirectLinksPage() {
   const { showToast } = useToast();
   const queryClient = useQueryClient();
+  const me = useMyCompany();
   const [q, setQ] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
   const [millId, setMillId] = useState<string | null>(null);
@@ -89,7 +91,7 @@ export function DirectLinksPage() {
     mutationFn: (body: CreateTradeLaneDto) => api.post<TradeLaneView>('/trade-lanes', body),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['trade-lanes'] });
-      showToast('Saved for next orders.');
+      showToast('Saved for next orders. Group starts on the first order.');
       setCreateOpen(false);
       setMillId(null);
       setBuyerId(null);
@@ -122,19 +124,30 @@ export function DirectLinksPage() {
     const map = new Map((following.data ?? []).map((company) => [company.id, company]));
     return map;
   }, [following.data]);
+  const supplierIds = useMemo(
+    () => new Set((following.data ?? []).map((company) => company.id)),
+    [following.data],
+  );
+  const myCompanyId = me.data?.id;
   const millChoices = useMemo(
     () =>
       (following.data ?? [])
-        .filter((company) => company.id !== buyerId)
+        .filter((company) => company.id !== buyerId && company.id !== myCompanyId)
         .map(asPickerConnection),
-    [following.data, buyerId],
+    [following.data, buyerId, myCompanyId],
   );
   const buyerChoices = useMemo(
     () =>
       (followers.data ?? [])
-        .filter((row) => !row.stopped && row.company.id !== millId)
+        .filter(
+          (row) =>
+            !row.stopped &&
+            row.company.id !== millId &&
+            row.company.id !== myCompanyId &&
+            !supplierIds.has(row.company.id),
+        )
         .map((row) => asPickerConnection(row.company)),
-    [followers.data, millId],
+    [followers.data, millId, myCompanyId, supplierIds],
   );
 
   return (
@@ -194,14 +207,21 @@ export function DirectLinksPage() {
                 className="flex items-center gap-2 border-b border-line px-4 py-3.5 last:border-b-0"
                 data-testid={`path-row-${row.id}`}
               >
-                <p
-                  className={cx(
-                    'min-w-0 flex-1 text-sm font-emphasis leading-tight',
-                    live ? 'text-ink' : 'text-muted',
-                  )}
-                >
-                  {row.sellerName}
-                </p>
+                <div className="min-w-0 flex-1">
+                  <p
+                    className={cx(
+                      'text-sm font-emphasis leading-tight',
+                      live ? 'text-ink' : 'text-muted',
+                    )}
+                  >
+                    {row.sellerName}
+                  </p>
+                  {!live ? (
+                    <p className="mt-0.5 text-xs text-muted" data-testid={`path-why-off-${row.id}`}>
+                      Repost off
+                    </p>
+                  ) : null}
+                </div>
                 <p
                   className={cx(
                     'min-w-0 flex-1 text-sm leading-tight',
@@ -273,7 +293,7 @@ export function DirectLinksPage() {
             connections={millChoices}
             loading={following.isLoading}
             label="Supplier"
-            emptyMessage="Follow a supplier first."
+            emptyMessage="Follow a supplier on their shop first."
             value={millId}
             onChange={setMillId}
             findOnEkum={false}

@@ -47,6 +47,19 @@ export function shopTabSelectedCount(
   return tab === 'designs' ? designCount : albumCount;
 }
 
+/**
+ * No explicit catalogue intent: first tab with rows (Collections → Designs).
+ * Everything empty → established default (Collections).
+ */
+export function firstShopTabWithContent(
+  collectionsCount: number,
+  designsCount: number,
+): 'collections' | 'designs' {
+  if (collectionsCount > 0) return 'collections';
+  if (designsCount > 0) return 'designs';
+  return 'collections';
+}
+
 /** Message · Share · Order when this shop has picks — own shop too (Message muted in UI). */
 export function shouldShowShopTradeDock(options: {
   isOwn: boolean;

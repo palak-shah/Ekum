@@ -26,16 +26,17 @@ function linkHrefs() {
 }
 
 describe('NetworkPage', () => {
-  it('lists I see theirs and They see mine, not Following / Followers', () => {
+  it('lists Following, Followers, and Connections with locked hints', () => {
     presence.selling = false;
     presence.canPublish = false;
     renderPage();
-    expect(screen.getByRole('link', { name: /I see theirs/ })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /They see mine/ })).toBeInTheDocument();
-    expect(screen.getByText('Businesses whose collections you can see')).toBeInTheDocument();
-    expect(screen.getByText('Businesses you let see your collections')).toBeInTheDocument();
-    expect(screen.queryByText('Following')).toBeNull();
-    expect(screen.queryByText('Followers')).toBeNull();
+    expect(screen.getByRole('link', { name: /Following/ })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Followers/ })).toBeInTheDocument();
+    expect(screen.getByText('Businesses you see updates from.')).toBeInTheDocument();
+    expect(screen.getByText('Businesses who can see your updates.')).toBeInTheDocument();
+    expect(screen.getByText('Businesses you can communicate with.')).toBeInTheDocument();
+    expect(screen.queryByText('I see theirs')).toBeNull();
+    expect(screen.queryByText('They see mine')).toBeNull();
     expect(screen.queryByRole('link', { name: 'Requests' })).toBeNull();
     expect(
       screen.queryByText(/Who you trade with, who sees collections/),
@@ -48,7 +49,7 @@ describe('NetworkPage', () => {
     ]);
   });
 
-  it('puts Buyer groups after They see mine when you publish', () => {
+  it('puts Buyer groups after Followers when you publish', () => {
     presence.selling = true;
     presence.canPublish = true;
     presence.trading = false;

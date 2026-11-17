@@ -106,7 +106,7 @@ describe('buildHomeNeeds', () => {
     });
     expect(needs).toHaveLength(1);
     expect(needs[0]?.kind).toBe('follow_request');
-    expect(needs[0]?.title).toBe('Follow ask · Ahmedabad Loom Co');
+    expect(needs[0]?.title).toBe('Follow · Ahmedabad Loom Co');
     expect(needs[0]?.to).toBe('/network/followers?tab=asked');
   });
 

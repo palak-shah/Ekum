@@ -693,6 +693,80 @@ describe('OrderService.createFromPack', () => {
     expect(create).toHaveBeenCalledTimes(3);
   });
 
+  it('I-handles Direct mills when the buyer no longer Allowed-follows the trader', async () => {
+    const prisma = {
+      collection: {
+        findUnique: vi.fn(async () => ({
+          id: 'pack-dir-unfollow',
+          companyId: 'trader',
+          company: { settings: { tradeDefaults: { tradingEnabled: true } } },
+          products: [{ productId: 'p1' }],
+        })),
+      },
+      product: {
+        findMany: vi.fn(async () => [
+          { id: 'p1', companyId: 's-direct', company: { name: 'Direct Mill' } },
+        ]),
+      },
+      follow: {
+        findUnique: vi.fn(async (args: {
+          where: {
+            followerCompanyId_followedCompanyId: {
+              followerCompanyId: string;
+              followedCompanyId: string;
+            };
+          };
+        }) => {
+          const pair = args.where.followerCompanyId_followedCompanyId;
+          if (pair.followerCompanyId === 'buyer' && pair.followedCompanyId === 'trader') {
+            return null;
+          }
+          return { status: 'allowed', accessKind: 'pack' };
+        }),
+      },
+      tradeLane: {
+        upsert: vi.fn(async () => ({})),
+        findUnique: vi.fn(async () => ({
+          ticket: 'mill',
+          behaviors: { directOrder: true, autoRepost: true },
+        })),
+      },
+    } as unknown as PrismaService;
+    const service = new OrderService(
+      prisma,
+      {} as OrderSerializer,
+      { assertCanTrade: async () => undefined } as unknown as TradeAccess,
+      {} as DomainEvents,
+      {} as ConfigService<Env, true>,
+      {} as JobQueue,
+      {} as ThreadService,
+      stubTrail,
+      stubAudit,
+    );
+    const create = vi.spyOn(service, 'create').mockImplementation(async (actor, _user, dto, opts) => {
+      return {
+        id: opts?.tradeMode === OrderTradeMode.Manage ? 'down-ih' : 'up-ih',
+        sellerCompanyId: dto.sellerCompanyId,
+        buyerCompanyId: actor,
+        tradeMode: opts?.tradeMode ?? OrderTradeMode.Bilateral,
+        downstreamOrderId: opts?.downstreamOrderId ?? null,
+        items: [],
+      } as never;
+    });
+    const result = await service.createFromPack('buyer', 'user-1', {
+      collectionId: 'pack-dir-unfollow',
+      items: [{ productId: 'p1', quantity: 4, images: [] }],
+    });
+    expect(result.directs).toHaveLength(0);
+    expect(result.downstream?.id).toBe('down-ih');
+    expect(create).toHaveBeenCalledWith(
+      'buyer',
+      'user-1',
+      expect.objectContaining({ sellerCompanyId: 'trader' }),
+      expect.objectContaining({ tradeMode: OrderTradeMode.Manage }),
+    );
+  });
+
   it('creates only Direct tickets when every mill is Direct-linked', async () => {
     const prisma = {
       collection: {

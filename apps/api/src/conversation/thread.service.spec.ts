@@ -105,6 +105,70 @@ describe('ThreadService.startDirect request gating', () => {
     });
     expect(targetState(created)).toBe(ThreadParticipantState.Archived);
   });
+
+  it('does not restore an archived self while the target has blocked the sender', async () => {
+    let updated: unknown = null;
+    const prisma = {
+      company: { findUnique: async () => ({ id: 'target' }) },
+      thread: {
+        findFirst: async () => ({
+          id: 't1',
+          participants: [
+            {
+              id: 'p-me',
+              companyId: 'me',
+              state: ThreadParticipantState.Archived,
+              leftAt: new Date(),
+              inboxHiddenAt: null,
+            },
+            {
+              id: 'p-target',
+              companyId: 'target',
+              state: ThreadParticipantState.Active,
+              leftAt: null,
+              inboxHiddenAt: null,
+            },
+          ],
+        }),
+        create: async () => {
+          throw new Error('must not create');
+        },
+      },
+      threadParticipant: {
+        update: async (args: unknown) => {
+          updated = args;
+          return {};
+        },
+      },
+      threadMember: {
+        createMany: async () => ({}),
+        updateMany: async () => ({}),
+        findUnique: async () => null,
+        findMany: async () => [],
+      },
+      companyMembership: { findMany: async () => [] },
+      user: { findUnique: async () => ({ name: 'Me' }) },
+      message: { count: async () => 0, findMany: async () => [] },
+    } as unknown as PrismaService;
+    const visibility = {
+      isBlocked: async () => true,
+      canViewCatalog: async () => false,
+    } as unknown as VisibilityService;
+    const service = new ThreadService(
+      prisma,
+      visibility,
+      { toThreadSummary: () => ({ id: 't1' }) } as unknown as ConversationSerializer,
+      { resolve: async () => new Map() } as unknown as ReferenceResolver,
+      accessStub(),
+    );
+    await expect(
+      service.startDirect('me', 'owner', {
+        companyId: 'target',
+        visibility: ThreadVisibility.Shared,
+      }),
+    ).rejects.toMatchObject({ response: expect.objectContaining({ code: 'CANNOT_MESSAGE' }) });
+    expect(updated).toBeNull();
+  });
 });
 
 describe('ThreadService.membershipOrThrow owner_only visibility', () => {
@@ -748,5 +812,98 @@ describe('ThreadService.leave / archiveGroup public notices', () => {
         metadata: { kind: 'company_left', companyId: 'me' },
       }),
     ]);
+  });
+});
+
+describe('ThreadService.unreadTotal (nav badge)', () => {
+  it('sums unread messages on open Active threads only (matches inbox list)', async () => {
+    const findManyArgs: unknown[] = [];
+    const prisma = {
+      threadParticipant: {
+        findMany: async (args: unknown) => {
+          findManyArgs.push(args);
+          return [
+            { threadId: 'open-1', lastReadAt: null },
+            { threadId: 'open-2', lastReadAt: new Date('2026-11-01T00:00:00.000Z') },
+          ];
+        },
+      },
+      message: {
+        count: async (args: { where: { threadId: string } }) =>
+          args.where.threadId === 'open-1' ? 7 : 4,
+      },
+    } as unknown as PrismaService;
+    const service = new ThreadService(
+      prisma,
+      {} as VisibilityService,
+      {} as ConversationSerializer,
+      {} as ReferenceResolver,
+      accessStub(),
+    );
+    await expect(service.unreadTotal('me', 'owner')).resolves.toEqual({ count: 11 });
+    expect(findManyArgs[0]).toEqual(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          companyId: 'me',
+          state: ThreadParticipantState.Active,
+          leftAt: null,
+          inboxHiddenAt: null,
+          thread: expect.objectContaining({ messagingClosedAt: null }),
+        }),
+      }),
+    );
+  });
+
+  it('returns 0 when only messaging-closed Active rows would have matched (filtered out)', async () => {
+    const prisma = {
+      threadParticipant: {
+        findMany: async () => [],
+      },
+      message: { count: async () => 99 },
+    } as unknown as PrismaService;
+    const service = new ThreadService(
+      prisma,
+      {} as VisibilityService,
+      {} as ConversationSerializer,
+      {} as ReferenceResolver,
+      accessStub(),
+    );
+    await expect(service.unreadTotal('me', 'owner')).resolves.toEqual({ count: 0 });
+  });
+
+  it('scopes staff viewers to Active membership and still requires open threads', async () => {
+    let where: unknown;
+    const prisma = {
+      threadParticipant: {
+        findMany: async (args: { where: unknown }) => {
+          where = args.where;
+          return [];
+        },
+      },
+      message: { count: async () => 0 },
+    } as unknown as PrismaService;
+    const service = new ThreadService(
+      prisma,
+      {} as VisibilityService,
+      {} as ConversationSerializer,
+      {} as ReferenceResolver,
+      accessStub(),
+    );
+    await service.unreadTotal('me', 'staff', 'user-1');
+    expect(where).toEqual(
+      expect.objectContaining({
+        state: ThreadParticipantState.Active,
+        thread: {
+          messagingClosedAt: null,
+          members: {
+            some: {
+              userId: 'user-1',
+              companyId: 'me',
+              state: 'active',
+            },
+          },
+        },
+      }),
+    );
   });
 });

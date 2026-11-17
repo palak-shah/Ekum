@@ -1,0 +1,25 @@
+---
+description: UI chrome must copy a locked sibling — no third dialects; screenshot gate before done
+alwaysApply: true
+---
+
+# UI source of truth (Required)
+
+Partners finish prototypes in ~30 minutes by picking **one** look. Multi-day drift happens when each slice **invents** chrome (lime underline, field wash, outlined pills) instead of copying a locked sibling.
+
+## Before any UI claim of done
+
+1. **Name the source of truth in one line** — e.g. “Tab bar = Orders Selling/Buying/Others via `underlineTabChrome`.” If none exists, **ask** — do not invent.
+2. **Reuse, don’t remix** — same helper/classes as the sibling. A “similar” `border-b-2 border-badge` is a **basic error**.
+3. **Screenshot gate at 390px** — changed screen next to the sibling; if the chrome language differs, **not done** (BM-11).
+4. **One job per change** — no parallel color experiments on the same surface.
+
+## Theme C accent jobs (locked)
+
+- **Charcoal go** (`accent` / `#1f2a30`): primary actions, selected underline tabs (`text-accent` + `h-1 bg-accent`).
+- **Lime** (`badge` / chip-on): attention only — counts, completeness Chip, Need you — **never** tab rails or full field washes.
+- **Foam** (`bg-foam`): quiet secondary action pills and idle Chip fill.
+
+## Home / You / Orders tabs
+
+Underline tabs on Home catalogue, You library, and Orders list **must** use shared `underlineTabChrome` (Orders language). Do not ship a second selected-tab dialect.

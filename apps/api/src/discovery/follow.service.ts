@@ -13,17 +13,24 @@ import {
 import type { CompanyCard, FollowAskResult, FollowAskView, ShopFollowerView } from '@ekum/domain-types';
 import { PrismaService } from '../core/prisma/prisma.service';
 import { VisibilityService } from '../access/visibility.service';
+import { deleteOwnBlock, hasOwnBlock } from '../access/company-block';
 import { ensureActiveConnectionUnlessBlocked } from '../access/ensure-active-connection';
 import { ThreadService } from '../conversation/thread.service';
+import { DomainEvents } from '../events/events.module';
 import { DiscoverySerializer } from './discovery.serializer';
 import {
   allowedFollowWhere,
   FollowAccessKind,
   FollowStatus,
-  isPackFollow,
 } from './follow-access';
 
-export const SHARE_REVOKED_LINE = 'Repost for all collections is off. Request again.';
+export function millRepostOffBody(traderName: string): string {
+  return `You turned off Repost for ${traderName}`;
+}
+
+export function traderRepostOffBody(millName: string): string {
+  return `${millName} turned off Repost for you · Request`;
+}
 
 @Injectable()
 export class FollowService {
@@ -33,6 +40,7 @@ export class FollowService {
     private readonly serializer: DiscoverySerializer,
     /** Required: Accept follow must activate Pending/Archived Direct (no silent skip). */
     private readonly threads: ThreadService,
+    private readonly events: DomainEvents,
   ) {}
 
   /** Ask to follow — never auto-allow. */
@@ -139,22 +147,10 @@ export class FollowService {
     followerCompanyId: string,
     followedCompanyId: string,
   ): Promise<FollowAskResult> {
-    const existing = await this.prisma.follow.findUnique({
-      where: {
-        followerCompanyId_followedCompanyId: {
-          followerCompanyId,
-          followedCompanyId,
-        },
-      },
-      select: { status: true, accessKind: true },
-    });
     await this.prisma.follow.deleteMany({
       where: { followerCompanyId, followedCompanyId },
     });
-    // Mill Pack revoke only — never notify when a buyer unfollows a trader.
-    if (isPackFollow(existing)) {
-      await this.notifyShareOff(followedCompanyId, followerCompanyId);
-    }
+    // Unfollow is silent in chat — only mill setAccess Pack→Look posts Repost-off.
     return { following: false, pending: false };
   }
 
@@ -207,10 +203,22 @@ export class FollowService {
       orderBy: { createdAt: 'desc' },
       include: { follower: true },
     });
+    const blockedIds = new Set<string>();
+    if (follows.length > 0) {
+      const edges = await this.prisma.companyBlock.findMany({
+        where: {
+          blockerCompanyId: companyId,
+          blockedCompanyId: { in: follows.map((f) => f.followerCompanyId) },
+        },
+        select: { blockedCompanyId: true },
+      });
+      for (const edge of edges) blockedIds.add(edge.blockedCompanyId);
+    }
     return follows.map((follow) => ({
       company: this.serializer.toCompanyCard(follow.follower),
       createdAt: follow.createdAt.toISOString(),
       kind: follow.packAskPending ? 'share' : 'see',
+      blockedByMe: blockedIds.has(follow.followerCompanyId),
     }));
   }
 
@@ -244,6 +252,11 @@ export class FollowService {
           where: { id: row.id },
           data: { accessKind: FollowAccessKind.Pack, packAskPending: false },
         });
+        this.events.followAllowed({
+          followerCompanyId,
+          shopCompanyId,
+          accessKind: 'pack',
+        });
         return { ok: true };
       }
       if (decision === 'look') {
@@ -254,12 +267,15 @@ export class FollowService {
         });
         return { ok: true };
       }
-      // Reject — no look and no pack.
+      // Reject Ask to repost — Repost denied; Look stays (silent).
       await this.prisma.follow.update({
         where: { id: row.id },
-        data: { status: FollowStatus.Stopped, accessKind: null, packAskPending: false },
+        data: {
+          status: FollowStatus.Allowed,
+          accessKind: row.accessKind ?? FollowAccessKind.Look,
+          packAskPending: false,
+        },
       });
-      await this.notifyShareOff(shopCompanyId, followerCompanyId);
       return { ok: true };
     }
 
@@ -275,7 +291,6 @@ export class FollowService {
         where: { id: row.id },
         data: { status: FollowStatus.Stopped, accessKind: null, packAskPending: false },
       });
-      await this.notifyShareOff(shopCompanyId, followerCompanyId);
       return { ok: true };
     }
 
@@ -283,18 +298,30 @@ export class FollowService {
       throw new NotFoundException({ code: 'NOT_FOUND', message: 'Ask not found.' });
     }
 
+    const accessKind = decision === 'pack' ? FollowAccessKind.Pack : FollowAccessKind.Look;
     await this.prisma.follow.update({
       where: { id: row.id },
       data: {
         status: FollowStatus.Allowed,
-        accessKind: decision === 'pack' ? FollowAccessKind.Pack : FollowAccessKind.Look,
+        accessKind,
         packAskPending: false,
       },
     });
+    // Accept while I blocked them: clear my edge so Connection can form (UI confirms first).
+    if (await hasOwnBlock(this.prisma, shopCompanyId, followerCompanyId)) {
+      await this.prisma.$transaction(async (tx) => {
+        await deleteOwnBlock(tx, shopCompanyId, followerCompanyId);
+      });
+    }
     // Follow ⇒ Connect: Allow also ensures Active Connection (chat without Requests).
     await ensureActiveConnectionUnlessBlocked(this.prisma, shopCompanyId, followerCompanyId);
     // Message then follow: Accept follow also opens a pending Direct request.
     await this.acceptPendingDirectWith(shopCompanyId, followerCompanyId);
+    this.events.followAllowed({
+      followerCompanyId,
+      shopCompanyId,
+      accessKind: decision === 'pack' ? 'pack' : 'look',
+    });
     return { ok: true };
   }
 
@@ -351,16 +378,32 @@ export class FollowService {
     return this.toFollowerView(updated);
   }
 
+  /** Mill Pack→Look only — exact mill↔trader Direct; Buyer never gets this line. */
   private async notifyShareOff(millCompanyId: string, traderCompanyId: string): Promise<void> {
-    const threadId = await this.threads.findDirectThreadId(millCompanyId, traderCompanyId);
+    const threadId = await this.threads.findExactPairDirectThreadId(
+      millCompanyId,
+      traderCompanyId,
+    );
     if (!threadId) return;
+    const companies = await this.prisma.company.findMany({
+      where: { id: { in: [millCompanyId, traderCompanyId] } },
+      select: { id: true, name: true },
+    });
+    const millName = companies.find((c) => c.id === millCompanyId)?.name?.trim() || 'Supplier';
+    const traderName = companies.find((c) => c.id === traderCompanyId)?.name?.trim() || 'Trader';
     await this.prisma.message.create({
       data: {
         threadId,
         senderCompanyId: millCompanyId,
         type: MessageType.System,
-        body: SHARE_REVOKED_LINE,
-        metadata: { kind: 'share_revoked' },
+        body: millRepostOffBody(traderName),
+        metadata: {
+          kind: 'share_revoked',
+          millCompanyId,
+          traderCompanyId,
+          millName,
+          traderName,
+        },
       },
     });
     await this.prisma.thread.update({

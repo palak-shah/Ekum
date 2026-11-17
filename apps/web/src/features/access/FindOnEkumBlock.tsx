@@ -202,7 +202,7 @@ export function FindOnEkumBlock({
                 >
                   {requestAccess.isPending && requestAccess.variables === company.id
                     ? 'Sending…'
-                    : 'Request access'}
+                    : 'Ask to connect'}
                 </button>
               )}
               {onMessage && !connected ? (

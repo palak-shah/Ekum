@@ -80,7 +80,7 @@ export function Button({
   );
 }
 
-/** Compact row CTA (Requests Allow, Direct Link Request repost). Not kit Button (48px). */
+/** Compact row CTA (Requests Allow, Direct Link Ask to repost). Not kit Button (48px). */
 export const compactCta =
   'inline-flex h-8 min-w-[4.75rem] shrink-0 items-center justify-center rounded-lg px-3 text-meta font-emphasis tracking-tight disabled:cursor-not-allowed disabled:opacity-45';
 

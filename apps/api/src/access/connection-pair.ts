@@ -73,12 +73,22 @@ export function connectionPairWhere(a: string, b: string) {
 }
 
 /**
- * Nested Company filter: no blocked mutual connection with `otherCompanyId`.
- * Covers both orientations via low/high relations.
+ * Nested Company filter: no directed CompanyBlock either way with `otherCompanyId`.
+ * Dual-reads legacy Connection.status=blocked until rows are migrated.
  */
 export function companyNotBlockedWith(otherCompanyId: string) {
   return {
     AND: [
+      {
+        blocksAsBlocker: {
+          none: { blockedCompanyId: otherCompanyId },
+        },
+      },
+      {
+        blocksAsBlocked: {
+          none: { blockerCompanyId: otherCompanyId },
+        },
+      },
       {
         connectionsAsLow: {
           none: { companyHighId: otherCompanyId, status: ConnectionStatus.Blocked },

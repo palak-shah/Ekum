@@ -2,66 +2,77 @@
 
 ## Purpose
 
-Public shop card for a business (logo, city, about, verification, categories, published work) and the owner’s edit surface for their own company.
+**Business Profile** is the shop face for a company: identity, cover, Business Showcase, optional contact phones, and (when accessible) published collections/designs. It is a **business identity and discovery page**, not a collection-dependent page. Owners manage it from **Home (`/`)**.
 
 ## Who uses it
 
-Anyone browsing a business; owners **look** via Home avatar **Profile**, then **Edit profile** on that page (or own-shop **Edit profile**, which opens already editing). Members manage people via **Settings → Team**.
+Anyone browsing a business (subject to Public/Private); owners edit on Home. Members manage people via **Settings → Team**.
 
 ## User flows
 
-### Public profile (`/company/:id`)
+### Own Business Profile (Home `/`)
 
-1. Open from Explore, search, chat, or Home. A 1:1 title passes `{ fromChat: true }`.
-2. Header is Back · **business name** + GST tick · Find · **⋯** (name once, stays when you scroll). Hero: logo, then **contact name + role** (when Connected) · **city** · about · **category chips** (not repeated on the city line). No green **GST verified** chip. Contact is not under the action row. No phone. **Other shops and your own shop** hide the app bottom nav for the whole visit. The bar stays on Home, Chats, Explore, and Orders only.
-3. Header: **Find** + **⋯** (not a lone Share icon). One compact action row (Instagram / WhatsApp density, foam fill): **Request access** (lock icon) · **Message** / **Chat** (chat icon). After they ask: **Requested** (lock icon, outline; tap to cancel). After allow: **Has access** (unlock icon, teal; tap cancels follow). **Message** when not connected and no live 1:1; **Chat** when Connected or you already have an active 1:1. Message stays even from a 1:1. No separate shop **Request** product — the CTA is still the Follow ask. No helper paragraph under the buttons. Sell-only shops still show Request access. Own shop: **Edit profile** on the row; **⋯** keeps **Share** only. Connected: contact **name + role** in the hero above city / types — **no phone**, not under the action row. **Repost** / Curate for this shop’s picks is on **Your selection**, not the shop Selecting dock.
-4. **⋯** is a **bottom sheet** (icon + text; app-wide MoreActionsSheet). Everyday first, destructive last: **Share** → **Universal Share** content-height sheet (one search filters connections; quiet **Find on Ekum** link like New chat + buyer-group chips + quiet **Create group**; optional message; primary **Send** into chats; quieter native Share icon for `/company/:id` outside); **Mute** / **Unmute** when a 1:1 exists (chat noise, same as thread mute); **Block** (silent Network block → shop 404); **Remove connection** last when pending ask or Has access (cancel ask / unfollow collections door — not Block). Own shop: Share only in ⋯.
-5. Shop: **Collections · Designs** on the catalog row (Collections first, same as You; **folder icon + Collections** · **dress icon + Designs** — no catalog-size counts on the pills; same marks in chat attach / media). Quiet **icon-only Feed / Grid** toggle (`BrowseLayoutToggle` — same as You / Saved / design set; **Ekum default Feed**) — not in the page header. **Find** is a header icon (not a permanent field). Tap opens the field **in the header under that icon** (Find designs / Find collections); close clears. Filters **this tab** in place (design name; collections: name, tags, member name / SKU / notes / tags). Keep the grid until they type — not Explore search. **Feed** uses the same `CatalogFeedPost` as You / Explore, but **no shop row** on this shop’s catalog (name · city · cats already live on the profile). Mosaic → collection name → **date** (no design count), then tags when the collection has them. **Grid** matches You library: **2-col `gap-3`**, rounded card (`border-line` + surface), compact thumb + name (collections: mosaic + name · date). Mosaic uses preview thumbs only (no `+N` from hidden inventory). **Designs** = this seller’s published designs, **once each** — solo Explore posts **and** members of live collections the viewer can see. The same design in many collections is one cell (not N copies). Pack-only designs (no Explore tile) still show here. Tap the photo / mosaic → open shared **DesignSheet** (or album), or **toggle select** when Selecting. The **name** always opens the DesignSheet or album (even while Selecting). Own shop Designs: same sheet; Message muted; ⋯ adds Edit / Delete. Find is the first page of shop cards until we paginate.
-6. **Select** / long-press on **Designs** and **Collections** adds to the traveling pile (designs → shortlist, collections → album pick). While **Selecting**, **N selected · Select all · Clear** is a pill under **Select** (right-aligned with that control) — not a full-width bar under the header. **N / Select all / Clear are for the active tab only** — selected designs never count as selected collections (and the reverse). Selected tiles show a clear shrink + teal check and an accent **card** border so pick is obvious. **Message · Share · Order** appears **only** when **this shop** has at least one selected design **or** collection — never as an Explore floater here (profile already has **Chat**). When the dock is up, hide the tab bar. The dock acts on **this page’s** picks (both tabs). **Message** opens the quick enquire bar for this seller (pile cards stay; toast). **Share** opens catalogue share; success clears **this shop’s** lines only. **Order** resolves collections first (**All designs** / **Choose**, same as Your selection), then **How many each** (toast if a collection cannot expand). Other shops left in the pile stay there. **Clear** on the pill unselects only the **active tab** on this shop. Own shop: no trade dock. Mixed-seller Order / Bookmark / Share / Repost stay on **Your selection**.
+1. Bottom-nav **Home** opens your Business Profile (shell title **Home**; bottom nav stays). Account menu **Edit profile** and `/settings/profile?edit=1` open Edit Profile. `/settings/profile` without edit lands on `/`. Own `/company/:selfId` **redirects to `/`**.
+2. Hero: **full-width cover** (optional) + **centred avatar** overlapping the cover bottom edge (`logoUrl`) + centred name · compact `Contact · City` (or city alone) · muted `Category · Category` line · quiet About (`line-clamp` + More when long). Identity type matches the app ladder (one product): name `text-name`, city/categories/private stub `text-meta text-muted`, About `text-sm text-muted` — same as Chats/Orders/Settings, not a profile-only scale. Missing cover while editing → quiet **Add cover** (not a loud empty slab). Contact name only when Connection rules already allow contact fetch — never login phone.
+3. **Three independent photo controls** (edit / own only):
+   - **Cover camera** on the cover → Add / Change / Remove **cover only**.
+   - **Avatar camera** on the circle → profile photo only.
+   - **Business Showcase** — no separate Home manage row. Owner opens from the cover overlay (**Add Showcase ›** when empty, **View Showcase ›** when photos exist). Add lives on the Showcase browse sheet; remove via × on each tile (no Manage / reorder). Up to **10** photos. Never a fifth primary pill. No inline thumbnail view strip on the profile face.
+   - Sources: fresh upload or pick an **own** design photo. Remove **unlinks** from the profile; does not delete media blobs or designs.
+4. Viewing photos: cover overlay opens a **Showcase sheet** (grid default / feed toggle). Tap a photo → PhotoViewer with **Showcase URLs only**. Visitors see the overlay only when Showcase has ≥1 photo; owners always (to Add when empty). Overlay sits on the photo cover or quiet empty shell. Tap cover photo elsewhere → cover-first gallery. Cover camera must not open either gallery. Missing cover + Showcase (or owner Add) still shows the empty foam shell.
+5. Equal-width white pills (icon above label, quiet border): **Edit · Share · Network · Saved**, then optional completeness nudge, then Catalogue. Icons charcoal accent — no foam wash on the action row (reads heavy). **Network** → `/network` hub (Following · Followers · Connections · …) — not three categories on the profile face. Share → Universal Share → rich **`company_card`** in chats (plus optional native URL). Destinations unchanged. See [access-and-connections](./access-and-connections.md).
+6. **Home only — completeness nudge:** kit **Chip** (chip-on / lime attention) after action pills when optional face fields are missing (profile photo, cover, about, sell categories — max 3). No foam banner box, no eyebrow/why copy. Chips open Home cameras or `/settings/profile?edit=1` (sell: `?focus=sell`). Soft × dismisses until the incomplete set changes (localStorage fingerprint). Never on visitor/stub.
+7. **Public / Private** (Instagram-like) is switched under **Settings → Privacy** (not the main Home profile or Edit Profile hero). Default **Public** for existing and new companies. Flipping visibility does not change collection audience, Network, chat, or phone opt-ins.
+8. **Phones (edit):** company-level contact number + opt-in; each team member’s display phone + own opt-in (Team/profile). Independent flags.
+9. **Catalogue:** White body (no invent bordered card frame) with Collections/Designs underline tabs — **Orders language** via shared `underlineTabChrome` (`text-accent` + `h-1 bg-accent`; **not** lime `border-badge`). Same chrome as You; **no Catalogs** tab — catalog packs sit in Collections. No extra Catalogue heading. Show **only** when there is accessible **published** content. Zero packs/designs → omit section. Empty catalogue does **not** mean an incomplete profile. No tab intent on land: **first tab with rows** (Collections → Designs); both empty → **Collections**. A tap on a tab is kept (seed does not override). **Home** and **visitor shop** show **4** collection rows or **4** design tiles (2×2); preview body keeps a shared min-height so **View more…** / **View all…** stay at the same spot when switching tabs. List/grid body stays surface (no field wash). Home: quiet **View more…** → My collections (`/more?tab=collections` or `/more?tab=products`); Home keeps the same kind in `/?tab=` so You **Back** lands on Designs when you left from Designs. Visitor shop: quiet **View all…** → `/company/:id/catalogue` (`?tab=collections` or `?tab=products`). Preview faces have no Select / Find / layout; taps still open album / DesignSheet. **Visitor catalogue page** (`/company/:id/catalogue`): full audience-allowed list + Find + layout + Select + trade dock + collection ⋯ (Message · Share · Bookmark) — same actions as the former full shop shelf. Own `/company/:id/catalogue` redirects to `/more`. Collection rows match You list (`YouCollectionListRow`) without library meta / draft chips. Designs match You Designs tiles (feed/grid on catalogue; grid on Home/shop preview). Tap collection → album (`packManage` when own). Tap design → DesignSheet. Own collection ⋯ is existing owner manage/share (`OwnerCollectionMoreSheet`, no Draft/Hide/Delete; Who/Add/Edit open the album).
+10. **Business info** (below catalogue, or alone when catalogue omitted): foam card with an ink **Business info** header (not muted) and accent icons on rows, then `InfoRow`s. Contacts and Team are sibling foam cards (same light border; ink titles + accent header icons). Optional **hours** (`Open now · 10:30 AM – 7:30 PM · Sunday off` / `Closed now · Opens at …`; tap → weekday sheet), **shop address** + quiet **Map** (Google Maps search of the saved text; no GPS), **website** (domain, opens https). Then city, categories, sells/buys when known, GST line (own GSTIN or “GST not shared”; visitors see verified / not shared without GSTIN). Contacts when Connected or own (opted-in phones); each number has a trailing green Call icon (`tel:` / success). **Home Team card** lists members (name · Owner/Staff); tap → **Invite** (if allowed) / **Edit team** (`/team`, invite via `?invite=1`). Visitor shops have no Team roster. “On Ekum since …”. Hide hours / address / website when unset. Edit only on `/settings/profile?edit=1`. Hours are one open/close + weekly off (IST, same-day close after open). City stays `Company.city` — street fields do not replace it. Stub omits hours/address/website.
 
-### Own profile (`/settings/profile`)
 
-1. Home avatar **Profile** → `/settings/profile` **view**: values as text, **Edit profile** last. Fields are not inputs. Bottom nav stays.
-2. **Edit profile** (or own shop **Edit profile** → `?edit=1`, or Explore Buyers empty → `?focus=sell`) unlocks fields and logo. **Update** is a sticky bottom dock (same as collection edit; tab bar hidden). Back leaves edit (no Cancel). **Edit profile** stays last on the view scroll.
-3. **Update** → PATCH `/companies/me`, toast, back to view. Public shop and session card follow.
+
+### Other company (`/company/:id`)
+
+1. Open from Explore, Find, chat, Network, etc. A 1:1 title may pass `{ fromChat: true }`. Bottom nav hidden on other shops.
+2. **Block** → **404** (silent).
+3. **Public** (or **Private** + **approved Follower**): full profile — cover (or empty shell when Showcase exists without cover) with optional **View Showcase ›**, about, categories, conditional catalogue. Primary actions: **Follow / Requested / Following · Message / Chat · Share** (equal white pills; **Follow** = action, **Following** = allowed state — filled charcoal). **Chat** when a Direct already exists → open it; **Message** with no Direct yet → compose first text, then create the thread (no empty chat). Not Connect; not pack **Request to access.** Completeness: `2026-11-17-chat-on-first-message-completeness`. ⋯ keeps Share · Mute · Block · **Unfollow** last (`DELETE /follows`; Connection may remain). **Phones** only when **Connected** and opted in (company number first, then team) — not on the identity line. Login OTP phone never shown. No visitor Showcase manage.
+4. **Private** + not approved follower: **stub** — centred avatar/initials + **This business is private.** No cover, Showcase overlay, about, catalogue, or phones. Actions: **Follow · Message · Share** (same three; no identity leak).
+5. Full-profile hero matches Home composition (centred cover/avatar). Shop face catalogue is a short preview + **View all…**; Selecting / Find / layout / dock live on `/company/:id/catalogue`. **Omit** catalogue when nothing is accessible to this viewer.
+6. Collection / design visibility still uses existing audience rules — independent of profile Public/Private and of showcase.
 
 ### Team (`/team`)
 
-1. **Settings → Team** — every member sees the list (name + Owner / Staff).
-2. With **Team** cap: **Invite** (name + 10-digit) → share `/t/:token`. Edit caps on a row. Remove staff.
-3. Recipient OTP on that phone → Join. Becomes staff if they have **no live** business. After **Remove** (archive) at a prior shop, the same phone may join another shop or create a company. Still live elsewhere → blocked until that shop removes them. Last owner cannot be removed.
-4. **Remove** archives the person (they cannot open chats). Work and their name on your side stay. Internal: “Priya left the team.” Dedup of group chats still counts them. Not a hard delete. Re-invite to **this** shop unarchives the same seat.
+Unchanged: Settings → Team invites, caps, archive. Phone **visibility** opt-ins for the Business Profile may be edited on Team rows and/or profile edit; invite flow unchanged.
 
 ## Business rules
 
 | Rule | Detail |
 |------|--------|
-| Contact protection | Shop **never** shows phone (even when connected / `showPhone`). `GET /companies/:id/contact` may still return a display phone for other surfaces; login phone is never emitted |
-| Silent block | Blocked viewers get **404**, not “you are blocked” |
-| Capabilities | Shown as data (`publish`, `relist`, `refer`) on own company |
-| Verification | `not_verified` · `gst_verified` |
-| Own vs other | Editing only for the acting company’s profile |
-| Team | People under this company (`owner` / `staff` + five caps). Invite is phone-bound; a phone with a **live** business elsewhere cannot join. After archive, same phone may join another shop. No company switcher (one live at a time). |
-| Leave Team | **Archive**, do not delete. Archived people cannot sign in as this company. Group-chat uniqueness still includes them. Rejoin this shop = unarchive via invite. |
+| Profile vs collections | Cover + Showcase follow **profile access**. Packs/designs follow **audience** / Follow / grants. Showcase is not pack media. |
+| Profile access | **Public:** any authenticated non-blocked company. **Private:** owner or approved Follower (`Follow.status = allowed`) for full profile; else stub. |
+| Showcase | ≤10 additional URLs; cover separate; gallery = cover then showcase; independent of having any collection. Cover / avatar / Showcase PATCH stores URL strings with no Media/Product ownership gate (upload is the trader’s responsibility). |
+| Contact phones | Shown only to **Connections** when opted in. Company `contactPhone` first, then team `displayPhone` with `showPhone`. Login phone never emitted. Each number shows a trailing green **Call** icon (`tel:` / `text-success`) that opens the device dialer |
+| Silent block | Blocked viewers get **404** |
+| Capabilities / verification | Unchanged |
+| Own vs other | Editing only for the acting company |
+| Team | Unchanged membership rules |
+| Explore / Find | Private companies excluded from public discovery; still listed for approved followers |
 
 ## Edge cases / empty states
 
-- No published catalog → empty collections/designs sections.
-- Missing logo → avatar initials from business name.
+- Zero collections/designs → complete profile without catalogue section.
+- Missing hours/address/website → those rows hidden; city still shows.
+- Missing logo → initials; missing cover → Add cover when editing; missing cover + Showcase → empty shell + View Showcase for visitors (and owner).
+- Unfollow a Private shop → back to stub; owner showcase unchanged.
+- Design used in showcase unpublished → URL copy remains until owner removes (unlink).
 
 ## Seed walkthrough
 
-1. As **Meena**: open Surat Silk House profile — GST verified, sell categories, Wedding Edit.
-2. As **Ravi**: open own profile via You → confirm business name is **Surat Silk House** (not “Ravi”).
-3. As **Meena**: confirm own business shows **Jaipur Emporium**.
+1. As **Meena**: open Surat Silk House — full public profile / showcase when allowed.
+2. As **Ravi**: Home → Surat Silk House own profile; Edit cover with cover camera; Showcase via cover overlay → browse sheet Add / × remove.
+3. Private stub: non-follower sees **This business is private.**
 
 ## Where it lives
 
-- Web: `apps/web/src/features/company/CompanyProfilePage.tsx`, `apps/web/src/features/settings/ProfilePage.tsx`
-- API: `apps/api/src/identity/company.service.ts`, serializer / contact in `apps/api/src/access/`
+- Web: Home `/` own profile; `apps/web/src/features/company/CompanyProfilePage.tsx` for others
+- API: `apps/api/src/identity/company.service.ts`, contact serializer, Explore/search filters
 - Contracts: `packages/domain-types/src/company.ts`
-- Completeness shop chrome: `docs/superpowers/reviews/completeness/2026-09-23-company-profile-shop-chrome-completeness.md`
-- Completeness shop dock + Share: `docs/superpowers/reviews/completeness/2026-09-23-company-shop-trade-share-completeness.md`
-- Completeness shop dock Message · Share · Order: `docs/superpowers/reviews/completeness/2026-10-09-company-shop-dock-message-share-order-completeness.md`
-- Completeness select clarity + dock only when picked: `docs/superpowers/reviews/completeness/2026-10-09-shop-select-clarity-dock-completeness.md`
-- Completeness client chrome (labels + ⋯): `docs/superpowers/reviews/completeness/2026-10-06-shop-profile-client-chrome-completeness.md`
+- Completeness: `docs/superpowers/reviews/completeness/2026-11-15-business-profile-home-showcase-completeness.md`, `docs/superpowers/reviews/completeness/2026-11-15-business-profile-visual-alignment-completeness.md`, `docs/superpowers/reviews/completeness/2026-11-15-drop-profile-media-ownership-completeness.md`

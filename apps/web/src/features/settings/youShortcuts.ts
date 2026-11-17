@@ -1,6 +1,6 @@
 export function youShortcutItems(): { to: string; label: string; testId: string }[] {
   return [
-    { to: '/settings/profile', label: 'Profile', testId: 'profile' },
+    { to: '/settings/profile?edit=1', label: 'Edit profile', testId: 'profile' },
     { to: '/network', label: 'Network', testId: 'network' },
     { to: '/more?tab=collections', label: 'My Collections', testId: 'my-collections' },
     { to: '/settings', label: 'Settings', testId: 'settings' },
@@ -34,6 +34,17 @@ export function settingsBusinessRoleLinks(
           },
         ]
       : []),
+  ];
+}
+
+/** Privacy domain — only real rows (no empty shell). */
+export function settingsPrivacyLinks(): SettingsDomainLink[] {
+  return [
+    {
+      to: '/settings/profile-visibility',
+      title: 'Profile visibility',
+      hint: 'Public or Private Business Profile',
+    },
   ];
 }
 

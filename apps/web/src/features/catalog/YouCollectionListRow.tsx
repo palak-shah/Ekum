@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { CollectionStatus, MEDIA_VARIANT, type CollectionView } from '@ekum/domain-types';
-import { collectionAlbumOpenTarget } from '@/features/collections/collectionAlbumTileModel';
+import {
+  collectionAlbumOpenTarget,
+  type CollectionAlbumSurface,
+} from '@/features/collections/collectionAlbumTileModel';
 import { collectionOwnerSourceLine } from '@/features/catalog/collectionOwnerSourceLine';
 import { displayCollectionName } from '@/features/catalog/collectionCreateHelpers';
 import { isGeneralCollection } from '@/features/catalog/youLibraryKind';
@@ -29,6 +32,14 @@ function settleSwipe(deltaX: number): number {
   return inboxSwipeReveal(deltaX) >= OPEN_THRESHOLD ? -OPEN_PX : 0;
 }
 
+export type YouCollectionListRowModel = Pick<CollectionView, 'id' | 'name' | 'status'> & {
+  kind?: string;
+  libraryThumb?: string | null;
+  coverImage?: string | null;
+  companyId?: string;
+  memberShops?: CollectionView['memberShops'];
+};
+
 export function YouCollectionListRow({
   collection,
   selecting,
@@ -42,8 +53,11 @@ export function YouCollectionListRow({
   onMore,
   onShare,
   highlightQuery = '',
+  surface = 'library',
+  packManage = false,
+  hideLibraryMeta = false,
 }: {
-  collection: CollectionView;
+  collection: YouCollectionListRowModel;
   selecting: boolean;
   selected: boolean;
   /** Tint while this row’s More menu or Share sheet is open. */
@@ -56,19 +70,25 @@ export function YouCollectionListRow({
   onMore: () => void;
   onShare: () => void;
   highlightQuery?: string;
+  surface?: CollectionAlbumSurface;
+  packManage?: boolean;
+  hideLibraryMeta?: boolean;
 }) {
   const navigate = useNavigate();
   const target = collectionAlbumOpenTarget({
-    surface: 'library',
+    surface,
     id: collection.id,
     status: collection.status,
     kind: collection.kind,
+    packManage,
   });
-  const source = collectionOwnerSourceLine(collection.companyId, collection.memberShops ?? []);
-  const draft = isDraft(collection.status);
-  const archived = collection.status === CollectionStatus.Archived;
+  const source = hideLibraryMeta
+    ? ''
+    : collectionOwnerSourceLine(collection.companyId ?? '', collection.memberShops ?? []);
+  const draft = !hideLibraryMeta && isDraft(collection.status);
+  const archived = !hideLibraryMeta && collection.status === CollectionStatus.Archived;
   const general = isGeneralCollection(collection.kind);
-  const generalBadge = general ? 'General Collection' : null;
+  const generalBadge = hideLibraryMeta ? null : general ? 'General Collection' : null;
   const meta = [source, archived ? 'Deleted' : null].filter(Boolean).join(' · ');
   const thumb = collection.libraryThumb ?? collection.coverImage ?? null;
   const rowRef = useRef<HTMLAnchorElement>(null);

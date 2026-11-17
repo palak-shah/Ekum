@@ -1,37 +1,45 @@
 import { test, expect } from '@playwright/test';
-import { accessTokenFromPage, createOrder } from '../../helpers/orders';
-import { loginAsMeena, loginAsRavi } from '../../helpers/persona';
+import { loginAsRavi } from '../../helpers/persona';
 
 test.describe('home journey @functional @home', () => {
-  test('seller need opens order and dismisses after tap', async ({ page }) => {
-    await loginAsMeena(page);
-    const meenaToken = await accessTokenFromPage(page);
-    const order = await createOrder(page.request, meenaToken, {
-      sellerCompanyId: 'seed-company-ravi',
-      intent: 'order',
-      items: [{ productId: 'seed-prod-1', quantity: 12 }],
-    });
-
+  test('Home shows own Business Profile with shell chrome', async ({ page }) => {
     await loginAsRavi(page);
     await page.goto('/');
 
-    const singleNeed = page.getByTestId(`home-need-order-confirm_order-${order.id}`);
-    const groupNeed = page.getByTestId('home-need-order-group-seed-company-meena-confirm_order');
-    const need = singleNeed.or(groupNeed);
-
-    await expect(need.first()).toBeVisible({ timeout: 15_000 });
-    await expect(need.first()).toContainText(/Jaipur Emporium/i);
-
-    await need.first().click();
-    if ((await singleNeed.count()) > 0) {
-      await expect(page).toHaveURL(new RegExp(`/orders/${order.id}`), { timeout: 10_000 });
-    } else {
-      await expect(page).toHaveURL(/\/orders\?filter=needs/, { timeout: 10_000 });
-      await expect(page.url()).toMatch(/Jaipur/i);
-    }
-
+    await expect(page.getByRole('heading', { name: 'Home' })).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(page.getByTestId('business-profile-home')).toBeVisible();
+    await expect(page.getByTestId('business-profile-name')).toBeVisible();
+    await expect(page.getByTestId('business-profile-avatar-camera')).toBeVisible();
+    await expect(page.getByTestId('showcase-add')).toBeVisible();
+    await expect(page.getByTestId('business-profile-showcase')).toBeVisible();
+    await expect(page.getByTestId('business-profile-showcase-0')).toHaveCount(0);
+    await expect(page.getByTestId('company-edit')).toBeVisible();
+    await expect(page.getByTestId('business-profile-share')).toBeVisible();
+    await expect(page.getByTestId('business-profile-network')).toBeVisible();
+    await expect(page.getByTestId('business-profile-saved')).toBeVisible();
+    await expect(page.getByTestId('company-follow')).toHaveCount(0);
+    await expect(page.getByTestId('app-bottom-nav')).toBeVisible();
+    await expect(page.getByTestId('home-account')).toBeVisible();
+    await expect(page.getByTestId('home-need-order-confirm_order')).toHaveCount(0);
+    await expect(page.getByTestId('business-info-team')).toBeVisible();
+    await expect(page.getByTestId('business-profile-view-more')).toBeVisible();
+    await page.getByTestId('business-profile-view-more').click();
+    await expect(page).toHaveURL(/\/more\?tab=collections/);
     await page.goto('/');
-    await expect(singleNeed).toHaveCount(0, { timeout: 10_000 });
-    await expect(groupNeed).toHaveCount(0);
+
+    await page.getByTestId('company-edit').click();
+    await expect(page).toHaveURL(/\/settings\/profile\?edit=1/);
+    await expect(page.getByTestId('profile-update')).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByTestId('profile-photo-hint')).toBeVisible();
+    await expect(page.getByRole('link', { name: /Business profile/i })).toBeVisible();
+  });
+
+  test('own /company/:id redirects to Home profile', async ({ page }) => {
+    await loginAsRavi(page);
+    await page.goto('/company/seed-company-ravi');
+    await expect(page).toHaveURL(/\/$/);
+    await expect(page.getByTestId('business-profile-home')).toBeVisible({ timeout: 15_000 });
   });
 });

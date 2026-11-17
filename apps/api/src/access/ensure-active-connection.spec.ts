@@ -9,10 +9,12 @@ import {
 function makeDb(options: {
   connections?: Array<{ low: string; high: string; status: string }>;
   follows?: Array<{ followerCompanyId: string; followedCompanyId: string }>;
+  blocks?: Array<{ blockerCompanyId: string; blockedCompanyId: string }>;
 }): EnsureActiveConnectionDb & {
   connections: Array<{ low: string; high: string; status: string }>;
 } {
   const connections = [...(options.connections ?? [])];
+  const blocks = [...(options.blocks ?? [])];
   return {
     connections,
     connection: {
@@ -52,6 +54,20 @@ function makeDb(options: {
         return {};
       },
     },
+    companyBlock: {
+      count: async ({
+        where,
+      }: {
+        where: { OR: Array<{ blockerCompanyId: string; blockedCompanyId: string }> };
+      }) =>
+        where.OR.filter((clause) =>
+          blocks.some(
+            (row) =>
+              row.blockerCompanyId === clause.blockerCompanyId &&
+              row.blockedCompanyId === clause.blockedCompanyId,
+          ),
+        ).length,
+    },
     follow: {
       findMany: async () => options.follows ?? [],
     },
@@ -79,7 +95,7 @@ describe('ensureActiveConnectionUnlessBlocked', () => {
     expect(db.connections).toHaveLength(1);
   });
 
-  it('never lifts Block', async () => {
+  it('never lifts Block (legacy status)', async () => {
     const db = makeDb({
       connections: [{ low: 'kavita', high: 'meena', status: ConnectionStatus.Blocked }],
     });
@@ -87,6 +103,17 @@ describe('ensureActiveConnectionUnlessBlocked', () => {
       ensureActiveConnectionUnlessBlocked(db, 'meena', 'kavita'),
     ).resolves.toBe('skipped_blocked');
     expect(db.connections[0]?.status).toBe(ConnectionStatus.Blocked);
+  });
+
+  it('never lifts directed CompanyBlock', async () => {
+    const db = makeDb({
+      connections: [{ low: 'kavita', high: 'meena', status: ConnectionStatus.Active }],
+      blocks: [{ blockerCompanyId: 'meena', blockedCompanyId: 'kavita' }],
+    });
+    await expect(
+      ensureActiveConnectionUnlessBlocked(db, 'meena', 'kavita'),
+    ).resolves.toBe('skipped_blocked');
+    expect(db.connections[0]?.status).toBe(ConnectionStatus.Active);
   });
 
   it('reactivates paused to Active', async () => {

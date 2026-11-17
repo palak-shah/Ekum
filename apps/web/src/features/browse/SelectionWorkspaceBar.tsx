@@ -12,6 +12,7 @@ import {
   subscribePageOwnsBottomBand,
   subscribePageSelecting,
 } from '@/features/browse/selectionBottomBand';
+import { selectionShareCatalogPayload } from '@/features/browse/selectionSharePayload';
 import { shouldShowSelectionWorkspaceBar } from '@/features/browse/selectionWorkspaceBarVisibility';
 import { selectionOwnShopVerbs } from '@/features/browse/selectionOwnShopVerbs';
 import {
@@ -193,6 +194,20 @@ export function SelectionWorkspaceBar() {
 
   const qtySource = tradeableShortlistEntries(qtyEntries ?? shortlist.entries);
   const shareProducts = tradeableShortlistEntries(shortlist.entries);
+  const shareCatalog = selectionShareCatalogPayload({
+    pathname: location.pathname,
+    pageSelecting,
+    albums: albumPick.entries.map((entry) => ({
+      collectionId: entry.collectionId,
+      name: entry.name,
+      image: entry.coverImage,
+    })),
+    products: shareProducts.map((entry) => ({
+      productId: entry.productId,
+      name: entry.name,
+      image: entry.thumbUrl,
+    })),
+  });
 
   return (
     <>
@@ -260,31 +275,15 @@ export function SelectionWorkspaceBar() {
           onSent={() => clearSelection()}
           shopId={singleShopId}
           shopName={singleShopName}
-          collections={albumPick.entries.map((entry) => ({
-            collectionId: entry.collectionId,
-            name: entry.name,
-            image: entry.coverImage,
-          }))}
-          products={shareProducts.map((entry) => ({
-            productId: entry.productId,
-            name: entry.name,
-            image: entry.thumbUrl,
-          }))}
+          collections={shareCatalog.collections}
+          products={shareCatalog.products}
         />
       ) : null}
       <CatalogShareSheet
         open={shareOpen}
         onClose={() => setShareOpen(false)}
-        collections={albumPick.entries.map((entry) => ({
-          collectionId: entry.collectionId,
-          name: entry.name,
-          image: entry.coverImage,
-        }))}
-        products={shareProducts.map((entry) => ({
-          productId: entry.productId,
-          name: entry.name,
-          image: entry.thumbUrl,
-        }))}
+        collections={shareCatalog.collections}
+        products={shareCatalog.products}
         onShared={() => clearSelection()}
       />
       <OrderCollectionResolveSheet

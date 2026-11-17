@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConnectionStatus } from '@ekum/domain-types';
 import { PrismaService } from '../core/prisma/prisma.service';
+import { pairHasBlock } from './company-block';
 import { connectionPairWhere } from './connection-pair';
 
 /**
@@ -30,15 +31,14 @@ export class VisibilityService {
   }
 
   /**
-   * True when either side has blocked the other. Because blocking is silent, the
-   * API responds 404 (not 403) to a blocked party so the block is never confirmed.
+   * True when either side has a directed block (or legacy Connection blocked).
+   * Silent: callers respond 404 so the block is never confirmed.
    */
   async isBlocked(viewerCompanyId: string, ownerCompanyId: string): Promise<boolean> {
     if (viewerCompanyId === ownerCompanyId) {
       return false;
     }
-    const connection = await this.findConnection(viewerCompanyId, ownerCompanyId);
-    return connection?.status === ConnectionStatus.Blocked;
+    return pairHasBlock(this.prisma, viewerCompanyId, ownerCompanyId);
   }
 
   private findConnection(a: string, b: string) {

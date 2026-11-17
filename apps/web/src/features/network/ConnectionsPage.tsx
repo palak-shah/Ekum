@@ -2,10 +2,15 @@ import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ConnectionView } from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
-import { UNBLOCK_ACCESS_CLEARED_TOAST } from '@/features/company/seePacksCopy';
+import {
+  UNBLOCK_ACCESS_CLEARED_TOAST,
+  YOUR_BLOCK_REMOVED_TOAST,
+} from '@/features/company/seePacksCopy';
 import { PageHeader } from '@/ui/PageHeader';
 import { Avatar, Card, EmptyState, LoadingBlock, StatusPill } from '@/ui/kit';
 import { useToast } from '@/ui/Toast';
+import { invalidateAfterBlock } from './invalidateFollowCatalog';
+import { NETWORK_CONNECTIONS } from './networkSeeLabels';
 import { useDirectLinkRevoke } from './useDirectLinkRevoke';
 
 function connectionSubtitle(status: string): string {
@@ -24,13 +29,16 @@ export function ConnectionsPage() {
 
   const connectionAction = useMutation({
     mutationFn: ({ id, action }: { id: string; action: 'resume' | 'block' | 'unblock' }) =>
-      api.post(`/connections/${id}/${action}`, {}),
-    onSuccess: (_data, vars) => {
-      void queryClient.invalidateQueries({ queryKey: ['connections'] });
-      void queryClient.invalidateQueries({ queryKey: ['trade-lanes'] });
-      void queryClient.invalidateQueries({ queryKey: ['follows'] });
+      api.post<ConnectionView>(`/connections/${id}/${action}`, {}),
+    onSuccess: (data, vars) => {
+      invalidateAfterBlock(queryClient);
+      if (vars.action === 'block') {
+        showToast('Blocked');
+      }
       if (vars.action === 'unblock') {
-        showToast(UNBLOCK_ACCESS_CLEARED_TOAST);
+        showToast(
+          data.canBlock ? UNBLOCK_ACCESS_CLEARED_TOAST : YOUR_BLOCK_REMOVED_TOAST,
+        );
       }
     },
     onError: (err) => {
@@ -44,7 +52,7 @@ export function ConnectionsPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader title="Connections" />
+      <PageHeader title={NETWORK_CONNECTIONS.title} subtitle={NETWORK_CONNECTIONS.subtitle} />
       {connections.isLoading ? (
         <LoadingBlock />
       ) : connections.data && connections.data.length > 0 ? (

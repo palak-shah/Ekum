@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   CompanyPermissions,
@@ -42,8 +43,9 @@ function roleLabel(role: string): string {
 export function TeamPage() {
   const queryClient = useQueryClient();
   const { showToast } = useToast();
-  const { isOwner, can } = useTeamCaps();
+  const { isOwner, can, isLoading: capsLoading } = useTeamCaps();
   const canManage = isOwner || can('team');
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const [inviteOpen, setInviteOpen] = useState(false);
   const [inviteName, setInviteName] = useState('');
@@ -59,6 +61,14 @@ export function TeamPage() {
     queryKey: ['team-members'],
     queryFn: () => api.get<TeamMemberView[]>('/team/members'),
   });
+
+  useEffect(() => {
+    if (searchParams.get('invite') !== '1' || capsLoading) return;
+    if (canManage) setInviteOpen(true);
+    const next = new URLSearchParams(searchParams);
+    next.delete('invite');
+    setSearchParams(next, { replace: true });
+  }, [searchParams, capsLoading, canManage, setSearchParams]);
 
   const createInvite = useMutation({
     mutationFn: () =>

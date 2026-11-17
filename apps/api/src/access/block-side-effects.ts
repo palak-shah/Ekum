@@ -3,7 +3,10 @@ import { revokeAffectedDirectLinks } from '../orders/trade-lane-revoke';
 
 type Tx = Prisma.TransactionClient;
 
-/** Block: revoke Direct Links and delete both Follow directions (not Stopped — gone). */
+/**
+ * First directed CompanyBlock for a pair: keep Direct Link rows (gray until Pack)
+ * and delete both Follow directions (not Stopped — gone).
+ */
 export async function applyBlockSideEffects(
   tx: Tx,
   companyId: string,

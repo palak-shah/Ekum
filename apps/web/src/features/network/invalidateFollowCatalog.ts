@@ -7,3 +7,11 @@ export function invalidateFollowCatalog(queryClient: QueryClient) {
   void queryClient.invalidateQueries({ queryKey: ['company'] });
   void queryClient.invalidateQueries({ queryKey: ['collection-preview'] });
 }
+
+/** After Block — Follows gone, Explore/stories must drop them, lanes + connections refresh. */
+export function invalidateAfterBlock(queryClient: QueryClient) {
+  invalidateFollowCatalog(queryClient);
+  void queryClient.invalidateQueries({ queryKey: ['connections'] });
+  void queryClient.invalidateQueries({ queryKey: ['trade-lanes'] });
+  void queryClient.invalidateQueries({ queryKey: ['threads'] });
+}

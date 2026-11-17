@@ -73,6 +73,11 @@ describe('CompanyService.create onboarding', () => {
       superCategories: [SuperCategory.WomensApparel],
     });
 
+    const createArg = companyCreate.mock.calls[0]?.[0] as {
+      data: Record<string, unknown>;
+    };
+    expect(createArg.data.profileVisibility).toBeUndefined();
+
     expect(companyCreate).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({

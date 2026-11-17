@@ -5,6 +5,7 @@ import {
   chatsInboxFromSearch,
   chatsInboxHref,
   filterActiveInbox,
+  firstChatsInboxWithContent,
   rememberChatsInbox,
 } from './chatsInboxFilter';
 
@@ -47,5 +48,29 @@ describe('filterActiveInbox', () => {
     rememberChatsInbox('groups');
     expect(chatsInboxHref()).toBe('/chats?inbox=groups');
     rememberChatsInbox('all');
+  });
+
+  it('defaults to the first chip that has rows', () => {
+    expect(
+      firstChatsInboxWithContent({
+        active: rows,
+        pendingCount: 0,
+        askCount: 0,
+      }),
+    ).toBe('all');
+    expect(
+      firstChatsInboxWithContent({
+        active: [],
+        pendingCount: 0,
+        askCount: 2,
+      }),
+    ).toBe('requests');
+    expect(
+      firstChatsInboxWithContent({
+        active: [],
+        pendingCount: 0,
+        askCount: 0,
+      }),
+    ).toBe('all');
   });
 });

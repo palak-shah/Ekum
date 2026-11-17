@@ -14,6 +14,8 @@ import {
   removeFromThisPackLabel,
   removedFromPackToast,
   deletedFromThisPackToast,
+  youLibraryKindTabSelectedClass,
+  underlineTabChrome,
 } from './youLibraryKind';
 
 describe('you library tabs', () => {
@@ -23,6 +25,13 @@ describe('you library tabs', () => {
       'Catalogs',
       'Designs',
     ]);
+  });
+
+  it('selected kind tab matches Orders underline chrome (not lime border-badge)', () => {
+    expect(youLibraryKindTabSelectedClass(true)).toBe(underlineTabChrome(true).buttonClass);
+    expect(youLibraryKindTabSelectedClass(true)).toMatch(/text-accent/);
+    expect(youLibraryKindTabSelectedClass(true)).not.toMatch(/border-badge|text-chip-on-ink/);
+    expect(youLibraryKindTabSelectedClass(false)).toMatch(/text-muted/);
   });
 
   it('pins General Collection first and badges from kind after rename', () => {

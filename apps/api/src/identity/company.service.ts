@@ -1,9 +1,16 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { Prisma, type Company } from '@prisma/client';
 import {
+  BUSINESS_SHOWCASE_MAX,
   CollectionStatus,
   ProductStatus,
   MembershipRole,
+  ProfileVisibility,
   ThreadParticipantState,
   ThreadType,
   type AuthTokens,
@@ -29,6 +36,7 @@ import {
 } from '../discovery/collection-card-rate';
 import { collectionSourceShopNames } from '../discovery/discovery.serializer';
 import { collectionCardInclude, collectionPreviewFromRow } from '../discovery/collection-preview';
+import { isAllowedFollow } from '../discovery/follow-access';
 import { cursorArgs, toCursorPage } from '../discovery/pagination';
 import { shopPublishedDesignWhere } from './shop-design-list';
 import { ensureGeneralCollection } from '../catalog/general-collection';
@@ -141,6 +149,12 @@ export class CompanyService {
       });
     }
 
+    if (dto.showcaseUrls !== undefined && dto.showcaseUrls.length > BUSINESS_SHOWCASE_MAX) {
+      throw new BadRequestException({
+        code: 'SHOWCASE_MAX',
+        message: `You can add up to ${BUSINESS_SHOWCASE_MAX} showcase photos.`,
+      });
+    }
     const company = await this.prisma.company.update({
       where: { id: companyId },
       data: {
@@ -149,13 +163,45 @@ export class CompanyService {
         about: dto.about === undefined ? undefined : dto.about,
         gstNumber: dto.gstNumber === undefined ? undefined : dto.gstNumber,
         logoUrl: dto.logoUrl === undefined ? undefined : dto.logoUrl,
+        coverUrl: dto.coverUrl === undefined ? undefined : dto.coverUrl,
+        showcaseUrls: dto.showcaseUrls === undefined ? undefined : dto.showcaseUrls,
+        profileVisibility:
+          dto.profileVisibility === undefined ? undefined : dto.profileVisibility,
+        contactPhone: dto.contactPhone === undefined ? undefined : dto.contactPhone,
+        showContactPhone:
+          dto.showContactPhone === undefined ? undefined : dto.showContactPhone,
+        ...(dto.workingHours === undefined
+          ? {}
+          : dto.workingHours === null
+            ? { opensAt: null, closesAt: null, weeklyOff: null }
+            : {
+                opensAt: dto.workingHours.opensAt,
+                closesAt: dto.workingHours.closesAt,
+                weeklyOff: dto.workingHours.weeklyOff,
+              }),
+        ...(dto.shopAddress === undefined
+          ? {}
+          : dto.shopAddress === null
+            ? {
+                addressUnit: null,
+                addressStreet: null,
+                addressArea: null,
+                addressPincode: null,
+              }
+            : {
+                addressUnit: dto.shopAddress.unit,
+                addressStreet: dto.shopAddress.street,
+                addressArea: dto.shopAddress.area,
+                addressPincode: dto.shopAddress.pincode,
+              }),
+        websiteUrl: dto.websiteUrl === undefined ? undefined : dto.websiteUrl,
         sellCategories: dto.sellCategories,
         buyCategories: dto.buyCategories,
         ...(dto.masterCategories !== undefined
           ? { masterCategories: dto.masterCategories }
           : {}),
         ...(dto.superCategories !== undefined ? { superCategories: dto.superCategories } : {}),
-      },
+      } as never,
     });
     const user = await this.prisma.user.findUniqueOrThrow({
       where: { id: userId },
@@ -194,9 +240,8 @@ export class CompanyService {
     if (!company) {
       throw new NotFoundException({ code: 'NOT_FOUND', message: 'Business not found.' });
     }
-    const profile = this.serializer.toPublicProfile(company);
     if (viewerCompanyId === targetId) {
-      return profile;
+      return this.serializer.toPublicProfile(company, { profileAccess: true });
     }
     const [follow, connected, liveChat] = await Promise.all([
       this.prisma.follow.findUnique({
@@ -228,11 +273,13 @@ export class CompanyService {
         select: { id: true },
       }),
     ]);
+    const profileAccess = this.hasFullProfileAccess(company, follow);
+    const profile = this.serializer.toPublicProfile(company, { profileAccess });
     return {
       ...profile,
-      following: follow?.status === 'allowed',
+      following: isAllowedFollow(follow),
       followPending: follow?.status === 'pending',
-      canPutInPack: follow?.status === 'allowed' && follow.accessKind === 'pack',
+      canPutInPack: isAllowedFollow(follow) && follow?.accessKind === 'pack',
       connected,
       hasChat: Boolean(liveChat),
     };
@@ -245,14 +292,60 @@ export class CompanyService {
     if (await this.visibility.isBlocked(viewerCompanyId, targetId)) {
       throw new NotFoundException({ code: 'NOT_FOUND', message: 'Business not found.' });
     }
+    // Connections (or owner) only — Follow alone is not enough. Preserves canViewCatalog.
     if (!(await this.visibility.canViewCatalog(viewerCompanyId, targetId))) {
       return [];
     }
-    const memberships = await this.prisma.companyMembership.findMany({
-      where: { companyId: targetId, contactRole: { not: null } },
-      include: { user: { select: { name: true, phone: true } } },
+    const [company, memberships] = await Promise.all([
+      this.prisma.company.findUnique({
+        where: { id: targetId },
+        select: { name: true, contactPhone: true, showContactPhone: true },
+      }),
+      this.prisma.companyMembership.findMany({
+        where: {
+          companyId: targetId,
+          OR: [
+            { contactRole: { not: null } },
+            { showPhone: true, displayPhone: { not: null } },
+          ],
+        },
+        include: { user: { select: { name: true, phone: true } } },
+      }),
+    ]);
+    if (!company) {
+      throw new NotFoundException({ code: 'NOT_FOUND', message: 'Business not found.' });
+    }
+    return this.serializer.toContactPoints(memberships, company);
+  }
+
+  /** Owner or Public, or Private with approved Follow. Connection alone does not unlock. */
+  private hasFullProfileAccess(
+    company: Pick<Company, 'profileVisibility'>,
+    follow: { status: string } | null | undefined,
+  ): boolean {
+    if (company.profileVisibility !== ProfileVisibility.Private) {
+      return true;
+    }
+    return isAllowedFollow(follow);
+  }
+
+  private async assertShelfProfileAccess(
+    viewerCompanyId: string,
+    targetId: string,
+    company: Company,
+  ): Promise<boolean> {
+    if (viewerCompanyId === targetId) return true;
+    if (company.profileVisibility !== ProfileVisibility.Private) return true;
+    const follow = await this.prisma.follow.findUnique({
+      where: {
+        followerCompanyId_followedCompanyId: {
+          followerCompanyId: viewerCompanyId,
+          followedCompanyId: targetId,
+        },
+      },
+      select: { status: true },
     });
-    return this.serializer.toContactPoints(memberships);
+    return isAllowedFollow(follow);
   }
 
   /**
@@ -270,6 +363,9 @@ export class CompanyService {
     const company = await this.prisma.company.findUnique({ where: { id: targetId } });
     if (!company) {
       throw new NotFoundException({ code: 'NOT_FOUND', message: 'Business not found.' });
+    }
+    if (!(await this.assertShelfProfileAccess(viewerCompanyId, targetId, company))) {
+      return { results: [], nextCursor: null };
     }
 
     const rows = await this.prisma.product.findMany({
@@ -313,6 +409,9 @@ export class CompanyService {
     const company = await this.prisma.company.findUnique({ where: { id: targetId } });
     if (!company) {
       throw new NotFoundException({ code: 'NOT_FOUND', message: 'Business not found.' });
+    }
+    if (!(await this.assertShelfProfileAccess(viewerCompanyId, targetId, company))) {
+      return { results: [], nextCursor: null };
     }
 
     const isOwner = viewerCompanyId === targetId;

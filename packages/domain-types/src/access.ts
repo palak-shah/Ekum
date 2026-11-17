@@ -78,6 +78,8 @@ export interface FollowAskView {
   createdAt: string;
   /** see = new follow; share = Pack upgrade while Look stays. */
   kind?: FollowAskKind;
+  /** True when the shop has a directed CompanyBlock on this asker. Accept confirms then clears it. */
+  blockedByMe?: boolean;
 }
 
 /** Shop list: allowed now, or stopped (still shown; they cannot see packs). */

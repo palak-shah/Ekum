@@ -303,6 +303,17 @@ export const ThreadMemberState = {
 export type ThreadMemberState = (typeof ThreadMemberState)[keyof typeof ThreadMemberState];
 export const threadMemberStateValues = values(ThreadMemberState);
 
+/** Business Profile Public / Private (Instagram-like). */
+export const ProfileVisibility = {
+  Public: 'public',
+  Private: 'private',
+} as const;
+export type ProfileVisibility = (typeof ProfileVisibility)[keyof typeof ProfileVisibility];
+export const profileVisibilityValues = values(ProfileVisibility);
+
+/** Max additional Business Showcase photos (cover is separate; gallery image 1). */
+export const BUSINESS_SHOWCASE_MAX = 10;
+
 /** Messages carry references (not copies) of shared trade objects. */
 export const MessageType = {
   Text: 'text',
@@ -311,6 +322,8 @@ export const MessageType = {
   Document: 'document',
   CollectionCard: 'collection_card',
   ProductCard: 'product_card',
+  /** Shared Business Profile card (referenceId = company id). */
+  CompanyCard: 'company_card',
   /** Chat-friendly collage of 2+ designs (not a Collection). */
   DesignAlbum: 'design_album',
   OrderCard: 'order_card',

@@ -5,6 +5,7 @@ import type { FollowAskView, ShopFollowerView } from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
 import { PageHeader } from '@/ui/PageHeader';
 import { useToast } from '@/ui/Toast';
+import { ConfirmActionSheet } from '@/ui/ConfirmActionSheet';
 import {
   Avatar,
   Card,
@@ -23,8 +24,10 @@ import {
   sortAsksNewestFirst,
 } from './followersInbox';
 import { invalidateFollowCatalog } from './invalidateFollowCatalog';
-import { THEY_SEE_MINE } from './networkSeeLabels';
+import { NETWORK_FOLLOWERS } from './networkSeeLabels';
 import { useDirectLinkRevoke } from './useDirectLinkRevoke';
+
+type PendingAllow = { followerCompanyId: string; decision: 'look' | 'pack' };
 
 function grantsFromRow(row: ShopFollowerView): FollowAskGrants {
   if (row.stopped) return { see: false, share: false };
@@ -36,6 +39,7 @@ export function FollowersPage() {
   const queryClient = useQueryClient();
   const { showToast } = useToast();
   const [listSearch, setListSearch] = useState('');
+  const [blockedAllow, setBlockedAllow] = useState<PendingAllow | null>(null);
   const deferredSearch = useDeferredValue(listSearch);
   const asks = useQuery({
     queryKey: ['follows', 'asks'],
@@ -64,18 +68,34 @@ export function FollowersPage() {
   const decide = useMutation({
     mutationFn: (payload: { followerCompanyId: string; decision: 'look' | 'pack' | 'deny' }) =>
       api.post('/follows/decide', payload),
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
+      setBlockedAllow(null);
       invalidate();
       void queryClient.invalidateQueries({ queryKey: ['trade-lanes'] });
+      void queryClient.invalidateQueries({ queryKey: ['connections'] });
+      if (variables.decision !== 'deny') showToast('Accepted');
     },
     onError: (err) =>
       showToast(err instanceof ApiError ? err.message : 'Could not update this ask.', 'danger'),
   });
+
+  const requestAllow = (ask: FollowAskView, decision: 'look' | 'pack') => {
+    if (ask.blockedByMe) {
+      setBlockedAllow({ followerCompanyId: ask.company.id, decision });
+      return;
+    }
+    decide.mutate({ followerCompanyId: ask.company.id, decision });
+  };
   const revoke = useDirectLinkRevoke(
     (followerCompanyId) =>
       decide.mutate(
         { followerCompanyId, decision: 'deny' },
-        { onSuccess: () => showToast('Stopped them seeing.') },
+        {
+          onSuccess: () => {
+            /* decide onSuccess skips deny toast */
+            showToast('Stopped them seeing.');
+          },
+        },
       ),
     decide.isPending,
   );
@@ -108,7 +128,7 @@ export function FollowersPage() {
 
   return (
     <div className="flex flex-col gap-4 pb-36">
-      <PageHeader title={THEY_SEE_MINE.title} />
+      <PageHeader title={NETWORK_FOLLOWERS.title} subtitle={NETWORK_FOLLOWERS.subtitle} />
       <ListSearchRow
         search={
           <SearchInput
@@ -156,9 +176,7 @@ export function FollowersPage() {
                 <FollowAskDecideRow
                   disabled={decide.isPending}
                   kind={ask.kind === 'share' ? 'share' : 'see'}
-                  onAllow={(decision) =>
-                    decide.mutate({ followerCompanyId: ask.company.id, decision })
-                  }
+                  onAllow={(decision) => requestAllow(ask, decision)}
                   onDecline={() =>
                     decide.mutate({ followerCompanyId: ask.company.id, decision: 'deny' })
                   }
@@ -229,18 +247,31 @@ export function FollowersPage() {
           {askedOnly && !typed && !hasVisibleAsks && !asks.isLoading ? (
             <EmptyState
               title="No asks"
-              message="When a business asks to see your collections, they show up here."
+              message="When a business asks to follow you, they show up here."
             />
           ) : null}
           {!askedOnly && emptyAll ? (
             <EmptyState
               title="No one yet"
-              message="Businesses you allow to see your collections show up here."
+              message="Businesses you allow to follow you show up here."
             />
           ) : null}
         </div>
       )}
       {revoke.sheet}
+      <ConfirmActionSheet
+        open={Boolean(blockedAllow)}
+        title="This business is blocked. Allow follow?"
+        body="They will no longer be blocked."
+        confirmLabel="Allow"
+        testId="follow-accept-blocked-confirm"
+        busy={decide.isPending}
+        onCancel={() => setBlockedAllow(null)}
+        onConfirm={() => {
+          if (!blockedAllow) return;
+          decide.mutate(blockedAllow);
+        }}
+      />
     </div>
   );
 }

@@ -5,6 +5,7 @@ import {
   isOrderTaggedUpdate,
   orderTagQuotePreview,
   orderTaggedUpdateText,
+  shareRevokedNoticeText,
 } from './chatSystemNotice';
 
 describe('isChatSystemNotice', () => {
@@ -24,6 +25,58 @@ describe('isChatSystemNotice', () => {
     ).toBe(true);
   });
 
+  it('treats Repost-off as a centered notice', () => {
+    expect(
+      isChatSystemNotice({
+        type: 'system',
+        body: 'You turned off Repost for Trader 1',
+        metadata: {
+          kind: 'share_revoked',
+          millCompanyId: 'mill',
+          traderCompanyId: 'trader',
+          millName: 'Supplier 1',
+          traderName: 'Trader 1',
+        },
+      }),
+    ).toBe(true);
+  });
+});
+
+describe('shareRevokedNoticeText', () => {
+  const meta = {
+    kind: 'share_revoked',
+    millCompanyId: 'mill',
+    traderCompanyId: 'trader',
+    millName: 'Supplier 1',
+    traderName: 'Trader 1',
+  };
+
+  it('names who acted for mill and trader', () => {
+    expect(shareRevokedNoticeText({ metadata: meta }, 'mill')).toBe(
+      'You turned off Repost for Trader 1',
+    );
+    expect(shareRevokedNoticeText({ metadata: meta }, 'trader')).toBe(
+      'Supplier 1 turned off Repost for you · Request',
+    );
+  });
+
+  it('uses mine when viewer id is omitted', () => {
+    expect(shareRevokedNoticeText({ metadata: meta, mine: true })).toBe(
+      'You turned off Repost for Trader 1',
+    );
+    expect(shareRevokedNoticeText({ metadata: meta, mine: false })).toBe(
+      'Supplier 1 turned off Repost for you · Request',
+    );
+  });
+
+  it('returns null for other system kinds', () => {
+    expect(
+      shareRevokedNoticeText({ metadata: { kind: 'member_left' }, body: 'Left' }),
+    ).toBeNull();
+  });
+});
+
+describe('isChatSystemNotice extras', () => {
   it('keeps company-side and order/ask system cards out', () => {
     expect(
       isChatSystemNotice({

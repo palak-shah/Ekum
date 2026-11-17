@@ -8,7 +8,7 @@ import type { VisibilityService } from '../access/visibility.service';
 
 function makeService(opts: {
   blocked?: boolean;
-  company?: { id: string } | null;
+  company?: { id: string; profileVisibility?: string } | null;
   collections?: Array<{
     id: string;
     name: string;
@@ -22,7 +22,13 @@ function makeService(opts: {
 }) {
   const prisma = {
     company: {
-      findUnique: async () => opts.company ?? null,
+      findUnique: async () =>
+        opts.company
+          ? { profileVisibility: 'public', ...opts.company }
+          : null,
+    },
+    follow: {
+      findUnique: async () => null,
     },
     collection: {
       findMany: async () => opts.collections ?? [],

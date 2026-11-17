@@ -5,6 +5,7 @@ import {
   shopAlbumEntries,
   shopSelectedCount,
   shopShortlistEntries,
+  firstShopTabWithContent,
   shopTabSelectedCount,
 } from './shopTradeDock';
 
@@ -95,6 +96,14 @@ describe('shopTabSelectedCount', () => {
     expect(shopTabSelectedCount('designs', 3, 2)).toBe(3);
     expect(shopTabSelectedCount('collections', 3, 2)).toBe(2);
     expect(shopTabSelectedCount('collections', 3, 0)).toBe(0);
+  });
+});
+
+describe('firstShopTabWithContent', () => {
+  it('prefers Collections, then Designs, else Collections', () => {
+    expect(firstShopTabWithContent(2, 5)).toBe('collections');
+    expect(firstShopTabWithContent(0, 3)).toBe('designs');
+    expect(firstShopTabWithContent(0, 0)).toBe('collections');
   });
 });
 

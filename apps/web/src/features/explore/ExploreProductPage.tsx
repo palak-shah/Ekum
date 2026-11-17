@@ -79,7 +79,7 @@ export function ExploreProductPage() {
             to={`/company/${data.company.id}`}
             className="text-sm font-emphasis text-accent"
           >
-            Request access on their shop
+            Follow on their shop
           </Link>
         </Card>
       </div>

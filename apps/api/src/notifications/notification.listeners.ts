@@ -5,6 +5,7 @@ import {
   DomainEventName,
   type AccessApprovedEvent,
   type BroadcastSentEvent,
+  type FollowAllowedEvent,
   type MessageSentEvent,
   type OrderCreatedEvent,
   type OrderStatusChangedEvent,
@@ -40,6 +41,29 @@ export class NotificationListeners {
         body: null,
         refType: 'company',
         refId: event.targetCompanyId,
+      }),
+    );
+  }
+
+  @OnEvent(DomainEventName.FollowAllowed)
+  async onFollowAllowed(event: FollowAllowedEvent): Promise<void> {
+    const shopName = await this.companyName(event.shopCompanyId);
+    const title =
+      event.accessKind === 'pack'
+        ? shopName
+          ? `${shopName} let you repost`
+          : 'Repost allowed'
+        : shopName
+          ? `${shopName} accepted your follow`
+          : 'Follow accepted';
+    await this.guard(() =>
+      this.notifications.create({
+        recipientCompanyId: event.followerCompanyId,
+        type: NotificationType.Request,
+        title,
+        body: null,
+        refType: 'company',
+        refId: event.shopCompanyId,
       }),
     );
   }

@@ -11,7 +11,7 @@ vi.mock('@/lib/auth', () => ({
 }));
 
 describe('HomeAccountMenu', () => {
-  it('opens Profile through Log out from the Home avatar', async () => {
+  it('opens Edit profile through Log out from the Home avatar', async () => {
     const user = userEvent.setup();
     logout.mockClear();
     render(
@@ -23,7 +23,7 @@ describe('HomeAccountMenu', () => {
     await user.click(screen.getByTestId('home-account'));
     expect(screen.getByTestId('home-account-menu')).toHaveAttribute('role', 'menu');
     expect(screen.getByRole('heading', { name: 'Surat Silk House' })).toBeInTheDocument();
-    expect(screen.getByTestId('home-account-profile')).toHaveTextContent('Profile');
+    expect(screen.getByTestId('home-account-profile')).toHaveTextContent('Edit profile');
     expect(screen.getByTestId('home-account-network')).toBeInTheDocument();
     expect(screen.getByTestId('home-account-my-collections')).toHaveTextContent('My Collections');
     expect(screen.queryByTestId('home-account-my-designs')).toBeNull();

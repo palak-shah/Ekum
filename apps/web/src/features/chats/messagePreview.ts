@@ -13,7 +13,11 @@ import {
   ReturnIcon,
 } from '@/ui/icons';
 import { orderMessagePreviewCore } from './orderCardCopy';
-import { isOrderLifecycleNotice, orderLifecycleNoticeText } from './chatSystemNotice';
+import {
+  isOrderLifecycleNotice,
+  orderLifecycleNoticeText,
+  shareRevokedNoticeText,
+} from './chatSystemNotice';
 
 type IconComponent = ComponentType<SVGProps<SVGSVGElement>>;
 
@@ -178,6 +182,11 @@ export function messagePreviewText(message: MessageView | null | undefined): str
       const orderPreview = orderMessagePreviewCore(message);
       if (orderPreview) {
         core = orderPreview;
+        break;
+      }
+      const shareOff = shareRevokedNoticeText(message);
+      if (shareOff) {
+        core = shareOff;
         break;
       }
       core = name || message.body?.trim() || 'Update';

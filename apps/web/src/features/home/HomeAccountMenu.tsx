@@ -8,14 +8,14 @@ import { CollectionIcon, LockIcon, PencilIcon, UserIcon } from '@/ui/icons';
 
 /** Map You menu rows to quiet icons (app-wide more chrome). */
 function shortcutIcon(testId: string) {
-  if (testId === 'profile') return <UserIcon width={20} height={20} />;
+  if (testId === 'profile') return <PencilIcon width={20} height={20} />;
   if (testId === 'network') return <UserIcon width={20} height={20} />;
   if (testId === 'my-collections') return <CollectionIcon width={20} height={20} />;
   if (testId === 'settings') return <PencilIcon width={20} height={20} />;
   return <UserIcon width={20} height={20} />;
 }
 
-/** Home avatar — Profile, Network, library, Settings, Log out. */
+/** Home avatar — Edit profile, Network, library, Settings, Log out. */
 export function HomeAccountMenu({
   name,
   imageUrl,

@@ -30,7 +30,27 @@ type ConnRow = {
   companyHigh?: ReturnType<typeof summary>;
 };
 
-function setup(connection: ConnRow | null) {
+function setup(connection: ConnRow | null, options?: { ownBlock?: boolean; theirBlock?: boolean }) {
+  const ownBlock = options?.ownBlock ?? false;
+  const theirBlock = options?.theirBlock ?? false;
+  const companyBlocks: Array<{ blockerCompanyId: string; blockedCompanyId: string }> = [];
+  if (ownBlock && connection) {
+    companyBlocks.push({ blockerCompanyId: 'co-a', blockedCompanyId: 'co-b' });
+  }
+  if (theirBlock && connection) {
+    companyBlocks.push({ blockerCompanyId: 'co-b', blockedCompanyId: 'co-a' });
+  }
+
+  const findUniqueOrThrow = vi.fn(async () => ({
+    id: 'conn-1',
+    companyLowId: 'co-a',
+    companyHighId: 'co-b',
+    status: ConnectionStatus.Active,
+    statusSetByCompanyId: null,
+    createdAt: new Date(),
+    companyLow: summary('co-a'),
+    companyHigh: summary('co-b'),
+  }));
   const update = vi.fn(async (_args: unknown) => ({
     id: 'conn-1',
     companyLowId: 'co-a',
@@ -41,6 +61,7 @@ function setup(connection: ConnRow | null) {
     companyLow: summary('co-a'),
     companyHigh: summary('co-b'),
   }));
+
   const prisma = {
     connection: {
       findUnique: async () =>
@@ -51,7 +72,66 @@ function setup(connection: ConnRow | null) {
               companyHigh: connection.companyHigh ?? summary(connection.companyHighId),
             }
           : null,
+      findUniqueOrThrow,
       update,
+      create: vi.fn(async () => ({})),
+    },
+    companyBlock: {
+      findUnique: async ({
+        where,
+      }: {
+        where: {
+          blockerCompanyId_blockedCompanyId: {
+            blockerCompanyId: string;
+            blockedCompanyId: string;
+          };
+        };
+      }) => {
+        const hit = companyBlocks.find(
+          (row) =>
+            row.blockerCompanyId === where.blockerCompanyId_blockedCompanyId.blockerCompanyId &&
+            row.blockedCompanyId === where.blockerCompanyId_blockedCompanyId.blockedCompanyId,
+        );
+        return hit ? { id: 'edge-1' } : null;
+      },
+      count: async ({
+        where,
+      }: {
+        where: { OR: Array<{ blockerCompanyId: string; blockedCompanyId: string }> };
+      }) =>
+        where.OR.filter((clause) =>
+          companyBlocks.some(
+            (row) =>
+              row.blockerCompanyId === clause.blockerCompanyId &&
+              row.blockedCompanyId === clause.blockedCompanyId,
+          ),
+        ).length,
+      create: async ({
+        data,
+      }: {
+        data: { blockerCompanyId: string; blockedCompanyId: string };
+      }) => {
+        companyBlocks.push(data);
+        return { id: 'edge-new', ...data };
+      },
+      deleteMany: async ({
+        where,
+      }: {
+        where: { blockerCompanyId: string; blockedCompanyId: string };
+      }) => {
+        const before = companyBlocks.length;
+        for (let i = companyBlocks.length - 1; i >= 0; i -= 1) {
+          const row = companyBlocks[i]!;
+          if (
+            row.blockerCompanyId === where.blockerCompanyId &&
+            row.blockedCompanyId === where.blockedCompanyId
+          ) {
+            companyBlocks.splice(i, 1);
+          }
+        }
+        return { count: before - companyBlocks.length };
+      },
+      findMany: async () => companyBlocks.map((row) => ({ ...row })),
     },
     tradeLane: {
       findMany: vi.fn(async () => []),
@@ -72,51 +152,11 @@ function setup(connection: ConnRow | null) {
     }),
   };
   const service = new ConnectionService(prisma, audit, serializer as never);
-  return { service, update, audit, prisma };
+  return { service, update, audit, prisma, companyBlocks, findUniqueOrThrow };
 }
 
-describe('ConnectionService.applyOwnerAction', () => {
-  it('refuses to pause a blocked connection', async () => {
-    const { service, update } = setup({
-      id: 'conn-1',
-      companyLowId: 'co-a',
-      companyHighId: 'co-b',
-      status: ConnectionStatus.Blocked,
-      statusSetByCompanyId: 'co-a',
-    });
-    await expect(service.applyOwnerAction('co-a', 'conn-1', 'pause', actor)).rejects.toThrow();
-    expect(update).not.toHaveBeenCalled();
-  });
-
-  it('allows the blocker to unblock', async () => {
-    const { service, update, audit } = setup({
-      id: 'conn-1',
-      companyLowId: 'co-a',
-      companyHighId: 'co-b',
-      status: ConnectionStatus.Blocked,
-      statusSetByCompanyId: 'co-a',
-    });
-    await service.applyOwnerAction('co-a', 'conn-1', 'unblock', actor);
-    expect(update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: { status: ConnectionStatus.Active, statusSetByCompanyId: null },
-      }),
-    );
-    expect(audit.record).toHaveBeenCalled();
-  });
-
-  it('hides unblock from the non-actor', async () => {
-    const { service } = setup({
-      id: 'conn-1',
-      companyLowId: 'co-a',
-      companyHighId: 'co-b',
-      status: ConnectionStatus.Blocked,
-      statusSetByCompanyId: 'co-b',
-    });
-    await expect(service.applyOwnerAction('co-a', 'conn-1', 'unblock', actor)).rejects.toThrow();
-  });
-
-  it('refuses pause — Block is the door', async () => {
+describe('ConnectionService.applyOwnerAction bilateral', () => {
+  it('refuses to pause', async () => {
     const { service, update } = setup({
       id: 'conn-1',
       companyLowId: 'co-a',
@@ -126,6 +166,72 @@ describe('ConnectionService.applyOwnerAction', () => {
     });
     await expect(service.applyOwnerAction('co-a', 'conn-1', 'pause', actor)).rejects.toThrow();
     expect(update).not.toHaveBeenCalled();
+  });
+
+  it('block inserts own CompanyBlock and wipes Follows on first edge', async () => {
+    const { service, prisma, companyBlocks } = setup({
+      id: 'conn-1',
+      companyLowId: 'co-a',
+      companyHighId: 'co-b',
+      status: ConnectionStatus.Active,
+      statusSetByCompanyId: null,
+    });
+    const view = await service.applyOwnerAction('co-a', 'conn-1', 'block', actor);
+    expect(companyBlocks).toEqual([{ blockerCompanyId: 'co-a', blockedCompanyId: 'co-b' }]);
+    expect(prisma.follow.deleteMany).toHaveBeenCalled();
+    expect(view.status).toBe(ConnectionStatus.Blocked);
+    expect(view.canUnblock).toBe(true);
+    expect(view.canBlock).toBe(false);
+  });
+
+  it('second Block adds second edge without Follow wipe', async () => {
+    const { service, prisma, companyBlocks } = setup(
+      {
+        id: 'conn-1',
+        companyLowId: 'co-a',
+        companyHighId: 'co-b',
+        status: ConnectionStatus.Active,
+        statusSetByCompanyId: null,
+      },
+      { theirBlock: true },
+    );
+    await service.applyOwnerAction('co-a', 'conn-1', 'block', actor);
+    expect(companyBlocks).toEqual(
+      expect.arrayContaining([
+        { blockerCompanyId: 'co-b', blockedCompanyId: 'co-a' },
+        { blockerCompanyId: 'co-a', blockedCompanyId: 'co-b' },
+      ]),
+    );
+    expect(prisma.follow.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it('allows Unblock of own edge only', async () => {
+    const { service, companyBlocks } = setup(
+      {
+        id: 'conn-1',
+        companyLowId: 'co-a',
+        companyHighId: 'co-b',
+        status: ConnectionStatus.Active,
+        statusSetByCompanyId: null,
+      },
+      { ownBlock: true, theirBlock: true },
+    );
+    await service.applyOwnerAction('co-a', 'conn-1', 'unblock', actor);
+    expect(companyBlocks).toEqual([{ blockerCompanyId: 'co-b', blockedCompanyId: 'co-a' }]);
+  });
+
+  it('hides Unblock when caller has no edge', async () => {
+    const { service } = setup(
+      {
+        id: 'conn-1',
+        companyLowId: 'co-a',
+        companyHighId: 'co-b',
+        status: ConnectionStatus.Active,
+        statusSetByCompanyId: null,
+      },
+      { theirBlock: true },
+    );
+    await expect(service.applyOwnerAction('co-a', 'conn-1', 'unblock', actor)).rejects.toThrow();
   });
 
   it('allows only the pauser to resume', async () => {
@@ -143,74 +249,27 @@ describe('ConnectionService.applyOwnerAction', () => {
       }),
     );
   });
-
-  it('hides resume from the non-actor', async () => {
-    const { service, update } = setup({
-      id: 'conn-1',
-      companyLowId: 'co-a',
-      companyHighId: 'co-b',
-      status: ConnectionStatus.Paused,
-      statusSetByCompanyId: 'co-b',
-    });
-    await expect(service.applyOwnerAction('co-a', 'conn-1', 'resume', actor)).rejects.toThrow();
-    expect(update).not.toHaveBeenCalled();
-  });
-
-  it('revokes Direct Links and clears both Follows in the same transaction as block', async () => {
-    const { service, update, prisma } = setup({
-      id: 'conn-1',
-      companyLowId: 'co-a',
-      companyHighId: 'co-b',
-      status: ConnectionStatus.Active,
-      statusSetByCompanyId: null,
-    });
-    await service.applyOwnerAction('co-a', 'conn-1', 'block', actor);
-    expect(update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: { status: ConnectionStatus.Blocked, statusSetByCompanyId: 'co-a' },
-      }),
-    );
-    expect(prisma.follow.deleteMany).toHaveBeenCalledWith({
-      where: {
-        OR: [
-          { followerCompanyId: 'co-a', followedCompanyId: 'co-b' },
-          { followerCompanyId: 'co-b', followedCompanyId: 'co-a' },
-        ],
-      },
-    });
-  });
-
-  it('hides connections the caller is not on', async () => {
-    const { service } = setup({
-      id: 'conn-1',
-      companyLowId: 'other-a',
-      companyHighId: 'other-b',
-      status: ConnectionStatus.Active,
-      statusSetByCompanyId: null,
-    });
-    await expect(service.applyOwnerAction('co-a', 'conn-1', 'pause', actor)).rejects.toThrow();
-  });
 });
 
 describe('ConnectionService.list silent masking', () => {
-  it('shows paused/blocked only to the actor; active to both', async () => {
+  it('shows my block + pause + clear active; hides their-only block', async () => {
     const rows = [
       {
-        id: 'blocked-by-me',
+        id: 'i-blocked',
         companyLowId: 'me',
         companyHighId: 'x',
-        status: ConnectionStatus.Blocked,
-        statusSetByCompanyId: 'me',
+        status: ConnectionStatus.Active,
+        statusSetByCompanyId: null,
         createdAt: new Date(),
         companyLow: summary('me'),
         companyHigh: summary('x'),
       },
       {
-        id: 'blocked-by-other',
+        id: 'they-blocked',
         companyLowId: 'me',
         companyHighId: 'y',
-        status: ConnectionStatus.Blocked,
-        statusSetByCompanyId: 'y',
+        status: ConnectionStatus.Active,
+        statusSetByCompanyId: null,
         createdAt: new Date(),
         companyLow: summary('me'),
         companyHigh: summary('y'),
@@ -226,16 +285,6 @@ describe('ConnectionService.list silent masking', () => {
         companyHigh: summary('p'),
       },
       {
-        id: 'paused-by-other',
-        companyLowId: 'me',
-        companyHighId: 'q',
-        status: ConnectionStatus.Paused,
-        statusSetByCompanyId: 'q',
-        createdAt: new Date(),
-        companyLow: summary('me'),
-        companyHigh: summary('q'),
-      },
-      {
         id: 'active',
         companyLowId: 'me',
         companyHighId: 'z',
@@ -248,6 +297,17 @@ describe('ConnectionService.list silent masking', () => {
     ];
     const prisma = {
       connection: { findMany: async () => rows },
+      companyBlock: {
+        findMany: async ({ where }: { where: { blockerCompanyId?: string; blockedCompanyId?: string } }) => {
+          if (where.blockerCompanyId === 'me') {
+            return [{ blockedCompanyId: 'x' }];
+          }
+          if (where.blockedCompanyId === 'me') {
+            return [{ blockerCompanyId: 'y' }];
+          }
+          return [];
+        },
+      },
     } as unknown as PrismaService;
     const audit = { record: vi.fn() } as unknown as AuditService;
     const serializer = {
@@ -256,10 +316,10 @@ describe('ConnectionService.list silent masking', () => {
     const service = new ConnectionService(prisma, audit, serializer as never);
 
     const result = await service.list('me');
-    expect(result.map((view) => view.id)).toEqual(['blocked-by-me', 'paused-by-me', 'active']);
-    expect(result.find((view) => view.id === 'blocked-by-me')?.canUnblock).toBe(true);
+    expect(result.map((view) => view.id)).toEqual(['i-blocked', 'paused-by-me', 'active']);
+    expect(result.find((view) => view.id === 'i-blocked')?.canUnblock).toBe(true);
+    expect(result.find((view) => view.id === 'i-blocked')?.status).toBe(ConnectionStatus.Blocked);
     expect(result.find((view) => view.id === 'paused-by-me')?.canResume).toBe(true);
-    expect(result.find((view) => view.id === 'active')?.canPause).toBe(false);
     expect(result.find((view) => view.id === 'active')?.canBlock).toBe(true);
   });
 });

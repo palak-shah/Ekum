@@ -16,19 +16,19 @@ import {
   isPackTab,
   pinGeneralCollectionFirst,
   treatReadyAsDraft,
+  underlineTabChrome,
 } from '@/features/catalog/youLibraryKind';
+import { UNDERLINE_TAB_BAR_BASE_CLASS } from '@/ui/underlineTabChrome';
 import { publishThisPackBeforeShare } from '@/features/catalog/packKindCopy';
 import { AddToPackSheet } from '@/features/catalog/AddToPackSheet';
 import {
   addToPackActionLabel,
   addToPackCanOffer,
-  libraryDesignMembershipLine,
 } from '@/features/catalog/libraryPickerSource';
 import { OwnerPackLifecycleSheet } from '@/features/catalog/OwnerPackLifecycleSheet';
 import { alsoDeleteDesignsDefault, packDeleteCopy } from '@/features/catalog/ownerPackLifecycle';
 import { api, ApiError } from '@/lib/apiClient';
 import {
-  designBrowsePhotoClass,
   readDesignBrowseLayout,
   writeDesignBrowseLayout,
   type DesignBrowseLayout,
@@ -55,11 +55,8 @@ import {
 import { MoreActionsSheet } from '@/ui/MoreActionsSheet';
 import { BottomTradeDock, DockIconButton } from '@/features/browse/BottomTradeDock';
 import { youLibraryPublishedSelectChrome } from '@/features/catalog/youLibrarySelectDock';
-import { CatalogFeedPost } from '@/ui/cards';
-import { DraftChip } from '@/ui/DraftChip';
-import { highlightSearchText } from '@/ui/highlightMatch';
-import { DesignPhotoCarousel } from '@/ui/DesignPhotoCarousel';
 import { YouCollectionListRow } from '@/features/catalog/YouCollectionListRow';
+import { SellerProductTile } from '@/features/catalog/SellerProductTile';
 import { youCollectionRowMore } from '@/features/catalog/youLibraryRowMore';
 import { useYouLibrarySelectMenu } from '@/features/catalog/youLibrarySelectMenu';
 import { BulkCollectionPublishSheet } from './BulkCollectionPublishSheet';
@@ -115,7 +112,6 @@ import { catalogSearchMatches, designFindParts } from './catalogSearch';
 import { BrowseLotChrome } from '@/features/browse/BrowseLotChrome';
 import { usePageOwnsBottomBand } from '@/features/browse/selectionBottomBand';
 import { selectAllState } from '@/features/browse/selectAllState';
-import { LONG_PRESS_SURFACE_CLASS, useLongPress } from '@/ui/useLongPress';
 import { SavedPage } from '@/features/saved/SavedPage';
 import {
   isYouSavedSearch,
@@ -843,14 +839,19 @@ export function MyCatalogPage({
                 data-testid={item.testId}
                 onClick={() => setTab(item.id)}
                 className={cx(
-                  'relative isolate inline-flex h-12 shrink-0 items-center gap-1.5 border-b-2 px-0.5 text-name tracking-tight touch-manipulation',
-                  tab === item.id
-                    ? 'border-accent font-emphasis text-ink'
-                    : 'border-transparent font-body text-muted',
+                  'relative isolate inline-flex h-12 shrink-0 items-center gap-1.5 px-0.5 text-name tracking-tight touch-manipulation',
+                  underlineTabChrome(tab === item.id).buttonClass,
                 )}
               >
                 <TabIcon width={16} height={16} className="shrink-0" aria-hidden />
                 {item.label}
+                <span
+                  aria-hidden
+                  className={cx(
+                    UNDERLINE_TAB_BAR_BASE_CLASS,
+                    underlineTabChrome(tab === item.id).barClass,
+                  )}
+                />
               </button>
               );
             })}
@@ -1533,103 +1534,6 @@ export function MyCatalogPage({
         }}
       />
 
-    </div>
-  );
-}
-
-function SellerProductTile({
-  product,
-  highlightQuery = '',
-  variant,
-  selecting,
-  selected,
-  onToggle,
-  onLongSelect,
-  onOpenPublished,
-}: {
-  product: ProductView;
-  highlightQuery?: string;
-  variant: DesignBrowseLayout;
-  selecting: boolean;
-  selected: boolean;
-  onToggle: () => void;
-  onLongSelect: () => void;
-  onOpenPublished: () => void;
-}) {
-  const navigate = useNavigate();
-  const longPress = useLongPress(selecting ? undefined : onLongSelect);
-  const feed = variant === 'feed';
-  const membership = libraryDesignMembershipLine(product.collectionNames);
-  const open = () => {
-    if (selecting) {
-      onToggle();
-      return;
-    }
-    if (product.status === ProductStatus.Published) {
-      onOpenPublished();
-      return;
-    }
-    navigate(`/catalog/products/${product.id}`);
-  };
-  if (feed) {
-    const live = product.status === ProductStatus.Published;
-    return (
-      <CatalogFeedPost
-        name={product.name}
-        meta={membership ?? undefined}
-        highlightQuery={highlightQuery}
-        href={live ? undefined : `/catalog/products/${product.id}`}
-        onOpen={live ? () => open() : undefined}
-        images={product.images}
-        imageCount={1}
-        selected={selected}
-        selectMode={selecting}
-        onMediaClick={() => open()}
-        onLongSelect={selecting ? undefined : onLongSelect}
-        mediaTestId="catalog-product-tile"
-        draft={product.status === ProductStatus.Draft}
-      />
-    );
-  }
-
-  return (
-    <div
-      className="overflow-hidden rounded-2xl border border-line bg-surface text-left"
-      data-testid="catalog-product-tile"
-    >
-      <DesignPhotoCarousel
-        urls={product.images}
-        name={product.name}
-        photoClassName={designBrowsePhotoClass(variant)}
-        placeholderClassName={designBrowsePhotoClass(variant, 'placeholder')}
-        selectMode={selecting}
-        selected={selected}
-        onActivate={() => open()}
-        onLongSelect={selecting ? undefined : onLongSelect}
-        testId="catalog-product-photos"
-      />
-      <button
-        type="button"
-        onClick={open}
-        className={cx(
-          'flex w-full min-w-0 flex-col gap-1 overflow-hidden text-left',
-          feed ? 'p-3' : 'p-2.5',
-          LONG_PRESS_SURFACE_CLASS,
-        )}
-        {...longPress}
-      >
-        <p className="flex min-w-0 items-center gap-1.5">
-          <span className="truncate text-sm font-emphasis text-ink">
-            {highlightSearchText(product.name, highlightQuery)}
-          </span>
-          {product.status === ProductStatus.Draft ? (
-            <DraftChip testId="catalog-product-draft-chip" />
-          ) : null}
-        </p>
-        {membership ? (
-          <p className="truncate text-xs font-body text-muted">{membership}</p>
-        ) : null}
-      </button>
     </div>
   );
 }

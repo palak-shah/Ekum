@@ -1,3 +1,5 @@
+import { seePacksShopLabel } from '@/features/company/seePacksCopy';
+
 type Props = {
   onFollow: () => void;
   pending?: boolean;
@@ -17,7 +19,7 @@ export function ExploreFeedFollowAction({ onFollow, pending = false }: Props) {
       className="shrink-0 text-xs font-emphasis text-accent disabled:opacity-45"
       data-testid="explore-feed-follow"
     >
-      {pending ? 'Asking…' : 'Request access'}
+      {seePacksShopLabel({ pending, allowed: false })}
     </button>
   );
 }

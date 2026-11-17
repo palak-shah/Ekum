@@ -11,6 +11,7 @@ test.describe('company profile shop chrome @functional @network', () => {
     await expect(page).toHaveURL(/\/company\/seed-company-ravi/);
     await expect(page.getByTestId('company-follow')).toBeVisible();
     await expect(page.getByTestId('company-message')).toBeVisible();
+    await expect(page.getByTestId('showcase-add')).toHaveCount(0);
     await expect(page.getByTestId('company-shop-tab-collections')).toBeVisible();
     await page.getByTestId('company-shop-tab-designs').click();
     await expect(page.getByTestId('company-shop-grid')).toBeVisible();
@@ -45,13 +46,13 @@ test.describe('company profile shop chrome @functional @network', () => {
     await loginAsMeena(page);
     await page.goto('/company/seed-company-ravi');
     await page.getByTestId('company-shop-tab-collections').click();
-    await expect(page.getByTestId(/company-shop-collection-/).first()).toBeVisible();
-    await expect(page.getByText(/designs?/).first()).toBeVisible();
+    await expect(page.getByTestId(/^you-collection-row-/).first()).toBeVisible();
     await page.getByRole('button', { name: 'Select' }).click();
-    await page.locator('[data-testid^="company-shop-collection-"]:not([data-testid*="-open-"])').first().click();
+    await page.getByTestId(/^you-collection-row-/).first().click();
     await expect(page.getByTestId('company-shop-dock')).toBeVisible();
     await expect(page.getByTestId('app-bottom-nav')).toBeHidden();
-    await page.getByTestId(/company-shop-collection-open-/).first().click();
+    await page.getByTestId('select-all-float-clear').click();
+    await page.getByTestId(/^you-collection-row-/).first().click();
     await expect(page).toHaveURL(/\/collections\//);
     await expect(page.getByTestId('select-all-float')).toHaveCount(0);
   });

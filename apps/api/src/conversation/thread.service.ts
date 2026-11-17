@@ -118,13 +118,21 @@ export class ThreadService {
       throw this.notFound();
     }
 
+    const blockedByTarget = await this.visibility.isBlocked(actorCompanyId, dto.companyId);
     const existing = await this.findDirectThread(actorCompanyId, dto.companyId);
     if (existing) {
       const mine = existing.participants.find((p) => p.companyId === actorCompanyId);
       const wasArchived =
         mine && (mine.leftAt || mine.state === ThreadParticipantState.Archived);
       const wasHidden = Boolean(mine && mine.inboxHiddenAt);
-      if (mine && (wasArchived || wasHidden)) {
+      // While blocked, do not reactivate — silent Block must keep you out of their inbox.
+      if (blockedByTarget && wasArchived) {
+        throw new ForbiddenException({
+          code: 'CANNOT_MESSAGE',
+          message: 'You cannot message this business.',
+        });
+      }
+      if (mine && (wasArchived || wasHidden) && !blockedByTarget) {
         await this.prisma.threadParticipant.update({
           where: { id: mine.id },
           data: { state: ThreadParticipantState.Active, leftAt: null, inboxHiddenAt: null },
@@ -137,13 +145,15 @@ export class ThreadService {
         ]);
       }
       const summary = await this.summaryById(existing.id, actorCompanyId, role, viewerUserId);
-      return { ...summary, opened: wasArchived || wasHidden ? 'restored' : 'existing' };
+      return {
+        ...summary,
+        opened: !blockedByTarget && (wasArchived || wasHidden) ? 'restored' : 'existing',
+      };
     }
 
     // A first message to a company that has blocked you is silently dropped: the
     // thread exists on your side, but their participant is archived so it never
     // surfaces. Unconnected (but not blocked) targets receive a pending request.
-    const blockedByTarget = await this.visibility.isBlocked(actorCompanyId, dto.companyId);
     const connected = await this.connectedActive(actorCompanyId, dto.companyId);
     const targetState = blockedByTarget
       ? ThreadParticipantState.Archived
@@ -478,8 +488,9 @@ export class ThreadService {
   }
 
   /**
-   * Total unread messages across Active threads only (not Requests).
-   * Used by the bottom-nav Chats badge.
+   * Total unread messages across Active open threads only (not Requests, not
+   * messaging-closed clones). Same visibility as the Active inbox list.
+   * Used by the bottom-nav Chats badge (sum of messages, not chat count).
    */
   async unreadTotal(
     actorCompanyId: string,
@@ -491,9 +502,10 @@ export class ThreadService {
       state: ThreadParticipantState.Active,
       leftAt: null,
       inboxHiddenAt: null,
-      ...(viewerUserId
-        ? {
-            thread: {
+      thread: {
+        messagingClosedAt: null,
+        ...(viewerUserId
+          ? {
               members: {
                 some: {
                   userId: viewerUserId,
@@ -501,9 +513,9 @@ export class ThreadService {
                   state: ThreadMemberState.Active,
                 },
               },
-            },
-          }
-        : {}),
+            }
+          : {}),
+      },
     };
 
     const participants = await this.prisma.threadParticipant.findMany({
@@ -1474,6 +1486,35 @@ export class ThreadService {
     return this.findDirectThread(a, b).then((thread) => thread?.id ?? null);
   }
 
+  /**
+   * Direct with exactly these two companies (no extra participants).
+   * Used for mill↔trader Repost-off system lines so Buyer never gets the notice.
+   */
+  async findExactPairDirectThreadId(a: string, b: string): Promise<string | null> {
+    if (!a || !b || a === b) return null;
+    const pair = {
+      type: ThreadType.Direct,
+      AND: [
+        { participants: { some: { companyId: a } } },
+        { participants: { some: { companyId: b } } },
+      ],
+    };
+    const candidates = await this.prisma.thread.findMany({
+      where: pair,
+      include: { participants: true },
+      orderBy: { createdAt: 'asc' },
+    });
+    const isExact = (candidate: { participants: { companyId: string }[] }) => {
+      const ids = new Set(candidate.participants.map((p) => p.companyId));
+      return ids.size === 2 && ids.has(a) && ids.has(b);
+    };
+    const shared = candidates.find(
+      (c) => c.visibility === ThreadVisibility.Shared && isExact(c),
+    );
+    if (shared) return shared.id;
+    return candidates.find(isExact)?.id ?? null;
+  }
+
   async nudgeArchivedRecipients(threadId: string, senderCompanyId: string): Promise<string[]> {
     const others = await this.prisma.threadParticipant.findMany({
       where: {
@@ -1510,7 +1551,14 @@ export class ThreadService {
       },
       select: { companyId: true, state: true },
     });
-    const companyIds = others.map((row) => row.companyId);
+    const deliverable: typeof others = [];
+    for (const row of others) {
+      if (await this.visibility.isBlocked(senderCompanyId, row.companyId)) {
+        continue;
+      }
+      deliverable.push(row);
+    }
+    const companyIds = deliverable.map((row) => row.companyId);
     const members = await this.prisma.threadMember.findMany({
       where: {
         threadId,
@@ -1524,7 +1572,9 @@ export class ThreadService {
       select: { userId: true, companyId: true },
     });
     const pendingCompanies = new Set(
-      others.filter((row) => row.state === ThreadParticipantState.Pending).map((row) => row.companyId),
+      deliverable
+        .filter((row) => row.state === ThreadParticipantState.Pending)
+        .map((row) => row.companyId),
     );
     const ownerSet = new Set<string>();
     for (const companyId of pendingCompanies) {

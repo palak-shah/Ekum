@@ -202,7 +202,7 @@ export function buildHomeNeeds(input: {
     items.push({
       id: `follow-${ask.company.id}`,
       kind: 'follow_request',
-      title: `Follow ask · ${ask.company.name}`,
+      title: `Follow · ${ask.company.name}`,
       subtitle: ask.company.city || null,
       to: '/network/followers?tab=asked',
       sortAt: ask.createdAt,

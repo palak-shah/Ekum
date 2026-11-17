@@ -22,10 +22,18 @@ import { explorePostedWhen } from '@/ui/cards';
 import { highlightSearchText } from '@/ui/highlightMatch';
 import { ordersListFilterChrome } from '@/features/orders/ordersListFilterChrome';
 import {
+  UNDERLINE_TAB_BAR_BASE_CLASS,
+  underlineTabChrome,
+} from '@/ui/underlineTabChrome';
+import {
   getOrdersListTab,
   setOrdersListTab,
   type OrdersListTab,
 } from '@/features/orders/ordersDirectionSession';
+import {
+  firstOrdersListTabWithContent,
+  firstOrdersStatusWithContent,
+} from '@/features/orders/ordersListDefault';
 import { ordersListEmptyCopy } from '@/features/orders/ordersListEmpty';
 import {
   dateFacetFromNeedle,
@@ -91,6 +99,7 @@ export function OrdersPage() {
   const kindParam = params.get('kind');
   const statusParam = params.get('status');
   const filterAnchorRef = useRef<HTMLButtonElement>(null);
+  const contentSeeded = useRef(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [listTab, setListTabState] = useState<OrdersListTab>(() =>
     kindFromParam(kindParam) === 'sample' || kindFromParam(kindParam) === 'complaint'
@@ -227,6 +236,58 @@ export function OrdersPage() {
     (samples.isPending && !samples.data) ||
     (complaints.isPending && !complaints.data);
   const ordersFailed = orders.isError && !orders.data;
+
+  useEffect(() => {
+    if (contentSeeded.current || loading) return;
+    contentSeeded.current = true;
+
+    // Explicit direction: sample/complaint deep link, or session Buying/Others (ticket Back).
+    // Platform-default Selling (or a stale empty remembered tab) → first tab with content.
+    const kindLocked =
+      kindFromParam(kindParam) === 'sample' || kindFromParam(kindParam) === 'complaint';
+    const directionIntent = kindLocked || listTab === 'buying' || listTab === 'others';
+
+    let nextTab = listTab;
+    if (!kindLocked) {
+      const counts: Record<OrdersListTab, number> = {
+        selling: merged.filter((item) => tradeMatchesListTab(item, 'selling')).length,
+        buying: merged.filter((item) => tradeMatchesListTab(item, 'buying')).length,
+        others: merged.filter((item) => tradeMatchesListTab(item, 'others')).length,
+      };
+      if (!directionIntent || counts[listTab] === 0) {
+        nextTab = firstOrdersListTabWithContent(counts);
+        if (nextTab !== listTab) {
+          setOrdersListTab(nextTab);
+          setListTabState(nextTab);
+        }
+      }
+    }
+
+    // Explicit status: any ?filter= / ?status= (Home Needs, chip tap, deep link).
+    const statusIntent =
+      filterParam === 'completed' ||
+      filterParam === 'pending' ||
+      filterParam === 'needs' ||
+      filterParam === 'progress' ||
+      Boolean(statusParam && statusFromParam(statusParam));
+
+    if (!statusIntent && !findOverridesAttention) {
+      const inChosen = merged.filter((item) => tradeMatchesListTab(item, nextTab));
+      const pending = inChosen.filter((item) => matchesTradePending(item)).length;
+      const completed = inChosen.filter((item) => matchesTradeCompleted(item)).length;
+      const nextStatus = firstOrdersStatusWithContent(pending, completed);
+      if (nextStatus !== statusFilter) setStatusFilter(nextStatus);
+    }
+  }, [
+    loading,
+    merged,
+    listTab,
+    kindParam,
+    filterParam,
+    statusParam,
+    findOverridesAttention,
+    statusFilter,
+  ]);
 
   const syncFindParams = (statusFacet: string | null, kindFacet: TradeKindFacet | null) => {
     setSearchParams(
@@ -412,15 +473,15 @@ export function OrdersPage() {
               onClick={() => setListTab(value)}
               className={cx(
                 filterChrome.tabClass,
-                listTab === value ? 'text-accent' : 'text-muted',
+                underlineTabChrome(listTab === value).buttonClass,
               )}
             >
               {label}
               <span
                 aria-hidden
                 className={cx(
-                  'absolute inset-x-0 bottom-0 h-1',
-                  listTab === value ? 'bg-accent' : 'bg-transparent',
+                  UNDERLINE_TAB_BAR_BASE_CLASS,
+                  underlineTabChrome(listTab === value).barClass,
                 )}
               />
             </button>

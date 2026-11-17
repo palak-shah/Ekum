@@ -311,7 +311,7 @@ export function DesignSetPage() {
                 to={`/company/${shop.companyId}`}
                 className="text-center text-sm font-emphasis text-accent"
               >
-                Request access on {shop.companyName ?? 'their shop'}
+                Follow on {shop.companyName ?? 'their shop'}
               </Link>
             );
           })()}

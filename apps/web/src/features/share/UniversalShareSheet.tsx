@@ -36,6 +36,7 @@ import {
   shareMessageText,
   shareOrCopyInvite,
 } from '@/lib/shareInvite';
+import { useMyCompany } from '@/lib/queries';
 import { useToast } from '@/ui/Toast';
 import { ConnectionPicker } from '@/ui/ConnectionPicker';
 import { uniqueConnectionsByCompany } from '@/ui/uniqueConnections';
@@ -101,6 +102,8 @@ export function UniversalShareSheet({
   const { showToast } = useToast();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const me = useMyCompany();
+  const myCompanyId = me.data?.id ?? null;
   const [error, setError] = useState<string | null>(null);
   const [readyInvite, setReadyInvite] = useState<string | null>(null);
   const [selectedCompanyIds, setSelectedCompanyIds] = useState<string[]>([]);
@@ -111,6 +114,8 @@ export function UniversalShareSheet({
 
   const catalog = payload.kind === 'catalog' ? catalogItems(payload) : null;
   const companyId = payload.kind === 'company' ? payload.companyId : null;
+  /** Never share to yourself; catalog owner may stay (WhatsApp-like). */
+  const excludeCompanyId = companyId ?? myCompanyId;
   const enabled = open && (payload.kind === 'company' ? Boolean(companyId) : (catalog?.total ?? 0) > 0);
 
   useEffect(() => {
@@ -144,9 +149,9 @@ export function UniversalShareSheet({
   const eligibleCompanyIds = useMemo(() => {
     const rows = uniqueConnectionsByCompany(connections.data ?? []);
     const ids = rows.map((row) => row.company.id);
-    if (companyId) return ids.filter((id) => id !== companyId);
-    return ids;
-  }, [connections.data, companyId]);
+    if (!excludeCompanyId) return ids;
+    return ids.filter((id) => id !== excludeCompanyId);
+  }, [connections.data, excludeCompanyId]);
 
   const recipientIds = useMemo(
     () =>
@@ -164,9 +169,9 @@ export function UniversalShareSheet({
 
   const pickerConnections = useMemo(() => {
     const rows = connections.data ?? [];
-    if (!companyId) return rows;
-    return rows.filter((row) => row.company.id !== companyId);
-  }, [connections.data, companyId]);
+    if (!excludeCompanyId) return rows;
+    return rows.filter((row) => row.company.id !== excludeCompanyId);
+  }, [connections.data, excludeCompanyId]);
 
   const send = useMutation({
     mutationFn: async () => {
@@ -437,7 +442,7 @@ export function UniversalShareSheet({
               emptyMessage="No connections yet — find a business below."
               findOnEkum="link"
               onMessageFound={(foundId) => {
-                if (companyId && foundId === companyId) return;
+                if (excludeCompanyId && foundId === excludeCompanyId) return;
                 setSelectedCompanyIds((prev) => dedupeCompanyIds([...prev, foundId]));
               }}
             />

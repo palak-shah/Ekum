@@ -15,6 +15,7 @@ import { audienceVisibilityOr } from '../catalog/audience-visibility';
 import { PrismaService } from '../core/prisma/prisma.service';
 import { idsMatchingCategoryLabel } from './categories-match';
 import { DiscoverySerializer } from './discovery.serializer';
+import { discoverableProfileWhere } from './follow-access';
 import { collectionCardInclude } from './collection-preview';
 import { cursorArgs, toCursorPage } from './pagination';
 
@@ -132,7 +133,10 @@ export class SearchService {
       where: {
         id: { not: viewerCompanyId },
         OR: or,
-        ...companyNotBlockedWith(viewerCompanyId),
+        AND: [
+          companyNotBlockedWith(viewerCompanyId),
+          discoverableProfileWhere(viewerCompanyId),
+        ],
       },
       ...cursorArgs(query),
     });

@@ -1,17 +1,33 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useTradePresence } from '@/lib/tradePresence';
 import { PageHeader } from '@/ui/PageHeader';
-import { I_SEE_THEIRS, THEY_SEE_MINE } from './networkSeeLabels';
+import {
+  NETWORK_CONNECTIONS,
+  NETWORK_FOLLOWERS,
+  NETWORK_FOLLOWING,
+} from './networkSeeLabels';
 import { ChevronRightIcon } from '@/ui/icons';
 
-/** You → Network: see-packs first, then groups, then trade + invites. */
+/** You → Network: following/followers first, then groups, then trade + invites. */
 const SEE_LINKS = [
-  { to: '/network/following', label: I_SEE_THEIRS.title, hint: I_SEE_THEIRS.hint },
-  { to: '/network/followers', label: THEY_SEE_MINE.title, hint: THEY_SEE_MINE.hint },
+  {
+    to: '/network/following',
+    label: NETWORK_FOLLOWING.title,
+    hint: NETWORK_FOLLOWING.subtitle,
+  },
+  {
+    to: '/network/followers',
+    label: NETWORK_FOLLOWERS.title,
+    hint: NETWORK_FOLLOWERS.subtitle,
+  },
 ] as const;
 
 const TRADE_LINKS = [
-  { to: '/network/connections', label: 'Connections', hint: 'Businesses you trade with' },
+  {
+    to: '/network/connections',
+    label: NETWORK_CONNECTIONS.title,
+    hint: NETWORK_CONNECTIONS.subtitle,
+  },
   { to: '/referrals', label: 'Invites', hint: 'Share connect-with-me links' },
 ] as const;
 

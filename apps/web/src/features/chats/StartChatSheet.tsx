@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   ConnectionView,
+  CursorPage,
   StartDirectThreadDto,
   StartDirectThreadResult,
   TeamMemberView,
@@ -14,6 +15,9 @@ import { ConnectionPicker } from '@/ui/ConnectionPicker';
 import { Button, InlineNotice, SearchInput, Sheet } from '@/ui/kit';
 import { useToast } from '@/ui/Toast';
 import { TeamPersonRow } from '@/features/chats/TeamPersonRow';
+import { FirstMessageSheet } from '@/features/chats/FirstMessageSheet';
+import { coldMessageAction } from '@/features/chats/firstMessageGate';
+import { findDirectThreadForCompany } from '@/features/company/shopOverflowMenu';
 import { directOpenToast } from './directOpenToast';
 
 type Step = 'shops' | 'team';
@@ -38,6 +42,7 @@ export function StartChatSheet({ open, onClose }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [existingThreadId, setExistingThreadId] = useState<string | null>(null);
   const [existingThreadTitle, setExistingThreadTitle] = useState<string | null>(null);
+  const [firstMessageOpen, setFirstMessageOpen] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -48,11 +53,18 @@ export function StartChatSheet({ open, onClose }: Props) {
     setError(null);
     setExistingThreadId(null);
     setExistingThreadTitle(null);
+    setFirstMessageOpen(false);
   }, [open]);
 
   const connections = useQuery({
     queryKey: ['connections'],
     queryFn: () => api.get<ConnectionView[]>('/connections'),
+    enabled: open && canChat,
+    placeholderData: (previous) => previous,
+  });
+  const threads = useQuery({
+    queryKey: ['threads'],
+    queryFn: () => api.get<CursorPage<ThreadSummary>>('/threads', { limit: 50 }),
     enabled: open && canChat,
     placeholderData: (previous) => previous,
   });
@@ -95,8 +107,8 @@ export function StartChatSheet({ open, onClose }: Props) {
     active.find((row) => row.company.id === id)?.company.name ?? 'business';
 
   const openChatWithLabel = companyId
-    ? `Open chat with ${businessLabel(companyId)}`
-    : 'Open chat';
+    ? `Message ${businessLabel(companyId)}`
+    : 'Message';
 
   const onCloneOrError = (err: unknown) => {
     if (err instanceof ApiError && err.code === 'SAME_CHAT') {
@@ -113,7 +125,8 @@ export function StartChatSheet({ open, onClose }: Props) {
     setError(err instanceof ApiError ? err.message : 'Could not open chat.');
   };
 
-  const startDirect = useMutation({
+  /** Only used when opening an existing Direct (never creates empty). */
+  const openExisting = useMutation({
     mutationFn: (payload: StartDirectThreadDto) =>
       api.post<StartDirectThreadResult>('/threads/direct', payload),
     onSuccess: (thread) => {
@@ -123,15 +136,22 @@ export function StartChatSheet({ open, onClose }: Props) {
     onError: onCloneOrError,
   });
 
-  const pending = startDirect.isPending;
+  const pending = openExisting.isPending;
 
-  const openDirect = (memberUserIds: string[]) => {
+  const proceedWithCompany = (memberUserIds: string[]) => {
     if (pending || !companyId) return;
     setError(null);
-    startDirect.mutate({
-      companyId,
-      memberUserIds: isOwner ? memberUserIds : [],
-    });
+    const existing = findDirectThreadForCompany(threads.data?.results, companyId);
+    if (coldMessageAction({ existingThreadId: existing?.id }) === 'open-existing') {
+      openExisting.mutate({
+        companyId,
+        visibility: 'shared',
+        memberUserIds: isOwner ? memberUserIds : [],
+      });
+      return;
+    }
+    setStaffIds(isOwner ? memberUserIds : []);
+    setFirstMessageOpen(true);
   };
 
   const onShopsNext = () => {
@@ -141,7 +161,7 @@ export function StartChatSheet({ open, onClose }: Props) {
       setStep('team');
       return;
     }
-    openDirect([]);
+    proceedWithCompany([]);
   };
 
   const toggleStaff = (userId: string) => {
@@ -204,7 +224,7 @@ export function StartChatSheet({ open, onClose }: Props) {
               <Button
                 fullWidth
                 disabled={pending || !companyId}
-                onClick={() => openDirect(staffIds)}
+                onClick={() => proceedWithCompany(staffIds)}
               >
                 {pending ? 'Opening…' : openChatWithLabel}
               </Button>
@@ -288,6 +308,16 @@ export function StartChatSheet({ open, onClose }: Props) {
           ) : null}
         </>
       )}
+      {companyId ? (
+        <FirstMessageSheet
+          open={firstMessageOpen}
+          onClose={() => setFirstMessageOpen(false)}
+          onSent={onClose}
+          companyId={companyId}
+          companyName={businessLabel(companyId)}
+          memberUserIds={isOwner ? staffIds : []}
+        />
+      ) : null}
     </Sheet>
   );
 }

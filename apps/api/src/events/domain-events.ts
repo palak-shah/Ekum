@@ -15,6 +15,7 @@ export const DomainEventName = {
   PaymentSettled: 'payment.settled',
   CollectionViewGranted: 'collection.view_granted',
   RelistGranted: 'product.relist_granted',
+  FollowAllowed: 'follow.allowed',
 } as const;
 
 export interface AccessApprovedEvent {
@@ -86,4 +87,11 @@ export interface RelistGrantedEvent {
   productNames: string[];
   requesterCompanyId: string;
   targetCompanyId: string;
+}
+
+/** Shop Accepted a Follow ask (or Repost upgrade). Notify the follower. */
+export interface FollowAllowedEvent {
+  followerCompanyId: string;
+  shopCompanyId: string;
+  accessKind: 'look' | 'pack';
 }

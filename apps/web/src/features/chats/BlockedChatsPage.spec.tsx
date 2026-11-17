@@ -71,7 +71,13 @@ describe('BlockedChatsPage', () => {
         canUnblock: false,
       },
     ]);
-    vi.mocked(api.post).mockResolvedValue({});
+    // Both edges clear → API returns canBlock true (Connection usable again).
+    vi.mocked(api.post).mockResolvedValue({
+      id: 'conn-blocked',
+      status: 'active',
+      canBlock: true,
+      canUnblock: false,
+    });
   });
 
   it('lists only shops you can Unblock and toasts on Unblock', async () => {

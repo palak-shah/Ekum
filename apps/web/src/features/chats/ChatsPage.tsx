@@ -1,4 +1,4 @@
-import { useDeferredValue, useEffect, useState } from 'react';
+import { useDeferredValue, useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { type CursorPage, type FollowAskView, type MuteFor, type ThreadSummary } from '@ekum/domain-types';
@@ -9,11 +9,15 @@ import { ListSearchRow } from '@/ui/ListSearchRow';
 import { ChevronRightIcon } from '@/ui/icons';
 import { subscribeChatsNewChat } from './chatsNewChat';
 import { chatMediaKindChrome } from './chatMediaKindChrome';
-import { invalidateFollowCatalog } from '@/features/network/invalidateFollowCatalog';
+import {
+  invalidateAfterBlock,
+  invalidateFollowCatalog,
+} from '@/features/network/invalidateFollowCatalog';
 import { StartChatSheet } from './StartChatSheet';
 import { ChatsInboxRowMenu } from './ChatsInboxRowMenu';
 import { InboxThreadRow } from './InboxThreadRow';
 import { useToast } from '@/ui/Toast';
+import { ConfirmActionSheet } from '@/ui/ConfirmActionSheet';
 import { FollowAskDecideRow, FollowAskHeader } from '@/features/chats/FollowAskDecideRow';
 import {
   type ChatsInboxChip,
@@ -21,10 +25,12 @@ import {
   chatsInboxEmptyCopy,
   chatsInboxFromSearch,
   filterActiveInbox,
+  firstChatsInboxWithContent,
   rememberChatsInbox,
 } from './chatsInboxFilter';
 
 type InboxAction = 'archive' | 'clear' | 'delete' | 'unread';
+type PendingAllow = { followerCompanyId: string; decision: 'look' | 'pack' };
 
 const CHIP_LABEL: Record<ChatsInboxChip, string> = {
   all: 'All',
@@ -66,10 +72,12 @@ export function ChatsPage() {
   const [searchFocused, setSearchFocused] = useState(false);
   const deferredQuery = useDeferredValue(query.trim());
   const [startOpen, setStartOpen] = useState(false);
+  const inboxContentSeeded = useRef(false);
 
   useEffect(() => subscribeChatsNewChat(() => setStartOpen(true)), []);
   const [confirm, setConfirm] = useState<'clear' | 'delete' | 'exit' | null>(null);
   const [confirmIds, setConfirmIds] = useState<string[]>([]);
+  const [blockedAllow, setBlockedAllow] = useState<PendingAllow | null>(null);
   const [menuThread, setMenuThread] = useState<ThreadSummary | null>(null);
   const [menuAnchor, setMenuAnchor] = useState<{
     top: number;
@@ -95,15 +103,66 @@ export function ChatsPage() {
     queryKey: ['follows', 'asks'],
     queryFn: () => api.get<FollowAskView[]>('/follows/asks'),
   });
+
+  useEffect(() => {
+    if (inboxContentSeeded.current) return;
+    // Explicit intent: ?inbox=unread|groups|requests (Back / bottom nav / deep link).
+    const inboxParam = searchParams.get('inbox');
+    if (inboxParam === 'unread' || inboxParam === 'groups' || inboxParam === 'requests') {
+      inboxContentSeeded.current = true;
+      return;
+    }
+    if (!activeInbox.isFetched || !requestInbox.isFetched || !asks.isFetched) return;
+
+    // No inbox intent → first chip with rows; all empty → All (helper default).
+    inboxContentSeeded.current = true;
+    const next = firstChatsInboxWithContent({
+      active: activeInbox.data?.results ?? [],
+      pendingCount: requestInbox.data?.results.length ?? 0,
+      askCount: asks.data?.length ?? 0,
+    });
+    if (next === 'all') return;
+
+    setChip(next);
+    rememberChatsInbox(next);
+    setSearchParams(
+      (prev) => {
+        const params = new URLSearchParams(prev);
+        params.set('inbox', next);
+        return params;
+      },
+      { replace: true },
+    );
+  }, [
+    searchParams,
+    activeInbox.isFetched,
+    activeInbox.data?.results,
+    requestInbox.isFetched,
+    requestInbox.data?.results,
+    asks.isFetched,
+    asks.data,
+    setSearchParams,
+  ]);
   const decideAsk = useMutation({
     mutationFn: (payload: { followerCompanyId: string; decision: 'look' | 'pack' | 'deny' }) =>
       api.post('/follows/decide', payload),
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
+      setBlockedAllow(null);
       invalidateFollowCatalog(queryClient);
+      void queryClient.invalidateQueries({ queryKey: ['connections'] });
+      if (variables.decision !== 'deny') showToast('Accepted');
     },
     onError: (err) =>
       showToast(err instanceof ApiError ? err.message : 'Could not update this ask.', 'danger'),
   });
+
+  const requestAllowAsk = (ask: FollowAskView, decision: 'look' | 'pack') => {
+    if (ask.blockedByMe) {
+      setBlockedAllow({ followerCompanyId: ask.company.id, decision });
+      return;
+    }
+    decideAsk.mutate({ followerCompanyId: ask.company.id, decision });
+  };
   const threads = chip === 'requests' ? requestInbox : activeInbox;
   const list =
     chip === 'requests'
@@ -307,9 +366,7 @@ export function ChatsPage() {
                       <FollowAskDecideRow
                         disabled={decideAsk.isPending}
                         kind={ask.kind === 'share' ? 'share' : 'see'}
-                        onAllow={(decision) =>
-                          decideAsk.mutate({ followerCompanyId: ask.company.id, decision })
-                        }
+                        onAllow={(decision) => requestAllowAsk(ask, decision)}
                         onDecline={() =>
                           decideAsk.mutate({ followerCompanyId: ask.company.id, decision: 'deny' })
                         }
@@ -404,9 +461,7 @@ export function ChatsPage() {
                   void (async () => {
                     try {
                       await api.post(`/connections/company/${companyId}/block`, {});
-                      void queryClient.invalidateQueries({ queryKey: ['threads'] });
-                      void queryClient.invalidateQueries({ queryKey: ['connections'] });
-                      void queryClient.invalidateQueries({ queryKey: ['follows'] });
+                      invalidateAfterBlock(queryClient);
                       showToast('Blocked');
                     } catch (err) {
                       showToast(
@@ -468,6 +523,20 @@ export function ChatsPage() {
           </Button>
         </div>
       </Sheet>
+
+      <ConfirmActionSheet
+        open={Boolean(blockedAllow)}
+        title="This business is blocked. Allow follow?"
+        body="They will no longer be blocked."
+        confirmLabel="Allow"
+        testId="follow-accept-blocked-confirm"
+        busy={decideAsk.isPending}
+        onCancel={() => setBlockedAllow(null)}
+        onConfirm={() => {
+          if (!blockedAllow) return;
+          decideAsk.mutate(blockedAllow);
+        }}
+      />
 
       <StartChatSheet open={startOpen} onClose={() => setStartOpen(false)} />
     </div>

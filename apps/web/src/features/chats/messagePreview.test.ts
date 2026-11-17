@@ -60,6 +60,36 @@ describe('messagePreviewText actor prefix', () => {
   it('keeps You for own messages', () => {
     expect(messagePreviewText(message({ body: 'On my way' }))).toBe('You · On my way');
   });
+
+  it('uses viewer-relative Repost-off copy for share_revoked', () => {
+    const meta = {
+      kind: 'share_revoked',
+      millCompanyId: 'mill',
+      traderCompanyId: 'trader',
+      millName: 'Supplier 1',
+      traderName: 'Trader 1',
+    };
+    expect(
+      messagePreviewText(
+        message({
+          type: 'system',
+          mine: true,
+          body: 'You turned off Repost for Trader 1',
+          metadata: meta,
+        }),
+      ),
+    ).toBe('You · You turned off Repost for Trader 1');
+    expect(
+      messagePreviewText(
+        message({
+          type: 'system',
+          mine: false,
+          body: 'You turned off Repost for Trader 1',
+          metadata: meta,
+        }),
+      ),
+    ).toBe('Supplier 1 turned off Repost for you · Request');
+  });
 });
 
 describe('inboxPreviewTypeKey', () => {

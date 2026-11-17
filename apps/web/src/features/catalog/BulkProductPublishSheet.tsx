@@ -34,7 +34,7 @@ export function BulkProductPublishSheet({ open, onClose, productIds, onDone }: P
   const company = useMyCompany();
   const queryClient = useQueryClient();
   const { showToast } = useToast();
-  const canPublishAlready = Boolean(company.data?.capabilities.publish);
+  const canPublishAlready = Boolean(company.data?.capabilities?.publish);
 
   const [publishAudience, setPublishAudience] = useState<PublishAudienceState>(() =>
     emptyPublishAudienceState(),

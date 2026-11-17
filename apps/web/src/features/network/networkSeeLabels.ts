@@ -1,10 +1,16 @@
-/** Network list titles — see-collections, not social follow. */
-export const I_SEE_THEIRS = {
-  title: 'I see theirs',
-  hint: 'Businesses whose collections you can see',
+/** Network hub + destination titles (Iteration 4B). Routes stay following/followers. */
+export const NETWORK_FOLLOWING = {
+  title: 'Following',
+  /** Hub row hint and destination PageHeader subtitle. */
+  subtitle: 'Businesses you see updates from.',
 } as const;
 
-export const THEY_SEE_MINE = {
-  title: 'They see mine',
-  hint: 'Businesses you let see your collections',
+export const NETWORK_FOLLOWERS = {
+  title: 'Followers',
+  subtitle: 'Businesses who can see your updates.',
+} as const;
+
+export const NETWORK_CONNECTIONS = {
+  title: 'Connections',
+  subtitle: 'Businesses you can communicate with.',
 } as const;

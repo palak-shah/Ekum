@@ -10,6 +10,7 @@ import {
   type CollectionViewGrantView,
   type CollectionViewRequestView,
   type CreateProductDto,
+  type CursorPage,
   type OtherPackCountsView,
   type ProductView,
   type ThreadSummary,
@@ -31,6 +32,9 @@ import {
   SELECTION_DOCK_CLEARANCE_CLASS,
 } from '@/features/browse/BottomTradeDock';
 import { CatalogShareSheet } from '@/features/browse/CatalogShareSheet';
+import { FirstMessageSheet } from '@/features/chats/FirstMessageSheet';
+import { coldMessageAction } from '@/features/chats/firstMessageGate';
+import { findDirectThreadForCompany } from '@/features/company/shopOverflowMenu';
 import { BrowseLotChrome } from '@/features/browse/BrowseLotChrome';
 import { selectAllState } from '@/features/browse/selectAllState';
 import { useBrowseAlbumPick } from '@/features/browse/useBrowseAlbumPick';
@@ -171,6 +175,10 @@ import {
   shareThisPackLabel,
 } from '@/features/catalog/packKindCopy';
 import {
+  FOLLOW_ON_THEIR_SHOP_LABEL,
+  REQUEST_TO_ACCESS_LABEL,
+} from '@/features/company/seePacksCopy';
+import {
   COLLECTION_QUICK_PHOTO_CAP,
   collectionCameraMaxShots,
   displayCollectionName,
@@ -281,6 +289,7 @@ export function CollectionViewerPage() {
   const [shareOpen, setShareOpen] = useState(false);
   /** Album ⋯ vs Selecting dock — CatalogShareSheet payload. */
   const [shareScope, setShareScope] = useState<'album' | 'designs'>('album');
+  const [firstMessageOpen, setFirstMessageOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const [pageSelecting, setPageSelecting] = useState(false);
   const [orderResolveOpen, setOrderResolveOpen] = useState(false);
@@ -442,9 +451,14 @@ export function CollectionViewerPage() {
     queryFn: () =>
       api.get<CollectionViewRequestView[]>('/collection-view-requests/outgoing'),
   });
+  const threads = useQuery({
+    queryKey: ['threads'],
+    queryFn: () => api.get<CursorPage<ThreadSummary>>('/threads', { limit: 50 }),
+  });
 
   const companyId = collection.data?.company.id ?? '';
   const isOwner = Boolean(me.data?.id && companyId && me.data.id === companyId);
+  const directThread = findDirectThreadForCompany(threads.data?.results, companyId);
   const products = collectionViewerListedProducts(collection.data?.products ?? [], {
     kind: collection.data?.kind,
     isOwner,
@@ -1084,12 +1098,14 @@ export function CollectionViewerPage() {
       showToast(error instanceof ApiError ? error.message : 'Could not remove.', 'danger'),
   });
 
-  const startChat = useMutation({
-    mutationFn: () => api.post<ThreadSummary>('/threads/direct', { companyId }),
-    onSuccess: (thread) => navigate(`/chats/${thread.id}`),
-    onError: (error) =>
-      setActionError(error instanceof ApiError ? error.message : 'Could not open chat.'),
-  });
+  const openColdMessage = () => {
+    if (!companyId) return;
+    if (coldMessageAction({ existingThreadId: directThread?.id }) === 'open-existing') {
+      navigate(`/chats/${directThread!.id}`);
+      return;
+    }
+    setFirstMessageOpen(true);
+  };
 
   const toggleProduct = (product: ProductView) => {
     const gate = travelingSelectionToggleGate({
@@ -1436,13 +1452,12 @@ export function CollectionViewerPage() {
               return [
                 {
                   id: 'message',
-                  label: startChat.isPending ? 'Opening…' : `Message ${data.company.name}`,
+                  label: `Message ${data.company.name}`,
                   icon: <ChatIcon width={20} height={20} />,
                   testId: 'collection-menu-message',
-                  disabled: startChat.isPending,
                   onClick: () => {
                     setMoreOpen(false);
-                    startChat.mutate();
+                    openColdMessage();
                   },
                 },
               ];
@@ -1599,8 +1614,8 @@ export function CollectionViewerPage() {
           companyId={data.company.id}
           companyName={data.company.name}
           kind={data.kind}
-          onOpenChat={() => startChat.mutate()}
-          opening={startChat.isPending}
+          onOpenChat={openColdMessage}
+          opening={false}
         />
       ) : (
         <Card className="flex flex-col items-center gap-3 text-center">
@@ -1614,10 +1629,10 @@ export function CollectionViewerPage() {
             </p>
           </div>
           <Button onClick={() => askToSee.mutate()} disabled={askToSee.isPending}>
-            {askToSee.isPending ? 'Asking…' : askToSeeThisPack(data.kind)}
+            {askToSee.isPending ? 'Asking…' : REQUEST_TO_ACCESS_LABEL}
           </Button>
           <Link to={`/company/${data.company.id}`} className="text-xs font-emphasis text-accent">
-            Request access on their shop
+            {FOLLOW_ON_THEIR_SHOP_LABEL}
           </Link>
         </Card>
       )}
@@ -1628,12 +1643,8 @@ export function CollectionViewerPage() {
           <p className="text-xs text-muted">
             This collection mixes designs from more than one business. Chat to place an order.
           </p>
-          <Button
-            fullWidth
-            onClick={() => startChat.mutate()}
-            disabled={startChat.isPending}
-          >
-            {startChat.isPending ? 'Opening…' : 'Open chat'}
+          <Button fullWidth onClick={openColdMessage}>
+            Open chat
           </Button>
         </Card>
       ) : null}
@@ -1841,6 +1852,13 @@ export function CollectionViewerPage() {
         }}
       />
 
+      <FirstMessageSheet
+        open={firstMessageOpen}
+        onClose={() => setFirstMessageOpen(false)}
+        companyId={companyId}
+        companyName={data.company.name}
+      />
+
       {viewerProduct ? (
         <DesignSheet
           product={viewerProduct}
@@ -2018,7 +2036,7 @@ function AccessPendingCard({
         {opening ? 'Opening…' : 'Open chat'}
       </Button>
       <Link to={`/company/${companyId}`} className="text-xs font-emphasis text-accent">
-        Request access on their shop
+        {FOLLOW_ON_THEIR_SHOP_LABEL}
       </Link>
     </Card>
   );

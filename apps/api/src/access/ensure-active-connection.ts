@@ -19,6 +19,13 @@ export type EnsureActiveConnectionDb = {
       update: { status: string; statusSetByCompanyId: null };
     }) => Promise<unknown>;
   };
+  companyBlock: {
+    count: (args: {
+      where: {
+        OR: Array<{ blockerCompanyId: string; blockedCompanyId: string }>;
+      };
+    }) => Promise<number>;
+  };
   follow: {
     findMany: (args: {
       where: { status: string };
@@ -41,6 +48,17 @@ export async function ensureActiveConnectionUnlessBlocked(
     return 'already_active';
   }
   const pair = connectionPairWhere(companyA, companyB);
+  const edges = await prisma.companyBlock.count({
+    where: {
+      OR: [
+        { blockerCompanyId: companyA, blockedCompanyId: companyB },
+        { blockerCompanyId: companyB, blockedCompanyId: companyA },
+      ],
+    },
+  });
+  if (edges > 0) {
+    return 'skipped_blocked';
+  }
   const existing = await prisma.connection.findUnique({
     where: { companyLowId_companyHighId: pair },
     select: { status: true },

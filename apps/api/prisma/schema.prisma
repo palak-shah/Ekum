@@ -61,8 +61,28 @@ model Company {
   city         String
   about        String?
   logoUrl      String?
+  /** Business Profile cover (not a collection cover). */
+  coverUrl     String?
+  /** Owner-promoted showcase photos (max 10). Independent of collections. */
+  showcaseUrls String[] @default([])
+  /** public | private — who may open full Business Profile (cover/showcase/about). */
+  profileVisibility String @default("public")
+  /** Company-level contact number (not login OTP). Shown only when opted in + Connection. */
+  contactPhone     String?
+  showContactPhone Boolean @default(false)
   gstNumber    String?
   verification String  @default("not_verified") // VerificationStatus
+
+  /** Same opening/closing every working day. "HH:mm" 24h. IST. */
+  opensAt   String?
+  closesAt  String?
+  /** mon…sun; null = no weekly off when hours are set. */
+  weeklyOff String?
+  addressUnit    String?
+  addressStreet  String?
+  addressArea    String?
+  addressPincode String?
+  websiteUrl     String?
 
   // Capabilities unlock progressively as the business actually uses them.
   canPublish Boolean @default(false)
@@ -85,6 +105,8 @@ model Company {
   accessRequestsReceived AccessRequest[] @relation("AccessTarget")
   connectionsAsLow       Connection[]    @relation("ConnectionLow")
   connectionsAsHigh      Connection[]    @relation("ConnectionHigh")
+  blocksAsBlocker        CompanyBlock[]  @relation("CompanyBlocker")
+  blocksAsBlocked        CompanyBlock[]  @relation("CompanyBlocked")
   collectionViewGrants   CollectionViewGrant[] @relation("CollectionViewGrantee")
   collectionViewRequestsSent     CollectionViewRequest[] @relation("CollectionViewRequester")
   collectionViewRequestsReceived CollectionViewRequest[] @relation("CollectionViewTarget")
@@ -230,14 +252,15 @@ model AccessRequest {
   @@index([requesterCompanyId])
 }
 
-/// A mutual, approved access grant between two companies. Pausing and blocking
-/// are deliberately silent; only the company that set the status can clear it.
+/// A mutual, approved access grant between two companies. Pause is legacy
+/// (statusSetByCompanyId = pauser). Block is directed via CompanyBlock — do not
+/// write status=blocked after bilateral cutover.
 model Connection {
   id                   String   @id @default(cuid())
   companyLowId         String
   companyHighId        String
-  status               String   @default("active") // ConnectionStatus: active | paused | blocked
-  /// Set when paused/blocked; null when active. Only this company may resume/unblock.
+  status               String   @default("active") // ConnectionStatus: active | paused | blocked (legacy)
+  /// Set when paused; null when active. Only this company may resume.
   statusSetByCompanyId String?
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
@@ -248,6 +271,22 @@ model Connection {
   @@unique([companyLowId, companyHighId])
   @@index([companyLowId, status])
   @@index([companyHighId, status])
+}
+
+/// Directed silent Block (Follow-shaped). Either edge restricts shop / Explore /
+/// messaging. Each company clears only its own edge.
+model CompanyBlock {
+  id               String   @id @default(cuid())
+  blockerCompanyId String
+  blockedCompanyId String
+  createdAt        DateTime @default(now())
+
+  blocker Company @relation("CompanyBlocker", fields: [blockerCompanyId], references: [id], onDelete: Cascade)
+  blocked Company @relation("CompanyBlocked", fields: [blockedCompanyId], references: [id], onDelete: Cascade)
+
+  @@unique([blockerCompanyId, blockedCompanyId])
+  @@index([blockedCompanyId])
+  @@index([blockerCompanyId])
 }
 
 /// Trader × mill × end-buyer path: who the ticket is with + whether ends see each other.

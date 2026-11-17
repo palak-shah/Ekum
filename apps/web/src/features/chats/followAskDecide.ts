@@ -1,4 +1,4 @@
-/** Grants on They see mine allowed cards (See + Repost). */
+/** Grants on Followers allowed cards (See + Repost). */
 export const FOLLOW_ASK_GRANT_OPTIONS = [
   {
     id: 'see',

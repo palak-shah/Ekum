@@ -10,12 +10,12 @@ describe('ExploreFeedFollowAction', () => {
     render(<ExploreFeedFollowAction onFollow={onFollow} />);
 
     await user.click(screen.getByTestId('explore-feed-follow'));
-    expect(screen.getByRole('button', { name: 'Request access' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Follow' })).toBeInTheDocument();
     expect(onFollow).toHaveBeenCalledOnce();
   });
 
-  it('shows Following… when pending', () => {
+  it('shows Requested when pending', () => {
     render(<ExploreFeedFollowAction onFollow={() => {}} pending />);
-    expect(screen.getByTestId('explore-feed-follow')).toHaveTextContent('Asking…');
+    expect(screen.getByTestId('explore-feed-follow')).toHaveTextContent('Requested');
   });
 });

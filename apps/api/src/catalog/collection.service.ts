@@ -36,6 +36,7 @@ import {
   type CuratableProduct,
 } from './curation-ceiling';
 import { counterpartCompanyId } from '../access/connection-pair';
+import { pairHasBlock } from '../access/company-block';
 import {
   assertCanPublish,
   grantPublishCapability,
@@ -1355,7 +1356,7 @@ export class CollectionService {
     }
 
     const ownerIds = [...new Set(foreign.map((product) => product.companyId))];
-    const [connections, follows] = await Promise.all([
+    const [connections, follows, blocks] = await Promise.all([
       this.prisma.connection.findMany({
         where: {
           OR: [
@@ -1373,6 +1374,15 @@ export class CollectionService {
         },
         select: { followedCompanyId: true, accessKind: true },
       }),
+      this.prisma.companyBlock.findMany({
+        where: {
+          OR: [
+            { blockerCompanyId: viewerCompanyId, blockedCompanyId: { in: ownerIds } },
+            { blockedCompanyId: viewerCompanyId, blockerCompanyId: { in: ownerIds } },
+          ],
+        },
+        select: { blockerCompanyId: true, blockedCompanyId: true },
+      }),
     ]);
 
     const connectionByOwner = new Map(
@@ -1380,16 +1390,24 @@ export class CollectionService {
         (row) => [counterpartCompanyId(viewerCompanyId, row), row.status] as const,
       ),
     );
+    const blockedOwners = new Set(
+      blocks.map((row) =>
+        row.blockerCompanyId === viewerCompanyId ? row.blockedCompanyId : row.blockerCompanyId,
+      ),
+    );
+    for (const [ownerId, status] of connectionByOwner) {
+      if (status === ConnectionStatus.Blocked) blockedOwners.add(ownerId);
+    }
     const followingOwners = new Set(follows.map((row) => row.followedCompanyId));
 
     for (const product of foreign) {
       if (product.status !== ProductStatus.Published || !product.postedToMarketAt) {
         continue;
       }
-      const status = connectionByOwner.get(product.companyId);
-      if (status === ConnectionStatus.Blocked) {
+      if (blockedOwners.has(product.companyId)) {
         continue;
       }
+      const status = connectionByOwner.get(product.companyId);
       const connected = status === ConnectionStatus.Active;
       const following = followingOwners.has(product.companyId);
       if (
@@ -1447,7 +1465,7 @@ export class CollectionService {
     if (!isCollectionLiveForBuyers(pack)) return;
 
     if (pack.companyId !== viewerCompanyId) {
-      const [connection, follow, viewGrant] = await Promise.all([
+      const [connection, follow, viewGrant, blocked] = await Promise.all([
         this.prisma.connection.findFirst({
           where: {
             OR: [
@@ -1475,8 +1493,9 @@ export class CollectionService {
           },
           select: { id: true },
         }),
+        pairHasBlock(this.prisma, viewerCompanyId, pack.companyId),
       ]);
-      if (connection?.status === ConnectionStatus.Blocked) return;
+      if (blocked) return;
       const connected = connection?.status === ConnectionStatus.Active;
       const following = follow?.status === 'allowed';
       if (

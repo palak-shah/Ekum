@@ -49,11 +49,25 @@ function renderSheet(props?: {
   );
 }
 
+const buyerFollower = {
+  company: {
+    id: 'buyer',
+    name: 'Surat Silk House',
+    city: 'Surat',
+    verification: 'none',
+    logoUrl: null,
+  },
+  accessKind: 'look' as const,
+  stopped: false,
+  createdAt: '2026-01-01',
+};
+
 describe('OrderForBuyerSheet', () => {
   beforeEach(() => {
     vi.mocked(api.post).mockReset();
     vi.mocked(api.get).mockImplementation(async (path: string) => {
-      if (path === '/connections') return [];
+      if (path === '/follows/followers') return [];
+      if (path === '/follows/following') return [];
       if (path === '/access-requests/outgoing') return [];
       if (path === '/search') return { results: [], nextCursor: null };
       if (path === '/trade-lanes') return [];
@@ -76,29 +90,64 @@ describe('OrderForBuyerSheet', () => {
     expect(screen.getByRole('button', { name: 'Not on Ekum yet' })).toBeInTheDocument();
   });
 
-  it('posts collectionId when logging from a pack', async () => {
-    const user = userEvent.setup();
+  it('lists followers and hides self plus suppliers', async () => {
     vi.mocked(api.get).mockImplementation(async (path: string) => {
-      if (path === '/connections') {
+      if (path === '/follows/followers') {
         return [
+          buyerFollower,
           {
-            id: 'cn1',
-            status: 'active',
-            createdAt: '2026-01-01',
-            canPause: true,
-            canResume: false,
-            canBlock: true,
-            canUnblock: false,
             company: {
-              id: 'buyer',
-              name: 'Surat Silk House',
+              id: 'meena',
+              name: 'Me',
               city: 'Surat',
               verification: 'none',
               logoUrl: null,
             },
+            accessKind: 'look',
+            stopped: false,
+            createdAt: '2026-01-01',
+          },
+          {
+            company: {
+              id: 'kavita',
+              name: 'Ahmedabad Loom Co',
+              city: 'Ahmedabad',
+              verification: 'none',
+              logoUrl: null,
+            },
+            accessKind: 'look',
+            stopped: false,
+            createdAt: '2026-01-01',
           },
         ];
       }
+      if (path === '/follows/following') {
+        return [
+          {
+            id: 'kavita',
+            name: 'Ahmedabad Loom Co',
+            city: 'Ahmedabad',
+            verification: 'none',
+            logoUrl: null,
+          },
+        ];
+      }
+      if (path === '/access-requests/outgoing') return [];
+      if (path === '/search') return { results: [], nextCursor: null };
+      if (path === '/trade-lanes') return [];
+      throw new Error(`unexpected ${path}`);
+    });
+    renderSheet();
+    expect(await screen.findByText('Surat Silk House')).toBeInTheDocument();
+    expect(screen.queryByText('Me')).toBeNull();
+    expect(screen.queryByText('Ahmedabad Loom Co')).toBeNull();
+  });
+
+  it('posts collectionId when logging from a pack', async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.get).mockImplementation(async (path: string) => {
+      if (path === '/follows/followers') return [buyerFollower];
+      if (path === '/follows/following') return [];
       if (path === '/access-requests/outgoing') return [];
       if (path === '/search') return { results: [], nextCursor: null };
       if (path === '/trade-lanes') return [];
@@ -127,26 +176,8 @@ describe('OrderForBuyerSheet', () => {
   it('posts Direct mill lines then I-handle remainder for that buyer', async () => {
     const user = userEvent.setup();
     vi.mocked(api.get).mockImplementation(async (path: string) => {
-      if (path === '/connections') {
-        return [
-          {
-            id: 'cn1',
-            status: 'active',
-            createdAt: '2026-01-01',
-            canPause: true,
-            canResume: false,
-            canBlock: true,
-            canUnblock: false,
-            company: {
-              id: 'buyer',
-              name: 'Surat Silk House',
-              city: 'Surat',
-              verification: 'none',
-              logoUrl: null,
-            },
-          },
-        ];
-      }
+      if (path === '/follows/followers') return [buyerFollower];
+      if (path === '/follows/following') return [];
       if (path === '/access-requests/outgoing') return [];
       if (path === '/search') return { results: [], nextCursor: null };
       if (path === '/trade-lanes') {
@@ -155,6 +186,7 @@ describe('OrderForBuyerSheet', () => {
             sellerCompanyId: 'kavita',
             buyerCompanyId: 'buyer',
             ticket: 'mill',
+            shareActive: true,
             behaviors: { directOrder: true },
           },
         ];
@@ -187,6 +219,48 @@ describe('OrderForBuyerSheet', () => {
     expect(vi.mocked(api.post).mock.calls[1]?.[1]).toEqual(
       expect.objectContaining({
         items: [{ productId: 'p2', quantity: 12 }],
+      }),
+    );
+  });
+
+  it('treats gray Repost-off lanes as I-handle, not Direct', async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.get).mockImplementation(async (path: string) => {
+      if (path === '/follows/followers') return [buyerFollower];
+      if (path === '/follows/following') return [];
+      if (path === '/access-requests/outgoing') return [];
+      if (path === '/search') return { results: [], nextCursor: null };
+      if (path === '/trade-lanes') {
+        return [
+          {
+            sellerCompanyId: 'kavita',
+            buyerCompanyId: 'buyer',
+            ticket: 'mill',
+            shareActive: false,
+            behaviors: { directOrder: true },
+          },
+        ];
+      }
+      throw new Error(`unexpected ${path}`);
+    });
+    vi.mocked(api.post).mockResolvedValue({
+      order: { status: 'requested' },
+      invitePath: null,
+    });
+
+    renderSheet({
+      collectionId: 'pack-je',
+      lines: [{ productId: 'p1', quantity: 12, companyId: 'kavita' }],
+    });
+    await user.click(await screen.findByText('Surat Silk House'));
+    await user.click(screen.getByRole('button', { name: 'Log order' }));
+
+    await waitFor(() => {
+      expect(api.post).toHaveBeenCalledTimes(1);
+    });
+    expect(vi.mocked(api.post).mock.calls[0]?.[1]).toEqual(
+      expect.objectContaining({
+        items: [{ productId: 'p1', quantity: 12 }],
       }),
     );
   });

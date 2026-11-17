@@ -50,7 +50,7 @@ export function ReferralsPage() {
       <Card>
         <p className="text-sm text-ink">Invite partners to connect with you.</p>
         <p className="text-xs text-muted">
-          They sign in and request access — you approve on Buyers. Or vouch for another business.
+          They sign in and request access — you approve on Connections. Or vouch for another business.
         </p>
       </Card>
 

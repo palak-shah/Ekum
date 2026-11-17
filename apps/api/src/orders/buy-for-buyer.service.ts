@@ -28,6 +28,7 @@ import { PrismaService } from '../core/prisma/prisma.service';
 import { ThreadService } from '../conversation/thread.service';
 import { DomainEvents } from '../events/events.module';
 import { randomToken } from '../common/crypto.util';
+import { pairHasBlock } from '../access/company-block';
 import { connectionPairWhere } from '../access/connection-pair';
 import { productCatalogStatusById } from '../catalog/leftover-offer';
 import { OrderSerializer } from './order.serializer';
@@ -615,14 +616,14 @@ export class BuyForBuyerService {
   }
 
   private async assertTradable(actorCompanyId: string, buyerCompanyId: string) {
-    const pair = connectionPairWhere(actorCompanyId, buyerCompanyId);
-    const blocked = await this.prisma.connection.findUnique({
-      where: { companyLowId_companyHighId: pair },
-    });
-    if (blocked?.status === ConnectionStatus.Blocked) {
+    if (await pairHasBlock(this.prisma, actorCompanyId, buyerCompanyId)) {
       throw new NotFoundException({ code: 'NOT_FOUND', message: 'Business not found.' });
     }
-    if (blocked?.status !== ConnectionStatus.Active) {
+    const pair = connectionPairWhere(actorCompanyId, buyerCompanyId);
+    const connection = await this.prisma.connection.findUnique({
+      where: { companyLowId_companyHighId: pair },
+    });
+    if (connection?.status !== ConnectionStatus.Active) {
       throw new BadRequestException({
         code: 'NOT_CONNECTED',
         message: 'Connect with them first, or use name and phone.',

@@ -58,7 +58,7 @@ export function isOrderTaggedUpdate(message: {
 }
 
 /**
- * Plain leave / roster system lines (not order cards, pack asks, or order tags).
+ * Plain leave / roster / Repost-off system lines (not order cards, pack asks, or order tags).
  * Rendered as a centered WhatsApp-style notice, not a chat bubble.
  */
 export function isChatSystemNotice(message: {
@@ -72,10 +72,38 @@ export function isChatSystemNotice(message: {
   if (message.referenceId) return false;
   if (!meta) return true;
   if (meta.kind === 'member_left' || meta.kind === 'company_left') return true;
+  if (meta.kind === 'share_revoked') return true;
   if (meta.kind === 'collection_view_request' || meta.kind === 'relist_request') return false;
   if (meta.kind === 'order_lines' || meta.kind === 'order') return false;
   if (meta.side === 'company') return false;
   return !meta.kind;
+}
+
+/** Viewer-relative mill Repost-off line (Share/Forward is unrelated). Null if not that kind. */
+export function shareRevokedNoticeText(
+  message: { body?: string | null; metadata?: unknown; mine?: boolean },
+  viewerCompanyId?: string | null,
+): string | null {
+  const meta = metaOf(message);
+  if (!meta || meta.kind !== 'share_revoked') return null;
+  const fallback = message.body?.trim() || 'Repost is off';
+  const millId = typeof meta.millCompanyId === 'string' ? meta.millCompanyId : '';
+  const traderId = typeof meta.traderCompanyId === 'string' ? meta.traderCompanyId : '';
+  const millName =
+    typeof meta.millName === 'string' && meta.millName.trim() ? meta.millName.trim() : 'Supplier';
+  const traderName =
+    typeof meta.traderName === 'string' && meta.traderName.trim()
+      ? meta.traderName.trim()
+      : 'Trader';
+  const asMill =
+    (viewerCompanyId && millId && viewerCompanyId === millId) ||
+    (viewerCompanyId == null && message.mine === true);
+  const asTrader =
+    (viewerCompanyId && traderId && viewerCompanyId === traderId) ||
+    (viewerCompanyId == null && message.mine === false);
+  if (asMill) return `You turned off Repost for ${traderName}`;
+  if (asTrader) return `${millName} turned off Repost for you · Request`;
+  return fallback;
 }
 
 /** Viewer-relative tag copy: You confirmed / {shop} confirmed. */

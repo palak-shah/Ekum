@@ -624,7 +624,13 @@ export class OrderService {
         select: { ticket: true, behaviors: true },
       });
       const millPack = await millShareActive(this.prisma, collection.companyId, sellerCompanyId);
+      const buyerFollows = await buyerFollowsTrader(
+        this.prisma,
+        actorCompanyId,
+        collection.companyId,
+      );
       if (
+        buyerFollows &&
         laneRoutesDirect({
           ticket: lane?.ticket,
           behaviors: lane?.behaviors,

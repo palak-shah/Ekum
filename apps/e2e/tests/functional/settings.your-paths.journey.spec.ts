@@ -63,9 +63,11 @@ test.describe('Direct links @functional @orders', () => {
     await expect(page.getByRole('link', { name: /Your paths/i })).toHaveCount(0);
 
     await page.goto('/settings/profile');
-    await expect(page.getByRole('heading', { name: /Business profile/i })).toBeVisible({
+    await expect(page).toHaveURL(/\/$/);
+    await expect(page.getByRole('heading', { name: 'Home' })).toBeVisible({
       timeout: 15_000,
     });
+    await expect(page.getByTestId('business-profile-home')).toBeVisible();
     await expect(page.getByText('When buyers order from what I share')).toHaveCount(0);
   });
 });

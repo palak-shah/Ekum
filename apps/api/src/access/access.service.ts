@@ -19,7 +19,7 @@ import { AuditService } from '../audit/audit.service';
 import { ThreadService } from '../conversation/thread.service';
 import { CompanySerializer } from './company.serializer';
 import { connectionPairWhere } from './connection-pair';
-import { applyBlockSideEffects } from './block-side-effects';
+import { pairHasBlock, upsertOwnBlock } from './company-block';
 import { DomainEvents } from '../events/events.module';
 import type { AuthPrincipal } from '../auth/auth.types';
 
@@ -47,15 +47,15 @@ export class AccessService {
     }
 
     const target = await this.prisma.company.findUnique({ where: { id: targetCompanyId } });
-    // If the target has blocked this company, behave as if it does not exist.
+    // If either side has blocked, behave as if the business does not exist.
+    if (!target || (await pairHasBlock(this.prisma, targetCompanyId, requesterCompanyId))) {
+      throw new NotFoundException({ code: 'NOT_FOUND', message: 'Business not found.' });
+    }
     const connection = await this.prisma.connection.findUnique({
       where: {
         companyLowId_companyHighId: connectionPairWhere(targetCompanyId, requesterCompanyId),
       },
     });
-    if (!target || connection?.status === ConnectionStatus.Blocked) {
-      throw new NotFoundException({ code: 'NOT_FOUND', message: 'Business not found.' });
-    }
     if (connection?.status === ConnectionStatus.Active) {
       throw new ConflictException({
         code: 'ALREADY_CONNECTED',
@@ -184,15 +184,15 @@ export class AccessService {
       });
     }
     const pair = connectionPairWhere(actorCompanyId, counterpartCompanyId);
-    const existing = await this.prisma.connection.findUnique({
-      where: { companyLowId_companyHighId: pair },
-    });
-    if (existing?.status === ConnectionStatus.Blocked) {
+    if (await pairHasBlock(this.prisma, actorCompanyId, counterpartCompanyId)) {
       throw new ConflictException({
         code: 'CONNECTION_BLOCKED',
         message: 'This business is blocked. Unblock it before approving.',
       });
     }
+    const existing = await this.prisma.connection.findUnique({
+      where: { companyLowId_companyHighId: pair },
+    });
     if (existing?.status === ConnectionStatus.Active) return;
     await this.prisma.connection.upsert({
       where: { companyLowId_companyHighId: pair },
@@ -213,7 +213,7 @@ export class AccessService {
     });
   }
 
-  /** Block a company from a message request even when no Active connection exists. */
+  /** Block a company (directed edge) even when no prior Active connection exists. */
   async blockCounterpart(
     actorCompanyId: string,
     counterpartCompanyId: string,
@@ -227,17 +227,7 @@ export class AccessService {
     }
     const pair = connectionPairWhere(actorCompanyId, counterpartCompanyId);
     await this.prisma.$transaction(async (tx) => {
-      await applyBlockSideEffects(tx, actorCompanyId, counterpartCompanyId);
-      await tx.connection.upsert({
-        where: { companyLowId_companyHighId: pair },
-        create: {
-          companyLowId: pair.companyLowId,
-          companyHighId: pair.companyHighId,
-          status: ConnectionStatus.Blocked,
-          statusSetByCompanyId: actorCompanyId,
-        },
-        update: { status: ConnectionStatus.Blocked, statusSetByCompanyId: actorCompanyId },
-      });
+      await upsertOwnBlock(tx, actorCompanyId, counterpartCompanyId);
     });
     await this.audit.record({
       actorUserId: actor.userId,
@@ -245,6 +235,7 @@ export class AccessService {
       action: 'connection.block',
       targetType: 'connection',
       targetId: `${pair.companyLowId}:${pair.companyHighId}`,
+      after: { companyBlock: `${actorCompanyId}->${counterpartCompanyId}` },
     });
   }
 
@@ -260,13 +251,9 @@ export class AccessService {
       });
     }
 
-    // A block must be lifted explicitly; approving a request must never silently
-    // reactivate a connection either side has blocked.
+    // A block must be lifted explicitly; approving never clears CompanyBlock edges.
     const pair = connectionPairWhere(request.targetCompanyId, request.requesterCompanyId);
-    const existingConnection = await this.prisma.connection.findUnique({
-      where: { companyLowId_companyHighId: pair },
-    });
-    if (existingConnection?.status === ConnectionStatus.Blocked) {
+    if (await pairHasBlock(this.prisma, request.targetCompanyId, request.requesterCompanyId)) {
       throw new ConflictException({
         code: 'CONNECTION_BLOCKED',
         message: 'This business is blocked. Unblock it before approving.',

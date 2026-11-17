@@ -238,7 +238,7 @@ export const LockIcon = (props: IconProps) => (
   </Icon>
 );
 
-/** Unlocked padlock (Has access). */
+/** Unlocked padlock (Following). */
 export const UnlockIcon = (props: IconProps) => (
   <Icon {...props}>
     <rect x="5" y="11" width="14" height="9" rx="2" />
@@ -283,6 +283,13 @@ export const PinIcon = (props: IconProps) => (
   <Icon {...props}>
     <path d="M12 17v5" />
     <path d="M9 3h6l1 7-2 1v3l-2 2-2-2v-3l-2-1 1-7Z" />
+  </Icon>
+);
+
+/** Dial — Contacts call affordance (`tel:`). */
+export const PhoneIcon = (props: IconProps) => (
+  <Icon {...props}>
+    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.81.36 1.6.68 2.34a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.74.32 1.53.55 2.34.68A2 2 0 0 1 22 16.92Z" />
   </Icon>
 );
 

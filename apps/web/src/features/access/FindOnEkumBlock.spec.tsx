@@ -98,7 +98,7 @@ describe('FindOnEkumBlock', () => {
     });
   });
 
-  it('shows Request access and Message for a stranger hit', async () => {
+  it('shows Ask to connect and Message for a stranger hit', async () => {
     vi.mocked(api.get).mockImplementation(async (path: string) => {
       if (path === '/connections') return [];
       if (path === '/access-requests/outgoing') return [];
@@ -131,12 +131,12 @@ describe('FindOnEkumBlock', () => {
     await waitFor(() => {
       expect(screen.getByText('Surat Silk House')).toBeInTheDocument();
     });
-    expect(screen.getByRole('button', { name: 'Request access' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Ask to connect' })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Message' }));
     expect(onMessage).toHaveBeenCalledWith('co-1');
   });
 
-  it('hides Request access when already in an active chat', async () => {
+  it('hides Ask to connect when already in an active chat', async () => {
     vi.mocked(api.get).mockImplementation(async (path: string) => {
       if (path === '/connections') return [];
       if (path === '/access-requests/outgoing') return [];
@@ -185,7 +185,7 @@ describe('FindOnEkumBlock', () => {
       expect(screen.getByText('Surat Silk House')).toBeInTheDocument();
       expect(screen.getByText('In chats')).toBeInTheDocument();
     });
-    expect(screen.queryByRole('button', { name: 'Request access' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Ask to connect' })).toBeNull();
     expect(screen.getByRole('button', { name: 'Message' })).toBeInTheDocument();
   });
 

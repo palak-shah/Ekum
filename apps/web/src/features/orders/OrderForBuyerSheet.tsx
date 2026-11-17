@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
+  CompanyCard,
   ConnectionView,
   CreateForBuyerDto,
   CreateForBuyerResult,
+  ShopFollowerView,
   TradeLaneView,
 } from '@ekum/domain-types';
 import { useBrowseShortlist } from '@/features/browse/useBrowseShortlist';
@@ -35,6 +37,25 @@ function toDtoItems(orderLines: Line[]): CreateForBuyerDto['items'] {
   }));
 }
 
+function asPickerConnection(company: CompanyCard | ShopFollowerView['company']): ConnectionView {
+  return {
+    id: company.id,
+    company: {
+      id: company.id,
+      name: company.name,
+      city: company.city,
+      verification: company.verification,
+      logoUrl: company.logoUrl,
+    },
+    status: 'active',
+    createdAt: new Date(0).toISOString(),
+    canPause: false,
+    canResume: false,
+    canBlock: false,
+    canUnblock: false,
+  };
+}
+
 export function OrderForBuyerSheet({
   open,
   onClose,
@@ -55,9 +76,14 @@ export function OrderForBuyerSheet({
   const [buyerName, setBuyerName] = useState('');
   const [buyerPhone, setBuyerPhone] = useState('');
 
-  const connections = useQuery({
-    queryKey: ['connections'],
-    queryFn: () => api.get<ConnectionView[]>('/connections'),
+  const followers = useQuery({
+    queryKey: ['follows', 'followers'],
+    queryFn: () => api.get<ShopFollowerView[]>('/follows/followers'),
+    enabled: open,
+  });
+  const following = useQuery({
+    queryKey: ['follows', 'following'],
+    queryFn: () => api.get<CompanyCard[]>('/follows/following'),
     enabled: open,
   });
 
@@ -73,6 +99,24 @@ export function OrderForBuyerSheet({
   const onFindMissChange = useCallback((miss: boolean) => {
     setFindMiss(miss);
   }, []);
+
+  const supplierIds = useMemo(
+    () => new Set((following.data ?? []).map((company) => company.id)),
+    [following.data],
+  );
+  const myCompanyId = me.data?.id;
+  const buyerChoices = useMemo(
+    () =>
+      (followers.data ?? [])
+        .filter(
+          (row) =>
+            !row.stopped &&
+            row.company.id !== myCompanyId &&
+            !supplierIds.has(row.company.id),
+        )
+        .map((row) => asPickerConnection(row.company)),
+    [followers.data, myCompanyId, supplierIds],
+  );
 
   const buyerReady = offApp
     ? buyerName.trim().length > 0 && isTenDigitPhone(buyerPhone)
@@ -106,6 +150,7 @@ export function OrderForBuyerSheet({
             (lane) =>
               lane.buyerCompanyId === buyerId &&
               lane.ticket === 'mill' &&
+              lane.shareActive !== false &&
               lane.behaviors.directOrder !== false,
           )
           .map((lane) => lane.sellerCompanyId);
@@ -149,14 +194,14 @@ export function OrderForBuyerSheet({
           <ConnectionPicker
             mode="single"
             embedded
-            connections={connections.data ?? []}
-            loading={connections.isLoading}
+            connections={buyerChoices}
+            loading={followers.isLoading || following.isLoading}
             value={buyerId}
             onChange={setBuyerId}
             onFindMissChange={onFindMissChange}
             label="Buyer"
             chooseLabel="Choose buyer"
-            emptyMessage="No connections yet — find them on Ekum."
+            emptyMessage="A buyer needs to follow you first."
           />
         ) : null}
         {showOffAppToggle ? (

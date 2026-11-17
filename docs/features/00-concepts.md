@@ -15,8 +15,8 @@ Everyone on the platform — buyers, sellers, and dual-role companies.
 | **Company account** | The trading entity. Product pitch is one company, no “are you a buyer or seller?” role enum. |
 | **Contact person** | The logged-in user’s display name (e.g. Ravi) — distinct from the **business name** (e.g. Surat Silk House). |
 | **Capabilities** | Stored flags: `publish`, `relist`, `refer`. Unlock progressively; never a role picker. |
-| **Trade presence** | `buyingEnabled` / `sellingEnabled` still shape ＋ and Home. Not shown on You or Edit. Creating catalog content turns selling back on. |
-| **Edit** | Manage my business / profile / content. Home avatar **Profile** is look-first; **Edit profile** unlocks fields. Not Settings. |
+| **Trade presence** | `buyingEnabled` / `sellingEnabled` still shape ＋. Not shown on You or Edit. Creating catalog content turns selling back on. |
+| **Edit** | Manage my business / profile / content. **Home** is own Business Profile; **Edit** unlocks fields (cover, avatar, Showcase, Public/Private, phones). Not Settings. |
 | **Share** | Share my Ekum identity (chat + OS share). Not a social post. |
 | **Settings** | Configure Ekum. Domain cards only — add a link to a domain or add a domain. Not Edit. |
 
@@ -50,7 +50,7 @@ Some companies are dual-network (**traders** in product language only): buy, cur
 | Forward vs Curate | **Forward** = share someone’s card as-is; **Curate** = assemble into **your** collection then publish (still under source ceiling) |
 | Stories | Viewer sees a company when they are an **allowed** follower or are connected and it has **published** to feed (own or curated) |
 | Explore trade-side | **All** (default) · **Buying** · **Selling** — see [explore](./explore.md) |
-| Surfaces | **Home** = light **New collections** (curated received, 7 days / 5); **Buying** Explore = followed posts + received by day/business |
+| Surfaces | **Home** = own **Business Profile**; **Buying** Explore = followed posts + received by day/business |
 | Dual trade | Company may **buy/pay upstream** and **sell/send orders downstream**. **Trading** gates Curate + TradeLane (not a Profile switch). Product default off (QA may treat unset as on). Linking/split in Slice B |
 | Orders | No Direct Link (or mill Repost off): **I handle**, buyer–trader private until Send. Direct Link (Network) with mill shop-wide Repost: mill ticket; **one** mill–buyer–trader group at first Direct order (same three shops, any name order — not on Save). Completeness: `2026-10-31-direct-link-share-gate-completeness`. Mill **Send** is I-handle only; mill **Confirm** (qty + optional rate) / Decline on the mill ticket; **Handle myself** when taking a Direct onto your desk |
 
@@ -73,14 +73,16 @@ flowchart LR
 
 | Mechanism | What it is |
 |-----------|------------|
-| **Request access** | Shop ask (was Follow / See new collections). Idle: lock + **Request access**. Pending: lock + **Requested** (outline; tap cancels). Owner **Allow** (default: they can see my collections) or **Decline**. Collection share is a later checkbox / Followers Change. Allowed: unlock + **Has access** — and **Follow ⇒ Connect**: Allow also ensures an **Active Connection** so they can chat **without** a separate Connect Request (unless Blocked). Tap off deletes the follow only (no Followers feed); Connection may remain until Block. They never see which grant. Shop **⋯ → Remove connection** is the same unfollow / cancel-ask. |
-| **Message** | Cold first shop chat (no Follow needed). Recipient **Approve** → chat + **Connection**. After that the shop says **Chat**. Stays on the shop even from a 1:1. **Ignore** hides the thread. **Block** (More) is silent Network block. **Connect ⇏ Follow** — Message Approve does **not** create Follow / Followers feed. No shop **Request** button. |
-| **Access request** | Still used from invites / Find on Ekum. Shop path is **Message**. Incoming Approve is **Chats → Requests** (same Connection as first-write Approve). Independent of Follow asks. |
+| **Follow** | **Action** (and relationship kind): shop/Explore CTA **Follow** → pending **Requested** → state **Following**. Not “Request access.” Owner **Allow** / **Decline** (Allow Repost → pack). **Follow ⇒ Connection** on Allow. **Unfollow** deletes Follow only; Connection may remain. **Following** is also the Network destination (outbound). **Followers** = inbound Network list. Shop ⋯ **Unfollow** runs `DELETE /follows` (not Connection end). |
+| **Message** | Cold first shop chat (no Follow needed). Recipient **Approve** → chat + **Connection**. After that the shop says **Chat**. **Connect ⇏ Follow**. |
+| **Ask to connect** | Find / invites / message-to-connect → **Connection** only (no Follow). Chats → Requests. |
+| **Ask to repost** | Pack/Repost upgrade on an existing Follow path (`share-ask`). |
+| **Request to access** | Gated / forwarded pack view ask (`collection-view-requests`) — not Follow, not Connect. |
 | **Collection view Ask** | **Ask to see this collection** — open designs to look through. Owner Allow → **Granted on request** (not Connection, not collection/relist). Deny silent. |
 | **Collection / relist Ask** | **Ask to put in my collection** — unlock Curate when collection permission is off. Distinct chat card (“wants to put … in their collection”). Never bare **Ask**. Via **your** collection → **you** decide (your publish allow); via mill’s own post → mill. Mill Allow ≠ chain free pass. |
 | **Connect invite** | Open referral link (`/r/:token`) — redeem sends an access request to the sender (they approve); targeted vouch still needs the target’s approve. |
-| **Connection** | Mutual pair (`active`) from **Follow Allow** or **Message / access Approve**. Both can chat. Connection alone does **not** grant Follow or Followers packs. **Either** side can **block** (silent). **Only the company that blocked can unblock.** Chat noise is **Mute**, not a Connection pause. |
-| **Block** | Other party is not told and does not see the connection row. Shop/API **404** where relevant. Approve never reactivates a block — the **blocker** must **unblock** first. |
+| **Connection** | Mutual pair (`active`) from **Follow Allow** or **Message / Ask-to-connect Approve**. Both can chat. Connection alone does **not** grant Follow or Followers packs or Private profile unlock. **Either** side can **Block** (silent directed edge). Each clears **only its own** block. Chat noise is **Mute**, not a Connection pause. See [access-and-connections](./access-and-connections.md). |
+| **Block** | Directed `CompanyBlock`. Either edge → shop/API **404** / `CANNOT_MESSAGE`. Other party is not told. Approve never clears blocks — each side **Unblock**s its edge; both clear → Connection only (not Follow). |
 
 ## Catalog lifecycle
 
@@ -155,7 +157,7 @@ Everyday kit follows **Theme C (Ink & Lime)** — charcoal go, lime counts, comf
 | `Button` / `TextInput` / `SearchInput` | 48px tall. Field type stays **16px** (iOS must not zoom). Button label is 16px. Primary fill is charcoal + on-accent white. `SearchInput` is the same TextInput chrome on every find field (not a Chats-only shape). |
 | `Chip` | 32px, 13px type. Gray foam, **no border**. Selected = chip-on tint (`#EFF1D6` / ink `#3F4A12`; dark `#2C2F14` / `#E8E28A`), not badge lime and not ink-weight-on-gray. Same Chip on Chats filters, Orders Pending/Completed, Settings Light/Dark/System. |
 | List square (search trailing / sheet Close) | 48×48 |
-| Flat list row | Hairline + foam press (`listRowClass`): Chats inbox, In-chats, Home Followed, Settings stacks, Group media. Orders trade rows and Home needs-you stay **cards**. |
+| Flat list row | Hairline + foam press (`listRowClass`): Chats inbox, In-chats, Settings stacks, Group media. Orders trade rows stay **cards**. |
 | Qty / rate beside a design | Stay compact beside the thumb; **design thumbs stay 48px**. How many / Edit / Confirm / quote numbers: **16px tabular-nums** (`designLineChrome`). Stepper ± stays compact. |
 | Quiet info (`InfoHint`) | Circle **i** is a 48px tap next to a title or label. Tap shows instructional copy. One icon — change `InfoIcon` / `InfoHint` and every screen follows. Live status stays `Field.hint` under the field. |
 | `EmptyState` | One empty-message class. Title 15px `font-title`; body 14px muted. Chats Requests, Orders, Explore, Group media — not a page-local empty. |

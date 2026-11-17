@@ -6,6 +6,7 @@ import {
   ProductStatus,
   ThreadMemberState,
   ThreadParticipantState,
+  ThreadType,
   mentionsFromMetadata,
   withMentionsMetadata,
   canDeleteForEveryoneMeta,
@@ -82,6 +83,21 @@ export class MessageService {
         message: 'This group is read-only. Use a 1:1 chat.',
       });
     }
+    if (mine.thread?.type === ThreadType.Direct) {
+      const counterpart = await this.prisma.threadParticipant.findFirst({
+        where: { threadId, companyId: { not: actorCompanyId }, leftAt: null },
+        select: { companyId: true },
+      });
+      if (
+        counterpart &&
+        (await this.visibility.isBlocked(actorCompanyId, counterpart.companyId))
+      ) {
+        throw new ForbiddenException({
+          code: 'CANNOT_MESSAGE',
+          message: 'You cannot message this business.',
+        });
+      }
+    }
     await this.validateReference(actorCompanyId, dto);
     await this.validateReplyTarget(
       threadId,
@@ -128,6 +144,7 @@ export class MessageService {
     const metadata = this.withReplyQuote(rawMeta, dto.replyToPhotoIndex, dto.replyToProductId);
 
     const now = new Date();
+    const wasPending = mine.state === ThreadParticipantState.Pending;
     const message = await this.prisma.$transaction(async (tx) => {
       const created = await tx.message.create({
         data: {
@@ -149,13 +166,16 @@ export class MessageService {
         data: {
           lastReadAt: now,
           inboxHiddenAt: null,
-          ...(mine.state === ThreadParticipantState.Pending
-            ? { state: ThreadParticipantState.Active }
-            : {}),
+          ...(wasPending ? { state: ThreadParticipantState.Active } : {}),
         },
       });
       return created;
     });
+
+    // Pending→Active must also create Connection (same as thread Accept) — not chat-only.
+    if (wasPending && mine.thread?.type === ThreadType.Direct) {
+      await this.threads.accept(actorCompanyId, actor.role, threadId, actor);
+    }
 
     await this.threads.revealActiveInboxes(threadId);
     const nudged = await this.threads.nudgeArchivedRecipients(threadId, actorCompanyId);

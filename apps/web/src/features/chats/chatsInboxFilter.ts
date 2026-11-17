@@ -61,21 +61,38 @@ export function chatsInboxEmptyCopy(chip: ChatsInboxChip, searching: boolean) {
   if (chip === 'requests') {
     return {
       title: 'No requests',
-      message: 'First messages, connect invites, and Request access asks land here.',
+      message: 'First messages, Ask to connect, and Follow asks land here.',
     };
   }
   return { title: 'No chats yet', message: 'Find a business to start chatting.' };
 }
 
+type ChatsInboxCounts = {
+  active: Array<{ unreadCount: number; type: string }>;
+  pendingCount: number;
+  askCount: number;
+};
+
+const INBOX_CHIP_ORDER: ChatsInboxChip[] = ['all', 'unread', 'groups', 'requests'];
+
+function chatsInboxChipHasContent(chip: ChatsInboxChip, input: ChatsInboxCounts): boolean {
+  if (chip === 'requests') return input.pendingCount + input.askCount > 0;
+  return filterActiveInbox(input.active, chip).length > 0;
+}
+
+/**
+ * No explicit inbox intent: first chip with rows (All → Unread → Groups → Requests).
+ * Everything empty → established default (All).
+ */
+export function firstChatsInboxWithContent(input: ChatsInboxCounts): ChatsInboxChip {
+  for (const chip of INBOX_CHIP_ORDER) {
+    if (chatsInboxChipHasContent(chip, input)) return chip;
+  }
+  return 'all';
+}
+
 /** WhatsApp-style chip badge: unread chats, unread groups, or request rows. All has none. */
-export function chatsInboxChipCount(
-  chip: ChatsInboxChip,
-  input: {
-    active: Array<{ unreadCount: number; type: string }>;
-    pendingCount: number;
-    askCount: number;
-  },
-): number {
+export function chatsInboxChipCount(chip: ChatsInboxChip, input: ChatsInboxCounts): number {
   if (chip === 'unread') return input.active.filter((row) => row.unreadCount > 0).length;
   if (chip === 'groups') {
     return input.active.filter((row) => row.type === 'group' && row.unreadCount > 0).length;

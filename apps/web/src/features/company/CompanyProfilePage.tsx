@@ -1,9 +1,10 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   OrderIntent,
   OrderKind,
+  ProductStatus,
   type CollectionCard,
   type CompanyContactPoint,
   type ConnectionView,
@@ -11,26 +12,57 @@ import {
   type ExploreProductCard,
   type CreateOrdersBatchResult,
   type MuteFor,
+  type OwnCompanyProfile,
   type PublicCompanyProfile,
   type PublicCompanySummary,
+  type TeamMemberView,
   type ThreadSummary,
   categoryDisplayLabel,
 } from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
-import { seePacksShopLabel, shopWriteLabel, UNBLOCK_ACCESS_CLEARED_TOAST } from './seePacksCopy';
-import { shopShelfLoading } from './shopShelfLoading';
 import {
+  seePacksShopLabel,
+  shopWriteLabel,
+  UNBLOCK_ACCESS_CLEARED_TOAST,
+  YOUR_BLOCK_REMOVED_TOAST,
+} from './seePacksCopy';
+import { shopShelfLoading } from './shopShelfLoading';
+import { profileGalleryUrls } from './profileGalleryUrls';
+import { showcaseOnlyUrls } from './showcaseUrls';
+import { ShowcaseBrowseSheet } from './ShowcaseBrowseSheet';
+import {
+  profileCompletenessChips,
+  profileCompletenessFingerprint,
+  profileCompletenessGaps,
+} from './profileCompleteness';
+import {
+  isProfileCompletenessDismissed,
+  writeProfileCompletenessDismissed,
+} from './profileCompletenessDismiss';
+import { ProfileCompletenessNudge } from './ProfileCompletenessNudge';
+import { BusinessInfoSection } from './BusinessInfoSection';
+import {
+  HOME_CATALOGUE_COLLECTION_PREVIEW,
+  HOME_CATALOGUE_DESIGN_PREVIEW,
+  cataloguePreviewSlice,
+} from './homeCataloguePreview';
+import {
+  BookmarkIcon,
   ChatIcon,
   CollectionIcon,
+  GroupIcon,
   LockIcon,
   MoreHorizontalIcon,
   OrdersIcon,
+  PencilIcon,
   ProductIcon,
   PaperPlaneIcon,
   UnlockIcon,
 } from '@/ui/icons';
+import { PhotoViewer } from '@/ui/PhotoViewer';
 import { BrowseLayoutToggle } from '@/ui/BrowseLayoutToggle';
 import { useCompanyId } from '@/lib/auth';
+import { useTeamCaps } from '@/lib/teamCaps';
 import {
   readDesignBrowseLayout,
   writeDesignBrowseLayout,
@@ -53,6 +85,8 @@ import {
   writeResumeAfterAlbumPick,
 } from '@/features/browse/resumeAfterAlbumPick';
 import { SelectionMessageSheet } from '@/features/browse/SelectionMessageSheet';
+import { FirstMessageSheet } from '@/features/chats/FirstMessageSheet';
+import { coldMessageAction } from '@/features/chats/firstMessageGate';
 import { entriesAsProducts, orderGoesToSellerId } from '@/features/browse/useShortlistOrderFlow';
 import { collectionIdForPackOrder, packHandlerName } from '@/features/browse/packOrderSource';
 import { batchConfirmTitle, batchSuccessLeave } from '@/features/orders/BatchOrderConfirmSheet';
@@ -67,35 +101,63 @@ import { useToast } from '@/ui/Toast';
 import { PageHeader } from '@/ui/PageHeader';
 import { GstTick, isGstVerified } from '@/ui/GstTick';
 import { shopSellCategories } from '@/ui/shopIdentity';
-import { Avatar, ErrorState, LoadingBlock, SearchInput, Tag, cx } from '@/ui/kit';
+import { Avatar, ErrorState, LoadingBlock, SearchInput, cx } from '@/ui/kit';
 import { catalogSearchMatches, designFindParts } from '@/features/catalog/catalogSearch';
 import { CatalogFindToggle } from '@/features/catalog/catalogFindToggle';
-import { invalidateFollowCatalog } from '@/features/network/invalidateFollowCatalog';
+import { YouCollectionListRow } from '@/features/catalog/YouCollectionListRow';
+import { SellerProductTile } from '@/features/catalog/SellerProductTile';
+import {
+  bookmarkThisPackLabel,
+  shareThisPackLabel,
+} from '@/features/catalog/packKindCopy';
+import { DesignSheet, type DesignSheetProduct } from '@/features/browse/DesignSheet';
+import { OwnerCollectionMoreSheet } from '@/features/collections/OwnerCollectionMoreSheet';
+import { visitorCollectionMoreIds } from '@/features/collections/visitorCollectionMore';
+import { useSaveToggle } from '@/features/saved/useSaveToggle';
+import { MoreActionsSheet, type MoreActionItem } from '@/ui/MoreActionsSheet';
+import {
+  invalidateAfterBlock,
+  invalidateFollowCatalog,
+} from '@/features/network/invalidateFollowCatalog';
 import { CompanyOverflowMenu } from './CompanyOverflowMenu';
 import { CompanyShareSheet } from './CompanyShareSheet';
-import { CollectionAlbumTile } from '@/features/collections/CollectionAlbumTile';
-import { ShopPhotoCell, ShopPhotoGrid } from './ShopPhotoGrid';
-import {
-  shopCollectionPhoto,
-  shopCollectionPreviewImages,
-  shopDesignPhoto,
-} from './shopPhoto';
+import { BusinessProfileHeroMedia } from './BusinessProfileHeroMedia';
+import { shopCollectionPhoto } from './shopPhoto';
 import {
   findDirectThreadForCompany,
   shopOverflowItems,
 } from './shopOverflowMenu';
 import {
+  firstShopTabWithContent,
   shouldShowShopTradeDock,
   shopAlbumEntries,
   shopShortlistEntries,
   shopTabSelectedCount,
 } from './shopTradeDock';
+import { underlineTabChrome } from '@/features/catalog/youLibraryKind';
+import { UNDERLINE_TAB_BAR_BASE_CLASS } from '@/ui/underlineTabChrome';
+import {
+  homeCatalogueSearchParam,
+  homeCatalogueTabFromSearch,
+} from './homeCatalogueTab';
 
 type ShopTab = 'designs' | 'collections';
 
+export type BusinessProfileVariant = 'home' | 'shop' | 'catalogue';
+
+/** Shop route — props-free for lazy `page()` loader. */
+export function CompanyProfilePage() {
+  return <BusinessProfileBody variant="shop" />;
+}
+
+/** Full visitor catalogue — Select / Find / dock; props-free for lazy `page()` loader. */
+export function ShopCataloguePage() {
+  return <BusinessProfileBody variant="catalogue" />;
+}
+
 function toShopShortlistEntry(
   product: ExploreProductCard,
-  shopCompanyId: string,
+  _shopCompanyId: string,
 ): BrowseShortlistEntry {
   return {
     productId: product.id,
@@ -115,6 +177,39 @@ function toShopShortlistEntry(
   };
 }
 
+function toDesignSheetProduct(product: ExploreProductCard): DesignSheetProduct {
+  return {
+    id: product.id,
+    name: product.name,
+    images: product.images,
+    companyId: product.company.id,
+    companyName: product.company.name,
+    allowForward: product.allowForward,
+    categories: product.categories,
+    description: null,
+    unit: product.unit,
+    dispatchUnit: product.dispatchUnit ?? null,
+    moq: null,
+    rate: product.rate,
+    rateMax: product.rateMax,
+    status: ProductStatus.Published,
+    catalogCollectionId: product.catalogCollectionId,
+    catalogOrderMode: product.catalogOrderMode,
+  };
+}
+
+function toShopCollectionRow(collection: CollectionCard) {
+  return {
+    id: collection.id,
+    name: collection.name,
+    status: collection.status,
+    kind: collection.kind,
+    libraryThumb: collection.coverImage,
+    coverImage: collection.coverImage,
+    companyId: collection.company.id,
+  };
+}
+
 function toShopAlbumEntry(collection: CollectionCard, shopCompanyId: string): BrowseAlbumEntry {
   return {
     collectionId: collection.id,
@@ -130,11 +225,28 @@ function toShopAlbumEntry(collection: CollectionCard, shopCompanyId: string): Br
   };
 }
 
-export function CompanyProfilePage() {
-  const { id = '' } = useParams();
+export function BusinessProfileBody({
+  companyId: companyIdProp,
+  variant = 'shop',
+}: {
+  companyId?: string;
+  variant?: BusinessProfileVariant;
+}) {
+  const { id: paramId = '' } = useParams();
+  const id = companyIdProp ?? paramId;
+  const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const myCompanyId = useCompanyId();
+  const isHome = variant === 'home';
+  const isCatalogue = variant === 'catalogue';
+  const isShopFace = variant === 'shop';
+  /** Profile-face preview (Home + visitor shop); full list on catalogue page. */
+  const previewCatalogue = isHome || isShopFace;
+  /** Select / Find / layout / trade dock — catalogue page only. */
+  const shelfInteractive = isCatalogue;
+  const { isOwner, can: canCap } = useTeamCaps();
+  const canInviteTeam = isOwner || canCap('team');
   const isOwn = Boolean(id) && id === myCompanyId;
   const shortlist = useBrowseShortlist();
   const albumPick = useBrowseAlbumPick();
@@ -142,15 +254,23 @@ export function CompanyProfilePage() {
   const [shareOpen, setShareOpen] = useState(false);
   const [catalogShareOpen, setCatalogShareOpen] = useState(false);
   const [messageOpen, setMessageOpen] = useState(false);
+  const [firstMessageOpen, setFirstMessageOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
+  const [galleryOpen, setGalleryOpen] = useState(false);
+  const [galleryIndex, setGalleryIndex] = useState(0);
+  /** `full` = cover-first profile gallery; `showcase` = Showcase URLs only. */
+  const [galleryMode, setGalleryMode] = useState<'full' | 'showcase'>('full');
+  const [showcaseBrowseOpen, setShowcaseBrowseOpen] = useState(false);
+  const [nudgeDismissTick, setNudgeDismissTick] = useState(0);
+  const [aboutExpanded, setAboutExpanded] = useState(false);
   const [qtyOpen, setQtyOpen] = useState(false);
   const [qtyEntries, setQtyEntries] = useState<BrowseShortlistEntry[] | null>(null);
   const [orderResolveOpen, setOrderResolveOpen] = useState(false);
   const [lockedProductIds, setLockedProductIds] = useState<string[]>([]);
   const { prepare: prepareCatalogOrder } = usePrepareCatalogOrder();
   const [orderError, setOrderError] = useState<string | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
-  const [successNote, setSuccessNote] = useState<string | null>(null);
+  const [actionError] = useState<string | null>(null);
+  const [successNote] = useState<string | null>(null);
   const [shopTab, setShopTab] = useState<ShopTab>('collections');
   const [listSearch, setListSearch] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
@@ -159,6 +279,13 @@ export function CompanyProfilePage() {
     readDesignBrowseLayout(myCompanyId),
   );
   const shopTabSeededFor = useRef<string | null>(null);
+  const shopTabUserPicked = useRef(false);
+  const [openSwipeId, setOpenSwipeId] = useState<string | null>(null);
+  const [rowMenu, setRowMenu] = useState<CollectionCard | null>(null);
+  const [rowShare, setRowShare] = useState<CollectionCard | null>(null);
+  const [sheetProduct, setSheetProduct] = useState<ExploreProductCard | null>(null);
+  const [sheetIndex, setSheetIndex] = useState(0);
+  const rowSave = useSaveToggle({ collectionId: rowMenu?.id ?? '' });
 
   useEffect(() => {
     setLayout(readDesignBrowseLayout(myCompanyId));
@@ -167,7 +294,16 @@ export function CompanyProfilePage() {
   const profile = useQuery({
     queryKey: ['company', id],
     queryFn: () => api.get<PublicCompanyProfile>(`/companies/${id}`),
+    enabled: Boolean(id),
   });
+  /** Own DTO for sellCategories (public profile only exposes composite categories). */
+  const ownProfile = useQuery({
+    queryKey: ['company', 'me'],
+    queryFn: () => api.get<OwnCompanyProfile>('/companies/me'),
+    enabled: isHome,
+  });
+  /** Missing profileAccess (older fixtures) counts as open. */
+  const profileAccess = profile.data?.profileAccess !== false;
   const connections = useQuery({
     queryKey: ['connections'],
     queryFn: () => api.get<ConnectionView[]>('/connections'),
@@ -181,17 +317,19 @@ export function CompanyProfilePage() {
     queryFn: () => api.get<CursorPage<ThreadSummary>>('/threads', { limit: 50 }),
     enabled: Boolean(id) && !isOwn,
   });
+  /** Fetch shelf in parallel while profile loads; stop only once Private is known. */
+  const shelfEnabled = Boolean(id) && (!profile.isSuccess || profileAccess);
   const shopCollections = useQuery({
     queryKey: ['company', id, 'collections'],
     queryFn: () =>
       api.get<CursorPage<CollectionCard>>(`/companies/${id}/collections`, { limit: 20 }),
-    enabled: Boolean(id),
+    enabled: shelfEnabled,
   });
   const shopDesigns = useQuery({
     queryKey: ['company', id, 'designs'],
     queryFn: () =>
       api.get<CursorPage<ExploreProductCard>>(`/companies/${id}/designs`, { limit: 20 }),
-    enabled: Boolean(id),
+    enabled: shelfEnabled,
   });
 
   const connection = connections.data?.find((item) => item.company.id === id);
@@ -215,7 +353,13 @@ export function CompanyProfilePage() {
   const contacts = useQuery({
     queryKey: ['company', id, 'contact'],
     queryFn: () => api.get<CompanyContactPoint[]>(`/companies/${id}/contact`),
-    enabled: Boolean(id) && isConnected,
+    // Owner (catalog access) or Connected — matches contact API gate.
+    enabled: Boolean(id) && (isConnected || isOwn || isHome),
+  });
+  const teamMembers = useQuery({
+    queryKey: ['team-members'],
+    queryFn: () => api.get<TeamMemberView[]>('/team/members'),
+    enabled: isHome,
   });
 
   const designs = shopDesigns.data?.results ?? [];
@@ -240,13 +384,22 @@ export function CompanyProfilePage() {
     [collections, deferredListSearch],
   );
   const listSearchActive = Boolean(deferredListSearch.trim());
+  const displayCollections = cataloguePreviewSlice(
+    visibleCollections,
+    HOME_CATALOGUE_COLLECTION_PREVIEW,
+    previewCatalogue,
+  );
+  const displayDesigns = cataloguePreviewSlice(
+    visibleDesigns,
+    HOME_CATALOGUE_DESIGN_PREVIEW,
+    previewCatalogue,
+  );
+  const designLayout: DesignBrowseLayout = previewCatalogue ? 'grid' : layout;
   const shopLoading = shopShelfLoading(
     shopTab,
     shopCollections.isLoading,
     shopDesigns.isLoading,
   );
-  const shopReady =
-    shopTab === 'collections' ? shopCollections.isSuccess : shopDesigns.isSuccess;
   const visibleShopIds = designs.map((product) => product.id);
   const visibleAlbumIds = collections.map((collection) => collection.id);
   const gridDesignIds = visibleDesigns.map((product) => product.id);
@@ -259,17 +412,33 @@ export function CompanyProfilePage() {
     shopEntries.length,
     shopAlbums.length,
   );
-  const shopDockUp = shouldShowShopTradeDock({
-    isOwn,
-    shopSelectedCount: thisShopCount,
-  });
+  const shopDockUp =
+    shelfInteractive &&
+    shouldShowShopTradeDock({
+      isOwn,
+      shopSelectedCount: thisShopCount,
+    });
+  /**
+   * Traveling shortlist/album selectMode stays on while any pile exists — including the
+   * other shop tab. Chrome must not key off that, or Clear leaves a dead “0 selected”.
+   * Armed empty = tapped Select with nothing on this tab yet.
+   */
+  const [shopArmedEmpty, setShopArmedEmpty] = useState(false);
+  useEffect(() => {
+    setShopArmedEmpty(false);
+  }, [id]);
+  useEffect(() => {
+    if (tabSelectedCount > 0) setShopArmedEmpty(false);
+  }, [tabSelectedCount]);
+  const showSelectChrome = tabSelectedCount > 0 || shopArmedEmpty;
   const selecting = shortlist.selectMode || albumPick.selectMode || shopDockUp;
   const selectAllDesigns = selectAllState(gridDesignIds, shortlist.productIds);
   const selectAllAlbums = selectAllState(gridAlbumIds, albumPick.collectionIds);
   const selectAll = shopTab === 'designs' ? selectAllDesigns : selectAllAlbums;
   const canSelect =
-    (shopTab === 'designs' && designs.length > 0) ||
-    (shopTab === 'collections' && collections.length > 0);
+    shelfInteractive &&
+    ((shopTab === 'designs' && designs.length > 0) ||
+      (shopTab === 'collections' && collections.length > 0));
   const tabHasItems = canSelect;
   const toggleLayout = () => {
     setLayout((prev) => {
@@ -297,6 +466,7 @@ export function CompanyProfilePage() {
   };
 
   const enterSelectMode = () => {
+    setShopArmedEmpty(true);
     shortlist.setSelectMode(true);
     albumPick.setSelectMode(true);
   };
@@ -309,8 +479,10 @@ export function CompanyProfilePage() {
     albumPick.addMany(visibleCollections.map((collection) => toShopAlbumEntry(collection, id)));
   };
 
+  /** Clear this tab’s picks and leave Selecting chrome (dock may stay if the other tab has picks). */
   const clearActiveTabAndExitSelect = () => {
     clearActiveTab();
+    setShopArmedEmpty(false);
     shortlist.setSelectMode(false);
     albumPick.setSelectMode(false);
   };
@@ -323,11 +495,39 @@ export function CompanyProfilePage() {
     albumPick.toggle(toShopAlbumEntry(collection, id));
   };
 
+  const shelfReadyForSeed = shopCollections.isSuccess && shopDesigns.isSuccess;
+  const tabQuery = searchParams.get('tab');
+  const tabIntent = homeCatalogueTabFromSearch(tabQuery);
   useEffect(() => {
-    if (!shopReady || shopTabSeededFor.current === id) return;
-    shopTabSeededFor.current = id;
+    shopTabUserPicked.current = false;
+    shopTabSeededFor.current = null;
     setShopTab('collections');
-  }, [shopReady, id, designs.length]);
+  }, [id]);
+  useEffect(() => {
+    if (!shelfReadyForSeed) return;
+    // Home + visitor catalogue: URL tab wins so View more → Back keeps Designs.
+    if ((isHome || isCatalogue) && tabIntent) {
+      setShopTab(tabIntent);
+      shopTabUserPicked.current = true;
+      shopTabSeededFor.current = id;
+      return;
+    }
+    if (shopTabUserPicked.current) {
+      shopTabSeededFor.current = id;
+      return;
+    }
+    if (shopTabSeededFor.current === id) return;
+    shopTabSeededFor.current = id;
+    setShopTab(firstShopTabWithContent(collections.length, designs.length));
+  }, [
+    shelfReadyForSeed,
+    id,
+    collections.length,
+    designs.length,
+    isHome,
+    isCatalogue,
+    tabIntent,
+  ]);
 
   const toggleFollow = useMutation({
     mutationFn: () =>
@@ -339,15 +539,14 @@ export function CompanyProfilePage() {
     },
   });
 
-  const startChat = useMutation({
-    mutationFn: () => api.post<ThreadSummary>('/threads/direct', { companyId: id }),
-    onSuccess: (thread) => {
-      void queryClient.invalidateQueries({ queryKey: ['threads'] });
-      navigate(`/chats/${thread.id}`);
-    },
-    onError: (error) =>
-      setActionError(error instanceof ApiError ? error.message : 'Could not open chat.'),
-  });
+  const openColdMessage = () => {
+    if (!id) return;
+    if (coldMessageAction({ existingThreadId: directThread?.id }) === 'open-existing') {
+      navigate(`/chats/${directThread!.id}`);
+      return;
+    }
+    setFirstMessageOpen(true);
+  };
 
   const setThreadAlert = useMutation({
     mutationFn: (payload: { alertLevel: 'all' | 'muted'; muteFor?: MuteFor }) =>
@@ -368,10 +567,7 @@ export function CompanyProfilePage() {
       await api.post(`/connections/company/${id}/block`, {});
     },
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['threads'] });
-      void queryClient.invalidateQueries({ queryKey: ['connections'] });
-      void queryClient.invalidateQueries({ queryKey: ['follows'] });
-      void queryClient.invalidateQueries({ queryKey: ['trade-lanes'] });
+      invalidateAfterBlock(queryClient);
       showToast('Blocked');
       navigate(-1);
     },
@@ -382,13 +578,11 @@ export function CompanyProfilePage() {
   const unblockShop = useMutation({
     mutationFn: async () => {
       if (!connection?.id) throw new Error('No connection');
-      await api.post(`/connections/${connection.id}/unblock`, {});
+      return api.post<ConnectionView>(`/connections/${connection.id}/unblock`, {});
     },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['connections'] });
-      void queryClient.invalidateQueries({ queryKey: ['follows'] });
-      void queryClient.invalidateQueries({ queryKey: ['trade-lanes'] });
-      showToast(UNBLOCK_ACCESS_CLEARED_TOAST);
+    onSuccess: (data) => {
+      invalidateAfterBlock(queryClient);
+      showToast(data.canBlock ? UNBLOCK_ACCESS_CLEARED_TOAST : YOUR_BLOCK_REMOVED_TOAST);
       setMoreOpen(false);
     },
     onError: (error) =>
@@ -435,13 +629,26 @@ export function CompanyProfilePage() {
       setOrderError(error instanceof ApiError ? error.message : 'Could not place the order.'),
   });
 
+  if (isCatalogue && myCompanyId && id === myCompanyId) {
+    const moreTab =
+      tabQuery === 'products'
+        ? '/more?tab=products'
+        : tabQuery === 'collections'
+          ? '/more?tab=collections'
+          : '/more';
+    return <Navigate to={moreTab} replace />;
+  }
+  if (isShopFace && myCompanyId && id === myCompanyId) {
+    return <Navigate to="/" replace />;
+  }
+
   if (profile.isLoading) {
     return <LoadingBlock label="Loading business…" />;
   }
   if (profile.isError || !profile.data) {
     return (
       <>
-        <PageHeader title="Business" />
+        {!isHome ? <PageHeader title="Business" /> : null}
         <ErrorState message="This business isn't available." />
       </>
     );
@@ -449,17 +656,117 @@ export function CompanyProfilePage() {
 
   const company = profile.data;
   const hasShop = designs.length > 0 || collections.length > 0;
+  const shelfReady = shopCollections.isSuccess && shopDesigns.isSuccess;
+  const showCatalogue = profileAccess && shelfReady && hasShop;
+
+  if (isCatalogue && !profileAccess) {
+    return (
+      <>
+        <PageHeader
+          title={company.name}
+          onBack={() => navigate(`/company/${id}`)}
+        />
+        <p className="px-1 py-8 text-center text-sm text-muted">This business is private.</p>
+      </>
+    );
+  }
   const contact = pickPrimaryContact(contacts.data ?? []);
   const sellCats = shopSellCategories(company);
+  const contactLabel =
+    isConnected && !isOwn && contact
+      ? `${contact.name}${contact.role ? ` ${contact.role}` : ''}`.trim()
+      : null;
+  const cityLabel = company.city?.trim() || null;
+  const coverUrl = company.coverUrl ?? null;
+  const showcaseUrls = company.showcaseUrls ?? [];
+  const fullGalleryUrls = profileGalleryUrls(coverUrl, showcaseUrls);
+  const showcaseGalleryUrls = showcaseOnlyUrls(showcaseUrls);
+  const viewerUrls = galleryMode === 'showcase' ? showcaseGalleryUrls : fullGalleryUrls;
+  const openFullGallery = (index: number) => {
+    if (fullGalleryUrls.length < 1) return;
+    setGalleryMode('full');
+    setGalleryIndex(index);
+    setGalleryOpen(true);
+  };
+  const openShowcaseBrowse = () => {
+    // Owner may open empty browse to Add; visitors need ≥1 photo.
+    if (!isHome && showcaseGalleryUrls.length < 1) return;
+    setShowcaseBrowseOpen(true);
+  };
+  const openShowcasePhoto = (index: number) => {
+    if (showcaseGalleryUrls.length < 1) return;
+    setGalleryMode('showcase');
+    setGalleryIndex(index);
+    setGalleryOpen(true);
+  };
+
+  const completenessInput = {
+    logoUrl: company.logoUrl,
+    coverUrl: company.coverUrl,
+    about: company.about,
+    sellCategories: ownProfile.isSuccess
+      ? (ownProfile.data.sellCategories ?? [])
+      : undefined,
+  };
+  const completenessGaps = isHome ? profileCompletenessGaps(completenessInput) : [];
+  const completenessFingerprint = profileCompletenessFingerprint(completenessGaps);
+  const completenessDismissed =
+    nudgeDismissTick >= 0 &&
+    isProfileCompletenessDismissed(id, completenessFingerprint);
+  const completenessChips =
+    isHome && completenessGaps.length > 0 && !completenessDismissed
+      ? profileCompletenessChips(completenessInput, 3)
+      : [];
+
+  const onCompletenessChip = (
+    gap: 'logo' | 'cover' | 'about' | 'sellCategories',
+  ) => {
+    if (gap === 'logo') {
+      document.querySelector<HTMLButtonElement>('[data-testid="business-profile-avatar-camera"]')?.click();
+      return;
+    }
+    if (gap === 'cover') {
+      const add = document.querySelector<HTMLButtonElement>(
+        '[data-testid="business-profile-add-cover"]',
+      );
+      if (add) {
+        add.click();
+        return;
+      }
+      document
+        .querySelector<HTMLButtonElement>('[data-testid="business-profile-cover-camera"]')
+        ?.click();
+      return;
+    }
+    if (gap === 'about') {
+      navigate('/settings/profile?edit=1');
+      return;
+    }
+    navigate('/settings/profile?edit=1&focus=sell');
+  };
 
   return (
-    <div className="flex flex-col gap-4">
-      <PageHeader
-        title={company.name}
-        titleEnd={isGstVerified(company.verification) ? <GstTick /> : null}
-        action={
-          <div className="flex items-center gap-0.5">
-            {hasShop ? (
+    <div
+      className={cx(
+        'flex flex-col gap-4',
+        isHome && SELECTION_DOCK_CLEARANCE_CLASS,
+        isCatalogue && (shopDockUp || floaterClearance) && SELECTION_DOCK_CLEARANCE_CLASS,
+      )}
+      data-testid={
+        isHome
+          ? 'business-profile-home'
+          : isCatalogue
+            ? 'business-profile-catalogue-page'
+            : 'business-profile-shop'
+      }
+    >
+      {isCatalogue ? (
+        <PageHeader
+          title={company.name}
+          titleEnd={isGstVerified(company.verification) ? <GstTick /> : null}
+          onBack={() => navigate(`/company/${id}`)}
+          action={
+            showCatalogue || hasShop || !shelfReady ? (
               <CatalogFindToggle
                 testId="company-shop-search-toggle"
                 open={searchOpen}
@@ -473,7 +780,28 @@ export function CompanyProfilePage() {
                   setSearchOpen(true);
                 }}
               />
-            ) : null}
+            ) : null
+          }
+          below={
+            searchOpen ? (
+              <SearchInput
+                data-testid="company-shop-search"
+                aria-label={shopTab === 'collections' ? 'Find collections' : 'Find designs'}
+                placeholder={shopTab === 'collections' ? 'Find collections' : 'Find designs'}
+                value={listSearch}
+                onChange={(event) => setListSearch(event.target.value)}
+                autoFocus
+              />
+            ) : null
+          }
+        />
+      ) : null}
+
+      {isShopFace ? (
+        <PageHeader
+          title={company.name}
+          titleEnd={isGstVerified(company.verification) ? <GstTick /> : null}
+          action={
             <div className="relative">
               <button
                 type="button"
@@ -510,114 +838,243 @@ export function CompanyProfilePage() {
                 onRemove={() => toggleFollow.mutate()}
               />
             </div>
-          </div>
-        }
-        below={
-          searchOpen ? (
-            <SearchInput
-              data-testid="company-shop-search"
-              aria-label={shopTab === 'collections' ? 'Find collections' : 'Find designs'}
-              placeholder={shopTab === 'collections' ? 'Find collections' : 'Find designs'}
-              value={listSearch}
-              onChange={(event) => setListSearch(event.target.value)}
-              autoFocus
-            />
-          ) : null
-        }
-      />
+          }
+        />
+      ) : null}
 
-      <div className="flex items-start gap-4">
-        <Avatar name={company.name} imageUrl={company.logoUrl} size={88} />
-        <div className="min-w-0 flex-1 pt-1">
-          {isConnected && !isOwn && contact ? (
-            <p className="truncate text-sm font-emphasis text-ink" data-testid="company-contact">
-              {contact.name}
-              {contact.role ? ` ${contact.role}` : ''}
+      {!isCatalogue ? (
+        profileAccess || isHome ? (
+          <BusinessProfileHeroMedia
+            companyId={id}
+            name={company.name}
+            logoUrl={company.logoUrl}
+            coverUrl={profileAccess ? coverUrl : null}
+            canEdit={isHome}
+            onOpenCoverGallery={() => openFullGallery(0)}
+            showcaseCount={showcaseGalleryUrls.length}
+            onOpenShowcase={
+              profileAccess || isHome ? openShowcaseBrowse : undefined
+            }
+            identity={
+              <>
+                {isHome ? (
+                  <div
+                    className="flex items-center justify-center gap-1.5"
+                    data-testid="business-profile-name"
+                  >
+                    <p className="truncate text-name font-emphasis text-ink">{company.name}</p>
+                    {isGstVerified(company.verification) ? <GstTick /> : null}
+                  </div>
+                ) : null}
+                {!profileAccess ? (
+                  <p className="mt-1 text-meta text-muted" data-testid="business-profile-private">
+                    This business is private.
+                  </p>
+                ) : (
+                  <>
+                    {contactLabel || cityLabel ? (
+                      <p className="mt-0.5 truncate text-meta text-muted" data-testid="shop-identity">
+                        {contactLabel ? (
+                          <span data-testid="company-contact">{contactLabel}</span>
+                        ) : null}
+                        {contactLabel && cityLabel ? ' · ' : null}
+                        {cityLabel}
+                      </p>
+                    ) : null}
+                    {sellCats.length > 0 ? (
+                      <p
+                        className="mx-auto mt-1 line-clamp-2 max-w-prose text-meta text-muted"
+                        data-testid="shop-category-line"
+                      >
+                        {sellCats.map((category) => categoryDisplayLabel(category)).join(' · ')}
+                      </p>
+                    ) : null}
+                    {company.about ? (
+                      <div className="mx-auto mt-1.5 max-w-prose">
+                        <p
+                          className={cx(
+                            'text-sm text-muted',
+                            !aboutExpanded && company.about.length > 90 && 'line-clamp-2',
+                          )}
+                          data-testid="business-profile-about"
+                        >
+                          {company.about}
+                        </p>
+                        {company.about.length > 90 ? (
+                          <button
+                            type="button"
+                            data-testid="business-profile-about-more"
+                            className="mt-0.5 text-meta font-emphasis text-accent"
+                            onClick={() => setAboutExpanded((open) => !open)}
+                          >
+                            {aboutExpanded ? 'Less' : 'More'}
+                          </button>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </>
+                )}
+              </>
+            }
+          />
+        ) : (
+          <div className="flex flex-col items-center gap-3 text-center">
+            <Avatar name={company.name} imageUrl={company.logoUrl} size={88} />
+            <p className="text-meta text-muted" data-testid="business-profile-private">
+              This business is private.
             </p>
-          ) : null}
-          <p className="text-sm text-muted" data-testid="shop-identity">
-            {company.city}
-          </p>
-          {company.about ? <p className="mt-2 text-sm text-ink">{company.about}</p> : null}
-          {sellCats.length > 0 ? (
-            <div className="mt-2 flex flex-wrap gap-1.5" data-testid="shop-category-chips">
-              {sellCats.map((category) => (
-                <Tag key={category}>{categoryDisplayLabel(category)}</Tag>
-              ))}
-            </div>
-          ) : null}
-        </div>
-      </div>
+          </div>
+        )
+      ) : null}
 
+      {!isCatalogue ? (
       <div className="flex gap-1.5">
-        {!isOwn ? (
-          <button
-            type="button"
-            data-testid="company-follow"
-            onClick={() => toggleFollow.mutate()}
-            disabled={toggleFollow.isPending}
-            className={cx(
-              shopActionClass,
-              'gap-1.5',
-              isFollowing && !isFollowPending
-                ? 'bg-accent text-on-accent disabled:opacity-45'
-                : isFollowPending
-                  ? 'border border-accent/40 bg-foam text-ink disabled:opacity-45'
-                  : 'bg-foam text-ink disabled:opacity-45',
+        {isHome ? (
+          <>
+            <button
+              type="button"
+              data-testid="company-edit"
+              onClick={() => navigate('/settings/profile?edit=1')}
+              className={cx(homeActionClass)}
+            >
+              <PencilIcon width={16} height={16} className="shrink-0 text-accent" aria-hidden />
+              Edit
+            </button>
+            <button
+              type="button"
+              data-testid="business-profile-share"
+              onClick={() => setShareOpen(true)}
+              className={cx(homeActionClass)}
+            >
+              <PaperPlaneIcon width={16} height={16} className="shrink-0 text-accent" aria-hidden />
+              Share
+            </button>
+            <Link to="/network" data-testid="business-profile-network" className={cx(homeActionClass)}>
+              <GroupIcon width={16} height={16} className="shrink-0 text-accent" aria-hidden />
+              Network
+            </Link>
+            <Link to="/saved" data-testid="business-profile-saved" className={cx(homeActionClass)}>
+              <BookmarkIcon width={16} height={16} className="shrink-0 text-accent" aria-hidden />
+              Saved
+            </Link>
+          </>
+        ) : (
+          <>
+            {!isOwn ? (
+              <>
+                <button
+                  type="button"
+                  data-testid="company-follow"
+                  onClick={() => toggleFollow.mutate()}
+                  disabled={toggleFollow.isPending}
+                  className={cx(
+                    // Separate base from filled state so bg-surface cannot beat bg-accent
+                    // (Tailwind same-specificity order is stylesheet order, not className order).
+                    isFollowing && !isFollowPending
+                      ? homeActionOnClass
+                      : homeActionClass,
+                    'disabled:opacity-45',
+                    isFollowPending && !(isFollowing && !isFollowPending)
+                      ? 'border-accent/40'
+                      : null,
+                  )}
+                >
+                  {!toggleFollow.isPending && isFollowing && !isFollowPending ? (
+                    <UnlockIcon width={16} height={16} className="shrink-0" aria-hidden />
+                  ) : null}
+                  {!toggleFollow.isPending && !(isFollowing && !isFollowPending) ? (
+                    <LockIcon
+                      width={16}
+                      height={16}
+                      className="shrink-0 text-accent"
+                      aria-hidden
+                    />
+                  ) : null}
+                  {toggleFollow.isPending
+                    ? 'Updating…'
+                    : seePacksShopLabel({ pending: isFollowPending, allowed: isFollowing })}
+                </button>
+                {showMessage ? (
+                  <button
+                    type="button"
+                    data-testid="company-message"
+                    onClick={openColdMessage}
+                    className={cx(homeActionClass, 'disabled:opacity-45')}
+                  >
+                    <ChatIcon
+                      width={16}
+                      height={16}
+                      className="shrink-0 text-accent"
+                      aria-hidden
+                    />
+                    {shopWriteLabel(alreadyTalks)}
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  data-testid="business-profile-share"
+                  onClick={() => setShareOpen(true)}
+                  className={cx(homeActionClass)}
+                >
+                  <PaperPlaneIcon
+                    width={16}
+                    height={16}
+                    className="shrink-0 text-accent"
+                    aria-hidden
+                  />
+                  Share
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                data-testid="company-edit"
+                onClick={() => navigate('/settings/profile?edit=1')}
+                className={cx(shopActionClass, 'flex-none bg-foam text-ink')}
+              >
+                Edit profile
+              </button>
             )}
-          >
-            {!toggleFollow.isPending && isFollowing && !isFollowPending ? (
-              <UnlockIcon width={14} height={14} className="shrink-0" aria-hidden />
-            ) : null}
-            {!toggleFollow.isPending && !(isFollowing && !isFollowPending) ? (
-              <LockIcon width={14} height={14} className="shrink-0" aria-hidden />
-            ) : null}
-            {toggleFollow.isPending
-              ? 'Updating…'
-              : seePacksShopLabel({ pending: isFollowPending, allowed: isFollowing })}
-          </button>
-        ) : null}
-        {showMessage ? (
-          <button
-            type="button"
-            data-testid="company-message"
-            onClick={() => startChat.mutate()}
-            disabled={startChat.isPending}
-            className={cx(shopActionClass, 'gap-1.5 bg-foam text-ink disabled:opacity-45')}
-          >
-            {!startChat.isPending ? (
-              <ChatIcon width={14} height={14} className="shrink-0" aria-hidden />
-            ) : null}
-            {startChat.isPending ? 'Opening…' : shopWriteLabel(alreadyTalks)}
-          </button>
-        ) : null}
-        {isOwn ? (
-          <button
-            type="button"
-            data-testid="company-edit"
-            onClick={() => navigate('/settings/profile?edit=1')}
-            className={cx(shopActionClass, 'flex-none bg-foam text-ink')}
-          >
-            Edit profile
-          </button>
-        ) : null}
+          </>
+        )}
       </div>
+      ) : null}
 
       {successNote ? <p className="text-center text-xs text-accent">{successNote}</p> : null}
       {actionError ? <p className="text-center text-xs text-danger">{actionError}</p> : null}
 
-      {shopLoading ? (
+      {isHome && completenessChips.length > 0 ? (
+        <ProfileCompletenessNudge
+          chips={completenessChips}
+          onChip={onCompletenessChip}
+          onDismiss={() => {
+            writeProfileCompletenessDismissed(id, completenessFingerprint);
+            setNudgeDismissTick((n) => n + 1);
+          }}
+        />
+      ) : null}
+
+      {profileAccess && shelfEnabled && shopLoading ? (
         <LoadingBlock label="Loading shop…" />
-      ) : (
-        <section
+      ) : null}
+
+      {showCatalogue ? (
+        <div
           className={cx(
-            'flex flex-col gap-2',
             (shopDockUp || floaterClearance) && SELECTION_DOCK_CLEARANCE_CLASS,
           )}
         >
-          <div className="flex flex-col gap-1.5">
+        <section
+          className="flex flex-col overflow-hidden bg-surface"
+          data-testid="business-profile-catalogue"
+        >
+          <div className="flex flex-col gap-1.5 border-b border-line px-1">
             <div className="flex items-center justify-between gap-2">
-              <div className="flex min-w-0 gap-2">
+              <div
+                className="relative z-10 flex min-w-0 w-fit shrink-0 gap-4"
+                role="tablist"
+                aria-label="Catalogue"
+              >
                 {(
                   [
                     ['collections', 'Collections', CollectionIcon],
@@ -627,27 +1084,49 @@ export function CompanyProfilePage() {
                   <button
                     key={value}
                     type="button"
+                    role="tab"
+                    aria-selected={shopTab === value}
                     data-testid={`company-shop-tab-${value}`}
-                    onClick={() => setShopTab(value)}
+                    onClick={() => {
+                      shopTabUserPicked.current = true;
+                      setShopTab(value);
+                      if (isHome) {
+                        setSearchParams(
+                          (prev) => {
+                            const next = new URLSearchParams(prev);
+                            next.set('tab', homeCatalogueSearchParam(value));
+                            return next;
+                          },
+                          { replace: true },
+                        );
+                      }
+                    }}
                     className={cx(
-                      'inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm font-emphasis',
-                      shopTab === value ? 'bg-accent-soft text-accent-ink' : 'bg-foam text-muted',
+                      'relative isolate inline-flex h-12 shrink-0 items-center gap-1.5 px-0.5 text-name tracking-tight touch-manipulation',
+                      underlineTabChrome(shopTab === value).buttonClass,
                     )}
                   >
-                    <TabIcon width={14} height={14} className="shrink-0" aria-hidden />
+                    <TabIcon width={16} height={16} className="shrink-0" aria-hidden />
                     {label}
+                    <span
+                      aria-hidden
+                      className={cx(
+                        UNDERLINE_TAB_BAR_BASE_CLASS,
+                        underlineTabChrome(shopTab === value).barClass,
+                      )}
+                    />
                   </button>
                 ))}
               </div>
               <div className="flex shrink-0 items-center gap-1">
-                {tabHasItems ? (
+                {shopTab === 'designs' && tabHasItems && shelfInteractive ? (
                   <BrowseLayoutToggle
                     layout={layout}
                     onToggle={toggleLayout}
                     testId="company-shop-layout-toggle"
                   />
                 ) : null}
-                {canSelect && !selecting ? (
+                {canSelect && !showSelectChrome ? (
                   <SelectModeControls
                     selectTestId="company-shop-select"
                     selecting={false}
@@ -660,7 +1139,7 @@ export function CompanyProfilePage() {
                 ) : null}
               </div>
             </div>
-            {canSelect && selecting ? (
+            {canSelect && showSelectChrome ? (
               <div
                 className="flex min-w-0 justify-end overflow-x-auto scrollbar-gutter-stable"
                 data-testid="company-shop-select-pill-row"
@@ -678,67 +1157,143 @@ export function CompanyProfilePage() {
               </div>
             ) : null}
           </div>
-          {hasShop ? (
-            shopTab === 'designs' ? (
-              visibleDesigns.length > 0 ? (
-                <ShopPhotoGrid layout={layout}>
-                  {visibleDesigns.map((product) => (
-                    <ShopPhotoCell
-                      key={product.id}
-                      src={shopDesignPhoto(product)}
-                      images={product.images}
-                      label={product.name}
-                      to={`/explore/products/${product.id}`}
-                      showName
-                      layout={layout}
-                      testId={`company-shop-design-${product.id}`}
-                      selected={shortlist.productIds.has(product.id)}
-                      selectMode={selecting}
-                      onLongSelect={() => toggleDesign(product)}
-                      onToggleSelect={selecting ? () => toggleDesign(product) : undefined}
-                    />
-                  ))}
-                </ShopPhotoGrid>
-              ) : (
-                <p className="px-0.5 text-sm text-muted">
-                  {listSearchActive ? 'No designs match.' : 'No published designs yet.'}
-                </p>
-              )
-            ) : visibleCollections.length > 0 ? (
-              <ShopPhotoGrid layout={layout}>
-                {visibleCollections.map((collection) => (
-                  <CollectionAlbumTile
-                    key={collection.id}
-                    surface="shelf"
-                    id={collection.id}
-                    name={collection.name}
-                    kind={collection.kind}
-                    previewImages={shopCollectionPreviewImages(collection)}
-                    categories={collection.categories}
-                    layout={layout}
-                    packManage={isOwn}
-                    selected={albumPick.collectionIds.has(collection.id)}
-                    selecting={selecting}
-                    onLongSelect={() => toggleCollection(collection)}
-                    onToggle={() => toggleCollection(collection)}
-                    mediaTestId={`company-shop-collection-${collection.id}`}
-                    openTestId={`company-shop-collection-open-${collection.id}`}
+          {/* Preview faces: shared height so View more / View all stay put (body stays surface). */}
+          <div className={cx(previewCatalogue && 'min-h-[23rem]')}>
+          {shopTab === 'designs' ? (
+            displayDesigns.length > 0 ? (
+              <div
+                className={cx(
+                  'px-3 py-3',
+                  designLayout === 'feed' ? 'flex flex-col' : 'grid grid-cols-2 gap-3',
+                )}
+                data-testid="company-shop-grid"
+                data-layout={designLayout}
+              >
+                {displayDesigns.map((product) => (
+                  <SellerProductTile
+                    key={product.id}
+                    product={{
+                      id: product.id,
+                      name: product.name,
+                      images: product.images,
+                      status: ProductStatus.Published,
+                    }}
+                    highlightQuery={deferredListSearch}
+                    variant={designLayout}
+                    selecting={selecting && shelfInteractive}
+                    selected={shortlist.productIds.has(product.id)}
+                    onToggle={() => {
+                      if (shelfInteractive) toggleDesign(product);
+                    }}
+                    onLongSelect={() => {
+                      if (shelfInteractive) toggleDesign(product);
+                    }}
+                    onOpenPublished={() => {
+                      setSheetIndex(0);
+                      setSheetProduct(product);
+                    }}
+                    testId={`company-shop-design-${product.id}`}
                   />
                 ))}
-              </ShopPhotoGrid>
+              </div>
             ) : (
-              <p className="px-0.5 text-sm text-muted">
-                {listSearchActive ? 'No collections match.' : 'No published collections yet.'}
+              <p className="px-3 py-2.5 text-sm text-muted">
+                {listSearchActive ? 'No designs match.' : 'No published designs yet.'}
               </p>
             )
+          ) : displayCollections.length > 0 ? (
+            <div className="flex flex-col px-2 py-1" data-testid="company-shop-collections">
+              {displayCollections.map((collection) => (
+                <YouCollectionListRow
+                  key={collection.id}
+                  collection={toShopCollectionRow(collection)}
+                  hideLibraryMeta
+                  surface="shelf"
+                  packManage={isOwn}
+                  selecting={selecting && shelfInteractive}
+                  selected={albumPick.collectionIds.has(collection.id)}
+                  actionFocus={
+                    rowMenu?.id === collection.id ||
+                    (catalogShareOpen && rowShare?.id === collection.id)
+                  }
+                  swipeOpen={openSwipeId === collection.id}
+                  onSwipeOpen={() => setOpenSwipeId(collection.id)}
+                  onSwipeClose={() =>
+                    setOpenSwipeId((current) => (current === collection.id ? null : current))
+                  }
+                  onToggle={() => {
+                    if (shelfInteractive) toggleCollection(collection);
+                  }}
+                  onLongSelect={() => {
+                    if (shelfInteractive) toggleCollection(collection);
+                  }}
+                  onMore={() => setRowMenu(collection)}
+                  onShare={() => {
+                    setRowShare(collection);
+                    setCatalogShareOpen(true);
+                  }}
+                  highlightQuery={deferredListSearch}
+                />
+              ))}
+            </div>
           ) : (
-            <p className="px-0.5 text-sm text-muted">
-              Nothing visible to you — they may not have published yet, or posts are limited to
-              selected companies.
-            </p>
-          )}
+            <p className="px-3 py-2.5 text-sm text-muted">
+                {listSearchActive ? 'No collections match.' : 'No published collections yet.'}
+              </p>
+            )}
+          </div>
+          {isHome ? (
+            <Link
+              to={shopTab === 'designs' ? '/more?tab=products' : '/more?tab=collections'}
+              data-testid="business-profile-view-more"
+              className="border-t border-line px-3 py-2.5 text-meta font-emphasis text-accent"
+            >
+              View more…
+            </Link>
+          ) : null}
+          {isShopFace ? (
+            <Link
+              to={`/company/${id}/catalogue?tab=${
+                shopTab === 'designs' ? 'products' : 'collections'
+              }`}
+              data-testid="business-profile-view-all"
+              className="border-t border-line px-3 py-2.5 text-meta font-emphasis text-accent"
+            >
+              View all…
+            </Link>
+          ) : null}
         </section>
-      )}
+        </div>
+      ) : null}
+
+      {!isCatalogue && (profileAccess || isHome) ? (
+        <BusinessInfoSection
+          city={company.city}
+          categories={
+            company.masterCategories && company.masterCategories.length > 0
+              ? company.masterCategories
+              : (company.categories ?? [])
+          }
+          sellCategories={ownProfile.data?.sellCategories}
+          buyCategories={ownProfile.data?.buyCategories}
+          verification={company.verification}
+          gstNumber={ownProfile.data?.gstNumber ?? null}
+          isOwn={isHome || isOwn}
+          contacts={contacts.data ?? []}
+          showContacts={isConnected || isHome || isOwn}
+          createdAt={company.createdAt ?? ownProfile.data?.createdAt}
+          showTeamLink={isHome}
+          teamMembers={teamMembers.data ?? null}
+          canInviteTeam={canInviteTeam}
+          workingHours={company.workingHours}
+          shopAddress={company.shopAddress}
+          websiteUrl={company.websiteUrl}
+        />
+      ) : null}
+
+      {isCatalogue && shelfReady && !hasShop ? (
+        <p className="px-1 py-8 text-center text-sm text-muted">No published collections or designs.</p>
+      ) : null}
 
       {shopDockUp ? (
         <BottomTradeDock testId="company-shop-dock" aboveAppNav={false}>
@@ -870,20 +1425,164 @@ export function CompanyProfilePage() {
         }))}
       />
 
+      <FirstMessageSheet
+        open={firstMessageOpen}
+        onClose={() => setFirstMessageOpen(false)}
+        companyId={id}
+        companyName={company.name}
+      />
+
+      {sheetProduct ? (
+        <DesignSheet
+          product={toDesignSheetProduct(sheetProduct)}
+          index={sheetIndex}
+          onIndex={setSheetIndex}
+          onClose={() => setSheetProduct(null)}
+          canEdit={isOwn}
+          canDelete={false}
+          onEdit={
+            isOwn
+              ? () => {
+                  const designId = sheetProduct.id;
+                  setSheetProduct(null);
+                  navigate(`/catalog/products/${designId}`);
+                }
+              : undefined
+          }
+          testIdPrefix="company-shop-design-sheet"
+        />
+      ) : null}
+
+      {isOwn && rowMenu ? (
+        <OwnerCollectionMoreSheet
+          open
+          title={rowMenu.name}
+          onClose={() => setRowMenu(null)}
+          onShare={() => {
+            setRowShare(rowMenu);
+            setCatalogShareOpen(true);
+          }}
+          onBookmark={() => {
+            if (rowMenu.id) rowSave.toggle();
+          }}
+          bookmarkSaved={rowSave.isSaved}
+          bookmarkBusy={rowSave.isPending}
+          onWhoHasAccess={() => {
+            navigate(`/catalog/collections/${rowMenu.id}`, {
+              state: {
+                openPublish: true,
+                returnTo: `/collections/${rowMenu.id}`,
+                returnState: { packManage: true },
+              },
+            });
+          }}
+          onAddDesigns={() =>
+            navigate(`/collections/${rowMenu.id}`, { state: { packManage: true } })
+          }
+          onAddPhotos={() =>
+            navigate(`/collections/${rowMenu.id}`, { state: { packManage: true } })
+          }
+          onReplace={() =>
+            navigate(`/collections/${rowMenu.id}`, { state: { packManage: true } })
+          }
+          onEditDetails={() => navigate(`/catalog/collections/${rowMenu.id}`)}
+          canDraft={false}
+          kind={rowMenu.kind}
+        />
+      ) : null}
+
+      {!isOwn && rowMenu ? (
+        <MoreActionsSheet
+          open
+          onClose={() => setRowMenu(null)}
+          title={rowMenu.name}
+          testId="visitor-collection-more-sheet"
+          items={visitorCollectionMoreIds({
+            tradeDockUp: shopDockUp,
+          }).flatMap((action): MoreActionItem[] => {
+            if (action === 'message') {
+              return [
+                {
+                  id: 'message',
+                  label: `Message ${company.name}`,
+                  icon: <ChatIcon width={20} height={20} />,
+                  testId: 'collection-menu-message',
+                  onClick: () => {
+                    setRowMenu(null);
+                    openColdMessage();
+                  },
+                },
+              ];
+            }
+            if (action === 'share') {
+              return [
+                {
+                  id: 'share',
+                  label: shareThisPackLabel(rowMenu.kind),
+                  icon: <PaperPlaneIcon width={20} height={20} />,
+                  testId: 'collection-menu-share',
+                  onClick: () => {
+                    setRowMenu(null);
+                    setRowShare(rowMenu);
+                    setCatalogShareOpen(true);
+                  },
+                },
+              ];
+            }
+            return [
+              {
+                id: 'bookmark',
+                label: rowSave.isSaved
+                  ? 'Remove bookmark'
+                  : bookmarkThisPackLabel(rowMenu.kind),
+                icon: <BookmarkIcon width={20} height={20} />,
+                testId: 'collection-menu-bookmark',
+                disabled: rowSave.isPending,
+                onClick: () => {
+                  setRowMenu(null);
+                  rowSave.toggle();
+                },
+              },
+            ];
+          })}
+        />
+      ) : null}
+
       <CatalogShareSheet
         open={catalogShareOpen}
-        onClose={() => setCatalogShareOpen(false)}
-        collections={shopAlbums.map((entry) => ({
-          collectionId: entry.collectionId,
-          name: entry.name,
-          image: entry.coverImage,
-        }))}
-        products={shopEntries.map((entry) => ({
-          productId: entry.productId,
-          name: entry.name,
-          image: entry.thumbUrl,
-        }))}
-        onShared={() => clearThisShop()}
+        onClose={() => {
+          setCatalogShareOpen(false);
+          setRowShare(null);
+        }}
+        collections={
+          rowShare
+            ? [
+                {
+                  collectionId: rowShare.id,
+                  name: rowShare.name,
+                  image: rowShare.coverImage,
+                },
+              ]
+            : shopAlbums.map((entry) => ({
+                collectionId: entry.collectionId,
+                name: entry.name,
+                image: entry.coverImage,
+              }))
+        }
+        products={
+          rowShare
+            ? []
+            : shopEntries.map((entry) => ({
+                productId: entry.productId,
+                name: entry.name,
+                image: entry.thumbUrl,
+              }))
+        }
+        onShared={() => {
+          if (!rowShare) clearThisShop();
+          setRowShare(null);
+          setCatalogShareOpen(false);
+        }}
       />
 
       <CompanyShareSheet
@@ -893,6 +1592,22 @@ export function CompanyProfilePage() {
         companyName={company.name}
       />
 
+      <ShowcaseBrowseSheet
+        open={showcaseBrowseOpen}
+        onClose={() => setShowcaseBrowseOpen(false)}
+        urls={showcaseGalleryUrls}
+        onOpenPhoto={openShowcasePhoto}
+        companyId={id}
+        canEdit={isHome}
+      />
+
+      <PhotoViewer
+        open={galleryOpen}
+        urls={viewerUrls}
+        index={galleryIndex}
+        onIndex={setGalleryIndex}
+        onClose={() => setGalleryOpen(false)}
+      />
     </div>
   );
 }
@@ -900,6 +1615,14 @@ export function CompanyProfilePage() {
 /** Compact shop actions — Instagram / WhatsApp density, not kit min-h-12. */
 const shopActionClass =
   'inline-flex h-8 min-w-0 flex-1 items-center justify-center rounded-lg px-2.5 text-meta font-emphasis tracking-tight';
+
+/** Home / visitor profile actions — equal white pills; charcoal icons. No foam wash (reads heavy). */
+const homeActionClass =
+  'inline-flex min-h-[3.25rem] min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-xl border border-line bg-surface px-1.5 py-1.5 text-meta font-emphasis tracking-tight text-ink';
+
+/** Filled Follow (Following) — charcoal go; no bg-surface, avoids Tailwind bg-* collision. */
+const homeActionOnClass =
+  'inline-flex min-h-[3.25rem] min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-xl border border-accent bg-accent px-1.5 py-1.5 text-meta font-emphasis tracking-tight text-on-accent';
 
 function pickPrimaryContact(contacts: CompanyContactPoint[]): CompanyContactPoint | null {
   if (contacts.length === 0) return null;

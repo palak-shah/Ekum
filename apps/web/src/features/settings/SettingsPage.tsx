@@ -23,7 +23,10 @@ import {
 import { SuggestInput } from '@/ui/SuggestInput';
 import { useTradePresence } from '@/lib/tradePresence';
 import { SettingsDomainCard, SettingsDomainGroup } from '@/features/settings/SettingsDomainCard';
-import { settingsBusinessRoleLinks } from '@/features/settings/youShortcuts';
+import {
+  settingsBusinessRoleLinks,
+  settingsPrivacyLinks,
+} from '@/features/settings/youShortcuts';
 import { useTheme } from '@/theme/ThemeProvider';
 import type { ThemePreference } from '@/theme/themePreference';
 
@@ -128,6 +131,18 @@ export function SettingsPage() {
       <SettingsDomainGroup title="Business & Roles" testId="settings-domain-business-roles">
         {settingsBusinessRoleLinks(trading, selling).map((item) => (
           <SettingsDomainCard key={item.to} to={item.to} title={item.title} hint={item.hint} />
+        ))}
+      </SettingsDomainGroup>
+
+      <SettingsDomainGroup title="Privacy" testId="settings-domain-privacy">
+        {settingsPrivacyLinks().map((item) => (
+          <SettingsDomainCard
+            key={item.to}
+            to={item.to}
+            title={item.title}
+            hint={item.hint}
+            testId="settings-profile-visibility"
+          />
         ))}
       </SettingsDomainGroup>
 

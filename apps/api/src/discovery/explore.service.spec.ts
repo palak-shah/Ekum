@@ -20,6 +20,8 @@ function makeService(
     sharedInChat?: boolean;
     following?: boolean;
     lanes?: Array<{ sellerCompanyId: string; ticket: string; behaviors?: unknown }>;
+    /** Pack (Repost) mills; default = every mill id requested by millShareActiveSet. */
+    packMillIds?: string[];
   },
 ) {
   const prisma = {
@@ -29,6 +31,14 @@ function makeService(
     },
     follow: {
       findUnique: async () => (opts?.following ? { status: 'allowed' } : null),
+      findMany: async ({ where }: { where: { followedCompanyId?: { in?: string[] } } }) => {
+        const requested = where.followedCompanyId?.in ?? [];
+        const allowed =
+          opts?.packMillIds !== undefined
+            ? requested.filter((id) => opts.packMillIds!.includes(id))
+            : requested;
+        return allowed.map((followedCompanyId) => ({ followedCompanyId }));
+      },
     },
     message: {
       findFirst: async () => (opts?.sharedInChat ? { id: 'm1' } : null),
@@ -377,6 +387,38 @@ describe('ExploreService.collectionDetail trust rules', () => {
     const view = await service.collectionDetail('viewer', 'col1');
     expect(view.directMillCompanyIds).toEqual(['mill-direct']);
     expect(view.viewerTicket).toBe('me');
+  });
+
+  it('omits Direct mill stamps when mill Repost (Pack) is off', async () => {
+    const service = makeService(
+      {
+        ...publishedCollection,
+        companyId: 'trader',
+        company: { id: 'trader' },
+        audience: 'selected',
+        audienceCompanyIds: ['viewer'],
+        products: [
+          {
+            product: {
+              id: 'p1',
+              companyId: 'mill-direct',
+              company: { name: 'Ahmedabad Loom Co' },
+              status: 'published',
+              rate: 100,
+              rateVisibility: 'visible',
+            },
+          },
+        ],
+        _count: { products: 1 },
+      },
+      { blocked: false, connected: true },
+      {
+        lanes: [{ sellerCompanyId: 'mill-direct', ticket: 'mill' }],
+        packMillIds: [],
+      },
+    );
+    const view = await service.collectionDetail('viewer', 'col1');
+    expect(view.directMillCompanyIds).toEqual([]);
   });
 
   it('chat share opens a Followers pack shell without products so Ask can target the owner', async () => {

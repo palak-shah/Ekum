@@ -32,6 +32,7 @@ import {
   counterpartIdsFromRows,
 } from '../access/connection-pair';
 import { VisibilityService } from '../access/visibility.service';
+import { discoverableProfileWhere } from './follow-access';
 import { CatalogSerializer } from '../catalog/catalog.serializer';
 import { CollectionService } from '../catalog/collection.service';
 import { shouldReuseRepostChild } from '../catalog/collection-lineage';
@@ -74,6 +75,7 @@ import { audienceVisibilityOr, curatedSourceExcludeAnd } from '../catalog/audien
 import { productAccessibleViaCollection } from '../catalog/product-viewer-access';
 import { compareByMarketRelevance } from './feed-rank';
 import { viewerPackTicket } from '../orders/viewer-pack-ticket';
+import { millShareActiveSet } from '../orders/mill-share';
 import { laneRoutesDirect } from '../orders/trade-lane';
 import {
   categoryHasSomeWhere,
@@ -977,8 +979,11 @@ export class ExploreService {
     const where: Prisma.CompanyWhereInput = {
       id: { not: viewerCompanyId },
       ...categoryClause,
-      ...companyNotBlockedWith(viewerCompanyId),
       ...cityEqualsWhere(cities),
+      AND: [
+        companyNotBlockedWith(viewerCompanyId),
+        discoverableProfileWhere(viewerCompanyId),
+      ],
     };
     if (query.following) {
       where.followers = { some: { followerCompanyId: viewerCompanyId } };
@@ -1027,7 +1032,11 @@ export class ExploreService {
 
     const where: Prisma.CompanyWhereInput = {
       id: { not: viewerCompanyId },
-      AND: [postedContent, companyNotBlockedWith(viewerCompanyId)],
+      AND: [
+        postedContent,
+        companyNotBlockedWith(viewerCompanyId),
+        discoverableProfileWhere(viewerCompanyId),
+      ],
       ...(lookingForBuyers
         ? categories.length
           ? categoryHasSomeWhere(categories, 'buyCategories')
@@ -1353,9 +1362,18 @@ export class ExploreService {
         })),
       });
       const laneByMill = new Map(lanes.map((lane) => [lane.sellerCompanyId, lane]));
+      const packMills = await millShareActiveSet(
+        this.prisma,
+        collection.companyId,
+        millCompanyIds,
+      );
       directMillCompanyIds = millCompanyIds.filter((millId) => {
         const lane = laneByMill.get(millId);
-        return laneRoutesDirect({ ticket: lane?.ticket, behaviors: lane?.behaviors });
+        return laneRoutesDirect({
+          ticket: lane?.ticket,
+          behaviors: lane?.behaviors,
+          millShareActive: packMills.has(millId),
+        });
       });
     }
 
@@ -2171,7 +2189,10 @@ export class ExploreService {
 
   private companyFilter(viewerCompanyId: string, query: ExploreQuery): Prisma.CompanyWhereInput {
     const filter: Prisma.CompanyWhereInput = {
-      ...companyNotBlockedWith(viewerCompanyId),
+      AND: [
+        companyNotBlockedWith(viewerCompanyId),
+        discoverableProfileWhere(viewerCompanyId),
+      ],
     };
     const { categories, cities } = narrowLists(query);
     Object.assign(filter, cityEqualsWhere(cities), categoryHasSomeWhere(categories, 'sellCategories'));

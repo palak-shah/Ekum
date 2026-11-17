@@ -212,7 +212,9 @@ describe('ChatsPage tabs', () => {
     });
     renderPage();
     await user.click(await screen.findByRole('button', { name: /Requests/ }));
-    expect(await screen.findByText('Wants to see your collections')).toBeInTheDocument();
+    expect(
+      await screen.findByText('Wants to follow you and see your collections.'),
+    ).toBeInTheDocument();
     expect(screen.queryByRole('checkbox', { name: 'They can see my collections' })).toBeNull();
     expect(screen.getByRole('checkbox', { name: 'Allow Repost' })).toHaveAttribute(
       'aria-checked',

@@ -1,15 +1,22 @@
 import { describe, expect, it } from 'vitest';
-import { settingsBusinessRoleLinks, youShortcutItems } from './youShortcuts';
+import {
+  settingsBusinessRoleLinks,
+  settingsPrivacyLinks,
+  youShortcutItems,
+} from './youShortcuts';
 
 describe('youShortcuts', () => {
-  it('orders Home account rows: Profile through Settings (Designs is a You tab)', () => {
+  it('orders Home account rows: Edit profile through Settings (Designs is a You tab)', () => {
     expect(youShortcutItems().map((item) => item.label)).toEqual([
-      'Profile',
+      'Edit profile',
       'Network',
       'My Collections',
       'Settings',
     ]);
     expect(youShortcutItems().find((item) => item.testId === 'my-designs')).toBeUndefined();
+    expect(youShortcutItems().find((item) => item.testId === 'profile')?.to).toBe(
+      '/settings/profile?edit=1',
+    );
   });
 
   it('puts Team under Settings; Direct links live on Network', () => {
@@ -19,5 +26,15 @@ describe('youShortcuts', () => {
       '/settings/units',
     ]);
     expect(settingsBusinessRoleLinks(false).map((item) => item.to)).toEqual(['/team']);
+  });
+
+  it('Privacy domain has Profile visibility only', () => {
+    expect(settingsPrivacyLinks()).toEqual([
+      {
+        to: '/settings/profile-visibility',
+        title: 'Profile visibility',
+        hint: 'Public or Private Business Profile',
+      },
+    ]);
   });
 });

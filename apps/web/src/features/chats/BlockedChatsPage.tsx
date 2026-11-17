@@ -2,7 +2,11 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ConnectionView } from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
-import { UNBLOCK_ACCESS_CLEARED_TOAST } from '@/features/company/seePacksCopy';
+import {
+  UNBLOCK_ACCESS_CLEARED_TOAST,
+  YOUR_BLOCK_REMOVED_TOAST,
+} from '@/features/company/seePacksCopy';
+import { invalidateAfterBlock } from '@/features/network/invalidateFollowCatalog';
 import { PageHeader } from '@/ui/PageHeader';
 import { Avatar, Card, EmptyState, ErrorState, LoadingBlock } from '@/ui/kit';
 import { useToast } from '@/ui/Toast';
@@ -18,12 +22,10 @@ export function BlockedChatsPage() {
   });
 
   const unblock = useMutation({
-    mutationFn: (id: string) => api.post(`/connections/${id}/unblock`, {}),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['connections'] });
-      void queryClient.invalidateQueries({ queryKey: ['follows'] });
-      void queryClient.invalidateQueries({ queryKey: ['trade-lanes'] });
-      showToast(UNBLOCK_ACCESS_CLEARED_TOAST);
+    mutationFn: (id: string) => api.post<ConnectionView>(`/connections/${id}/unblock`, {}),
+    onSuccess: (data) => {
+      invalidateAfterBlock(queryClient);
+      showToast(data.canBlock ? UNBLOCK_ACCESS_CLEARED_TOAST : YOUR_BLOCK_REMOVED_TOAST);
     },
     onError: (err) => {
       showToast(err instanceof ApiError ? err.message : 'Could not unblock this shop.', 'danger');
