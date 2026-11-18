@@ -146,7 +146,7 @@ import {
   canDeleteSelected,
   deleteNeedsMultiPackConfirm,
   libraryDesignsForPicker,
-  membershipAfterRemove,
+  packRemoveNextMembership,
   membershipForReplaceOrAppend,
   membershipWithNewFirst,
   ownedSelectedIds,
@@ -892,7 +892,10 @@ export function CollectionViewerPage() {
     if (productIds.length < 1 || !id) return;
     setManageBusy(true);
     try {
-      const next = membershipAfterRemove(await ownerMemberIds(), productIds);
+      const next = packRemoveNextMembership({
+        fullOwnerMemberIds: await ownerMemberIds(),
+        removeIds: productIds,
+      });
       await persistOwnerMembers(next);
       clearOwnerManageSelect();
       setViewerProduct(null);
@@ -922,7 +925,10 @@ export function CollectionViewerPage() {
       if (mode === 'everywhere' && owned.length > 0) {
         await deleteOwnedProducts(owned);
       }
-      const next = membershipAfterRemove(await ownerMemberIds(), ids);
+      const next = packRemoveNextMembership({
+        fullOwnerMemberIds: await ownerMemberIds(),
+        removeIds: ids,
+      });
       await persistOwnerMembers(next);
       setDeleteSheetOpen(false);
       deleteTargetRef.current = null;

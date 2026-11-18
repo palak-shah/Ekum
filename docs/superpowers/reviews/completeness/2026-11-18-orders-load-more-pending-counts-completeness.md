@@ -1,7 +1,7 @@
 # Feature Completeness Review — Orders load more + tab counts + Needs you in filter
 
 **Date:** 2026-11-18  
-**Module / ask:** Orders list: Load more past 50; server Pending/Completed chip totals; Needs you findable via filter menu (not a third chip); badge → `?filter=needs`  
+**Module / ask:** Orders list: Load more past 50; server Pending/Completed chip totals; Needs you findable via filter menu only (not a third chip; badge opens normal list)  
 **Anchors:** `docs/features/00-concepts.md`, `docs/features/orders.md`; chips Completeness `2026-10-23-orders-pending-chat-chips`; nav Needs you `2026-09-26-orders-nav-needs-you`  
 **Disposition:** Proceed
 
@@ -94,7 +94,7 @@ Mark each: OK · Gap · N/A · Later
 - `GET /orders/tab-counts?tab=selling|buying|others` (+ optional `q` / date) → `{ pending, completed, needsYou }`.
 - Orders (and Others samples/complaints) infinite query + **Load more**.
 - Pending / Completed chips bind to server totals for the active tab.
-- OrdersFilterMenu root: **Needs you** option; badge / Home deep link `?filter=needs` applies it; filter icon active; **no Needs you Chip**.
+- OrdersFilterMenu root: **Needs you** option (opt-in only); badge opens `/orders` Pending; Home may still deep-link `?filter=needs`; **no Needs you Chip**.
 - Units + trader-eye: no third chip; badge opens filtered list.
 
 ## Explicitly deferred / rejected

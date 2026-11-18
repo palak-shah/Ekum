@@ -49,6 +49,18 @@ export function membershipAfterRemove(
 }
 
 /**
+ * Album and editor Remove must both start from **full owner membership**,
+ * not a partial local selection set — otherwise PUT can wipe unseen members
+ * or leave wrong leftovers for GC.
+ */
+export function packRemoveNextMembership(input: {
+  fullOwnerMemberIds: readonly string[];
+  removeIds: readonly string[];
+}): string[] {
+  return membershipAfterRemove(input.fullOwnerMemberIds, input.removeIds);
+}
+
+/**
  * Add designs library sheet: hide designs already in the album so they don’t
  * block picking. Replace shows the full library (new set can include prior members).
  */

@@ -75,11 +75,11 @@ import { OwnerPackReplaceSheet } from '@/features/collections/OwnerPackReplaceSh
 import {
   canDeleteSelected,
   deleteNeedsMultiPackConfirm,
-  membershipAfterRemove,
   membershipForReplaceOrAppend,
   libraryDesignsForPicker,
   membershipWithNewFirst,
   ownedSelectedIds,
+  packRemoveNextMembership,
 } from '@/features/collections/ownerPackManage';
 import {
   libraryDesignsEligibleForPack,
@@ -1790,12 +1790,21 @@ export function CollectionEditorPage() {
     setManageSelecting(false);
   };
 
+  /** Same as album Remove — full owner GET, not local `selected` alone. */
+  const ownerMemberIds = async () => {
+    if (!id) return [...selected];
+    const detail = await api.get<CollectionDetailView>(`/collections/${id}`);
+    return detail.products.map((product) => product.id);
+  };
 
   const onEditorRemove = async () => {
     if (!ownerCanRemove) return;
     setManageBusy(true);
     try {
-      const next = membershipAfterRemove([...selected], manageSelectedIds);
+      const next = packRemoveNextMembership({
+        fullOwnerMemberIds: await ownerMemberIds(),
+        removeIds: manageSelectedIds,
+      });
       setSelected(new Set(next));
       await persistDesigns(next);
       clearManageSelect();
@@ -1817,7 +1826,10 @@ export function CollectionEditorPage() {
           await api.del(`/products/${productId}`);
         }
       }
-      const next = membershipAfterRemove([...selected], manageSelectedIds);
+      const next = packRemoveNextMembership({
+        fullOwnerMemberIds: await ownerMemberIds(),
+        removeIds: manageSelectedIds,
+      });
       setSelected(new Set(next));
       await persistDesigns(next);
       setDeleteSheetOpen(false);

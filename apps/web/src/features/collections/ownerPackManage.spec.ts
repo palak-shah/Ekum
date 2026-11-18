@@ -8,6 +8,7 @@ import {
   membershipWithNewFirst,
   otherPackCountFromNames,
   ownedSelectedIds,
+  packRemoveNextMembership,
   replaceBootClearsMembership,
 } from './ownerPackManage';
 
@@ -63,6 +64,25 @@ describe('ownedSelectedIds / canDeleteSelected', () => {
 describe('membershipAfterRemove', () => {
   it('drops selected ids and keeps order of the rest', () => {
     expect(membershipAfterRemove(['a', 'b', 'c'], ['b'])).toEqual(['a', 'c']);
+  });
+});
+
+describe('packRemoveNextMembership (album ≡ editor)', () => {
+  it('album and editor must use full owner ids — not local selected alone', () => {
+    const fullOwner = ['a', 'b', 'c', 'draft-hidden'];
+    const removeIds = ['b'];
+    const albumNext = packRemoveNextMembership({
+      fullOwnerMemberIds: fullOwner,
+      removeIds,
+    });
+    const editorNext = packRemoveNextMembership({
+      fullOwnerMemberIds: fullOwner,
+      removeIds,
+    });
+    expect(albumNext).toEqual(editorNext);
+    expect(albumNext).toEqual(['a', 'c', 'draft-hidden']);
+    // Wrong path: only “visible selected” as currentIds would drop draft-hidden.
+    expect(membershipAfterRemove(['a', 'b', 'c'], removeIds)).not.toEqual(albumNext);
   });
 });
 
