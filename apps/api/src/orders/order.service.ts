@@ -43,7 +43,11 @@ import {
   type DispatchDto,
   type EditShipmentDto,
   type ListOrdersQuery,
+  type OrdersTabCountsQuery,
+  type OrdersTabCountsView,
   matchesOrderNeedsYou,
+  ComplaintStatus,
+  SampleStatus,
   catalogWholeChatMeta,
   orderBillTotal,
   type OrderView,
@@ -115,6 +119,7 @@ import {
 const ORDER_RELATIONS = {
   buyer: true,
   seller: true,
+  facilitator: true,
   items: true,
   createdByUser: { select: { id: true, name: true } },
   updatedByUser: { select: { id: true, name: true } },
@@ -170,7 +175,7 @@ export function linesDecidedNotice(
 }
 
 interface TransitionOptions {
-  actor: 'buyer' | 'seller';
+  actor: 'buyer' | 'seller' | 'facilitator';
   from: string[];
   next: string;
   data?: Prisma.OrderUncheckedUpdateInput;
@@ -1170,6 +1175,204 @@ export class OrderService {
   }
 
   /**
+   * Pending / Completed / Needs you totals for one Orders list tab.
+   * COUNT-only for pending/completed; Needs you uses the same predicate as the badge.
+   */
+  async tabCounts(
+    actorCompanyId: string,
+    query: OrdersTabCountsQuery,
+  ): Promise<OrdersTabCountsView> {
+    if (query.tab === 'others') {
+      return this.othersTabCounts(actorCompanyId);
+    }
+    const direction = query.tab === 'buying' ? 'buying' : 'selling';
+    const baseWhere = this.listPartyWhere(actorCompanyId, direction, query);
+    const completedStatuses: OrderStatus[] = [
+      OrderStatus.Dispatched,
+      OrderStatus.Delivered,
+      OrderStatus.Settled,
+      OrderStatus.Declined,
+      OrderStatus.Cancelled,
+    ];
+    const pendingStatuses: OrderStatus[] = [
+      OrderStatus.Requested,
+      OrderStatus.Confirmed,
+      OrderStatus.PartShipped,
+    ];
+    const [pending, completed, needsYou] = await Promise.all([
+      this.prisma.order.count({
+        where: { AND: [baseWhere, { status: { in: pendingStatuses } }] },
+      }),
+      this.prisma.order.count({
+        where: { AND: [baseWhere, { status: { in: completedStatuses } }] },
+      }),
+      this.needsYouCountForParty(actorCompanyId, direction, query),
+    ]);
+    return { pending, completed, needsYou };
+  }
+
+  private async othersTabCounts(actorCompanyId: string): Promise<OrdersTabCountsView> {
+    const sampleParty: Prisma.SampleWhereInput = {
+      OR: [{ buyerCompanyId: actorCompanyId }, { sellerCompanyId: actorCompanyId }],
+    };
+    const sampleDone: SampleStatus[] = [
+      SampleStatus.Received,
+      SampleStatus.Declined,
+      SampleStatus.Converted,
+    ];
+    const samplePending: SampleStatus[] = [SampleStatus.Requested, SampleStatus.Dispatched];
+    const complaintParty: Prisma.ComplaintWhereInput = {
+      OR: [
+        { raisedByCompanyId: actorCompanyId },
+        { againstCompanyId: actorCompanyId },
+      ],
+    };
+    const [samplePendingN, sampleCompletedN, sampleNeedsYou, complaintPending, complaintCompleted, complaintNeedsYou] =
+      await Promise.all([
+        this.prisma.sample.count({
+          where: { AND: [sampleParty, { status: { in: samplePending } }] },
+        }),
+        this.prisma.sample.count({
+          where: { AND: [sampleParty, { status: { in: sampleDone } }] },
+        }),
+        this.prisma.sample.count({
+          where: {
+            OR: [
+              { sellerCompanyId: actorCompanyId, status: SampleStatus.Requested },
+              { buyerCompanyId: actorCompanyId, status: SampleStatus.Dispatched },
+            ],
+          },
+        }),
+        this.prisma.complaint.count({
+          where: {
+            AND: [
+              complaintParty,
+              { status: { in: [ComplaintStatus.Open, ComplaintStatus.Responded] } },
+            ],
+          },
+        }),
+        this.prisma.complaint.count({
+          where: { AND: [complaintParty, { status: ComplaintStatus.Resolved }] },
+        }),
+        this.prisma.complaint.count({
+          where: {
+            againstCompanyId: actorCompanyId,
+            status: ComplaintStatus.Open,
+          },
+        }),
+      ]);
+    return {
+      pending: samplePendingN + complaintPending,
+      completed: sampleCompletedN + complaintCompleted,
+      needsYou: sampleNeedsYou + complaintNeedsYou,
+    };
+  }
+
+  private listPartyWhere(
+    actorCompanyId: string,
+    direction: 'buying' | 'selling',
+    query: { createdFrom?: string; createdTo?: string; q?: string },
+  ): Prisma.OrderWhereInput {
+    const createdAt = createdAtRangeFilter(query);
+    const partyWhere: Prisma.OrderWhereInput =
+      direction === 'buying'
+        ? { buyerCompanyId: actorCompanyId }
+        : { sellerCompanyId: actorCompanyId };
+    const filters: Prisma.OrderWhereInput[] = [
+      partyWhere,
+      {
+        NOT: {
+          sellerCompanyId: actorCompanyId,
+          downstreamOrderId: { not: null },
+          upstreamReleasedAt: null,
+        },
+      },
+      { NOT: traderListHidesSubset(actorCompanyId) },
+    ];
+    if (createdAt) filters.push({ createdAt });
+    if (query.q?.trim()) {
+      const q = query.q.trim();
+      filters.push({
+        OR: [
+          { id: { contains: q, mode: 'insensitive' } },
+          { buyer: { name: { contains: q, mode: 'insensitive' } } },
+          { seller: { name: { contains: q, mode: 'insensitive' } } },
+          {
+            items: {
+              some: {
+                OR: [
+                  { name: { contains: q, mode: 'insensitive' } },
+                  { sku: { contains: q, mode: 'insensitive' } },
+                ],
+              },
+            },
+          },
+        ],
+      });
+    }
+    return { AND: filters };
+  }
+
+  private async needsYouCountForParty(
+    actorCompanyId: string,
+    direction: 'buying' | 'selling',
+    query: { createdFrom?: string; createdTo?: string; q?: string },
+  ): Promise<number> {
+    const baseWhere = this.listPartyWhere(actorCompanyId, direction, query);
+    const listWhere: Prisma.OrderWhereInput = {
+      AND: [
+        baseWhere,
+        {
+          status: {
+            in: [
+              OrderStatus.Requested,
+              OrderStatus.Confirmed,
+              OrderStatus.PartShipped,
+              OrderStatus.Dispatched,
+              OrderStatus.Delivered,
+            ],
+          },
+        },
+      ],
+    };
+    let rows = await this.prisma.order.findMany({
+      where: listWhere,
+      include: ORDER_RELATIONS,
+      orderBy: { updatedAt: 'desc' },
+      take: 500,
+    });
+    const quotedIds = await this.orderIdsWithSellerQuote(rows);
+    const needsQuotePassIds = await this.parentIdsNeedingQuotePass(rows, actorCompanyId, quotedIds);
+    const linkedByParent = await this.linkedMillsByParent(rows, actorCompanyId);
+    const healedIds = await this.healOpenTicketsInList(rows);
+    if (healedIds.size > 0) {
+      const refreshed = await this.prisma.order.findMany({
+        where: { id: { in: [...healedIds] } },
+        include: ORDER_RELATIONS,
+      });
+      const byId = new Map(refreshed.map((row) => [row.id, row]));
+      rows = rows.map((row) => byId.get(row.id) ?? row);
+    }
+    const catalog = await productCatalogStatusById(
+      this.prisma,
+      rows.flatMap((row) => row.items.map((item) => item.productId)),
+    );
+    let count = 0;
+    for (const row of rows) {
+      const sellerQuoted = quotedIds.has(row.id);
+      const view = {
+        ...this.serializer.toOrderView(row, actorCompanyId, null, null, catalog),
+        hasSellerQuote: sellerQuoted,
+        canAcceptQuote: this.buyerCanAcceptQuoteSync(row, actorCompanyId, sellerQuoted),
+        needsQuotePass: needsQuotePassIds.has(row.id),
+        linkedMills: linkedByParent.get(row.id) ?? [],
+      };
+      if (matchesOrderNeedsYou(view, actorCompanyId)) count += 1;
+    }
+    return count;
+  }
+
+  /**
    * Bottom-nav Orders badge — same Needs you rows as the list.
    * Only loads open-status party orders (not settled/cancelled history).
    */
@@ -1240,7 +1443,7 @@ export class OrderService {
         needsQuotePass: needsQuotePassIds.has(row.id),
         linkedMills: linkedByParent.get(row.id) ?? [],
       };
-      if (matchesOrderNeedsYou(view)) count += 1;
+      if (matchesOrderNeedsYou(view, actorCompanyId)) count += 1;
     }
     return count;
   }
@@ -3633,14 +3836,45 @@ export class OrderService {
     dto: CancelOrderDto = {},
   ): Promise<OrderView> {
     const order = await this.loadForParty(id, actorCompanyId);
-    const view = await this.transition(actorCompanyId, userId, id, {
-      actor: 'buyer',
-      from: [OrderStatus.Requested, OrderStatus.Confirmed],
-      next: OrderStatus.Cancelled,
-      data: { closedAt: new Date() },
-    });
+    const isFacilitator =
+      order.tradeMode === OrderTradeMode.Direct &&
+      order.facilitatorCompanyId === actorCompanyId &&
+      order.sellerCompanyId !== actorCompanyId &&
+      order.buyerCompanyId !== actorCompanyId;
+
+    let view: OrderView;
+    let actorLabel: string;
+    let actorRole: 'buyer' | 'seller' = 'buyer';
+
+    if (isFacilitator) {
+      // Same window as canTakeControl / amend — not after mill progress.
+      if (!(await this.buyerCanAmend(order, actorCompanyId))) {
+        throw new ForbiddenException({
+          code: 'NOT_ALLOWED',
+          message: 'Only before the supplier responds.',
+        });
+      }
+      view = await this.transition(actorCompanyId, userId, id, {
+        actor: 'facilitator',
+        from: [OrderStatus.Requested],
+        next: OrderStatus.Cancelled,
+        data: { closedAt: new Date() },
+      });
+      actorLabel =
+        (order as { facilitator?: { name?: string } | null }).facilitator?.name ??
+        'Trader';
+      actorRole = 'buyer';
+    } else {
+      view = await this.transition(actorCompanyId, userId, id, {
+        actor: 'buyer',
+        from: [OrderStatus.Requested, OrderStatus.Confirmed],
+        next: OrderStatus.Cancelled,
+        data: { closedAt: new Date() },
+      });
+      actorLabel = order.buyer.name;
+    }
+
     const orderLabel = shortOrderLabel(id);
-    const actorLabel = order.buyer.name;
     const note = dto.note?.trim() || null;
     await this.postOrderCard(
       order.buyerCompanyId,
@@ -3654,7 +3888,7 @@ export class OrderService {
         event: OrderChatEvent.OrderCancelled,
         orderLabel,
         actorLabel,
-        actorRole: 'buyer',
+        actorRole,
       },
     );
     await this.trail.append({
@@ -3685,7 +3919,10 @@ export class OrderService {
     return intent === OrderIntent.Inquiry ? { intent: OrderIntent.Order } : {};
   }
 
-  /** Buyer may replace lines until the seller quotes/confirms/declines. */
+  /**
+   * Buyer or Direct facilitator may replace lines until the seller
+   * quotes/confirms/declines (same window as canTakeControl).
+   */
   private async buyerCanAmend(
     order: {
       id: string;
@@ -3693,11 +3930,19 @@ export class OrderService {
       status: string;
       buyerCompanyId: string;
       sellerCompanyId: string;
+      facilitatorCompanyId?: string | null;
+      tradeMode?: string;
       items: { lineStatus: string }[];
     },
     actorCompanyId: string,
   ): Promise<boolean> {
-    if (order.buyerCompanyId !== actorCompanyId) return false;
+    const isBuyer = order.buyerCompanyId === actorCompanyId;
+    const isFacilitator =
+      order.tradeMode === OrderTradeMode.Direct &&
+      order.facilitatorCompanyId === actorCompanyId &&
+      order.sellerCompanyId !== actorCompanyId &&
+      order.buyerCompanyId !== actorCompanyId;
+    if (!isBuyer && !isFacilitator) return false;
     if (order.status !== OrderStatus.Requested) return false;
     if (order.kind === OrderKind.Photo) return false;
     if (!order.items.every((item) => item.lineStatus === OrderLineStatus.Open)) return false;
@@ -4650,8 +4895,23 @@ export class OrderService {
   ): Promise<OrderView> {
     const order = await this.loadForParty(id, actorCompanyId);
     const isBuyer = order.buyerCompanyId === actorCompanyId;
+    const isFacilitator =
+      order.tradeMode === OrderTradeMode.Direct &&
+      order.facilitatorCompanyId === actorCompanyId &&
+      !isBuyer &&
+      order.sellerCompanyId !== actorCompanyId;
 
-    if ((options.actor === 'buyer' && !isBuyer) || (options.actor === 'seller' && isBuyer)) {
+    if (options.actor === 'facilitator') {
+      if (!isFacilitator) {
+        throw new ForbiddenException({
+          code: 'NOT_ALLOWED',
+          message: 'Only the trader on this Direct link can do this.',
+        });
+      }
+    } else if (
+      (options.actor === 'buyer' && !isBuyer) ||
+      (options.actor === 'seller' && isBuyer)
+    ) {
       throw new ForbiddenException({
         code: 'NOT_ALLOWED',
         message:

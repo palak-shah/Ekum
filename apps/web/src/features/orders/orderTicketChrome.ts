@@ -85,7 +85,16 @@ export function orderTicketWaitingCue(order: OrderView): string | null {
       youFulfilment: order.youFulfilment,
     });
   }
-  if (order.direction === 'buying') return 'Waiting: supplier';
+  if (order.direction === 'buying') {
+    if (order.status === 'confirmed' || order.status === 'part_shipped') {
+      const remaining = (order.items ?? []).reduce(
+        (sum, line) => sum + Math.max(0, line.remainingQuantity ?? 0),
+        0,
+      );
+      if (remaining > 0) return 'Waiting: dispatch';
+    }
+    return 'Waiting: supplier';
+  }
   if (order.direction === 'selling') return 'Waiting: buyer';
   return null;
 }

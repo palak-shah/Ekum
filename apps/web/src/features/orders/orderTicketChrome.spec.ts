@@ -140,10 +140,28 @@ describe('orderTicketChrome', () => {
     expect(over?.over).toBe(true);
   });
 
-  it('waiting supplier on idle buying; buyer when seller is idle; I-handle wait after Send', () => {
+  it('waiting supplier on idle buying; dispatch after confirm; buyer when seller is idle; I-handle wait after Send', () => {
     expect(orderTicketWaitingCue(order({ status: 'requested', direction: 'buying' }))).toBe(
       'Waiting: supplier',
     );
+    expect(
+      orderTicketWaitingCue(
+        order({
+          status: 'confirmed',
+          direction: 'buying',
+          items: [line({ quantity: 10, shippedQuantity: 0, remainingQuantity: 10 })],
+        }),
+      ),
+    ).toBe('Waiting: dispatch');
+    expect(
+      orderTicketWaitingCue(
+        order({
+          status: 'part_shipped',
+          direction: 'buying',
+          items: [line({ quantity: 10, shippedQuantity: 4, remainingQuantity: 6 })],
+        }),
+      ),
+    ).toBe('Waiting: dispatch');
     expect(orderTicketWaitingCue(order({ status: 'requested', direction: 'selling' }))).toBeNull();
     expect(
       orderTicketWaitingCue(

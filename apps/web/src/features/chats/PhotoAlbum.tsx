@@ -109,8 +109,12 @@ export function PhotoAlbum({
   };
   /** Thumbs beyond the preview, plus designs with no image still counted on the card. */
   const extra = Math.max(0, clean.length - preview.length) + Math.max(0, overflowCount);
+  // Thumb: +N on a full 3-up, or on 2+ cells when imageless lines bump overflowCount (not a lone thumb).
   const moreLabel =
-    extra > 0 && (!thumb || preview.length === 3) ? `+${extra}` : undefined;
+    extra > 0 &&
+    (!thumb || preview.length === 3 || (overflowCount > 0 && preview.length >= 2))
+      ? `+${extra}`
+      : undefined;
   const count = preview.length;
 
   const viewer =

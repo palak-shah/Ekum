@@ -4,8 +4,11 @@ import { tradeNeedsYouLabel } from './tradeNeedsYouLabel';
 import type { TradeListItem } from './tradeList';
 
 /** Verb on the lime disc — existing Needs you label without the prefix. */
-export function tradeListGlanceVerb(item: TradeListItem): string | null {
-  const needs = tradeNeedsYouLabel(item);
+export function tradeListGlanceVerb(
+  item: TradeListItem,
+  viewerCompanyId?: string | null,
+): string | null {
+  const needs = tradeNeedsYouLabel(item, viewerCompanyId);
   if (!needs) return null;
   const verb = needs.replace(/^Needs you\s+/, '').trim() || needs;
   if (verb === 'Accept & forward') return 'Forward';
@@ -21,11 +24,24 @@ export function tradeListGlanceIcon(verb: string): TradeListGlanceIcon {
 }
 
 /** Idle open trades — role words only (no shop / mill names). */
-export function tradeListWaitingCue(item: TradeListItem): string | null {
-  if (tradeNeedsYouLabel(item)) return null;
+export function tradeListWaitingCue(
+  item: TradeListItem,
+  viewerCompanyId?: string | null,
+): string | null {
+  if (tradeNeedsYouLabel(item, viewerCompanyId)) return null;
   if (!matchesTradePending(item)) return null;
   if (item.kind === 'complaint' || item.kind === 'return') return null;
   if (item.kind === 'order' && isIHandleSellingParent(item.order)) {
+    return 'Waiting: supplier';
+  }
+  if (item.kind === 'order' && item.order.direction === 'buying') {
+    if (item.order.status === 'confirmed' || item.order.status === 'part_shipped') {
+      const remaining = (item.order.items ?? []).reduce(
+        (sum, line) => sum + Math.max(0, line.remainingQuantity ?? 0),
+        0,
+      );
+      if (remaining > 0) return 'Waiting: dispatch';
+    }
     return 'Waiting: supplier';
   }
   const direction = item.kind === 'order' ? item.order.direction : item.sample.direction;

@@ -97,7 +97,7 @@ describe('tradeListGlance', () => {
     expect(tradeListGlanceVerb(trading)).toBe('Forward');
   });
 
-  it('waiting buyer on idle selling; supplier on idle buying; none when Needs you', () => {
+  it('waiting buyer on idle selling; supplier then dispatch on buying; none when Needs you', () => {
     expect(
       tradeListWaitingCue(orderItem({ status: 'requested', direction: 'selling' })),
     ).toBeNull();
@@ -109,6 +109,15 @@ describe('tradeListGlance', () => {
         }),
       ),
     ).toBe('Waiting: supplier');
+    expect(
+      tradeListWaitingCue(
+        orderItem({
+          status: 'confirmed',
+          direction: 'buying',
+          items: [line({ quantity: 10, shippedQuantity: 0, remainingQuantity: 10 })],
+        }),
+      ),
+    ).toBe('Waiting: dispatch');
     expect(
       tradeListWaitingCue(
         orderItem({

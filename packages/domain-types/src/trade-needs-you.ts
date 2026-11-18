@@ -18,8 +18,32 @@ function millLotStillHeld(order: Pick<OrderView, 'millDesks' | 'linkedMills'>): 
   return Boolean(order.linkedMills?.some((mill) => mill.held === true || mill.orderId == null));
 }
 
-/** Same rows the Orders list marks Needs you. */
-export function matchesOrderNeedsYou(order: OrderView): boolean {
+/** Direct facilitator is direction=selling but not the mill seller. */
+export function orderViewerIsDirectFacilitator(
+  order: Pick<
+    OrderView,
+    'tradeMode' | 'facilitatorCompanyId' | 'sellerCompanyId' | 'buyerCompanyId'
+  >,
+  viewerCompanyId: string | null | undefined,
+): boolean {
+  if (!viewerCompanyId || order.tradeMode !== 'direct' || !order.facilitatorCompanyId) {
+    return false;
+  }
+  return (
+    order.facilitatorCompanyId === viewerCompanyId &&
+    order.sellerCompanyId !== viewerCompanyId &&
+    order.buyerCompanyId !== viewerCompanyId
+  );
+}
+
+/** Same rows the Orders list marks Needs you. Pass viewer to exclude Direct facilitators. */
+export function matchesOrderNeedsYou(
+  order: OrderView,
+  viewerCompanyId?: string | null,
+): boolean {
+  if (orderViewerIsDirectFacilitator(order, viewerCompanyId)) {
+    return false;
+  }
   if (isIHandleSellingParent(order)) {
     // Parent has no Send quote / Confirm — Needs you only while mills wait for Send.
     return order.status === 'requested' && millLotStillHeld(order);

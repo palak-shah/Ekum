@@ -45,4 +45,15 @@ describe('HowManyLineHeading', () => {
     expect(screen.queryByTestId('how-many-facts')).toBeNull();
     expect(screen.queryByText(/₹/)).toBeNull();
   });
+
+  it('shows quiet Below minimum under moq; not at or above', () => {
+    const { rerender } = render(
+      <HowManyLineHeading name="Saree" unit="pc" moq={12} quantity={5} rate={100} />,
+    );
+    expect(screen.getByTestId('how-many-below-minimum')).toHaveTextContent('Below minimum');
+    rerender(<HowManyLineHeading name="Saree" unit="pc" moq={12} quantity={12} rate={100} />);
+    expect(screen.queryByTestId('how-many-below-minimum')).toBeNull();
+    rerender(<HowManyLineHeading name="Saree" unit="pc" moq={12} quantity={null} rate={100} />);
+    expect(screen.queryByTestId('how-many-below-minimum')).toBeNull();
+  });
 });

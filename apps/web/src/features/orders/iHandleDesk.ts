@@ -374,8 +374,26 @@ export function orderActionDock(input: {
    * Cancel in ⋯; never Accept-quote rate-haggle.
    */
   isTraderMillHop?: boolean;
+  /**
+   * Direct facilitator (Observing / pre-accept). Not the mill seller.
+   * Pre-accept: Edit + Cancel only when canAmend. After: dock none.
+   */
+  isDirectFacilitator?: boolean;
 }): OrderActionDock {
   if (!input.isSeller) {
+    if (input.isDirectFacilitator === true) {
+      const edit = input.canAmend === true;
+      const cancel = edit;
+      if (!cancel && !edit) return { kind: 'none' };
+      return {
+        kind: 'buy',
+        cancel,
+        declineLogged: false,
+        edit,
+        acceptQuote: false,
+        raiseReturn: false,
+      };
+    }
     const requested = input.status === 'requested';
     const millHop = input.isTraderMillHop === true;
     const acceptQuote =

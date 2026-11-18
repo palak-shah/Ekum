@@ -11,6 +11,7 @@ import {
   dispatchSchema,
   editShipmentSchema,
   listOrdersQuerySchema,
+  ordersTabCountsQuerySchema,
   quoteOrderSchema,
   millPassHoldSchema,
   millDeclineSchema,
@@ -35,6 +36,7 @@ import {
   type DispatchDto,
   type EditShipmentDto,
   type ListOrdersQuery,
+  type OrdersTabCountsQuery,
   type QuoteOrderDto,
   type MillPassHoldDto,
   type MillDeclineDto,
@@ -135,6 +137,14 @@ export class OrderController {
       this.samples.needsYouCount(companyId),
     ]);
     return { count: orders + samples };
+  }
+
+  @Get('tab-counts')
+  tabCounts(
+    @CurrentCompanyId() companyId: string,
+    @Query(new ZodValidationPipe(ordersTabCountsQuerySchema)) query: OrdersTabCountsQuery,
+  ) {
+    return this.orders.tabCounts(companyId, query);
   }
 
   @Get(':id')

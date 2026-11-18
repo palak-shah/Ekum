@@ -53,14 +53,14 @@ Classification is **docs-based** (concepts / access / orders / collections / sel
 | 20 | Connections | DL ON but Order goes to Trader (should be mill) | Fixed | Album Direct stamps require mill Pack; for-buyer respects `shareActive`; Place still `pathForPair` + trio. Completeness `2026-11-17-direct-place-mill-stamp`. | — |
 | 21 | Connections | Supplier selectable as buyer on DL / Order for buyer | Fixed | Buyer pickers = followers; exclude self + suppliers I follow. | — |
 | 22 | Connections | Connect buyer+supplier from order ⋯ | Closed / WAD | Network → Direct links is the path; no order ⋯ Connect. | — |
-| 23 | Connections | DL order: no via Trader / observer shown | Real bug | Trio should surface trader role; soft-hide rules differ by hop. | Yes |
-| 24 | Trader observer | Trader on DL order can edit / Cancel as Selling | Discuss | Client wants edit before mill accept, then Observing. Needs product lock. | — |
-| 25 | Trader observer | DL order shows Dispatch on trader list | Real bug | If Observing after accept (or always on DL), Dispatch must not sit on trader Selling list. | Yes |
-| 26 | Orders | After confirm still “Waiting: supplier” | Real bug | Confirmed → waiting for dispatch / ready to ship label. | Yes |
-| 27 | Orders | Transporter shown before any dispatch | Real bug | Transporter/LR belong after first shipment. | Yes |
-| 28 | Orders | 1 set order header “of 3” (pcs as sets) | Real bug | Progress in order unit, not raw pcs counted as sets. | Yes |
-| 29 | Orders | Below-min order: banner + Accept/Reject | Parked | Bigger minimum UX rejected on sheet. | — |
-| 30 | Orders | Confirm sheet: no below-min tag on line | Parked | Lightest option if mins stay; else park with #29. | — |
+| 23 | Connections | DL order: no via Trader / observer shown | Fixed | Party **trader** + Open group chat (trio); notes stay. Completeness `2026-11-17-direct-trader-observing`. | — |
+| 24 | Trader observer | Trader on DL order can edit / Cancel as Selling | Fixed | Pre-accept amend + Cancel (not Confirm/Dispatch); Handle myself → I-handle middleman. | — |
+| 25 | Trader observer | DL order shows Dispatch on trader list | Fixed | **Observing** on Selling; Needs you Confirm/Dispatch gated for facilitator. | — |
+| 26 | Orders | After confirm still “Waiting: supplier” | Fixed | Buying idle → **Waiting: dispatch** after confirm / part_shipped. Completeness `2026-11-18-orders-wait-transporter-moq`. | — |
+| 27 | Orders | Transporter shown before any dispatch | Closed / WAD | Buyer place transporter is preferred line before first ship; copy **Preferred transporter**. Do not hide. | — |
+| 28 | Orders | 1 set order header “of 3” (pcs as sets) | Fixed | Progress = order unit; no `piecesPerPack` inflate; catalog-whole collapsed. | — |
+| 29 | Orders | Below-min order: banner + Accept/Reject | Fixed (light) | Quiet **Below minimum** only — no Accept/Reject banner. | — |
+| 30 | Orders | Confirm sheet: no below-min tag on line | Fixed (light) | Same Below minimum helper when Confirm shares How many meta. | — |
 | 31 | Orders | Buyer edit below minimum silent | Parked | Tied to rejected minimum package. | — |
 | 32 | Orders | Qty stepper starts blank / below min | Parked | Same package; merge #77. | — |
 | 33 | Orders | Forward below-min without warning | Parked | Same package. | — |

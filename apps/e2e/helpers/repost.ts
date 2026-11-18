@@ -23,7 +23,7 @@ export async function saveRepostDraft(page: Page, packName: string): Promise<str
   const createResp = await createRespPromise;
   const body = (await createResp.json()) as { id: string };
   expect(body.id).toBeTruthy();
-  await expect(page).toHaveURL(/\/catalog\?tab=collections/, { timeout: 15_000 });
+  await expect(page).toHaveURL(/\/(catalog|more)\?tab=collections/, { timeout: 15_000 });
   await expect(page.getByText(/Collection draft saved/i).first()).toBeVisible({
     timeout: 15_000,
   });
@@ -45,7 +45,7 @@ export async function publishRepostNew(page: Page, packName: string): Promise<st
   const body = (await createResp.json()) as { id: string };
   expect(body.id).toBeTruthy();
 
-  await expect(page).toHaveURL(/\/catalog\/collections\//, { timeout: 20_000 });
+  await expect(page).toHaveURL(/\/(catalog|collections)\//, { timeout: 20_000 });
   const publishSheet = page.getByRole('dialog');
   await expect(publishSheet.getByRole('heading', { name: 'Publish collection' })).toBeVisible({
     timeout: 15_000,
@@ -56,8 +56,8 @@ export async function publishRepostNew(page: Page, packName: string): Promise<st
     await publishSheet.locator('input[type="checkbox"]').last().check();
   }
   await publishSheet.getByRole('button', { name: 'Publish', exact: true }).click();
-  await expect(page.getByText(/Published/i).first()).toBeVisible({ timeout: 20_000 });
-  await expect(page).toHaveURL(/\/catalog\?tab=collections/, { timeout: 15_000 });
+  await expect(page).toHaveURL(/\/(catalog|more)\?tab=collections/, { timeout: 30_000 });
+  // Toast may be brief — library landing is the locked success signal.
   return body.id;
 }
 

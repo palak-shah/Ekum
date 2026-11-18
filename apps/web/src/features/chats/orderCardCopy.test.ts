@@ -56,6 +56,21 @@ describe('primaryAcceptQuoteMessageId', () => {
     expect(primaryAcceptQuoteMessageId([older, newer])).toBe('rate-new');
     expect(primaryAcceptQuoteMessageId([newer, older])).toBe('rate-new');
   });
+
+  it('accepts a living order card when that is what dedupe kept', () => {
+    const living = orderCardMessage({
+      id: 'living-quote',
+      type: 'order_card',
+      mine: false,
+      createdAt: '2026-01-02T10:00:00.000Z',
+      reference: orderRef({
+        id: 'ord-9',
+        canAcceptQuote: true,
+        available: true,
+      }),
+    });
+    expect(primaryAcceptQuoteMessageId([living])).toBe('living-quote');
+  });
 });
 
 describe('isRichOrderChatMessage', () => {

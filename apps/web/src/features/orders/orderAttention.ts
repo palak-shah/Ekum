@@ -3,6 +3,7 @@ import {
   matchesOrderNeedsYou,
   matchesReturnNeedsYou,
   matchesSampleNeedsYou,
+  orderViewerIsDirectFacilitator,
   type OrderView,
   type ReturnView,
   type SampleView,
@@ -21,7 +22,11 @@ export function buyerCanAcceptQuote(order: OrderView): boolean {
 }
 
 /** Seller still needs to put rates on a requested order. */
-export function sellerNeedsRate(order: OrderView): boolean {
+export function sellerNeedsRate(
+  order: OrderView,
+  viewerCompanyId?: string | null,
+): boolean {
+  if (orderViewerIsDirectFacilitator(order, viewerCompanyId)) return false;
   if (isIHandleSellingParent(order)) return false;
   return (
     order.direction === 'selling' &&
@@ -31,7 +36,11 @@ export function sellerNeedsRate(order: OrderView): boolean {
 }
 
 /** Seller can lock a requested order (rate optional on Confirm). */
-export function sellerCanConfirm(order: OrderView): boolean {
+export function sellerCanConfirm(
+  order: OrderView,
+  viewerCompanyId?: string | null,
+): boolean {
+  if (orderViewerIsDirectFacilitator(order, viewerCompanyId)) return false;
   if (isIHandleSellingParent(order)) return false;
   return (
     order.direction === 'selling' &&
@@ -40,7 +49,11 @@ export function sellerCanConfirm(order: OrderView): boolean {
   );
 }
 
-export function sellerNeedsDispatch(order: OrderView): boolean {
+export function sellerNeedsDispatch(
+  order: OrderView,
+  viewerCompanyId?: string | null,
+): boolean {
+  if (orderViewerIsDirectFacilitator(order, viewerCompanyId)) return false;
   if (isIHandleSellingParent(order)) return false;
   return (
     order.direction === 'selling' &&
@@ -65,8 +78,11 @@ export function buyerWaitingReturnReview(ret: ReturnView): boolean {
 }
 
 /** Orders that need the signed-in company's action right now. */
-export function matchesNeeds(order: OrderView): boolean {
-  return matchesOrderNeedsYou(order);
+export function matchesNeeds(
+  order: OrderView,
+  viewerCompanyId?: string | null,
+): boolean {
+  return matchesOrderNeedsYou(order, viewerCompanyId);
 }
 
 /** Open trade that is not finished — includes waiting on the other party. */

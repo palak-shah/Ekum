@@ -62,6 +62,16 @@ export function howManyLineExtra(product: {
   return bits.length > 0 ? bits.join(' · ') : null;
 }
 
+/** Quiet MOQ cue — never blocks Place/Confirm; no Accept/Reject. */
+export function howManyBelowMinimum(
+  qty: number | null | undefined,
+  moq: number | null | undefined,
+): boolean {
+  if (qty == null || !Number.isFinite(qty) || qty <= 0) return false;
+  if (moq == null || !Number.isFinite(moq) || moq <= 0) return false;
+  return qty < moq;
+}
+
 /** Rate on a line — always ₹/unit. Null when on request. */
 export function orderRateText(input: {
   rate?: number | null;

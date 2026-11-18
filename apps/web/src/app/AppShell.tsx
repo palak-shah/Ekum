@@ -303,6 +303,11 @@ export function AppShell() {
           <NavItem
             key={item.to}
             {...item}
+            to={
+              item.to === '/orders' && ordersNeedsYouCount > 0
+                ? '/orders?filter=needs'
+                : item.to
+            }
             badge={item.to === '/orders' ? tabCountBadge(ordersNeedsYouCount) : undefined}
             ariaLabel={
               item.to === '/orders' ? ordersNavAriaLabel(ordersNeedsYouCount) : undefined

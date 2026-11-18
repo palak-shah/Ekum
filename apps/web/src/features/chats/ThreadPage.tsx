@@ -4619,7 +4619,7 @@ function TimelineItem({
         ? () => onOpenOrder(complaintOrderId)
         : undefined;
   const quoteAccept =
-    message.type === 'rate' &&
+    (message.type === 'rate' || message.type === 'order_card') &&
     !message.mine &&
     ref?.canAcceptQuote &&
     ref.available &&

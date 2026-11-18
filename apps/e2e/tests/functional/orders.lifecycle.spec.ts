@@ -30,19 +30,27 @@ test.describe('order lifecycle @functional @release @orders', () => {
     }));
     await quoteOrder(page.request, raviToken, order.id, quoteItems);
 
+    // Ticket dock is the reliable Accept surface; chat also carries Accept on the
+    // newest canAcceptQuote card when the Rate pulse survives thread dedupe.
     await loginAsMeena(page);
-    await page.goto(`/chats/${order.threadId}`);
+    await page.goto(`/orders/${order.id}`);
+    const dockAccept = page.getByTestId('order-dock-accept-quote');
+    await expect(dockAccept).toBeVisible({ timeout: 15_000 });
+    await dockAccept.click();
 
-    const accept = page.getByTestId(`accept-quote-${order.id}`);
-    await expect(accept).toBeVisible({ timeout: 15_000 });
-    await accept.click();
-
-    await expect(page.getByTestId(`accept-quote-${order.id}`)).toHaveCount(0, { timeout: 15_000 });
+    await expect(page.getByTestId('order-dock-accept-quote')).toHaveCount(0, {
+      timeout: 15_000,
+    });
     await expect(page.getByText(/Accepted|confirmed|Quote accepted/i).first()).toBeVisible({
       timeout: 15_000,
     });
 
     const after = await getOrder(page.request, await accessTokenFromPage(page), order.id);
     expect(after.status).toMatch(/confirmed/i);
+
+    await page.goto(`/chats/${order.threadId}`);
+    await expect(page.getByText(/accepted quote|Accepted|confirmed/i).first()).toBeVisible({
+      timeout: 15_000,
+    });
   });
 });

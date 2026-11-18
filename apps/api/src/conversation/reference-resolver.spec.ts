@@ -629,6 +629,54 @@ describe('ReferenceResolver canAcceptQuote live affordance', () => {
     expect(reference?.canAcceptQuote).toBe(false);
   });
 
+  it('is true on a living order card after quote (dedupe may drop the Rate pulse)', async () => {
+    const prisma = {
+      product: { findMany: async () => [] },
+      collection: { findMany: async () => [] },
+      order: {
+        findMany: async () => [
+          {
+            id: 'ord1',
+            status: 'requested',
+            buyerCompanyId: 'buyer',
+            sellerCompanyId: 'seller',
+            confirmedByCompanyId: null,
+            buyer: { name: 'Jaipur Emporium' },
+            seller: { name: 'Surat Silk House' },
+            _count: { items: 1 },
+            items: [
+              {
+                rate: 150,
+                lineStatus: 'open',
+                image: null,
+                images: ['a.jpg'],
+              },
+            ],
+          },
+        ],
+      },
+    } as unknown as PrismaService;
+    const resolver = new ReferenceResolver(prisma, makeVisibility());
+    const references = await resolver.resolve(
+      [
+        message({
+          id: 'm-living',
+          type: MessageType.OrderCard,
+          referenceId: 'ord1',
+          senderCompanyId: 'seller',
+          metadata: {
+            event: 'quote_sent',
+            status: 'requested',
+            totalLabel: '₹3,000',
+            quoted: true,
+          },
+        }),
+      ],
+      'buyer',
+    );
+    expect(references.get('m-living')?.canAcceptQuote).toBe(true);
+  });
+
   it('is false for the seller even when the quote is still open', async () => {
     const prisma = {
       product: { findMany: async () => [] },

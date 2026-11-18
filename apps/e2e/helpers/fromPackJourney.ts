@@ -3,7 +3,12 @@ import { accessTokenFromPage } from './orders';
 import { API_URL } from './env';
 import { loginAsKavita, loginAsMeena, loginAsRavi } from './persona';
 import { publishRepostNew } from './repost';
-import { createDirectLink, grantPackAccess, resetTradeLanesToMe } from './tradeLanes';
+import {
+  createDirectLink,
+  ensureAllowedFollow,
+  grantPackAccess,
+  resetTradeLanesToMe,
+} from './tradeLanes';
 
 export type FromPackResult = {
   downstream: { id: string } | null;
@@ -85,8 +90,17 @@ export async function raviPlaceFromHowMany(
 
 /** Look-only seed follow cannot curate Kavita — mill must grant pack first. */
 export async function grantMeenaPackOnKavita(page: Page): Promise<void> {
+  await loginAsMeena(page);
+  const meenaToken = await accessTokenFromPage(page);
   await loginAsKavita(page);
   const kavitaToken = await accessTokenFromPage(page);
+  await ensureAllowedFollow(
+    page.request,
+    meenaToken,
+    kavitaToken,
+    'seed-company-meena',
+    'seed-company-kavita',
+  );
   await grantPackAccess(page.request, kavitaToken, 'seed-company-meena');
 }
 
@@ -99,16 +113,28 @@ export async function placeCuratedABPack(
 
   await grantMeenaPackOnKavita(page);
   await loginAsMeena(page);
+  const meenaForFollow = await accessTokenFromPage(page);
+  await loginAsRavi(page);
+  const raviForFollow = await accessTokenFromPage(page);
+  await ensureAllowedFollow(
+    page.request,
+    meenaForFollow,
+    raviForFollow,
+    'seed-company-meena',
+    'seed-company-ravi',
+  );
+  await loginAsMeena(page);
+  await expect(page.getByTestId('app-bottom-nav')).toBeVisible({ timeout: 20_000 });
 
   await page.goto('/collections/seed-col-1');
-  await expect(page.getByRole('heading').first()).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole('heading').first()).toBeVisible({ timeout: 30_000 });
   await page.locator('button').filter({ has: page.locator('img') }).first().click({
     button: 'right',
   });
   await expect(page.getByTestId('select-all-float')).toBeVisible({ timeout: 10_000 });
 
   await page.goto('/collections/seed-col-fabric');
-  await expect(page.getByRole('heading').first()).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole('heading').first()).toBeVisible({ timeout: 30_000 });
   await page.locator('button').filter({ has: page.locator('img') }).first().click({
     button: 'right',
   });

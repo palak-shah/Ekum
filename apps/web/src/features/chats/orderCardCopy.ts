@@ -131,7 +131,8 @@ export function declineOrderMessageIds(messages: MessageView[]): Set<string> {
 export function primaryAcceptQuoteMessageId(messages: MessageView[]): string | null {
   let best: { id: string; at: number } | null = null;
   for (const message of messages) {
-    if (message.type !== 'rate' || message.mine) continue;
+    // Rate or living order card — dedupe may keep either after a quote.
+    if ((message.type !== 'rate' && message.type !== 'order_card') || message.mine) continue;
     const ref = message.reference;
     if (!ref?.canAcceptQuote || !ref.available || !ref.id) continue;
     const at = Date.parse(message.createdAt);

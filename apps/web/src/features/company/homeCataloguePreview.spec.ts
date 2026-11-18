@@ -4,6 +4,7 @@ import {
   HOME_CATALOGUE_DESIGN_PREVIEW,
   cataloguePreviewSlice,
   homeCatalogueSlice,
+  seeAllCatalogueLabel,
 } from './homeCataloguePreview';
 
 describe('cataloguePreviewSlice', () => {
@@ -19,5 +20,12 @@ describe('cataloguePreviewSlice', () => {
     expect(homeCatalogueSlice(rows, HOME_CATALOGUE_COLLECTION_PREVIEW, true)).toEqual([
       1, 2, 3, 4,
     ]);
+  });
+});
+
+describe('seeAllCatalogueLabel', () => {
+  it('is tab-aware', () => {
+    expect(seeAllCatalogueLabel('collections')).toBe('See all collections >');
+    expect(seeAllCatalogueLabel('designs')).toBe('See all designs >');
   });
 });

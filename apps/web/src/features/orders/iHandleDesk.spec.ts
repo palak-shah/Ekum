@@ -213,6 +213,40 @@ describe('iHandleDesk', () => {
     });
   });
 
+  it('Direct facilitator gets Edit/Cancel only while canAmend; Observing dock is none', () => {
+    expect(
+      orderActionDock({
+        isSeller: false,
+        isDirectFacilitator: true,
+        status: 'requested',
+        sendQuote: false,
+        openForDispatch: false,
+        hasRemaining: false,
+        canSettle: false,
+        canAmend: true,
+      }),
+    ).toEqual({
+      kind: 'buy',
+      cancel: true,
+      declineLogged: false,
+      edit: true,
+      acceptQuote: false,
+      raiseReturn: false,
+    });
+    expect(
+      orderActionDock({
+        isSeller: false,
+        isDirectFacilitator: true,
+        status: 'confirmed',
+        sendQuote: false,
+        openForDispatch: true,
+        hasRemaining: true,
+        canSettle: false,
+        canAmend: false,
+      }),
+    ).toEqual({ kind: 'none' });
+  });
+
   it('cues mixed mill outcomes without dropping Meena copy', () => {
     expect(
       millCue({ confirmedCount: 1, declinedCount: 1 } as OrderMillDeskView),

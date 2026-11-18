@@ -49,6 +49,7 @@ type OrderWithRelations = Order & {
   deliveredByUser?: ActorUser | null;
   tradeMode?: string;
   facilitatorCompanyId?: string | null;
+  facilitator?: { id: string; name: string } | null;
   downstreamOrderId?: string | null;
 };
 
@@ -150,6 +151,7 @@ export class OrderSerializer {
       status,
       tradeMode: order.tradeMode ?? 'bilateral',
       facilitatorCompanyId: order.facilitatorCompanyId ?? null,
+      facilitatorName: order.facilitator?.name ?? null,
       downstreamOrderId: order.downstreamOrderId ?? null,
       passHeld: order.passHeldAt != null,
       relatedOrders: [],

@@ -23,6 +23,37 @@ describe('trade-needs-you (nav + list)', () => {
     ).toBe(false);
   });
 
+  it('excludes Direct facilitator from Needs you when viewer is passed', () => {
+    expect(
+      matchesOrderNeedsYou(
+        {
+          direction: 'selling',
+          status: 'confirmed',
+          tradeMode: 'direct',
+          facilitatorCompanyId: 'trader',
+          sellerCompanyId: 'mill',
+          buyerCompanyId: 'buyer',
+          items: [{ rate: 80, remainingQuantity: 10 }],
+        } as OrderView,
+        'trader',
+      ),
+    ).toBe(false);
+    expect(
+      matchesOrderNeedsYou(
+        {
+          direction: 'selling',
+          status: 'confirmed',
+          tradeMode: 'direct',
+          facilitatorCompanyId: 'trader',
+          sellerCompanyId: 'mill',
+          buyerCompanyId: 'buyer',
+          items: [{ rate: 80, remainingQuantity: 10 }],
+        } as OrderView,
+        'mill',
+      ),
+    ).toBe(true);
+  });
+
   it('counts sample send / receive and requested returns', () => {
     expect(
       matchesSampleNeedsYou({ direction: 'selling', status: 'requested' } as SampleView),

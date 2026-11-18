@@ -15,8 +15,14 @@ function GlanceIcon({ kind }: { kind: ReturnType<typeof tradeListGlanceIcon> }) 
 }
 
 /** Right-of-facts cue — lime disc + verb, or muted clock waiting. Not a button. */
-export function TradeListGlanceCue({ item }: { item: TradeListItem }) {
-  const verb = tradeListGlanceVerb(item);
+export function TradeListGlanceCue({
+  item,
+  companyId,
+}: {
+  item: TradeListItem;
+  companyId?: string | null;
+}) {
+  const verb = tradeListGlanceVerb(item, companyId);
   if (verb) {
     const kind = tradeListGlanceIcon(verb);
     return (
@@ -32,7 +38,7 @@ export function TradeListGlanceCue({ item }: { item: TradeListItem }) {
       </span>
     );
   }
-  const waiting = tradeListWaitingCue(item);
+  const waiting = tradeListWaitingCue(item, companyId);
   if (!waiting) return null;
   return (
     <span

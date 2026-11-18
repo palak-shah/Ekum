@@ -16,6 +16,41 @@ export async function resetTradeLanesToMe(
   }
 }
 
+/**
+ * Ensure follower→mill is Allowed (look), then grant Pack.
+ * Destructive follow-ask journeys may delete the seed row — recreate before from-pack.
+ */
+export async function ensureAllowedFollow(
+  request: APIRequestContext,
+  followerAccessToken: string,
+  millAccessToken: string,
+  followerCompanyId: string,
+  millCompanyId: string,
+): Promise<void> {
+  const followRes = await request.post(`${API_URL}/follows`, {
+    headers: { authorization: `Bearer ${followerAccessToken}` },
+    data: { companyId: millCompanyId },
+  });
+  if (!followRes.ok()) {
+    const body = await followRes.text();
+    // Already following / pending still OK — mill Accept below.
+    if (followRes.status() !== 400 && followRes.status() !== 409) {
+      throw new Error(`ensure follow failed: ${followRes.status()} ${body}`);
+    }
+  }
+  const decide = await request.post(`${API_URL}/follows/decide`, {
+    headers: { authorization: `Bearer ${millAccessToken}` },
+    data: { followerCompanyId, decision: 'look' },
+  });
+  if (!decide.ok()) {
+    const body = await decide.text();
+    // Already allowed / no pending ask — continue to pack grant.
+    if (decide.status() !== 400 && decide.status() !== 404) {
+      throw new Error(`ensure follow allow failed: ${decide.status()} ${body}`);
+    }
+  }
+}
+
 /** Mill grants pack access so the follower can curate their designs. */
 export async function grantPackAccess(
   request: APIRequestContext,

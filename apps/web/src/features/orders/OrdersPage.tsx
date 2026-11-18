@@ -6,16 +6,26 @@ import {
   useState,
 } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import type {
   ComplaintView,
   CursorPage,
   OrderView,
+  OrdersTabCountsView,
   SampleView,
 } from '@ekum/domain-types';
 import { api } from '@/lib/apiClient';
 import { useMyCompany } from '@/lib/queries';
-import { Avatar, Chip, EmptyState, ErrorState, FilterRail, LoadingBlock, SearchInput, cx } from '@/ui/kit';
+import {
+  Avatar,
+  Button,
+  Chip,
+  EmptyState,
+  ErrorState,
+  LoadingBlock,
+  SearchInput,
+  cx,
+} from '@/ui/kit';
 import { ListSearchRow, ListSquareButton } from '@/ui/ListSearchRow';
 import { FilterIcon, GroupIcon, LinkIcon, PlusIcon } from '@/ui/icons';
 import { explorePostedWhen } from '@/ui/cards';
@@ -35,6 +45,7 @@ import {
   firstOrdersStatusWithContent,
 } from '@/features/orders/ordersListDefault';
 import { ordersListEmptyCopy } from '@/features/orders/ordersListEmpty';
+import { ordersListNeedsLoadMore } from '@/features/orders/ordersLoadMore';
 import {
   dateFacetFromNeedle,
   emptyFindState,
@@ -47,6 +58,7 @@ import {
 } from './tradeFind';
 import {
   matchesTradeCompleted,
+  matchesTradeNeeds,
   matchesTradePending,
   samplesForOthersList,
   sortTradePending,
@@ -74,9 +86,13 @@ type StatusFilter = 'pending' | 'completed';
 
 function statusFilterFromParam(value: string | null): StatusFilter {
   if (value === 'completed') return 'completed';
-  // Legacy Needs you / In progress deep links land on Pending.
+  // Needs you uses its own filter; progress still lands on Pending.
   if (value === 'pending' || value === 'needs' || value === 'progress') return 'pending';
   return 'pending';
+}
+
+function needsYouFromParam(value: string | null): boolean {
+  return value === 'needs';
 }
 
 function kindFromParam(value: string | null): TradeFindState['kindFacet'] {
@@ -109,6 +125,7 @@ export function OrdersPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>(() =>
     statusFilterFromParam(filterParam),
   );
+  const [needsYouFilter, setNeedsYouFilter] = useState(() => needsYouFromParam(filterParam));
   const [find, setFind] = useState<TradeFindState>(() => ({
     ...emptyFindState(),
     kindFacet: kindFromParam(kindParam),
@@ -122,14 +139,16 @@ export function OrdersPage() {
     const fromStatus = tabForTradeStatus(statusFromParam(statusParam) ?? '');
     if (fromStatus) {
       setStatusFilter(fromStatus);
+      setNeedsYouFilter(false);
       return;
     }
-    if (
-      filterParam === 'pending' ||
-      filterParam === 'needs' ||
-      filterParam === 'progress' ||
-      filterParam === 'completed'
-    ) {
+    if (filterParam === 'needs') {
+      setNeedsYouFilter(true);
+      setStatusFilter('pending');
+      return;
+    }
+    if (filterParam === 'pending' || filterParam === 'progress' || filterParam === 'completed') {
+      setNeedsYouFilter(false);
       setStatusFilter(statusFilterFromParam(filterParam));
     }
   }, [filterParam, statusParam]);
@@ -159,36 +178,87 @@ export function OrdersPage() {
     if (deferredFind.kindFacet === 'trading') {
       params.tradeMode = 'manage';
       params.direction = 'selling';
+    } else if (listTab === 'selling' || listTab === 'buying') {
+      params.direction = listTab;
     }
     if (dateFacet) {
       params.createdFrom = dateFacet.from;
       params.createdTo = dateFacet.to;
     }
     return params;
-  }, [serverFind, deferredFind]);
+  }, [serverFind, deferredFind, listTab]);
 
-  const orders = useQuery({
-    queryKey: ['orders', { list: true, ...orderParams }],
-    queryFn: () => api.get<CursorPage<OrderView>>('/orders', orderParams),
+  const countParams = useMemo(() => {
+    const params: Record<string, string> = { tab: listTab };
+    const dateFacet = effectiveDateFacet(deferredFind);
+    const needleIsDate = Boolean(dateFacetFromNeedle(deferredFind.needle));
+    if (serverFind && deferredFind.needle.trim().length >= 2 && !needleIsDate) {
+      params.q = deferredFind.needle.trim();
+    }
+    if (dateFacet) {
+      params.createdFrom = dateFacet.from;
+      params.createdTo = dateFacet.to;
+    }
+    return params;
+  }, [listTab, serverFind, deferredFind]);
+
+  const orders = useInfiniteQuery({
+    queryKey: ['orders', { list: true, infinite: true, ...orderParams }],
+    initialPageParam: null as string | null,
+    queryFn: ({ pageParam }) =>
+      api.get<CursorPage<OrderView>>('/orders', {
+        ...orderParams,
+        ...(pageParam ? { cursor: pageParam } : {}),
+      }),
+    getNextPageParam: (last) => last.nextCursor,
   });
-  const samples = useQuery({
-    queryKey: ['samples', { list: true }],
-    queryFn: () => api.get<CursorPage<SampleView>>('/samples', { limit: 50 }),
+  const samples = useInfiniteQuery({
+    queryKey: ['samples', { list: true, infinite: true }],
+    initialPageParam: null as string | null,
+    queryFn: ({ pageParam }) =>
+      api.get<CursorPage<SampleView>>('/samples', {
+        limit: 50,
+        ...(pageParam ? { cursor: pageParam } : {}),
+      }),
+    getNextPageParam: (last) => last.nextCursor,
   });
-  const complaints = useQuery({
-    queryKey: ['complaints', { list: true }],
-    queryFn: () => api.get<CursorPage<ComplaintView>>('/complaints', { limit: 50 }),
+  const complaints = useInfiniteQuery({
+    queryKey: ['complaints', { list: true, infinite: true }],
+    initialPageParam: null as string | null,
+    queryFn: ({ pageParam }) =>
+      api.get<CursorPage<ComplaintView>>('/complaints', {
+        limit: 50,
+        ...(pageParam ? { cursor: pageParam } : {}),
+      }),
+    getNextPageParam: (last) => last.nextCursor,
   });
+  const tabCounts = useQuery({
+    queryKey: ['orders', 'tab-counts', countParams],
+    queryFn: () => api.get<OrdersTabCountsView>('/orders/tab-counts', countParams),
+  });
+
+  const orderRows = useMemo(
+    () => orders.data?.pages.flatMap((page) => page.results) ?? [],
+    [orders.data],
+  );
+  const sampleRows = useMemo(
+    () => samples.data?.pages.flatMap((page) => page.results) ?? [],
+    [samples.data],
+  );
+  const complaintRows = useMemo(
+    () => complaints.data?.pages.flatMap((page) => page.results) ?? [],
+    [complaints.data],
+  );
 
   const merged = useMemo(
     () =>
       toTradeItems(
-        orders.data?.results ?? [],
-        samplesForOthersList(samples.data?.results ?? [], orders.data?.results ?? []),
+        orderRows,
+        samplesForOthersList(sampleRows, orderRows),
         [],
-        complaints.data?.results ?? [],
+        complaintRows,
       ),
-    [orders.data, samples.data, complaints.data],
+    [orderRows, sampleRows, complaintRows],
   );
 
   const findOverridesAttention =
@@ -197,8 +267,10 @@ export function OrdersPage() {
     Boolean(dateFacetFromNeedle(deferredFind.needle)) ||
     deferredFind.needle.trim().length > 0;
 
+  const attentionOverrides = findOverridesAttention || needsYouFilter;
+
   const filterApplied = Boolean(
-    find.statusFacet || find.kindFacet || find.dateFacet,
+    find.statusFacet || find.kindFacet || find.dateFacet || needsYouFilter,
   );
   const filterIconActive = filterApplied || menuOpen;
 
@@ -210,16 +282,51 @@ export function OrdersPage() {
   const filtered = useMemo(() => {
     const rows = inTab.filter((item) => {
       if (!tradeMatchesFind(item, deferredFind)) return false;
+      if (needsYouFilter) {
+        return matchesTradeNeeds(item, me.data?.id ?? null);
+      }
       if (findOverridesAttention) return true;
       if (statusFilter === 'pending') return matchesTradePending(item);
       return matchesTradeCompleted(item);
     });
     return sortTradePending(rows);
-  }, [inTab, deferredFind, statusFilter, findOverridesAttention]);
+  }, [inTab, deferredFind, statusFilter, findOverridesAttention, needsYouFilter, me.data?.id]);
 
-  const counted = inTab.filter((item) => tradeMatchesFind(item, deferredFind));
-  const pendingCount = counted.filter((item) => matchesTradePending(item)).length;
-  const completedCount = counted.filter((item) => matchesTradeCompleted(item)).length;
+  const pendingCount = tabCounts.data?.pending ?? 0;
+  const completedCount = tabCounts.data?.completed ?? 0;
+
+  const hasMoreOrders =
+    listTab !== 'others' && Boolean(orders.hasNextPage);
+  const hasMoreOthers =
+    listTab === 'others' &&
+    (Boolean(samples.hasNextPage) || Boolean(complaints.hasNextPage));
+  const serverHasMore = hasMoreOrders || hasMoreOthers;
+  const knownTotalForView: number | null = findOverridesAttention
+    ? null
+    : !tabCounts.data
+      ? null
+      : needsYouFilter
+        ? tabCounts.data.needsYou
+        : statusFilter === 'pending'
+          ? tabCounts.data.pending
+          : tabCounts.data.completed;
+  const hasMore = ordersListNeedsLoadMore({
+    serverHasMore,
+    loadedVisible: filtered.length,
+    knownTotal: knownTotalForView,
+  });
+  const loadingMore =
+    orders.isFetchingNextPage ||
+    samples.isFetchingNextPage ||
+    complaints.isFetchingNextPage;
+  const fetchMore = () => {
+    if (listTab === 'others') {
+      if (samples.hasNextPage) void samples.fetchNextPage();
+      if (complaints.hasNextPage) void complaints.fetchNextPage();
+      return;
+    }
+    if (orders.hasNextPage) void orders.fetchNextPage();
+  };
 
   const setListTab = (next: OrdersListTab) => {
     setOrdersListTab(next);
@@ -236,6 +343,27 @@ export function OrdersPage() {
     (samples.isPending && !samples.data) ||
     (complaints.isPending && !complaints.data);
   const ordersFailed = orders.isError && !orders.data;
+
+  const setNeedsYou = (next: boolean) => {
+    setNeedsYouFilter(next);
+    if (next) {
+      setStatusFilter('pending');
+      setFind((prev) => ({ ...prev, statusFacet: null, needle: '' }));
+    }
+    setSearchParams(
+      (prev) => {
+        const params = new URLSearchParams(prev);
+        if (next) {
+          params.set('filter', 'needs');
+          params.delete('status');
+        } else if (params.get('filter') === 'needs') {
+          params.set('filter', statusFilter);
+        }
+        return params;
+      },
+      { replace: true },
+    );
+  };
 
   useEffect(() => {
     if (contentSeeded.current || loading) return;
@@ -271,11 +399,17 @@ export function OrdersPage() {
       filterParam === 'progress' ||
       Boolean(statusParam && statusFromParam(statusParam));
 
-    if (!statusIntent && !findOverridesAttention) {
+    if (!statusIntent && !findOverridesAttention && !needsYouFilter) {
+      const pending = tabCounts.data?.pending ?? 0;
+      const completed = tabCounts.data?.completed ?? 0;
+      // Fall back to loaded rows when counts have not arrived yet.
       const inChosen = merged.filter((item) => tradeMatchesListTab(item, nextTab));
-      const pending = inChosen.filter((item) => matchesTradePending(item)).length;
-      const completed = inChosen.filter((item) => matchesTradeCompleted(item)).length;
-      const nextStatus = firstOrdersStatusWithContent(pending, completed);
+      const pendingFallback = inChosen.filter((item) => matchesTradePending(item)).length;
+      const completedFallback = inChosen.filter((item) => matchesTradeCompleted(item)).length;
+      const nextStatus = firstOrdersStatusWithContent(
+        tabCounts.data ? pending : pendingFallback,
+        tabCounts.data ? completed : completedFallback,
+      );
       if (nextStatus !== statusFilter) setStatusFilter(nextStatus);
     }
   }, [
@@ -286,7 +420,9 @@ export function OrdersPage() {
     filterParam,
     statusParam,
     findOverridesAttention,
+    needsYouFilter,
     statusFilter,
+    tabCounts.data,
   ]);
 
   const syncFindParams = (statusFacet: string | null, kindFacet: TradeKindFacet | null) => {
@@ -318,6 +454,7 @@ export function OrdersPage() {
   const setStatusFacet = (status: string | null) => {
     const tab = status ? (tabForTradeStatus(status) ?? statusFilter) : statusFilter;
     if (tab !== statusFilter) setStatusFilter(tab);
+    setNeedsYouFilter(false);
     setFind((prev) => {
       const next = { ...prev, statusFacet: status, needle: '' };
       setSearchParams(
@@ -346,6 +483,7 @@ export function OrdersPage() {
   };
 
   const clearMenuFilters = () => {
+    setNeedsYouFilter(false);
     setFind((prev) => ({
       ...prev,
       statusFacet: null,
@@ -357,6 +495,7 @@ export function OrdersPage() {
         const next = new URLSearchParams(prev);
         next.delete('kind');
         next.delete('status');
+        if (next.get('filter') === 'needs') next.set('filter', statusFilter);
         return next;
       },
       { replace: true },
@@ -364,12 +503,14 @@ export function OrdersPage() {
   };
 
   const clearFind = () => {
+    setNeedsYouFilter(false);
     setFind(emptyFindState());
     setSearchParams(
       (prev) => {
         const next = new URLSearchParams(prev);
         next.delete('kind');
         next.delete('status');
+        if (next.get('filter') === 'needs') next.set('filter', statusFilter);
         return next;
       },
       { replace: true },
@@ -380,6 +521,7 @@ export function OrdersPage() {
     statusFacet: find.statusFacet,
     kindFacet: find.kindFacet,
     dateFacet: find.dateFacet,
+    needsYou: needsYouFilter,
   });
 
   const searchLabel = find.needle.trim() || null;
@@ -432,8 +574,10 @@ export function OrdersPage() {
           statusFacet={find.statusFacet}
           kindFacet={find.kindFacet}
           attentionTab={statusFilter}
+          needsYou={needsYouFilter}
           onStatus={setStatusFacet}
           onKind={setKindFacet}
+          onNeedsYou={setNeedsYou}
           onClearAll={clearMenuFilters}
         />
         {summaryLabel ? (
@@ -454,7 +598,7 @@ export function OrdersPage() {
 
       <div
         data-testid="orders-list-filters"
-        className={cx('flex min-w-0 flex-col gap-2', findOverridesAttention && 'opacity-50')}
+        className={cx('flex min-w-0 flex-col gap-2', attentionOverrides && 'opacity-50')}
       >
         <div className={filterChrome.tabRowClass} role="tablist" aria-label="Whose orders">
           {(
@@ -487,14 +631,15 @@ export function OrdersPage() {
             </button>
           ))}
         </div>
-        <FilterRail className="gap-1.5">
+        {/* Two chips only — plain flex, not FilterRail (overflow-x-auto fails BM-07). */}
+        <div className="flex min-w-0 flex-wrap gap-1.5">
           {(
             [
               ['pending', 'Pending', pendingCount],
               ['completed', 'Completed', completedCount],
             ] as const
           ).map(([value, label, count]) => {
-            const on = !findOverridesAttention && statusFilter === value;
+            const on = !attentionOverrides && statusFilter === value;
             return (
               <Chip
                 key={value}
@@ -502,8 +647,9 @@ export function OrdersPage() {
                 active={on}
                 data-testid={`orders-summary-${value}`}
                 onClick={() => {
-                  if (statusFilter === value && !findOverridesAttention) return;
+                  if (statusFilter === value && !attentionOverrides) return;
                   setStatusFilter(value);
+                  setNeedsYouFilter(false);
                   if (findOverridesAttention) {
                     setFind(emptyFindState());
                   } else {
@@ -517,7 +663,7 @@ export function OrdersPage() {
                     (prev) => {
                       if (
                         prev.get('filter') === value &&
-                        !findOverridesAttention &&
+                        !attentionOverrides &&
                         !prev.get('kind') &&
                         statusFitsTab(prev.get('status'), value)
                       ) {
@@ -544,7 +690,7 @@ export function OrdersPage() {
               </Chip>
             );
           })}
-        </FilterRail>
+        </div>
       </div>
 
       {loading ? (
@@ -554,25 +700,56 @@ export function OrdersPage() {
       ) : (
         <div className="min-h-[12rem]">
           {filtered.length > 0 ? (
-            <div className="flex flex-col gap-2" data-testid="orders-trade-list">
-              {filtered.map((item) => (
-                <TradeRow
-                  key={`${item.kind}-${item.id}`}
-                  item={item}
-                  companyId={me.data?.id ?? null}
-                  highlightQuery={find.needle}
-                />
-              ))}
-            </div>
+            <>
+              <div className="flex flex-col gap-2" data-testid="orders-trade-list">
+                {filtered.map((item) => (
+                  <TradeRow
+                    key={`${item.kind}-${item.id}`}
+                    item={item}
+                    companyId={me.data?.id ?? null}
+                    highlightQuery={find.needle}
+                  />
+                ))}
+              </div>
+              {hasMore ? (
+                <div className="px-4 pb-2 pt-2">
+                  <Button
+                    variant="secondary"
+                    fullWidth
+                    data-testid="orders-load-more"
+                    disabled={loadingMore}
+                    onClick={fetchMore}
+                  >
+                    {loadingMore ? 'Loading…' : 'Load more'}
+                  </Button>
+                </div>
+              ) : null}
+            </>
           ) : (
-            <EmptyState
-              {...ordersListEmptyCopy({
-                tab: listTab,
-                status: statusFilter,
-                searching: findOverridesAttention,
-                complaintFind: find.kindFacet === 'complaint',
-              })}
-            />
+            <div className="flex flex-col gap-2">
+              <EmptyState
+                {...ordersListEmptyCopy({
+                  tab: listTab,
+                  status: statusFilter,
+                  searching: findOverridesAttention,
+                  complaintFind: find.kindFacet === 'complaint',
+                  needsYou: needsYouFilter,
+                })}
+              />
+              {needsYouFilter && hasMore ? (
+                <div className="px-4 pb-2">
+                  <Button
+                    variant="secondary"
+                    fullWidth
+                    data-testid="orders-load-more"
+                    disabled={loadingMore}
+                    onClick={fetchMore}
+                  >
+                    {loadingMore ? 'Loading…' : 'Load more'}
+                  </Button>
+                </div>
+              ) : null}
+            </div>
           )}
         </div>
       )}
@@ -608,7 +785,7 @@ function TradeRow({
   if (item.kind === 'return') return null;
 
   const orderId = item.kind === 'order' ? item.order.id : null;
-  const needsLabel = tradeNeedsYouLabel(item);
+  const needsLabel = tradeNeedsYouLabel(item, companyId);
   const pathMark = tradeListPathMark(item, companyId);
   const facts = tradeListFacts(item);
   const when = explorePostedWhen(tradeListWhen(item));
@@ -665,9 +842,21 @@ function TradeRow({
           data-testid="trade-list-facts"
           className="min-w-0 flex-1 truncate text-meta font-body leading-snug text-muted"
         >
-          {facts ? highlightSearchText(facts, highlightQuery) : null}
+          {pathMark === 'direct' &&
+          item.kind === 'order' &&
+          !needsLabel &&
+          item.order.status !== 'cancelled' &&
+          item.order.status !== 'declined' &&
+          (item.order.status !== 'requested' || item.order.hasSellerQuote === true) ? (
+            <>
+              <span data-testid="trade-list-observing">Observing</span>
+              {facts ? <> · {highlightSearchText(facts, highlightQuery)}</> : null}
+            </>
+          ) : facts ? (
+            highlightSearchText(facts, highlightQuery)
+          ) : null}
         </p>
-        <TradeListGlanceCue item={item} />
+        <TradeListGlanceCue item={item} companyId={companyId} />
       </div>
     </div>
   );

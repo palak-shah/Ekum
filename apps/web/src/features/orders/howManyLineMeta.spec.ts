@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  howManyBelowMinimum,
   howManyLineExtra,
   howManyLineMeta,
   howManyOrderFooterSummary,
@@ -22,6 +23,15 @@ import {
 } from './howManyLineMeta';
 
 describe('howManyLineMeta', () => {
+  it('flags Below minimum only when qty is under moq', () => {
+    expect(howManyBelowMinimum(null, 12)).toBe(false);
+    expect(howManyBelowMinimum(0, 12)).toBe(false);
+    expect(howManyBelowMinimum(5, 12)).toBe(true);
+    expect(howManyBelowMinimum(12, 12)).toBe(false);
+    expect(howManyBelowMinimum(20, 12)).toBe(false);
+    expect(howManyBelowMinimum(5, null)).toBe(false);
+  });
+
   it('says how a set or dozen is sold', () => {
     expect(howManySoldAs('set')).toBe('Set');
     expect(howManySoldAs('set', 6)).toBe('Set · 6 pcs');

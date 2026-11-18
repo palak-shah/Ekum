@@ -1698,6 +1698,11 @@ export function OrderDetailPage() {
     const data = order.data;
     if (!data) return 'none';
     const isSeller = actorSellsThisOrder(data.sellerCompanyId, companyId);
+    const isDirectFacilitator =
+      data.tradeMode === 'direct' &&
+      Boolean(data.facilitatorCompanyId) &&
+      companyId === data.facilitatorCompanyId &&
+      !isSeller;
     const hasRemaining = leftoverYouHasRemaining(data.items, data.millDesks);
     const hasDeclinedToRestore = leftoverYouHasDeclined(data.items, data.millDesks);
     const openForDispatch =
@@ -1712,6 +1717,7 @@ export function OrderDetailPage() {
       canAcceptQuote: data.canAcceptQuote === true,
       createdBySeller: data.createdBySeller === true,
       isTraderMillHop: isTraderMillHop(data),
+      isDirectFacilitator,
       openForDispatch,
       hasRemaining,
       hasDeclinedToRestore,
@@ -1768,6 +1774,11 @@ export function OrderDetailPage() {
     setPhotoViewerOpen(true);
   };
   const isSeller = actorSellsThisOrder(data.sellerCompanyId, companyId);
+  const isDirectFacilitator =
+    data.tradeMode === 'direct' &&
+    Boolean(data.facilitatorCompanyId) &&
+    companyId === data.facilitatorCompanyId &&
+    !isSeller;
   const isBuyer = data.direction === 'buying';
   const manageDeskNoParty = hideManagePartyCard(data.direction, data.millDesks);
   const manageDeskChatTargets = manageDeskNoParty
@@ -1802,6 +1813,7 @@ export function OrderDetailPage() {
     canAcceptQuote: data.canAcceptQuote === true,
     createdBySeller: data.createdBySeller === true,
     isTraderMillHop: traderMillHop,
+    isDirectFacilitator,
     openForDispatch,
     hasRemaining,
     hasDeclinedToRestore,
@@ -2150,11 +2162,12 @@ export function OrderDetailPage() {
               sellerName: data.sellerName,
               buyerCompanyId: data.buyerCompanyId,
               sellerCompanyId: data.sellerCompanyId,
+              facilitatorCompanyId: data.facilitatorCompanyId,
+              facilitatorName: data.facilitatorName ?? null,
+              viewerCompanyId: companyId,
               triVisible:
                 Boolean(data.millDesks?.some((desk) => desk.reveal)) ||
-                (data.tradeMode === 'direct' &&
-                  Boolean(data.facilitatorCompanyId) &&
-                  companyId === data.facilitatorCompanyId),
+                (data.tradeMode === 'direct' && Boolean(data.facilitatorCompanyId)),
             };
             const stackedParty = oneToOneTicket || Boolean(traderSellingHop(data));
             return orderPartyLines(partyCtx).map((line) => {
@@ -2165,7 +2178,14 @@ export function OrderDetailPage() {
                 partyLineShowsOpenChat(line, partyCtx);
               const logoUrl =
                 line.companyId === data.counterpart.id ? data.counterpart.logoUrl : null;
-              const roleLabel = line.label === 'supplier' ? 'Supplier' : 'Buyer';
+              const roleLabel =
+                line.label === 'supplier'
+                  ? 'Supplier'
+                  : line.label === 'buyer'
+                    ? 'Buyer'
+                    : 'Trader';
+              const chatLabel =
+                line.label === 'trader' ? 'Open group chat' : `Open chat with ${line.name}`;
               return (
                 <div
                   key={line.label}
@@ -2201,8 +2221,10 @@ export function OrderDetailPage() {
                   {showChat && chatTo ? (
                     <Link
                       to={chatTo}
-                      data-testid="order-open-chat"
-                      aria-label={`Open chat with ${line.name}`}
+                      data-testid={
+                        line.label === 'trader' ? 'order-open-group-chat' : 'order-open-chat'
+                      }
+                      aria-label={chatLabel}
                       className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-accent hover:bg-foam"
                     >
                       <ChatIcon width={20} height={20} />
@@ -2222,10 +2244,13 @@ export function OrderDetailPage() {
             {ticketWaiting}
           </p>
         ) : null}
-        {data.tradeMode === 'direct' &&
-        data.facilitatorCompanyId &&
-        companyId === data.facilitatorCompanyId ? (
-          <p className="pt-1 text-sm font-emphasis text-accent">Shared</p>
+        {isDirectFacilitator && data.canAmend !== true && data.canTakeControl !== true ? (
+          <p
+            className="pt-1 text-sm font-emphasis text-accent"
+            data-testid="order-observing"
+          >
+            Observing
+          </p>
         ) : null}
         {!oneToOneTicket &&
         (data.status === 'confirmed' || data.status === 'part_shipped') &&
@@ -2773,7 +2798,7 @@ export function OrderDetailPage() {
 
       {data.transporter?.trim() && data.shipments.length === 0 ? (
         <p className="text-sm text-muted" data-testid="order-preferred-transporter">
-          Transporter · {data.transporter.trim()}
+          Preferred transporter · {data.transporter.trim()}
         </p>
       ) : null}
 

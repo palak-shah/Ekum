@@ -21,8 +21,14 @@ test.describe('orders chrome @functional @release @orders', () => {
 
     await expect(page.getByRole('button', { name: 'Pending' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Completed' })).toBeVisible();
+    // Needs you is filter-only — not a third chip on the rail.
+    await expect(page.getByTestId('orders-summary-pending')).toBeVisible();
+    await expect(page.getByTestId('orders-summary-completed')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Needs you' })).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'In progress' })).toHaveCount(0);
+    await page.getByTestId('orders-filter').click();
+    await expect(page.getByTestId('orders-filter-needs-you')).toBeVisible();
+    await page.keyboard.press('Escape');
 
     await page.getByRole('button', { name: 'Completed' }).click();
     await expect(page).toHaveURL(/filter=completed/, { timeout: 10_000 });
@@ -553,7 +559,7 @@ test.describe('orders chrome @functional @release @orders', () => {
     const waitDock = page.getByTestId('order-action-dock');
     const waitChat = waitDock.getByTestId('order-open-chat');
     await expect(waitChat).toHaveAttribute('aria-label', 'Chat');
-    await expect(page.getByTestId('order-ticket-waiting')).toHaveText('Waiting: supplier');
+    await expect(page.getByTestId('order-ticket-waiting')).toHaveText('Waiting: dispatch');
     const waitChatBox = await waitChat.boundingBox();
     const waitBox = await page.getByTestId('order-ticket-waiting').boundingBox();
     expect(waitChatBox && waitBox).toBeTruthy();

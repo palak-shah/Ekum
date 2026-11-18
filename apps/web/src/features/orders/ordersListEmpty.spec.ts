@@ -28,4 +28,19 @@ describe('ordersListEmptyCopy', () => {
       'Nothing finished yet',
     );
   });
+
+  it('uses quiet Needs you empty copy', () => {
+    expect(
+      ordersListEmptyCopy({
+        tab: 'selling',
+        status: 'pending',
+        searching: false,
+        complaintFind: false,
+        needsYou: true,
+      }),
+    ).toEqual({
+      title: 'Nothing needs you',
+      message: 'Open trades that need your action will show here.',
+    });
+  });
 });

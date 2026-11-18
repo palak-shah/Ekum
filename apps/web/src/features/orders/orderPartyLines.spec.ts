@@ -58,4 +58,26 @@ describe('orderPartyLines', () => {
       true,
     );
   });
+
+  it('Direct shows supplier, buyer, and trader with Open group chat on trader', () => {
+    const lines = orderPartyLines({
+      ...base,
+      direction: 'selling',
+      tradeMode: 'direct',
+      facilitatorCompanyId: 't1',
+      facilitatorName: 'Jaipur Emporium',
+      viewerCompanyId: 't1',
+    });
+    expect(lines.map((l) => l.label)).toEqual(['supplier', 'buyer', 'trader']);
+    expect(lines[2]).toEqual(
+      expect.objectContaining({ label: 'trader', name: 'Jaipur Emporium', you: true }),
+    );
+    const ctx = {
+      direction: 'selling' as const,
+      tradeMode: 'direct',
+      facilitatorCompanyId: 't1',
+    };
+    expect(partyLineShowsOpenChat(lines[0]!, ctx)).toBe(false);
+    expect(partyLineShowsOpenChat(lines[2]!, ctx)).toBe(true);
+  });
 });

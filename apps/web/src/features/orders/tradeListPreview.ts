@@ -38,9 +38,9 @@ export function tradeListPathMark(
 
 export function tradeListPreview(
   item: TradeListItem,
-  _companyId: string | null,
+  companyId: string | null,
 ): { preview: string; accent: boolean } {
-  const needs = tradeNeedsYouLabel(item);
+  const needs = tradeNeedsYouLabel(item, companyId);
   if (needs) {
     // List glance shows the verb on the lime disc — keep helpers verb-only.
     const verb = needs.replace(/^Needs you\s+/, '').trim() || needs;

@@ -539,6 +539,27 @@ describe('ChatTradeCard section order', () => {
     );
     expect(screen.queryByTestId('photo-album-overflow')).toBeNull();
   });
+
+  it('shows +n on two thumbs when an imageless design overflows', () => {
+    render(
+      <MemoryRouter>
+        <ChatTradeCard
+          model={model({
+            kind: 'order',
+            primary: 'Order #RSF4 Requested',
+            who: null,
+            details: ['3 designs'],
+            thumbs: ['https://img/a.jpg', 'https://img/b.jpg'],
+            thumbOverflow: 1,
+            noteVoiceUrl: null,
+            action: { label: 'View order →', onClick: () => undefined, style: 'link' },
+          })}
+        />
+      </MemoryRouter>,
+    );
+    expect(screen.getByTestId('photo-album-thumb').querySelectorAll('img')).toHaveLength(2);
+    expect(screen.getByTestId('photo-album-overflow')).toHaveTextContent('+1');
+  });
 });
 
 describe('ChatTradeCard designs', () => {

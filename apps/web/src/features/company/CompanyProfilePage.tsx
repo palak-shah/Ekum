@@ -45,6 +45,7 @@ import {
   HOME_CATALOGUE_COLLECTION_PREVIEW,
   HOME_CATALOGUE_DESIGN_PREVIEW,
   cataloguePreviewSlice,
+  seeAllCatalogueLabel,
 } from './homeCataloguePreview';
 import {
   BookmarkIcon,
@@ -505,7 +506,7 @@ export function BusinessProfileBody({
   }, [id]);
   useEffect(() => {
     if (!shelfReadyForSeed) return;
-    // Home + visitor catalogue: URL tab wins so View more → Back keeps Designs.
+    // Home + visitor catalogue: URL tab wins so See all → Back keeps Designs.
     if ((isHome || isCatalogue) && tabIntent) {
       setShopTab(tabIntent);
       shopTabUserPicked.current = true;
@@ -695,6 +696,8 @@ export function BusinessProfileBody({
   };
   const openShowcasePhoto = (index: number) => {
     if (showcaseGalleryUrls.length < 1) return;
+    // Close browse so PhotoViewer is not fighting the sheet under it.
+    setShowcaseBrowseOpen(false);
     setGalleryMode('showcase');
     setGalleryIndex(index);
     setGalleryOpen(true);
@@ -890,7 +893,10 @@ export function BusinessProfileBody({
                       </p>
                     ) : null}
                     {company.about ? (
-                      <div className="mx-auto mt-1.5 max-w-prose">
+                      <div
+                        className="mx-auto mt-1.5 max-w-prose"
+                        data-testid="business-profile-about-block"
+                      >
                         <p
                           className={cx(
                             'text-sm text-muted',
@@ -904,10 +910,10 @@ export function BusinessProfileBody({
                           <button
                             type="button"
                             data-testid="business-profile-about-more"
-                            className="mt-0.5 text-meta font-emphasis text-accent"
+                            className="mt-1 text-meta font-emphasis text-accent"
                             onClick={() => setAboutExpanded((open) => !open)}
                           >
-                            {aboutExpanded ? 'Less' : 'More'}
+                            {aboutExpanded ? 'View less' : 'View more'}
                           </button>
                         ) : null}
                       </div>
@@ -1065,7 +1071,7 @@ export function BusinessProfileBody({
           )}
         >
         <section
-          className="flex flex-col overflow-hidden bg-surface"
+          className="flex flex-col overflow-hidden rounded-xl border border-line bg-surface"
           data-testid="business-profile-catalogue"
         >
           <div className="flex flex-col gap-1.5 border-b border-line px-1">
@@ -1157,8 +1163,8 @@ export function BusinessProfileBody({
               </div>
             ) : null}
           </div>
-          {/* Preview faces: shared height so View more / View all stay put (body stays surface). */}
-          <div className={cx(previewCatalogue && 'min-h-[23rem]')}>
+          {/* Preview faces hug content — no empty min-height reserve. */}
+          <div>
           {shopTab === 'designs' ? (
             displayDesigns.length > 0 ? (
               <div
@@ -1246,9 +1252,9 @@ export function BusinessProfileBody({
             <Link
               to={shopTab === 'designs' ? '/more?tab=products' : '/more?tab=collections'}
               data-testid="business-profile-view-more"
-              className="border-t border-line px-3 py-2.5 text-meta font-emphasis text-accent"
+              className="border-t border-line px-3 py-2.5 text-center text-meta font-emphasis text-accent"
             >
-              View more…
+              {seeAllCatalogueLabel(shopTab)}
             </Link>
           ) : null}
           {isShopFace ? (
@@ -1257,9 +1263,9 @@ export function BusinessProfileBody({
                 shopTab === 'designs' ? 'products' : 'collections'
               }`}
               data-testid="business-profile-view-all"
-              className="border-t border-line px-3 py-2.5 text-meta font-emphasis text-accent"
+              className="border-t border-line px-3 py-2.5 text-center text-meta font-emphasis text-accent"
             >
-              View all…
+              {seeAllCatalogueLabel(shopTab)}
             </Link>
           ) : null}
         </section>
@@ -1288,6 +1294,8 @@ export function BusinessProfileBody({
           workingHours={company.workingHours}
           shopAddress={company.shopAddress}
           websiteUrl={company.websiteUrl}
+          heroCity={cityLabel}
+          heroSellCategories={sellCats}
         />
       ) : null}
 

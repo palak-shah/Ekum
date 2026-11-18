@@ -1,10 +1,39 @@
-import type { OrderView } from '@ekum/domain-types';
+import { collapseCatalogWholeLines, type OrderView } from '@ekum/domain-types';
 import { qtyCountNoun } from './howManyLineMeta';
 import { sellerNeedsDispatch } from './orderAttention';
 
+type ShipLine = OrderView['items'][number];
+
+/**
+ * Progress lines in the **order** unit only.
+ * Never multiply by `piecesPerPack`. Catalog-whole peers share one order qty.
+ */
+export function tradeListShipProgressLines(items: OrderView['items'] | undefined): ShipLine[] {
+  const source = items ?? [];
+  return collapseCatalogWholeLines(source).map((row) => {
+    if (row.kind === 'line') return row.item;
+    const lead = row.items[0]!;
+    const n = row.items.length;
+    const shippedSum = row.items.reduce((sum, line) => sum + (line.shippedQuantity ?? 0), 0);
+    const remainingSum = row.items.reduce(
+      (sum, line) => sum + Math.max(0, line.remainingQuantity ?? 0),
+      0,
+    );
+    // Peers are one catalog order — average back to the lead's order qty, not N× qty.
+    const shipped = n > 0 ? Math.floor(shippedSum / n) : 0;
+    const remaining = n > 0 ? Math.floor(remainingSum / n) : 0;
+    return {
+      ...lead,
+      quantity: Math.max(0, lead.quantity ?? 0),
+      shippedQuantity: shipped,
+      remainingQuantity: remaining,
+    };
+  });
+}
+
 /** Shared order-unit noun when every line agrees; otherwise omit. */
-function sharedUnitNoun(items: OrderView['items']): string | null {
-  const units = (items ?? [])
+function sharedUnitNoun(items: ShipLine[]): string | null {
+  const units = items
     .map((line) => line.unit?.trim())
     .filter((unit): unit is string => Boolean(unit));
   if (units.length < 1) return null;
@@ -19,12 +48,13 @@ export function tradeListShipTotals(order: OrderView): {
   ordered: number;
   noun: string | null;
 } {
-  const items = order.items ?? [];
+  const items = tradeListShipProgressLines(order.items);
   const shipped = items.reduce((sum, line) => sum + (line.shippedQuantity ?? 0), 0);
   const remaining = items.reduce(
     (sum, line) => sum + Math.max(0, line.remainingQuantity ?? 0),
     0,
   );
+  // Order unit qty only — never piecesPerPack × quantity.
   const ordered = items.reduce((sum, line) => sum + Math.max(0, line.quantity ?? 0), 0);
   return { shipped, remaining, ordered, noun: sharedUnitNoun(items) };
 }

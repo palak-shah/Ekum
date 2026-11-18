@@ -594,6 +594,7 @@ export function HowManyEachSheet({
                         moq={product.moq}
                         rate={product.rate}
                         rateMax={product.rateMax}
+                        quantity={quantity}
                         shop={multiShop ? product.companyName : null}
                         showPackSize={packSizesDiffer}
                       />

@@ -21,8 +21,10 @@ export function OrdersFilterMenu({
   statusFacet,
   kindFacet,
   attentionTab,
+  needsYou,
   onStatus,
   onKind,
+  onNeedsYou,
   onClearAll,
 }: {
   open: boolean;
@@ -31,8 +33,10 @@ export function OrdersFilterMenu({
   statusFacet: string | null;
   kindFacet: TradeKindFacet | null;
   attentionTab: OrdersAttentionTab;
+  needsYou: boolean;
   onStatus: (status: string | null) => void;
   onKind: (kind: TradeKindFacet | null) => void;
+  onNeedsYou: (next: boolean) => void;
   onClearAll: () => void;
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
@@ -85,7 +89,7 @@ export function OrdersFilterMenu({
 
   if (!open || typeof document === 'undefined') return null;
 
-  const hasFilter = Boolean(statusFacet || kindFacet);
+  const hasFilter = Boolean(statusFacet || kindFacet || needsYou);
 
   return createPortal(
     <>
@@ -104,6 +108,25 @@ export function OrdersFilterMenu({
       >
         {view === 'root' ? (
           <div className="py-1">
+            <button
+              type="button"
+              role="menuitemcheckbox"
+              aria-checked={needsYou}
+              data-testid="orders-filter-needs-you"
+              onClick={() => {
+                onNeedsYou(!needsYou);
+                close();
+              }}
+              className={cx(
+                'flex w-full items-center gap-2 px-3.5 py-2.5 text-left text-sm tracking-tight hover:bg-foam/70',
+                needsYou ? 'bg-accent/10 font-emphasis text-ink' : 'font-emphasis text-slate',
+              )}
+            >
+              <span className="min-w-0 flex-1 truncate">Needs you</span>
+              {needsYou ? (
+                <CheckIcon width={16} height={16} className="shrink-0 text-accent" />
+              ) : null}
+            </button>
             <MenuRow
               label="Select Status"
               value={tradeStatusLabel(statusFacet)}

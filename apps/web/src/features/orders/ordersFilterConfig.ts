@@ -62,8 +62,10 @@ export function tradeMenuFilterSummary(input: {
   statusFacet: string | null;
   kindFacet: TradeKindFacet | null;
   dateFacet: { label: string } | null;
+  needsYou?: boolean;
 }): string {
   const parts: string[] = [];
+  if (input.needsYou) parts.push('Needs you');
   if (input.kindFacet === 'sample') parts.push('Sample');
   else if (input.kindFacet === 'complaint') parts.push('Complaint');
   else if (input.kindFacet === 'trading') parts.push('Trading');

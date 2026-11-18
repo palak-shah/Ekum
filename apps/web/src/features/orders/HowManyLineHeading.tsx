@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { isPackOrderUnit } from '@/lib/catalogRate';
 import {
+  howManyBelowMinimum,
   howManyLineExtra,
   howManyPackContentsLabel,
   howManySetContentsMissing,
@@ -14,6 +15,7 @@ import { cx } from '@/ui/kit';
 /**
  * Name only — no Piece / Metre / Set beside it.
  * Quiet line is rate when a rate exists; pack size only when sizes on the sheet differ.
+ * Optional qty → muted Below minimum when under moq (no CTA).
  */
 export function HowManyLineHeading({
   name,
@@ -25,6 +27,7 @@ export function HowManyLineHeading({
   rate,
   rateMax,
   shop,
+  quantity,
   showPackSize = false,
 }: {
   name: string;
@@ -36,6 +39,7 @@ export function HowManyLineHeading({
   rate?: number | null;
   rateMax?: number | null;
   shop?: string | null;
+  quantity?: number | null;
   /** When sizes differ — `₹… · 1 set = 20 pcs`, not `20 pcs · ₹`. */
   showPackSize?: boolean;
 }) {
@@ -54,6 +58,7 @@ export function HowManyLineHeading({
   const one = (howManyUnitShort(unit) ?? 'set').toLowerCase();
   const packLine = contents && isPackOrderUnit(unit) ? `1 ${one} = ${contents}` : null;
   const extra = [price, packLine].filter(Boolean).join(' · ') || null;
+  const belowMin = howManyBelowMinimum(quantity, moq);
 
   return (
     <OrderDesignTitle
@@ -64,6 +69,14 @@ export function HowManyLineHeading({
           {extra ? (
             <p className={cx('mt-0.5', designSubtextClass)} data-testid="how-many-facts">
               {extra}
+            </p>
+          ) : null}
+          {belowMin ? (
+            <p
+              className={cx('mt-0.5', designSubtextClass)}
+              data-testid="how-many-below-minimum"
+            >
+              Below minimum
             </p>
           ) : null}
         </>

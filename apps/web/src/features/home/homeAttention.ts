@@ -59,10 +59,16 @@ interface OrderNeedDraft {
   sortAt: string;
 }
 
-function orderNeedDraft(order: OrderView): OrderNeedDraft | null {
+function orderNeedDraft(
+  order: OrderView,
+  viewerCompanyId?: string | null,
+): OrderNeedDraft | null {
   const name = order.counterpart.name;
   const sortAt = order.updatedAt || order.createdAt;
-  if (sellerNeedsRate(order) || sellerCanConfirm(order)) {
+  if (
+    sellerNeedsRate(order, viewerCompanyId) ||
+    sellerCanConfirm(order, viewerCompanyId)
+  ) {
     return {
       kind: 'confirm_order',
       counterpartId: order.counterpart.id,
@@ -82,7 +88,7 @@ function orderNeedDraft(order: OrderView): OrderNeedDraft | null {
       sortAt,
     };
   }
-  if (sellerNeedsDispatch(order)) {
+  if (sellerNeedsDispatch(order, viewerCompanyId)) {
     return {
       kind: 'dispatch',
       counterpartId: order.counterpart.id,
@@ -135,12 +141,13 @@ export function buildHomeNeeds(input: {
   followAsks?: FollowAskView[];
   chatRequests: ThreadSummary[];
   collectionViewGrants?: CollectionViewGrantView[];
+  viewerCompanyId?: string | null;
 }): HomeNeedItem[] {
   const items: HomeNeedItem[] = [];
 
   const orderGroups = new Map<string, OrderNeedDraft[]>();
   for (const order of input.orders) {
-    const draft = orderNeedDraft(order);
+    const draft = orderNeedDraft(order, input.viewerCompanyId);
     if (!draft) continue;
     const key = `${draft.counterpartId}:${draft.kind}`;
     const list = orderGroups.get(key) ?? [];

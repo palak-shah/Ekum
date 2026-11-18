@@ -230,6 +230,7 @@ export function AmendOrderSheet({
                       catalogRateUnit={item.catalogRateUnit}
                       piecesPerPack={item.piecesPerPack}
                       rate={item.rate}
+                      quantity={parseQtyDraft(qty[item.id] ?? String(item.quantity))}
                       showPackSize={packSizesDiffer}
                     />
                   }

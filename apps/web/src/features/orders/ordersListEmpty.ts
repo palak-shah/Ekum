@@ -5,7 +5,14 @@ export function ordersListEmptyCopy(input: {
   status: 'pending' | 'completed';
   searching: boolean;
   complaintFind: boolean;
+  needsYou?: boolean;
 }): { title: string; message: string } {
+  if (input.needsYou && !input.searching) {
+    return {
+      title: 'Nothing needs you',
+      message: 'Open trades that need your action will show here.',
+    };
+  }
   if (input.searching) {
     return {
       title: input.complaintFind ? 'No complaints yet' : 'No matches',

@@ -13,8 +13,11 @@ import { isIHandleSellingParent, traderIHandleNeedsYouLabel } from './iHandleDes
 import type { TradeListItem } from './tradeList';
 
 /** Short list cue for actionable trades (Home-style verbs). */
-export function tradeNeedsYouLabel(item: TradeListItem): string | null {
-  if (item.kind === 'order') return orderNeedsYouLabel(item.order);
+export function tradeNeedsYouLabel(
+  item: TradeListItem,
+  viewerCompanyId?: string | null,
+): string | null {
+  if (item.kind === 'order') return orderNeedsYouLabel(item.order, viewerCompanyId);
   if (item.kind === 'sample') return sampleNeedsYouLabel(item.sample);
   if (item.kind === 'complaint') {
     if (item.complaint.status === 'open' && !item.complaint.mine) {
@@ -25,15 +28,22 @@ export function tradeNeedsYouLabel(item: TradeListItem): string | null {
   return returnNeedsYouLabel(item.ret);
 }
 
-export function orderNeedsYouLabel(order: OrderView): string | null {
+export function orderNeedsYouLabel(
+  order: OrderView,
+  viewerCompanyId?: string | null,
+): string | null {
   if (isIHandleSellingParent(order)) return traderIHandleNeedsYouLabel(order);
-  if (!matchesNeeds(order)) return null;
-  if (sellerCanConfirm(order) || sellerNeedsRate(order) || order.needsQuotePass) {
+  if (!matchesNeeds(order, viewerCompanyId)) return null;
+  if (
+    sellerCanConfirm(order, viewerCompanyId) ||
+    sellerNeedsRate(order, viewerCompanyId) ||
+    order.needsQuotePass
+  ) {
     return 'Needs you Confirm';
   }
   if (buyerCanAcceptQuote(order)) return 'Needs you Accept quote';
   if (order.canSettle) return 'Needs you Settle';
-  if (sellerNeedsDispatch(order)) return 'Needs you Dispatch';
+  if (sellerNeedsDispatch(order, viewerCompanyId)) return 'Needs you Dispatch';
   return 'Needs you';
 }
 

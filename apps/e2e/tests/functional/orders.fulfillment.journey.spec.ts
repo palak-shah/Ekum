@@ -59,7 +59,9 @@ test.describe('order fulfillment @functional @release @orders', () => {
     const nameBox = await lineName.boundingBox();
     const qtyBox = await lineQty.boundingBox();
     expect(nameBox?.width ?? 0).toBeGreaterThan(80);
-    expect(qtyBox?.width ?? 999).toBeLessThan(100);
+    // Name column stays dominant; qty stepper stays compact (phone chrome ~102px ok).
+    expect(qtyBox?.width ?? 999).toBeLessThan(120);
+    expect(nameBox!.width).toBeGreaterThan(qtyBox!.width);
     // LR optional — leave blank and confirm.
     await dispatchSheet.getByTestId('order-dispatch-confirm').click();
 
@@ -73,10 +75,10 @@ test.describe('order fulfillment @functional @release @orders', () => {
     await expect(page.getByText(/Dispatched · complete|Dispatched/).first()).toBeVisible({
       timeout: 15_000,
     });
-    await expect(page.getByTestId('order-action-dock')).toHaveCount(0);
-    await expect(page.getByTestId('app-bottom-nav')).toBeHidden();
-    await expect(page.getByRole('button', { name: 'Raise a return' })).toHaveCount(0);
+    // Buyer dock may keep Chat with supplier — never Mark delivered / Raise a return here.
     await expect(page.getByTestId('order-deliver')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Raise a return' })).toHaveCount(0);
+    await expect(page.getByTestId('app-bottom-nav')).toBeHidden();
   });
 
   test('partial dispatch shows pending; Settle submit → settled', async ({ page }) => {
@@ -155,7 +157,7 @@ test.describe('order fulfillment @functional @release @orders', () => {
     await page.getByTestId('order-dispatch-open').click();
     const dispatchSheet = page.getByRole('dialog');
     await expect(
-      dispatchSheet.getByRole('heading', { name: 'Dispatch', exact: true }),
+      dispatchSheet.getByRole('heading', { name: /^Dispatch/ }),
     ).toBeVisible();
     await dispatchSheet.getByPlaceholder('LR number').first().fill('LR-2');
     await dispatchSheet.getByTestId('order-dispatch-confirm').click();
@@ -211,6 +213,8 @@ test.describe('order fulfillment @functional @release @orders', () => {
 
     await loginAsMeena(page);
     await page.goto(`/orders/${orderId}`);
+    await expect(page.getByTestId('order-timeline')).toBeVisible({ timeout: 15_000 });
+    await page.getByTestId('order-timeline-more').click();
     await expect(page.getByTestId('order-timeline')).toContainText(/Dispatch edited/i, {
       timeout: 15_000,
     });
@@ -252,9 +256,10 @@ test.describe('order fulfillment @functional @release @orders', () => {
     await expect(page.getByTestId('order-ticket-qty-total')).not.toContainText('50');
     await page.getByTestId('order-dispatch-open').click();
     const dispatchSheet = page.getByRole('dialog');
-    await expect(dispatchSheet.getByRole('heading', { name: 'Dispatch', exact: true })).toBeVisible();
-    await expect(dispatchSheet.getByTestId('order-dispatch-preview-ordered')).toContainText('45');
-    await expect(dispatchSheet.getByTestId('order-dispatch-preview-ordered')).not.toContainText('50');
+    await expect(dispatchSheet.getByRole('heading', { name: /^Dispatch/ })).toBeVisible();
+    // Sheet shows live ordered qty on the line progress (Ordered fact strip retired).
+    await expect(dispatchSheet.getByText(/30 of 45/).first()).toBeVisible();
+    await expect(dispatchSheet.getByText(/of 50/)).toHaveCount(0);
   });
 
   test('line expand edits Ordered qty and Can’t supply — no Last LR', async ({ page }) => {

@@ -68,6 +68,70 @@ describe('tradeListShipLine', () => {
     ).toBe('19 of 40 pcs dispatched · Dispatch pending');
   });
 
+  it('1 set with pack 3 is still of 1 — never pcs-as-sets', () => {
+    expect(
+      tradeListShipProgress(
+        order({
+          status: 'confirmed',
+          items: [
+            line({
+              unit: 'set',
+              dispatchUnit: 'pc',
+              piecesPerPack: 3,
+              quantity: 1,
+              shippedQuantity: 0,
+              remainingQuantity: 1,
+            }),
+          ],
+        }),
+      ),
+    ).toEqual({ shipped: 0, total: 1, over: false });
+    expect(
+      tradeListShipProgress(
+        order({
+          status: 'confirmed',
+          items: [
+            line({
+              unit: 'set',
+              piecesPerPack: 3,
+              quantity: 1,
+              shippedQuantity: 1,
+              remainingQuantity: 0,
+            }),
+          ],
+        }),
+      ),
+    ).toEqual({ shipped: 1, total: 1, over: false });
+  });
+
+  it('catalog-whole peers collapse to one order qty (not N designs as N sets)', () => {
+    const peers = [1, 2, 3].map((n) =>
+      line({
+        id: `i${n}`,
+        unit: 'set',
+        piecesPerPack: 3,
+        quantity: 1,
+        shippedQuantity: 0,
+        remainingQuantity: 1,
+      }),
+    );
+    for (const peer of peers) {
+      Object.assign(peer, {
+        catalogWhole: true,
+        catalogCollectionId: 'col-1',
+        catalogName: 'Festive',
+      });
+    }
+    expect(
+      tradeListShipProgress(
+        order({
+          status: 'confirmed',
+          items: peers,
+        }),
+      ),
+    ).toEqual({ shipped: 0, total: 1, over: false });
+  });
+
   it('set config — N of M sets (no piecesPerPack conversion)', () => {
     expect(
       tradeListShipLine(

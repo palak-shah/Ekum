@@ -58,7 +58,7 @@ test.describe('You profile @functional @settings', () => {
       timeout: 10_000,
     });
     await page.getByTestId('home-account').click();
-    await expect(page.getByTestId('home-account-profile')).toHaveTextContent('Edit profile');
+    await expect(page.getByTestId('home-account-profile')).toHaveText('Edit profile');
     await page.getByTestId('home-account-profile').click();
     await expect(page).toHaveURL(/\/settings\/profile\?edit=1/);
     await expect(page.getByTestId('profile-update')).toBeVisible({ timeout: 10_000 });

@@ -1,7 +1,11 @@
 import { MEDIA_VARIANT, type ProductView } from '@ekum/domain-types';
 import { HowManyQtyRow } from '@/features/orders/HowManyLineHeading';
 import { QtyStepper } from '@/features/orders/QtyStepper';
-import { howManyLineExtra, qtyCountNoun } from '@/features/orders/howManyLineMeta';
+import {
+  howManyBelowMinimum,
+  howManyLineExtra,
+  qtyCountNoun,
+} from '@/features/orders/howManyLineMeta';
 import { ManagedImage } from '@/ui/ManagedImage';
 
 export type HowManyCatalogProduct = ProductView & {
@@ -30,9 +34,11 @@ export function HowManyCatalogBlock({
     dispatchUnit: lead.dispatchUnit,
     catalogRateUnit: lead.catalogRateUnit,
     piecesPerPack: lead.piecesPerPack,
+    moq: lead.moq,
     rate: lead.rate,
     rateMax: lead.rateMax,
   });
+  const belowMin = howManyBelowMinimum(quantity, lead.moq);
   return (
     <div className="flex flex-col gap-3" data-testid="how-many-catalog">
       <HowManyQtyRow
@@ -50,6 +56,11 @@ export function HowManyCatalogBlock({
       {extra ? (
         <p className="text-meta font-body leading-snug text-muted" data-testid="how-many-catalog-rate">
           {extra}
+        </p>
+      ) : null}
+      {belowMin ? (
+        <p className="text-meta font-body leading-snug text-muted" data-testid="how-many-below-minimum">
+          Below minimum
         </p>
       ) : null}
       <ul className="flex flex-col gap-2 pb-1" data-testid="how-many-catalog-members">

@@ -309,8 +309,10 @@ describe('CompanyProfilePage shop chrome', () => {
     expect(screen.getByTestId('shop-identity').textContent).not.toMatch(/Silk/);
     expect(screen.getByTestId('shop-category-line')).toHaveTextContent('Silk');
     expect(screen.queryByTestId('shop-category-chips')).toBeNull();
-    // GST copy lives in Business info, not under the hero identity.
+    // Shareable GST lives in Business info; city/cats already on hero are not repeated.
     expect(screen.getByTestId('business-info-gst')).toHaveTextContent('GST verified');
+    expect(screen.queryByTestId('business-info-city')).toBeNull();
+    expect(screen.queryByTestId('business-info-categories')).toBeNull();
   });
 
   it('shows the design name on the shop preview grid', async () => {
@@ -340,7 +342,7 @@ describe('CompanyProfilePage shop chrome', () => {
     expect(screen.queryByTestId('company-shop-tab-catalogs')).toBeNull();
   });
 
-  it('previews four collections on the visitor shop with View all', async () => {
+  it('previews four collections on the visitor shop with See all collections', async () => {
     vi.mocked(api.get).mockImplementation(async (path: string) => {
       if (path === '/companies/seed-company-ravi') return company;
       if (path === '/companies/me') {
@@ -370,6 +372,9 @@ describe('CompanyProfilePage shop chrome', () => {
     expect(await screen.findByTestId('you-collection-row-col-a')).toBeInTheDocument();
     expect(screen.getByTestId('you-collection-row-col-d')).toBeInTheDocument();
     expect(screen.queryByTestId('you-collection-row-col-e')).toBeNull();
+    expect(screen.getByTestId('business-profile-view-all')).toHaveTextContent(
+      'See all collections >',
+    );
     expect(screen.getByTestId('business-profile-view-all')).toHaveAttribute(
       'href',
       '/company/seed-company-ravi/catalogue?tab=collections',
@@ -1008,11 +1013,71 @@ describe('CompanyProfilePage home variant', () => {
     expect(screen.queryByTestId('company-follow')).toBeNull();
     expect(screen.queryByTestId('business-profile-catalogue')).toBeNull();
     expect(screen.getByTestId('business-info')).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Business info' }).className).toMatch(/text-ink/);
+    // Hero already has city + Silk — do not repeat; owner without GSTIN hides GST
+    // and the Business info card itself when it would be empty.
+    expect(screen.queryByRole('heading', { name: 'Business info' })).toBeNull();
+    expect(screen.queryByTestId('business-info-city')).toBeNull();
+    expect(screen.queryByTestId('business-info-categories')).toBeNull();
+    expect(screen.queryByTestId('business-info-gst')).toBeNull();
+    expect(screen.queryByText(/GST not shared/i)).toBeNull();
     expect(screen.getByTestId('business-info-team')).toHaveTextContent('Meena');
     expect(screen.getByTestId('business-info-team')).toHaveTextContent('Owner');
-    expect(screen.getByTestId('business-info-since')).toBeInTheDocument();
+    const since = screen.getByTestId('business-info-since');
+    expect(since).toHaveTextContent(/On Ekum since/i);
+    expect(screen.getByTestId('business-info').lastElementChild).toBe(since);
     expect(screen.getByTestId('business-profile-avatar-block').className).toMatch(/items-center/);
+  });
+
+  it('About View more / View less stays with the about block', async () => {
+    const user = userEvent.setup();
+    const longAbout =
+      'Wholesale sarees and dress material for busy textile traders across India with weekly new designs.';
+    expect(longAbout.length).toBeGreaterThan(90);
+    vi.mocked(api.get).mockImplementation(async (path: string) => {
+      if (path === '/companies/seed-company-meena' || path === '/companies/me') {
+        return {
+          ...company,
+          id: 'seed-company-meena',
+          name: 'Jaipur Emporium',
+          about: longAbout,
+          coverUrl: 'https://cdn/cover.jpg',
+          showcaseUrls: [],
+          sellCategories: ['Silk'],
+          gstNumber: null,
+        };
+      }
+      if (path === '/connections') return [];
+      if (path === '/follows/following') return [];
+      if (path === '/companies/seed-company-meena/collections') {
+        return { results: [], nextCursor: null };
+      }
+      if (path === '/companies/seed-company-meena/designs') {
+        return { results: [], nextCursor: null };
+      }
+      if (path === '/team/members') return [];
+      return [];
+    });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={['/']}>
+          <Routes>
+            <Route
+              path="/"
+              element={<BusinessProfileBody companyId="seed-company-meena" variant="home" />}
+            />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    expect(await screen.findByTestId('business-profile-about')).toBeInTheDocument();
+    expect(screen.getByTestId('business-profile-about').className).toMatch(/line-clamp-2/);
+    const more = screen.getByTestId('business-profile-about-more');
+    expect(more).toHaveTextContent('View more');
+    expect(screen.getByTestId('business-profile-about-block')).toContainElement(more);
+    await user.click(more);
+    expect(screen.getByTestId('business-profile-about-more')).toHaveTextContent('View less');
+    expect(screen.getByTestId('business-profile-about').className).not.toMatch(/line-clamp-2/);
   });
 
   it('shows catalogue tabs when shelf has collections (no Catalogue title)', async () => {
@@ -1078,7 +1143,7 @@ describe('CompanyProfilePage home variant', () => {
       </QueryClientProvider>,
     );
     expect(await screen.findByTestId('business-profile-catalogue')).toBeInTheDocument();
-    expect(screen.getByTestId('business-profile-catalogue').className).not.toMatch(
+    expect(screen.getByTestId('business-profile-catalogue').className).toMatch(
       /rounded-xl border border-line/,
     );
     expect(screen.queryByTestId('business-profile-catalogue-heading')).toBeNull();
@@ -1091,6 +1156,10 @@ describe('CompanyProfilePage home variant', () => {
       /bg-chip-on/,
     );
     expect(screen.getByTestId('you-collection-row-col-1')).toBeInTheDocument();
+    expect(screen.getByTestId('business-profile-view-more')).toHaveTextContent(
+      'See all collections >',
+    );
+    expect(screen.getByTestId('business-profile-view-more').className).toMatch(/text-center/);
     expect(screen.getByTestId('business-profile-view-more')).toHaveAttribute(
       'href',
       '/more?tab=collections',
@@ -1098,7 +1167,7 @@ describe('CompanyProfilePage home variant', () => {
     expect(screen.queryByTestId('company-shop-select')).toBeNull();
   });
 
-  it('shows four collections on Home and View more to My collections', async () => {
+  it('shows four collections on Home and See all collections to My collections', async () => {
     const jaipur = { ...company, id: 'seed-company-meena', name: 'Jaipur Emporium' };
     vi.mocked(api.get).mockImplementation(async (path: string) => {
       if (path === '/companies/seed-company-meena' || path === '/companies/me') {
@@ -1142,13 +1211,16 @@ describe('CompanyProfilePage home variant', () => {
     expect(await screen.findByTestId('you-collection-row-col-1')).toBeInTheDocument();
     expect(screen.getByTestId('you-collection-row-col-4')).toBeInTheDocument();
     expect(screen.queryByTestId('you-collection-row-col-5')).toBeNull();
+    expect(screen.getByTestId('business-profile-view-more')).toHaveTextContent(
+      'See all collections >',
+    );
     expect(screen.getByTestId('business-profile-view-more')).toHaveAttribute(
       'href',
       '/more?tab=collections',
     );
   });
 
-  it('Home ?tab=products keeps Designs and View more → You Designs (Back restores)', async () => {
+  it('Home ?tab=products keeps Designs and See all designs → You Designs (Back restores)', async () => {
     const jaipur = { ...company, id: 'seed-company-meena', name: 'Jaipur Emporium' };
     vi.mocked(api.get).mockImplementation(async (path: string) => {
       if (path === '/companies/seed-company-meena' || path === '/companies/me') {
@@ -1198,6 +1270,9 @@ describe('CompanyProfilePage home variant', () => {
     expect(await screen.findByTestId('company-shop-tab-designs')).toHaveAttribute(
       'aria-selected',
       'true',
+    );
+    expect(screen.getByTestId('business-profile-view-more')).toHaveTextContent(
+      'See all designs >',
     );
     expect(screen.getByTestId('business-profile-view-more')).toHaveAttribute(
       'href',
@@ -1493,6 +1568,8 @@ describe('CompanyProfilePage home variant', () => {
     expect(screen.queryByTestId('photo-viewer')).toBeNull();
     await user.click(screen.getByTestId('showcase-browse-photo-0'));
     expect(await screen.findByTestId('photo-viewer')).toBeInTheDocument();
+    // Browse sheet closes so PhotoViewer is not fighting sheet chrome underneath.
+    expect(screen.queryByTestId('showcase-browse-sheet')).toBeNull();
   });
 
   it('shows completeness nudge when logo missing; dismiss hides it', async () => {

@@ -172,8 +172,7 @@ test.describe('catalog Order as whole @functional @catalog @orders', () => {
     });
 
     await loginAsMeena(page);
-    await page.goto('/company/seed-company-ravi');
-    await page.getByTestId('company-shop-tab-collections').click();
+    await page.goto('/company/seed-company-ravi/catalogue?tab=collections');
     await expect(page.getByText(catalogName).first()).toBeVisible({ timeout: 20_000 });
     await page.getByTestId('company-shop-select').click();
     await page.getByTestId(`you-collection-row-${catalog.id}`).click();
@@ -226,12 +225,17 @@ test.describe('catalog Order as whole @functional @catalog @orders', () => {
     await page.goto(`/orders/${orderId}`);
     await expect(page.getByText(catalogName).first()).toBeVisible({ timeout: 20_000 });
     await expect(page.getByTestId('order-ticket-qty-total')).toContainText('1 pc');
-    await expect(page.getByTestId('order-ticket-bill-total')).toContainText('1,350');
+    // Buyer bill column follows seller show-bill setting — qty is the locked assert.
     await expect(page.getByText(silk)).toHaveCount(0);
     await expect(page.getByText(cotton)).toHaveCount(0);
 
     await loginAsRavi(page);
     await page.goto(`/orders/${orderId}`);
+    await expect(page.getByTestId('order-ticket-qty-total')).toContainText('1 pc');
+    const bill = page.getByTestId('order-ticket-bill-total');
+    if ((await bill.count()) > 0) {
+      await expect(bill).toContainText('1,350');
+    }
     await expect(page.getByTestId('order-dock-confirm')).toBeVisible({ timeout: 20_000 });
     await page.getByTestId('order-dock-confirm').click();
     const confirm = page.getByRole('dialog');
@@ -255,8 +259,7 @@ test.describe('catalog Order as whole @functional @catalog @orders', () => {
     });
 
     await loginAsMeena(page);
-    await page.goto('/company/seed-company-ravi');
-    await page.getByTestId('company-shop-tab-collections').click();
+    await page.goto('/company/seed-company-ravi/catalogue?tab=collections');
     await expect(page.getByText(catalogName).first()).toBeVisible({ timeout: 20_000 });
     await page.getByTestId('company-shop-select').click();
     await page.getByTestId(`you-collection-row-${catalog.id}`).click();

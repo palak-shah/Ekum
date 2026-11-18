@@ -133,7 +133,8 @@ test.describe('chat journey @functional @chat', () => {
   test('plus sheet is New chat without Private', async ({ page }) => {
     await loginAsMeena(page);
     await page.goto('/chats');
-    await page.getByRole('button', { name: 'New chat' }).click();
+    await page.getByTestId('chats-new').click();
+    await expect(page.getByRole('dialog')).toBeVisible({ timeout: 10_000 });
     await expect(page.getByRole('heading', { name: 'New chat' })).toBeVisible();
     await expect(page.getByText('Your team and one or more businesses')).toHaveCount(0);
     await expect(page.getByTestId('start-private-chat')).toHaveCount(0);

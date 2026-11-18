@@ -85,4 +85,25 @@ describe('TradeListGlanceCue', () => {
     expect(screen.getByTestId('trade-list-waiting')).toHaveTextContent('Waiting: supplier');
     expect(screen.queryByTestId('orders-needs-you')).toBeNull();
   });
+
+  it('confirmed buying shows Waiting: dispatch', () => {
+    render(
+      <TradeListGlanceCue
+        item={item({
+          status: 'confirmed',
+          direction: 'buying',
+          items: [
+            {
+              id: 'i1',
+              quantity: 4,
+              shippedQuantity: 0,
+              remainingQuantity: 4,
+              unit: 'set',
+            } as never,
+          ],
+        })}
+      />,
+    );
+    expect(screen.getByTestId('trade-list-waiting')).toHaveTextContent('Waiting: dispatch');
+  });
 });

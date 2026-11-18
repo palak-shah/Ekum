@@ -113,8 +113,11 @@ export function tradeMatchesListTab(item: TradeListItem, tab: OrdersListTab): bo
   return item.kind === 'order' && item.direction === tab;
 }
 
-export function matchesTradeNeeds(item: TradeListItem): boolean {
-  if (item.kind === 'order') return matchesNeeds(item.order);
+export function matchesTradeNeeds(
+  item: TradeListItem,
+  viewerCompanyId?: string | null,
+): boolean {
+  if (item.kind === 'order') return matchesNeeds(item.order, viewerCompanyId);
   if (item.kind === 'sample') return matchesSampleNeeds(item.sample);
   if (item.kind === 'complaint') return item.complaint.status === 'open' && !item.complaint.mine;
   return matchesReturnNeeds(item.ret);

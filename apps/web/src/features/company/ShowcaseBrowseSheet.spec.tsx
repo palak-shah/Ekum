@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ShowcaseBrowseSheet } from './ShowcaseBrowseSheet';
 import { api } from '@/lib/apiClient';
 import { uploadImage } from '@/lib/mediaUpload';
+import { resetShowcaseUploadSessionForTests } from './showcaseUploadSession';
 
 vi.mock('@/lib/apiClient', () => ({
   api: { get: vi.fn(), post: vi.fn(), del: vi.fn(), patch: vi.fn() },
@@ -40,10 +41,22 @@ function renderBrowse(urls: string[], canEdit = true) {
 describe('ShowcaseBrowseSheet owner Add/remove', () => {
   afterEach(() => {
     cleanup();
+    resetShowcaseUploadSessionForTests();
     vi.clearAllMocks();
   });
 
   beforeEach(() => {
+    resetShowcaseUploadSessionForTests();
+    Object.defineProperty(URL, 'createObjectURL', {
+      configurable: true,
+      writable: true,
+      value: vi.fn(() => 'blob:pending'),
+    });
+    Object.defineProperty(URL, 'revokeObjectURL', {
+      configurable: true,
+      writable: true,
+      value: vi.fn(),
+    });
     vi.mocked(api.patch).mockResolvedValue({
       id: 'seed-company-meena',
       showcaseUrls: [],
@@ -51,14 +64,16 @@ describe('ShowcaseBrowseSheet owner Add/remove', () => {
     vi.mocked(uploadImage).mockResolvedValue('https://cdn/new.jpg');
   });
 
-  it('owner empty: Add; no Manage; visitor has no Add', () => {
+  it('owner empty: Add under title chrome; no Manage; visitor has no Add', () => {
     renderBrowse([]);
+    expect(screen.getByTestId('showcase-browse-chrome')).toBeInTheDocument();
     expect(screen.getByTestId('showcase-add')).toBeInTheDocument();
     expect(screen.getByTestId('showcase-empty')).toBeInTheDocument();
     expect(screen.queryByTestId('showcase-manage')).toBeNull();
     cleanup();
     renderBrowse([], false);
     expect(screen.queryByTestId('showcase-add')).toBeNull();
+    expect(screen.getByTestId('showcase-browse-chrome')).toBeInTheDocument();
   });
 
   it('tile tap opens photo; × removes without opening viewer', async () => {
@@ -73,6 +88,57 @@ describe('ShowcaseBrowseSheet owner Add/remove', () => {
     await waitFor(() =>
       expect(api.patch).toHaveBeenCalledWith('/companies/me', {
         showcaseUrls: ['https://cdn/s2.jpg'],
+      }),
+    );
+  });
+
+  it('uploads progressively — one PATCH per successful file', async () => {
+    const user = userEvent.setup();
+    let resolveFirst!: (url: string) => void;
+    let resolveSecond!: (url: string) => void;
+    vi.mocked(uploadImage)
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveFirst = resolve;
+          }),
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveSecond = resolve;
+          }),
+      );
+    vi.mocked(api.patch).mockImplementation(async (_path, body) => ({
+      id: 'seed-company-meena',
+      showcaseUrls: (body as { showcaseUrls: string[] }).showcaseUrls,
+    }));
+
+    renderBrowse([]);
+    await user.click(screen.getByTestId('showcase-add'));
+    await user.click(screen.getByTestId('showcase-add-upload'));
+    const input = screen.getByTestId('showcase-upload-input');
+    const files = [
+      new File(['a'], 'a.jpg', { type: 'image/jpeg' }),
+      new File(['b'], 'b.jpg', { type: 'image/jpeg' }),
+    ];
+    await user.upload(input, files);
+
+    expect(screen.getAllByTestId('showcase-browse-pending')).toHaveLength(2);
+    // Add stays enabled while uploading (slots remain).
+    expect(screen.getByTestId('showcase-add')).not.toBeDisabled();
+
+    resolveFirst('https://cdn/ok.jpg');
+    await waitFor(() =>
+      expect(api.patch).toHaveBeenCalledWith('/companies/me', {
+        showcaseUrls: ['https://cdn/ok.jpg'],
+      }),
+    );
+
+    resolveSecond('https://cdn/ok2.jpg');
+    await waitFor(() =>
+      expect(api.patch).toHaveBeenCalledWith('/companies/me', {
+        showcaseUrls: ['https://cdn/ok.jpg', 'https://cdn/ok2.jpg'],
       }),
     );
   });

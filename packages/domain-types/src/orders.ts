@@ -628,6 +628,25 @@ export const listOrdersQuerySchema = cursorPageQuerySchema.extend({
 });
 export type ListOrdersQuery = z.infer<typeof listOrdersQuerySchema>;
 
+/** Orders list chip totals + Needs you (filter) — full tab, not the truncated page. */
+export const ordersListTabValues = ['selling', 'buying', 'others'] as const;
+export type OrdersListTabParam = (typeof ordersListTabValues)[number];
+
+export const ordersTabCountsQuerySchema = z.object({
+  tab: z.enum(ordersListTabValues),
+  createdFrom: z.string().min(1).max(40).optional(),
+  createdTo: z.string().min(1).max(40).optional(),
+  q: z.string().trim().min(1).max(80).optional(),
+});
+export type OrdersTabCountsQuery = z.infer<typeof ordersTabCountsQuerySchema>;
+
+export const ordersTabCountsViewSchema = z.object({
+  pending: z.number().int().nonnegative(),
+  completed: z.number().int().nonnegative(),
+  needsYou: z.number().int().nonnegative(),
+});
+export type OrdersTabCountsView = z.infer<typeof ordersTabCountsViewSchema>;
+
 export const listReturnsQuerySchema = cursorPageQuerySchema.extend({
   direction: z.enum(orderDirectionValues).optional(),
   status: z.enum(returnStatusValues).optional(),
@@ -803,6 +822,8 @@ export interface OrderView {
   /** bilateral | manage | direct */
   tradeMode: string;
   facilitatorCompanyId: string | null;
+  /** Facilitator shop name when Direct (party line trader). */
+  facilitatorName?: string | null;
   downstreamOrderId: string | null;
   /** Linked dual-trade orders; names may be null under soft-hide. */
   relatedOrders: OrderRelatedOrderView[];

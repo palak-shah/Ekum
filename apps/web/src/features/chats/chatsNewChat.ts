@@ -1,12 +1,20 @@
 type Listener = () => void;
 
-const listeners = new Set<Listener>();
+const EVENT = 'ekum:chats-new';
 
+/**
+ * AppShell header and ChatsPage can load in separate chunks. A module-level
+ * Set would not be shared across those bundles — use window so ＋ always opens
+ * the New chat sheet on /chats.
+ */
 export function subscribeChatsNewChat(listener: Listener): () => void {
-  listeners.add(listener);
-  return () => listeners.delete(listener);
+  if (typeof window === 'undefined') return () => undefined;
+  const handler = () => listener();
+  window.addEventListener(EVENT, handler);
+  return () => window.removeEventListener(EVENT, handler);
 }
 
 export function requestChatsNewChat(): void {
-  for (const listener of listeners) listener();
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new Event(EVENT));
 }

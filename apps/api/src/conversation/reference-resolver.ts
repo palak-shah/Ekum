@@ -454,8 +454,9 @@ export class ReferenceResolver {
           typeof meta.itemCount === 'number' ? meta.itemCount : null;
 
         // Live affordance only — does not rewrite frozen status/event on the card.
+        // Order living cards may outrank the Rate pulse after dedupe; Accept must
+        // still land on whichever card remains for the buyer.
         const canAcceptQuote =
-          isRateCard &&
           Boolean(order) &&
           direction === 'buying' &&
           order!.status === OrderStatus.Requested &&

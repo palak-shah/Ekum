@@ -74,6 +74,7 @@ export function ChatsPage() {
   const [startOpen, setStartOpen] = useState(false);
   const inboxContentSeeded = useRef(false);
 
+  // Header ＋ may live in a different chunk — also open via ?new=1 deep link.
   useEffect(() => subscribeChatsNewChat(() => setStartOpen(true)), []);
   const [confirm, setConfirm] = useState<'clear' | 'delete' | 'exit' | null>(null);
   const [confirmIds, setConfirmIds] = useState<string[]>([]);
@@ -93,7 +94,13 @@ export function ChatsPage() {
     setConfirmIds([]);
     setMenuThread(null);
     setMenuAnchor(null);
-  }, [searchParams]);
+    if (searchParams.get('new') === '1') {
+      setStartOpen(true);
+      const cleaned = new URLSearchParams(searchParams);
+      cleaned.delete('new');
+      setSearchParams(cleaned, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   const q = deferredQuery || undefined;
   const live = !deferredQuery;

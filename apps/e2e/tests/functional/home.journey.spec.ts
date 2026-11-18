@@ -12,8 +12,8 @@ test.describe('home journey @functional @home', () => {
     await expect(page.getByTestId('business-profile-home')).toBeVisible();
     await expect(page.getByTestId('business-profile-name')).toBeVisible();
     await expect(page.getByTestId('business-profile-avatar-camera')).toBeVisible();
-    await expect(page.getByTestId('showcase-add')).toBeVisible();
-    await expect(page.getByTestId('business-profile-showcase')).toBeVisible();
+    await expect(page.getByTestId('business-profile-view-showcase')).toBeVisible();
+    await expect(page.getByTestId('business-profile-showcase')).toHaveCount(0);
     await expect(page.getByTestId('business-profile-showcase-0')).toHaveCount(0);
     await expect(page.getByTestId('company-edit')).toBeVisible();
     await expect(page.getByTestId('business-profile-share')).toBeVisible();
@@ -25,9 +25,17 @@ test.describe('home journey @functional @home', () => {
     await expect(page.getByTestId('home-need-order-confirm_order')).toHaveCount(0);
     await expect(page.getByTestId('business-info-team')).toBeVisible();
     await expect(page.getByTestId('business-profile-view-more')).toBeVisible();
+    await expect(page.getByTestId('business-profile-view-more')).toHaveText(
+      'See all collections >',
+    );
     await page.getByTestId('business-profile-view-more').click();
     await expect(page).toHaveURL(/\/more\?tab=collections/);
     await page.goto('/');
+
+    await page.getByTestId('business-profile-view-showcase').click();
+    await expect(page.getByTestId('showcase-browse-sheet')).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByTestId('showcase-add')).toBeVisible();
+    await page.getByTestId('sheet-close').click();
 
     await page.getByTestId('company-edit').click();
     await expect(page).toHaveURL(/\/settings\/profile\?edit=1/);

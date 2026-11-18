@@ -1,5 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 import { ChatsHeaderNew } from './ChatsHeaderNew';
 import { requestChatsNewChat, subscribeChatsNewChat } from './chatsNewChat';
@@ -9,16 +10,32 @@ vi.mock('@/lib/teamCaps', () => ({
   useTeamCaps: () => ({ can: () => true }),
 }));
 
+function LocationProbe() {
+  const location = useLocation();
+  return <p data-testid="location-probe">{`${location.pathname}${location.search}`}</p>;
+}
+
 describe('ChatsHeaderNew', () => {
-  it('requests New chat from the filled header control', async () => {
+  it('opens New chat via /chats?new=1 (header and page may be separate chunks)', async () => {
     const user = userEvent.setup();
-    const onOpen = vi.fn();
-    const stop = subscribeChatsNewChat(onOpen);
     setChatsInboxSelecting(false);
-    render(<ChatsHeaderNew />);
+    render(
+      <MemoryRouter initialEntries={['/chats']}>
+        <Routes>
+          <Route
+            path="/chats"
+            element={
+              <>
+                <ChatsHeaderNew />
+                <LocationProbe />
+              </>
+            }
+          />
+        </Routes>
+      </MemoryRouter>,
+    );
     await user.click(screen.getByTestId('chats-new'));
-    expect(onOpen).toHaveBeenCalledTimes(1);
-    stop();
+    expect(screen.getByTestId('location-probe')).toHaveTextContent('/chats?new=1');
   });
 });
 

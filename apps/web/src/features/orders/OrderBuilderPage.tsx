@@ -539,6 +539,11 @@ export function OrderBuilderPage() {
                         piecesPerPack={line.piecesPerPack}
                         rate={line.rate}
                         rateMax={line.rateMax}
+                        quantity={
+                          line.quantity === '' || line.quantity == null
+                            ? null
+                            : Number(line.quantity)
+                        }
                         showPackSize={packSizesDiffer}
                       />
                     }
