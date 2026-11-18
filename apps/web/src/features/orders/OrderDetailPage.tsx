@@ -33,6 +33,7 @@ import { navigateBackOr } from '@/lib/navigateBackOr';
 import { PageHeader } from '@/ui/PageHeader';
 import { ConfirmActionSheet } from '@/ui/ConfirmActionSheet';
 import {
+  orderHasOverShipped,
   orderLineOverShipped,
   orderLineShowsPending,
 } from '@/features/orders/shipProgressLabel';
@@ -1803,6 +1804,7 @@ export function OrderDetailPage() {
     data.status === 'confirmed' || data.status === 'part_shipped';
   const confirmOnFace = showSellerConfirmOnDesk(data.millDesks);
   const traderMillHop = isTraderMillHop(data);
+  const hasOverShipped = orderHasOverShipped(data.items);
   const actionDock = orderActionDock({
     isSeller,
     status: data.status,
@@ -1819,6 +1821,7 @@ export function OrderDetailPage() {
     hasDeclinedToRestore,
     canSettle: data.canSettle === true,
     partiallyShipped: data.partiallyShipped,
+    hasOverShipped,
   });
   const isInquiry = data.intent === 'inquiry';
   const idLabel = shortOrderLabel(data.id, { inquiry: isInquiry });

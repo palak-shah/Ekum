@@ -1,0 +1,30 @@
+---
+description: Change-safety / anti-regression protocol — inspect, smallest fix, verify, no silent git/deploy
+alwaysApply: true
+---
+
+# Safe-change protocol (Required)
+
+How to change Ekum safely. Complements other Cursor rules and any `AGENTS.md` — does **not** replace them.
+
+## Required steps
+
+1. **Understand before changing** — Inspect existing implementation, business rules, callers, and Git history where useful. Do not patch from symptoms alone.
+2. **No regressions** — Before modifying shared code, name workflows that could break (callers, sibling surfaces, album vs editor parity).
+3. **Smallest safe change** — Fix the failing hop. Do not rewrite working architecture to fix one bug.
+4. **Test real journeys** — Cover complete user workflows (e2e / functional), not only individual functions, when behaviour changes.
+5. **Protect Ekum invariants** — Do not break: General Collection leftovers, multi-pack membership, Designs visibility, Catalog exclusivity, order lifecycle, dispatch, historical records. Membership/units detail stays in `sell-as-units` and catalog leftovers; orders stay in Completeness / feature docs — do not restate those locks here.
+6. **Verify before claiming** — Report actual commands + pass/fail, untested scenarios, and remaining risks. Green units alone are not enough when a journey exists.
+7. **No unauthorized actions** — Never commit, push, or deploy without explicit user permission.
+
+## Relationship to other rules
+
+This protocol governs **how** to change safely. Domain rules still own their jobs:
+
+- Product completeness / Proceed → `quality-feature-gate`
+- Required test matrix / BM-11 → `feature-tests-required`
+- Grant / revoke edges → `edge-cases-and-clarity`
+- UI chrome / source of truth → `ui-quality-bar`, `ui-source-of-truth`
+- Rate / qty unit jobs → `sell-as-units`
+
+If both this protocol and a domain rule apply, follow **both**. Product behaviour conflicts → domain product locks win. Process conflicts (inspect → smallest fix → verify → no silent git/deploy) → this protocol wins.

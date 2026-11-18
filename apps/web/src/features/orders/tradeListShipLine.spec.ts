@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { OrderView } from '@ekum/domain-types';
 import { howManyOrderFooterSummary, howManySetsBanner, qtyCountNoun } from './howManyLineMeta';
-import { tradeListShipFact, tradeListShipLine, tradeListShipProgress } from './tradeListShipLine';
+import {
+  tradeListShipFact,
+  tradeListShipLine,
+  tradeListShipProgress,
+  tradeListShipTotals,
+} from './tradeListShipLine';
+import { dispatchSheetShipProgress } from './dispatchSheet';
 
 function line(partial: {
   id?: string;
@@ -287,5 +293,74 @@ describe('set vs pc helpers stay consistent with list (no conversion drift)', ()
         { quantity: 2, unit: 'set', piecesPerPack: 6, dispatchUnit: 'pc' },
       ]),
     ).toEqual({ rows: ['2 sets = 12 pcs'] });
+  });
+});
+
+describe('BM confirmed total + singular (#35 / #45)', () => {
+  it('excludes declined from progress denominator (same filter as dispatch sheet)', () => {
+    const items = [
+      line({
+        id: 'ok',
+        unit: 'set',
+        quantity: 11,
+        shippedQuantity: 0,
+        remainingQuantity: 11,
+        lineStatus: 'confirmed',
+      }),
+      line({
+        id: 'no',
+        unit: 'set',
+        quantity: 4,
+        shippedQuantity: 0,
+        remainingQuantity: 0,
+        lineStatus: 'declined',
+      }),
+    ];
+    const view = order({ status: 'confirmed', items });
+    expect(tradeListShipTotals(view)).toEqual({
+      shipped: 0,
+      remaining: 11,
+      ordered: 11,
+      noun: 'sets',
+    });
+    expect(tradeListShipProgress(view)).toEqual({ shipped: 0, total: 11, over: false });
+    expect(dispatchSheetShipProgress(items)?.copy).toBe('0 of 11 sets sent');
+  });
+
+  it('singular noun when ordered total is 1', () => {
+    expect(qtyCountNoun('set', 1)).toBe('set');
+    expect(qtyCountNoun('set', 2)).toBe('sets');
+    expect(
+      tradeListShipTotals(
+        order({
+          status: 'confirmed',
+          items: [
+            line({
+              unit: 'set',
+              quantity: 1,
+              shippedQuantity: 0,
+              remainingQuantity: 1,
+              lineStatus: 'confirmed',
+            }),
+          ],
+        }),
+      ).noun,
+    ).toBe('set');
+    expect(
+      tradeListShipFact(
+        order({
+          status: 'confirmed',
+          items: [
+            line({
+              unit: 'set',
+              quantity: 1,
+              shippedQuantity: 0,
+              remainingQuantity: 1,
+              lineStatus: 'confirmed',
+            }),
+          ],
+        }),
+      ),
+    ).toBe('0/1 set sent');
   });
 });

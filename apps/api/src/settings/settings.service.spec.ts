@@ -56,6 +56,33 @@ describe('SettingsService.updateSettings', () => {
     expect(view.tradeDefaults).toMatchObject({ tradingEnabled: false });
   });
 
+  it('getSettings hides bill for brand-new company with no settings row (#53)', async () => {
+    const prisma = {
+      companySettings: {
+        findUnique: async () => null,
+      },
+    } as unknown as PrismaService;
+    const service = new SettingsService(prisma);
+    const view = await service.getSettings('brand-new');
+    expect(view.showBillTotalOnOrders).toBe(false);
+  });
+
+  it('getSettings hides bill when tradeDefaults explicitly set OFF (#53)', async () => {
+    const prisma = {
+      companySettings: {
+        findUnique: async () => ({
+          companyId: 'c-off',
+          returnPolicy: null,
+          tradeDefaults: { showBillTotalOnOrders: false, sellingEnabled: true },
+          myTools: null,
+        }),
+      },
+    } as unknown as PrismaService;
+    const service = new SettingsService(prisma);
+    const view = await service.getSettings('c-off');
+    expect(view.showBillTotalOnOrders).toBe(false);
+  });
+
   it('persists showBillTotalOnOrders in tradeDefaults and defaults off', async () => {
     const upsert = vi.fn(async ({ create, update }: { create: unknown; update: unknown }) => ({
       companyId: 'c1',

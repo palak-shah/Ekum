@@ -14,7 +14,7 @@ describe('orderChatEventLabel / inferOrderChatEvent', () => {
   it('labels frozen events', () => {
     expect(orderChatEventLabel(OrderChatEvent.LinesDecided)).toBe('Updated');
     expect(orderChatEventLabel(OrderChatEvent.QuoteSent)).toBe('Quote');
-    expect(orderChatEventLabel(OrderChatEvent.OrderRequested)).toBe('Requested');
+    expect(orderChatEventLabel(OrderChatEvent.OrderRequested)).toBe('Placed');
     expect(orderChatEventLabel(OrderChatEvent.OrderCancelled)).toBe('Cancelled');
     expect(orderChatEventLabel(OrderChatEvent.QuoteAccepted)).toBe('Accepted');
     expect(orderChatEventLabel(OrderChatEvent.OrderDispatched)).toBe('Dispatched');

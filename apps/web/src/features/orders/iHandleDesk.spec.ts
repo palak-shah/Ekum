@@ -428,6 +428,107 @@ describe('iHandleDesk', () => {
         canSettle: false,
       }),
     ).toEqual({ kind: 'none' });
+    // Exact ship / confirmed + over flag must not unlock (#44 eligibility).
+    expect(
+      orderActionDock({
+        isSeller: false,
+        status: 'confirmed',
+        createdBySeller: false,
+        sendQuote: false,
+        openForDispatch: false,
+        hasRemaining: false,
+        canSettle: false,
+        hasOverShipped: true,
+      }),
+    ).toEqual({
+      kind: 'buy',
+      cancel: true,
+      declineLogged: false,
+      edit: false,
+      acceptQuote: false,
+      raiseReturn: false,
+    });
+    expect(
+      orderActionDock({
+        isSeller: false,
+        status: 'dispatched',
+        createdBySeller: true,
+        sendQuote: false,
+        openForDispatch: false,
+        hasRemaining: false,
+        canSettle: false,
+        hasOverShipped: true,
+      }),
+    ).toEqual({
+      kind: 'buy',
+      cancel: false,
+      declineLogged: true,
+      edit: false,
+      acceptQuote: false,
+      raiseReturn: false,
+    });
+    expect(
+      orderActionDock({
+        isSeller: false,
+        status: 'part_shipped',
+        createdBySeller: false,
+        sendQuote: false,
+        openForDispatch: false,
+        hasRemaining: true,
+        canSettle: false,
+        hasOverShipped: true,
+      }),
+    ).toEqual({
+      kind: 'buy',
+      cancel: false,
+      declineLogged: true,
+      edit: false,
+      acceptQuote: false,
+      raiseReturn: false,
+    });
+    expect(
+      orderActionDock({
+        isSeller: false,
+        status: 'dispatched',
+        sendQuote: false,
+        openForDispatch: false,
+        hasRemaining: false,
+        canSettle: false,
+        isTraderMillHop: true,
+        hasOverShipped: true,
+      }),
+    ).toEqual({
+      kind: 'buy',
+      cancel: false,
+      declineLogged: true,
+      edit: false,
+      acceptQuote: false,
+      raiseReturn: false,
+    });
+    expect(
+      orderActionDock({
+        isSeller: false,
+        status: 'dispatched',
+        sendQuote: false,
+        openForDispatch: false,
+        hasRemaining: false,
+        canSettle: false,
+        isDirectFacilitator: true,
+        canAmend: false,
+        hasOverShipped: true,
+      }),
+    ).toEqual({ kind: 'none' });
+    expect(
+      orderActionDock({
+        isSeller: false,
+        status: 'settled',
+        sendQuote: false,
+        openForDispatch: false,
+        hasRemaining: false,
+        canSettle: false,
+        hasOverShipped: true,
+      }),
+    ).toEqual({ kind: 'none' });
     expect(
       orderActionDock({
         isSeller: true,

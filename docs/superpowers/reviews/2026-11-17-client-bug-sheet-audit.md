@@ -65,32 +65,32 @@ Classification is **docs-based** (concepts / access / orders / collections / sel
 | 32 | Orders | Qty stepper starts blank / below min | Parked | Same package; merge #77. | — |
 | 33 | Orders | Forward below-min without warning | Parked | Same package. | — |
 | 34 | Orders | Mill rate edit bleeds onto buyer/trader sell rate | Real bug | Two Orders / two rates; mill change must not rewrite trader sell rate. | Yes |
-| 35 | Orders | Can’t-supply progress uses full 15 not confirmed 11 | Real bug | Progress denominator = confirmed / shippable total. | Yes |
-| 36 | Orders | Settle / can’t-supply not propagating across legs | Real bug | I-handle/Direct legs must reflect settle + can’t-supply. | Yes |
-| 37 | Orders | “1 can’t supply” vs Declined wording | Change / feature | Product language today is can’t supply; Declined is copy redesign. | — |
-| 38 | Orders | Dispatch title “to Trader” should be buyer | Misunderstanding | Per-leg title is correct. Notify each hop; ship-to address is separate (#39). | — |
+| 35 | Orders | Can’t-supply progress uses full 15 not confirmed 11 | Fixed | Progress denom = confirmed/dispatched only (`tradeListShipTotals`). | — |
+| 36 | Orders | Settle / can’t-supply not propagating across legs | Fixed | Declined clamps parent qty; settle/lines/dispatch all gated by `shouldPassThrough` (Hold blocks); Resume flushes. | — |
+| 37 | Orders | “1 can’t supply” vs Declined wording | Closed / WAD | Keep can’t supply; Declined copy redesign deferred. | — |
+| 38 | Orders | Dispatch title “to Trader” should be buyer | Closed / Misunderstanding | Per-leg title correct (confirmed). | — |
 | 39 | Orders | Bale / parcels missing on dispatch card | Discuss | Packing-slip / challan scope. | — |
-| 40 | Orders | Buyer missing LR / transporter after dispatch | Real bug | Buyer page should at least show LR + transporter once dispatched. | Yes |
+| 40 | Orders | Buyer missing LR / transporter after dispatch | Fixed | Mill→parent shipment copies transporter / LR / legs. | — |
 | 41 | Orders | No Received / Complaint on buyer dispatched order | Discuss | Feature ask; needs product lock. | — |
-| 42 | Orders | Log order for buyer not in Buying | Close / retest | Close if VFFJ/MIZ9 appear in Buying. | — |
-| 43 | Orders | Buyer opens Orders on empty Selling | Discuss | Last-used or pending-action tab — not hard-code Buying forever. | — |
-| 44 | Orders | Over-dispatch 75 vs 50 only orange, no confirm | Real bug | Over-ship allowed but needs explicit warn/confirm. | Yes |
-| 45 | Orders | “1 of 1 sets” grammar | Polish | Singular noun. | — |
-| 46 | Orders | Photo order pcs but header Order in Sets | Real bug | Header must follow design order unit. | Yes |
-| 47 | Orders | Confirm photo order with empty rate silent | Real bug | Prompt rate or label rate on request. | Yes |
-| 48 | Orders | Chat photo order unit chips vs design unit | Real bug | Align to design unit, not hard-coded pcs steps. | Yes |
-| 49 | Orders | Log order / cart: no toast | Polish | Confirmation feedback only. | — |
-| 50 | Orders | Order sheet prefilled qty/transporter from other order | Real bug | Fresh form; no stale draft bleed. | Yes |
-| 51 | Orders | Chat card “Requested…1 requested” while Placed | Real bug | One status label; card vs ticket out of sync. | Yes |
-| 52 | No-conversion | Collection preview “10 sets (= 50 pcs)” | Misunderstanding | When piecesPerPack is set, conversion is intentional sell-as. | — |
-| 53 | No-conversion | Remove conversions + bill amounts everywhere | Misunderstanding | Fights locked units + optional Show bill total (default off). | — |
+| 42 | Orders | Log order for buyer not in Buying | Fixed / retested | Seller-logged for-buyer on buyer `direction=buying` list (one-trio assert). | — |
+| 43 | Orders | Buyer opens Orders on empty Selling | Closed / WAD | `firstOrdersListTabWithContent` — land on tab with content (unit locked). | — |
+| 44 | Orders | Over-dispatch 75 vs 50 only orange, no confirm | Fixed | Over-ship allowed; buyer + trader mill hop get Decline → cancel. Completeness `2026-11-18-over-dispatch-decline`. | — |
+| 45 | Orders | “1 of 1 sets” grammar | Fixed | `qtyCountNoun(unit, count)` singular at 1. | — |
+| 46 | Orders | Photo order pcs but header Order in Sets | Fixed | Photo stamp `unit: set`; Designs header Order in Sets. | — |
+| 47 | Orders | Confirm photo order with empty rate silent | Rejected | Rate stays optional on confirm. | — |
+| 48 | Orders | Chat photo order unit chips vs design unit | Fixed | Sets chrome (not hard-coded Pieces). | — |
+| 49 | Orders | Log order / cart: no toast | Fixed | Builder + invite log toast on success. | — |
+| 50 | Orders | Order sheet prefilled qty/transporter from other order | Closed / WAD | Remember qty + transporter (mostly same). | — |
+| 51 | Orders | Chat card “Requested…1 requested” while Placed | Fixed | Chat event label + headline **Placed**. | — |
+| 52 | No-conversion | Collection preview “10 sets (= 50 pcs)” | Closed / WAD | Keep sell-as conversion. | — |
+| 53 | No-conversion | Remove conversions + bill amounts everywhere | Fixed / WAD | Keep conversion; bill via setting — hidden for missing defaults **and** explicit OFF. | — |
 | 54 | No-conversion | Settings still has Units conversions / bill total | Discuss | Keep default OFF; don’t strip settings blindly. | — |
 | 55 | Catalogue | Catalogue designs appear in common Designs pool | Discuss | Shipped: Designs with “In your catalog”. v2 SKU-only = Redesign. | — |
 | 56 | Catalogue | + sheet missing Add catalogue | Change / feature | Today Collection sheet; catalogue via Library. | — |
 | 57 | Catalogue | Apply to all designs checkbox still present | Close / retest | Confirm which form (regular vs GC). | — |
-| 58 | Catalogue | Save in Draft stays on Edit collection | Misunderstanding | Locked: Save in Draft stays on editor so they keep filling. | — |
+| 58 | Catalogue | Save in Draft stays on Edit collection | Fixed | Redesign: leaves to You list + toast (`2026-11-18-save-draft-leave-to-list`). | — |
 | 59 | Catalogue | Published thumbnail uses last photo not first | Real bug | Cover/thumb should be first photo. | Yes |
-| 60 | Catalogue | `/more?tab=designs` opens Collections | Real bug | Deep link must honour tab. | Yes |
+| 60 | Catalogue | `/more?tab=designs` opens Collections | Fixed | `tab=designs` aliases Designs like `products`. | — |
 | 61 | Catalogue | Title always “My collections” | Change / feature | Shipped shell title; rename with Library IA cut. | — |
 | 62 | Catalogue | Pick-and-choose looks like collection; min buried | Change / feature | Aligns with catalogue vs collection decisions. | — |
 | 63 | Catalogue | Whole-order catalogue shows selectable designs | Real bug | Whole-order must be one card / one qty. | Yes |

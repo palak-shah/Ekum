@@ -109,6 +109,8 @@ describe('howManyLineMeta', () => {
     expect(qtyCountNoun('set')).toBe('sets');
     expect(qtyCountNoun('pc')).toBe('pcs');
     expect(qtyCountNoun('mtr')).toBe('mtrs');
+    expect(qtyCountNoun('set', 1)).toBe('set');
+    expect(qtyCountNoun('pc', 1)).toBe('pc');
     expect(qtyStepperUnitLabel('set')).toBe('Sets');
   });
 

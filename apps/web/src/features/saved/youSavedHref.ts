@@ -21,7 +21,8 @@ export function youLibraryTabFromSearch(params: URLSearchParams): YouLibraryTab 
     return 'collections';
   }
   const tab = params.get('tab');
-  if (tab === 'products') return 'products';
+  // Home aliases `designs`; deep links must honour both (#60).
+  if (tab === 'products' || tab === 'designs') return 'products';
   if (tab === 'catalogs') return 'catalogs';
   return 'collections';
 }

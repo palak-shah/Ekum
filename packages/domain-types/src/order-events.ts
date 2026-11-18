@@ -25,7 +25,7 @@ export const OrderChatEvent = {
 export type OrderChatEvent = (typeof OrderChatEvent)[keyof typeof OrderChatEvent];
 
 const EVENT_LABELS: Record<string, string> = {
-  [OrderChatEvent.OrderRequested]: 'Requested',
+  [OrderChatEvent.OrderRequested]: 'Placed',
   [OrderChatEvent.RateRequested]: 'Inquiry',
   [OrderChatEvent.OrderUpdated]: 'Updated',
   [OrderChatEvent.QuoteSent]: 'Quote',
@@ -225,7 +225,7 @@ export function linesDecidedHeadline(
 export function orderChatEventHeadline(actor: string, event: string): string {
   switch (event) {
     case OrderChatEvent.OrderRequested:
-      return `${actor} requested`;
+      return `${actor} placed`;
     case OrderChatEvent.RateRequested:
       return `${actor} asked for rates`;
     case OrderChatEvent.OrderUpdated:

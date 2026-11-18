@@ -29,6 +29,7 @@ describe('youSavedHref', () => {
     expect(youLibraryTabFromSearch(new URLSearchParams('saved=1'))).toBe('collections');
     expect(youLibraryTabFromSearch(new URLSearchParams())).toBe('collections');
     expect(youLibraryTabFromSearch(new URLSearchParams('tab=products'))).toBe('products');
+    expect(youLibraryTabFromSearch(new URLSearchParams('tab=designs'))).toBe('products');
     expect(youLibraryTabFromSearch(new URLSearchParams('tab=catalogs'))).toBe('catalogs');
   });
 

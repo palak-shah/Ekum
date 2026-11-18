@@ -347,4 +347,38 @@ test.describe('order fulfillment @functional @release @orders', () => {
       page.getByRole('heading', { name: /Complaint|Complaint about/ }).first(),
     ).toBeVisible({ timeout: 15_000 });
   });
+
+  test('buyer Decline after over-dispatch cancels the ticket', async ({ page }) => {
+    test.setTimeout(90_000);
+    await loginAsMeena(page);
+    const meenaToken = await accessTokenFromPage(page);
+    await loginAsRavi(page);
+    const raviToken = await accessTokenFromPage(page);
+
+    const { id: orderId } = await setupConfirmedOrder(page.request, meenaToken, raviToken);
+    const detailed = await getOrder(page.request, raviToken, orderId);
+    const first = detailed.items[0];
+    if (!first) throw new Error('expected order items');
+
+    await dispatchOrder(page.request, raviToken, orderId, {
+      items: detailed.items.map((item) => ({
+        orderItemId: item.id,
+        quantity: item.id === first.id ? item.quantity + 10 : item.quantity,
+      })),
+      lrNumber: 'LR-OVER-44',
+      transporter: 'Over Ship Co',
+    });
+
+    await loginAsMeena(page);
+    await page.goto(`/orders/${orderId}`);
+    await expect(page.getByTestId('order-dock-decline')).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText(/\+10 extra/i).first()).toBeVisible();
+    await page.getByTestId('order-dock-decline').click();
+    await expect
+      .poll(async () => (await getOrder(page.request, meenaToken, orderId)).status, {
+        timeout: 20_000,
+      })
+      .toMatch(/cancelled/i);
+    await expect(page.getByText(/^Cancelled$/i).first()).toBeVisible({ timeout: 15_000 });
+  });
 });

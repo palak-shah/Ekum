@@ -134,6 +134,36 @@ describe('toCollectionCard', () => {
     expect(card.sourceShopNames).toEqual(['Ahmedabad Loom Co']);
   });
 
+  it('credits prior hop not end mill when upstream hid suppliers', () => {
+    const card = serializer.toCollectionCard(
+      pack({
+        companyId: 'buyer',
+        showSourceShops: true,
+        products: [
+          {
+            product: {
+              images: [],
+              companyId: 'mill',
+              company: { name: 'Supplier 1' },
+              rate: 90,
+              unit: 'mtr',
+              dispatchUnit: 'mtr',
+              catalogRateUnit: 'mtr',
+              status: 'published',
+            },
+          },
+        ],
+      }),
+      {
+        viewerCompanyId: 'visitor',
+        sourceHops: [
+          { companyId: 'trader', companyName: 'Trader 1', showSourceShops: false },
+        ],
+      },
+    );
+    expect(card.sourceShopNames).toEqual(['Trader 1']);
+  });
+
   it('honors Show supplier on catalog packs the same as collections', () => {
     const on = serializer.toCollectionCard(
       pack({

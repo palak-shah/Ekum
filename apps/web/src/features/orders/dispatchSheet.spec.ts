@@ -289,6 +289,11 @@ describe('dispatchSheet', () => {
         line({ id: 'a', quantity: 10, shippedQuantity: 12, unit: 'set', remainingQuantity: 0 }),
       ]),
     ).toEqual({ copy: '12 of 10 sets sent', pct: 100, over: true });
+    expect(
+      dispatchSheetShipProgress([
+        line({ id: 'a', quantity: 1, shippedQuantity: 1, unit: 'set', remainingQuantity: 0 }),
+      ]),
+    ).toEqual({ copy: '1 of 1 set sent', pct: 100, over: false });
     expect(dispatchSheetShipProgress([declined])).toBeNull();
   });
 });

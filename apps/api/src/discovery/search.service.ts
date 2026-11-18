@@ -14,7 +14,11 @@ import { companyNotBlockedWith } from '../access/connection-pair';
 import { audienceVisibilityOr } from '../catalog/audience-visibility';
 import { PrismaService } from '../core/prisma/prisma.service';
 import { idsMatchingCategoryLabel } from './categories-match';
-import { DiscoverySerializer } from './discovery.serializer';
+import {
+  DiscoverySerializer,
+  sourceHopsFromRows,
+} from './discovery.serializer';
+import type { SourceCreditHopRow } from './source-shop-credit';
 import { discoverableProfileWhere } from './follow-access';
 import { collectionCardInclude } from './collection-preview';
 import { cursorArgs, toCursorPage } from './pagination';
@@ -174,9 +178,59 @@ export class SearchService {
       include: collectionCardInclude,
       ...cursorArgs(query),
     });
-    return toCursorPage(rows, query.limit, (row) =>
-      this.discovery.toCollectionCard(row, { viewerCompanyId }),
+    const sourceHopRows = await this.loadSourceCreditHopRows(
+      rows.map(
+        (row) =>
+          (row as { repostSourceCollectionId?: string | null }).repostSourceCollectionId,
+      ),
     );
+    return toCursorPage(rows, query.limit, (row) =>
+      this.discovery.toCollectionCard(row, {
+        viewerCompanyId,
+        sourceHops: sourceHopsFromRows(
+          (row as { repostSourceCollectionId?: string | null }).repostSourceCollectionId,
+          sourceHopRows,
+        ),
+      }),
+    );
+  }
+
+  private async loadSourceCreditHopRows(
+    sourceIds: Array<string | null | undefined>,
+  ): Promise<Map<string, SourceCreditHopRow>> {
+    const byId = new Map<string, SourceCreditHopRow>();
+    let pending = [
+      ...new Set(sourceIds.filter((id): id is string => Boolean(id))),
+    ];
+    for (let depth = 0; depth < 4 && pending.length > 0; depth += 1) {
+      const hopRows = await this.prisma.collection.findMany({
+        where: { id: { in: pending } },
+        select: {
+          id: true,
+          companyId: true,
+          showSourceShops: true,
+          repostSourceCollectionId: true,
+          company: { select: { name: true } },
+        },
+      });
+      const next: string[] = [];
+      for (const row of hopRows) {
+        byId.set(row.id, {
+          companyId: row.companyId,
+          companyName: row.company.name,
+          showSourceShops: row.showSourceShops === true,
+          repostSourceCollectionId: row.repostSourceCollectionId,
+        });
+        if (
+          row.repostSourceCollectionId &&
+          !byId.has(row.repostSourceCollectionId)
+        ) {
+          next.push(row.repostSourceCollectionId);
+        }
+      }
+      pending = next;
+    }
+    return byId;
   }
 
   private async designs(

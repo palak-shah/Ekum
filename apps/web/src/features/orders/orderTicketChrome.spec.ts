@@ -130,6 +130,14 @@ describe('orderTicketChrome', () => {
         }),
       ),
     ).toBe('30 of 45 pcs sent');
+    expect(
+      orderTicketProgressCopy(
+        order({
+          status: 'confirmed',
+          items: [line({ quantity: 1, shippedQuantity: 0, remainingQuantity: 1, unit: 'set' })],
+        }),
+      ),
+    ).toBe('0 of 1 set sent');
     const over = orderTicketProgress(
       order({
         status: 'part_shipped',

@@ -1593,6 +1593,131 @@ describe('OrderService lifecycle action cards', () => {
     });
   });
 
+  it('buyer can cancel after over-dispatch (#44)', async () => {
+    const { service, captured } = makeService({
+      order: {
+        id: 'ordOverCancel',
+        status: OrderStatus.Dispatched,
+        buyerCompanyId: 'buyer',
+        sellerCompanyId: 'seller',
+        items: [
+          {
+            id: 'oi1',
+            name: 'A',
+            quantity: { toNumber: () => 50 },
+            requestedQuantity: { toNumber: () => 50 },
+            lineStatus: OrderLineStatus.Dispatched,
+            rate: { toNumber: () => 100 },
+          },
+        ],
+        shipments: [
+          {
+            id: 'ship1',
+            items: [{ orderItemId: 'oi1', quantity: { toNumber: () => 75 } }],
+          },
+        ],
+      },
+    });
+    await service.cancel('buyer', 'u1', 'ordOverCancel');
+    expect(captured.messageCreate).toMatchObject({
+      type: 'order_card',
+      metadata: expect.objectContaining({
+        event: 'order_cancelled',
+        status: OrderStatus.Cancelled,
+      }),
+    });
+  });
+
+  it('buyer cannot cancel a normal dispatched ticket without over-ship', async () => {
+    const { service } = makeService({
+      order: {
+        id: 'ordExactShip',
+        status: OrderStatus.Dispatched,
+        buyerCompanyId: 'buyer',
+        sellerCompanyId: 'seller',
+        items: [
+          {
+            id: 'oi1',
+            name: 'A',
+            quantity: { toNumber: () => 50 },
+            requestedQuantity: { toNumber: () => 50 },
+            lineStatus: OrderLineStatus.Dispatched,
+            rate: { toNumber: () => 100 },
+          },
+        ],
+        shipments: [
+          {
+            id: 'ship1',
+            items: [{ orderItemId: 'oi1', quantity: { toNumber: () => 50 } }],
+          },
+        ],
+      },
+    });
+    await expect(service.cancel('buyer', 'u1', 'ordExactShip')).rejects.toMatchObject({
+      response: expect.objectContaining({ code: expect.any(String) }),
+    });
+  });
+
+  it('seller cannot cancel an over-dispatched ticket (#44 eligibility)', async () => {
+    const { service } = makeService({
+      order: {
+        id: 'ordOverSeller',
+        status: OrderStatus.Dispatched,
+        buyerCompanyId: 'buyer',
+        sellerCompanyId: 'seller',
+        items: [
+          {
+            id: 'oi1',
+            name: 'A',
+            quantity: { toNumber: () => 50 },
+            requestedQuantity: { toNumber: () => 50 },
+            lineStatus: OrderLineStatus.Dispatched,
+            rate: { toNumber: () => 100 },
+          },
+        ],
+        shipments: [
+          {
+            id: 'ship1',
+            items: [{ orderItemId: 'oi1', quantity: { toNumber: () => 75 } }],
+          },
+        ],
+      },
+    });
+    await expect(service.cancel('seller', 'u1', 'ordOverSeller')).rejects.toMatchObject({
+      response: expect.objectContaining({ code: expect.any(String) }),
+    });
+  });
+
+  it('buyer cannot cancel settled even if shipped looked over (#44 eligibility)', async () => {
+    const { service } = makeService({
+      order: {
+        id: 'ordSettledOver',
+        status: OrderStatus.Settled,
+        buyerCompanyId: 'buyer',
+        sellerCompanyId: 'seller',
+        items: [
+          {
+            id: 'oi1',
+            name: 'A',
+            quantity: { toNumber: () => 50 },
+            requestedQuantity: { toNumber: () => 50 },
+            lineStatus: OrderLineStatus.Dispatched,
+            rate: { toNumber: () => 100 },
+          },
+        ],
+        shipments: [
+          {
+            id: 'ship1',
+            items: [{ orderItemId: 'oi1', quantity: { toNumber: () => 75 } }],
+          },
+        ],
+      },
+    });
+    await expect(service.cancel('buyer', 'u1', 'ordSettledOver')).rejects.toMatchObject({
+      response: expect.objectContaining({ code: expect.any(String) }),
+    });
+  });
+
   it('posts a Dispatched card on partial dispatch', async () => {
     const { service, captured } = makeService({
       order: {

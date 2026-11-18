@@ -6,6 +6,7 @@ import {
   OrderKind,
   ProductStatus,
   type CollectionCard,
+  type CollectionView,
   type CompanyContactPoint,
   type ConnectionView,
   type CursorPage,
@@ -106,6 +107,10 @@ import { Avatar, ErrorState, LoadingBlock, SearchInput, cx } from '@/ui/kit';
 import { catalogSearchMatches, designFindParts } from '@/features/catalog/catalogSearch';
 import { CatalogFindToggle } from '@/features/catalog/catalogFindToggle';
 import { YouCollectionListRow } from '@/features/catalog/YouCollectionListRow';
+import {
+  shopCollectionShelfMeta,
+  toShopCollectionRow,
+} from '@/features/company/shopCollectionShelfMeta';
 import { SellerProductTile } from '@/features/catalog/SellerProductTile';
 import {
   bookmarkThisPackLabel,
@@ -196,18 +201,6 @@ function toDesignSheetProduct(product: ExploreProductCard): DesignSheetProduct {
     status: ProductStatus.Published,
     catalogCollectionId: product.catalogCollectionId,
     catalogOrderMode: product.catalogOrderMode,
-  };
-}
-
-function toShopCollectionRow(collection: CollectionCard) {
-  return {
-    id: collection.id,
-    name: collection.name,
-    status: collection.status,
-    kind: collection.kind,
-    libraryThumb: collection.coverImage,
-    coverImage: collection.coverImage,
-    companyId: collection.company.id,
   };
 }
 
@@ -326,6 +319,19 @@ export function BusinessProfileBody({
       api.get<CursorPage<CollectionCard>>(`/companies/${id}/collections`, { limit: 20 }),
     enabled: shelfEnabled,
   });
+  /** Own library memberShops — owner From cue (not gated by Show supplier). */
+  const ownLibraryCollections = useQuery({
+    queryKey: ['collections', 'own-shelf-meta'],
+    queryFn: () => api.get<CollectionView[]>('/collections'),
+    enabled: shelfEnabled && isOwn,
+  });
+  const libraryMemberShopsById = useMemo(() => {
+    const map = new Map<string, CollectionView['memberShops']>();
+    for (const row of ownLibraryCollections.data ?? []) {
+      map.set(row.id, row.memberShops ?? []);
+    }
+    return map;
+  }, [ownLibraryCollections.data]);
   const shopDesigns = useQuery({
     queryKey: ['company', id, 'designs'],
     queryFn: () =>
@@ -1209,11 +1215,17 @@ export function BusinessProfileBody({
             )
           ) : displayCollections.length > 0 ? (
             <div className="flex flex-col px-2 py-1" data-testid="company-shop-collections">
-              {displayCollections.map((collection) => (
+              {displayCollections.map((collection) => {
+                const shelfMeta = shopCollectionShelfMeta({
+                  isOwn,
+                  collection,
+                  libraryMemberShops: libraryMemberShopsById.get(collection.id),
+                });
+                return (
                 <YouCollectionListRow
                   key={collection.id}
-                  collection={toShopCollectionRow(collection)}
-                  hideLibraryMeta
+                  collection={toShopCollectionRow(collection, shelfMeta.memberShops)}
+                  hideLibraryMeta={shelfMeta.hideLibraryMeta}
                   surface="shelf"
                   packManage={isOwn}
                   selecting={selecting && shelfInteractive}
@@ -1240,7 +1252,8 @@ export function BusinessProfileBody({
                   }}
                   highlightQuery={deferredListSearch}
                 />
-              ))}
+                );
+              })}
             </div>
           ) : (
             <p className="px-3 py-2.5 text-sm text-muted">

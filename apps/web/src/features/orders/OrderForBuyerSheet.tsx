@@ -172,11 +172,11 @@ export function OrderForBuyerSheet({
       shortlist.removeIds(productIds);
       void queryClient.invalidateQueries({ queryKey: ['orders'] });
       void queryClient.invalidateQueries({ queryKey: ['threads'] });
+      showToast(orderForBuyerLoggedToast(result.order.status));
       if (result.invitePath) {
         onInvite(`${window.location.origin}${result.invitePath}`);
         return;
       }
-      showToast(orderForBuyerLoggedToast(result.order.status));
       onDone();
     },
     onError: (err) => {

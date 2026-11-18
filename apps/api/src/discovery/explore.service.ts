@@ -48,7 +48,13 @@ import {
   olderThanActivityWhere,
   parseFeedCursor,
 } from './explore-feed-page';
-import { collectionSourceShopNames, DiscoverySerializer } from './discovery.serializer';
+import {
+  collectionSourceShopNames,
+  sourceHopsFromRows,
+  visitorDesignCreditCompanyName,
+  DiscoverySerializer,
+} from './discovery.serializer';
+import type { SourceCreditHopRow } from './source-shop-credit';
 import {
   canDiscoverCollection,
   canViewCollectionProducts,
@@ -549,11 +555,21 @@ export class ExploreService {
       collectionIds: live.map((row) => row.id),
       productIds: [],
     });
+    const sourceHopRows = await this.loadSourceCreditHopRows(
+      live.map(
+        (row) =>
+          (row as { repostSourceCollectionId?: string | null }).repostSourceCollectionId,
+      ),
+    );
     return live.map((row) => {
       const card = this.discovery.toCollectionCard(row, {
         viewerCompanyId,
         viewerReposted: stamps.collections.has(row.id),
         repostEligibleCount: eligible.get(row.id) ?? 0,
+        sourceHops: sourceHopsFromRows(
+          (row as { repostSourceCollectionId?: string | null }).repostSourceCollectionId,
+          sourceHopRows,
+        ),
       });
       const memberCompanyIds = row.products.map((entry) => entry.product.companyId);
       return {
@@ -683,10 +699,18 @@ export class ExploreService {
       const page = pageMerged(merged, query, (row) => row.feedId);
       const stamps = await this.viewerRepostStampsForFeed(viewerCompanyId, page);
       const eligible = await this.eligibleForFeedRows(viewerCompanyId, page);
+      const sourceHopRows = await this.loadSourceCreditHopRows(
+        page.map(
+          (row) =>
+            row.collection &&
+            (row.collection as { repostSourceCollectionId?: string | null })
+              .repostSourceCollectionId,
+        ),
+      );
       return toCursorPage(
         page,
         query.limit,
-        (row) => this.toExplorePost(row, stamps, eligible, viewerCompanyId),
+        (row) => this.toExplorePost(row, stamps, eligible, viewerCompanyId, sourceHopRows),
         (row) => row.feedId,
       );
     }
@@ -761,10 +785,18 @@ export class ExploreService {
     const page = pageMerged(await this.hideDesignsCoveredByPacks(merged), query, (row) => row.feedId);
     const stamps = await this.viewerRepostStampsForFeed(viewerCompanyId, page);
     const eligible = await this.eligibleForFeedRows(viewerCompanyId, page);
+    const sourceHopRows = await this.loadSourceCreditHopRows(
+      page.map(
+        (row) =>
+          row.collection &&
+          (row.collection as { repostSourceCollectionId?: string | null })
+            .repostSourceCollectionId,
+      ),
+    );
     return toCursorPage(
       page,
       query.limit,
-      (row) => this.toExplorePost(row, stamps, eligible, viewerCompanyId),
+      (row) => this.toExplorePost(row, stamps, eligible, viewerCompanyId, sourceHopRows),
       (row) => row.feedId,
     );
   }
@@ -843,10 +875,18 @@ export class ExploreService {
     const page = merged.slice(0, take);
     const stamps = await this.viewerRepostStampsForFeed(viewerCompanyId, page);
     const eligible = await this.eligibleForFeedRows(viewerCompanyId, page);
+    const sourceHopRows = await this.loadSourceCreditHopRows(
+      page.map(
+        (row) =>
+          row.collection &&
+          (row.collection as { repostSourceCollectionId?: string | null })
+            .repostSourceCollectionId,
+      ),
+    );
     return toCursorPage(
       page,
       query.limit,
-      (row) => this.toExplorePost(row, stamps, eligible, viewerCompanyId),
+      (row) => this.toExplorePost(row, stamps, eligible, viewerCompanyId, sourceHopRows),
       (row) => row.feedId,
     );
   }
@@ -1296,7 +1336,13 @@ export class ExploreService {
       const ownerName = new Map(ownerRows.map((row) => [row.id, row.name]));
 
       const packOwnerName = collection.company.name;
-      const creditMills = collection.showSourceShops === true;
+      const sourceHopRows = await this.loadSourceCreditHopRows([
+        (collection as { repostSourceCollectionId?: string | null }).repostSourceCollectionId,
+      ]);
+      const sourceHops = sourceHopsFromRows(
+        (collection as { repostSourceCollectionId?: string | null }).repostSourceCollectionId,
+        sourceHopRows,
+      );
       products = collection.products
         .filter((entry) =>
           isOwner
@@ -1305,12 +1351,19 @@ export class ExploreService {
         )
         .map((entry) => {
         const millName = ownerName.get(entry.product.companyId) ?? null;
-        const isForeign = entry.product.companyId !== collection.companyId;
-        // Buyers: mill credit only when the pack opts in; else pack shop name.
-        const companyName =
-          isOwner || creditMills || !isForeign
-            ? millName
-            : packOwnerName;
+        // Owner: real mill. Visitors: Show supplier + hop ceiling (never leak hidden S1).
+        const companyName = visitorDesignCreditCompanyName({
+          isOwner,
+          showSourceShops: collection.showSourceShops === true,
+          packCompanyId: collection.companyId,
+          packCompanyName: packOwnerName,
+          productCompanyId: entry.product.companyId,
+          productCompanyName: millName,
+          sourceHops,
+          declaredSourceCollectionId:
+            (collection as { repostSourceCollectionId?: string | null })
+              .repostSourceCollectionId ?? null,
+        });
         const view = {
           ...this.catalog.toProductView(entry.product),
           companyName,
@@ -1377,7 +1430,17 @@ export class ExploreService {
       });
     }
 
-    const card = this.discovery.toCollectionCard(collection, { viewerCompanyId });
+    const albumSourceHopRows = await this.loadSourceCreditHopRows([
+      (collection as { repostSourceCollectionId?: string | null }).repostSourceCollectionId,
+    ]);
+    const albumSourceHops = sourceHopsFromRows(
+      (collection as { repostSourceCollectionId?: string | null }).repostSourceCollectionId,
+      albumSourceHopRows,
+    );
+    const card = this.discovery.toCollectionCard(collection, {
+      viewerCompanyId,
+      sourceHops: albumSourceHops,
+    });
     const sourceShopNames =
       card.sourceShopNames.length > 0
         ? card.sourceShopNames
@@ -1390,6 +1453,12 @@ export class ExploreService {
                 company: { name: row.companyName?.trim() || '' },
               },
             })),
+            albumSourceHops,
+            {
+              declaredSourceCollectionId:
+                (collection as { repostSourceCollectionId?: string | null })
+                  .repostSourceCollectionId ?? null,
+            },
           );
     const generalAlbum = isGeneralKind((collection as { kind?: string }).kind);
     // Album facts: pack rate first; else min–max priced designs. Owner always
@@ -1941,13 +2010,61 @@ export class ExploreService {
       productIds: [],
     });
     const eligible = await this.eligibleCountByCollection(viewerCompanyId, rows);
+    const sourceHopRows = await this.loadSourceCreditHopRows(
+      rows.map(
+        (row) =>
+          (row as { repostSourceCollectionId?: string | null }).repostSourceCollectionId,
+      ),
+    );
     return toCursorPage(rows, limit, (row) =>
       this.discovery.toCollectionCard(row, {
         viewerReposted: stamps.collections.has(row.id),
         viewerCompanyId,
         repostEligibleCount: eligible.get(row.id) ?? 0,
+        sourceHops: sourceHopsFromRows(
+          (row as { repostSourceCollectionId?: string | null }).repostSourceCollectionId,
+          sourceHopRows,
+        ),
       }),
     );
+  }
+
+  private async loadSourceCreditHopRows(
+    sourceIds: Array<string | null | undefined>,
+  ): Promise<Map<string, SourceCreditHopRow>> {
+    const byId = new Map<string, SourceCreditHopRow>();
+    let pending = [
+      ...new Set(sourceIds.filter((id): id is string => Boolean(id))),
+    ];
+    for (let depth = 0; depth < 4 && pending.length > 0; depth += 1) {
+      const hopRows = await this.prisma.collection.findMany({
+        where: { id: { in: pending } },
+        select: {
+          id: true,
+          companyId: true,
+          showSourceShops: true,
+          repostSourceCollectionId: true,
+          company: { select: { name: true } },
+        },
+      });
+      const next: string[] = [];
+      for (const row of hopRows) {
+        byId.set(row.id, {
+          companyId: row.companyId,
+          companyName: row.company.name,
+          showSourceShops: row.showSourceShops === true,
+          repostSourceCollectionId: row.repostSourceCollectionId,
+        });
+        if (
+          row.repostSourceCollectionId &&
+          !byId.has(row.repostSourceCollectionId)
+        ) {
+          next.push(row.repostSourceCollectionId);
+        }
+      }
+      pending = next;
+    }
+    return byId;
   }
 
   private async toProductCardPage(
@@ -2138,6 +2255,7 @@ export class ExploreService {
     stamps: { collections: Set<string>; products: Set<string> },
     eligible: { collections: Map<string, number>; products: Map<string, number> },
     viewerCompanyId: string,
+    sourceHopRows: Map<string, SourceCreditHopRow> = new Map(),
   ): ExplorePost {
     if (row.kind === 'collection' && row.collection) {
       return {
@@ -2148,6 +2266,11 @@ export class ExploreService {
           viewerReposted: stamps.collections.has(row.collection.id),
           viewerCompanyId,
           repostEligibleCount: eligible.collections.get(row.collection.id) ?? 0,
+          sourceHops: sourceHopsFromRows(
+            (row.collection as { repostSourceCollectionId?: string | null })
+              .repostSourceCollectionId,
+            sourceHopRows,
+          ),
         }),
       };
     }

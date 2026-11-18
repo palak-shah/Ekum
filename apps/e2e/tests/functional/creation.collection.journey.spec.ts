@@ -4,12 +4,13 @@ import { pickYouLibraryFilter } from '../../helpers/youLibrary';
 import { SAMPLE_JPG, sampleJpgTimes } from '../../helpers/fixtures';
 import { pickFieldSheetOption } from '../../helpers/fieldSheet';
 
-async function stayOnEditorAfterDraftSave(
+async function leaveToListAfterDraftSave(
   page: import('@playwright/test').Page,
   name: string,
 ) {
-  await expect(page).toHaveURL(/\/catalog\/collections\/(?!new)/, { timeout: 20_000 });
-  await expect(page.getByLabel('Collection name')).toHaveValue(name);
+  await expect(page).toHaveURL(/\/more\?tab=collections/, { timeout: 20_000 });
+  await expect(page).not.toHaveURL(/\/catalog\/collections\//);
+  await expect(page.getByText(name).first()).toBeVisible({ timeout: 20_000 });
 }
 
 async function reopenOwnDraftFromYou(page: import('@playwright/test').Page, name: string) {
@@ -48,9 +49,9 @@ test.describe('collection creation @functional @release @media @creation @collec
     await page.getByTestId('collection-create-dock').getByRole('button', { name: 'Save in Draft' }).click();
     await expect(page.getByText('Collection saved').first()).toBeVisible({ timeout: 60_000 });
 
-    await stayOnEditorAfterDraftSave(page, name);
-    await expect(page.locator('img').first()).toBeVisible();
+    await leaveToListAfterDraftSave(page, name);
     await reopenOwnDraftFromYou(page, name);
+    await expect(page.locator('img').first()).toBeVisible();
   });
 
   test('B designs only — save draft and reopen', async ({ page }) => {
@@ -74,7 +75,7 @@ test.describe('collection creation @functional @release @media @creation @collec
     await page.getByTestId('collection-create-dock').getByRole('button', { name: 'Save in Draft' }).click();
     await expect(page.getByText('Collection saved').first()).toBeVisible({ timeout: 45_000 });
 
-    await stayOnEditorAfterDraftSave(page, name);
+    await leaveToListAfterDraftSave(page, name);
     await reopenOwnDraftFromYou(page, name);
   });
 
@@ -114,7 +115,7 @@ test.describe('collection creation @functional @release @media @creation @collec
     await page.getByTestId('collection-create-dock').getByRole('button', { name: 'Save in Draft' }).click();
     await expect(page.getByText('Collection saved').first()).toBeVisible({ timeout: 60_000 });
 
-    await stayOnEditorAfterDraftSave(page, name);
+    await leaveToListAfterDraftSave(page, name);
     await reopenOwnDraftFromYou(page, name);
   });
 
@@ -167,16 +168,15 @@ test.describe('collection creation @functional @release @media @creation @collec
     await expect(page.getByText(name).first()).toBeVisible({ timeout: 20_000 });
   });
 
-  test('empty Save in Draft stays in the editor', async ({ page }) => {
+  test('empty Save in Draft leaves to You list with toast', async ({ page }) => {
     test.setTimeout(60_000);
     await loginAsRavi(page);
     await page.goto('/catalog/collections/new');
     await page.getByTestId('collection-create-dock').getByRole('button', { name: 'Save in Draft' }).click();
     await expect(page.getByText('Collection saved').first()).toBeVisible({ timeout: 45_000 });
-    await expect(page).toHaveURL(/\/catalog\/collections\/(?!new)/);
-    const name = `Stay ${Date.now()}`;
-    await page.getByLabel('Collection name').fill(name);
-    await expect(page.getByLabel('Collection name')).toHaveValue(name);
+    await expect(page).toHaveURL(/\/more\?tab=collections/, { timeout: 20_000 });
+    await expect(page).not.toHaveURL(/\/catalog\/collections\//);
+    await expect(page.getByText(/Untitled/i).first()).toBeVisible({ timeout: 20_000 });
   });
 
   test('/collections/new opens create', async ({ page }) => {

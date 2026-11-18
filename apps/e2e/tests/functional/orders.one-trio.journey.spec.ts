@@ -125,6 +125,18 @@ test.describe('one Direct Link trio @functional @orders @chat', () => {
     await expect(page.getByTestId('order-dock-confirm')).toHaveCount(0);
 
     await loginAsRavi(page);
+    // #42 — seller-logged for-buyer appears on buyer Buying list.
+    const raviToken = await accessTokenFromPage(page);
+    const buyingList = await page.request.get(`${API_URL}/orders?limit=40&direction=buying`, {
+      headers: { authorization: `Bearer ${raviToken}` },
+    });
+    expect(buyingList.ok()).toBe(true);
+    const buyingBody = (await buyingList.json()) as {
+      results?: Array<{ id: string }>;
+    };
+    const buyingIds = (buyingBody.results ?? []).map((row) => row.id);
+    expect(buyingIds).toContain(order.id);
+
     await page.goto(`/orders/${order.id}`);
     await expect(page.getByTestId('order-dock-decline')).toBeVisible({ timeout: 15_000 });
     await expect(page.getByTestId('order-dispatch-open')).toHaveCount(0);

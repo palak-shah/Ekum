@@ -352,6 +352,18 @@ export function requestedDockPrimary(
   return null;
 }
 
+/**
+ * Over-ship Decline eligibility (buyer dock). Keep in lockstep with API
+ * `buyerMayRefuseOverShip` — part_shipped|dispatched + real overage only.
+ */
+export function buyDockOverShipDecline(input: {
+  status: string;
+  hasOverShipped: boolean;
+}): boolean {
+  if (!input.hasOverShipped) return false;
+  return input.status === 'part_shipped' || input.status === 'dispatched';
+}
+
 /** Sticky dock — seller and buyer, same row above the nav. */
 export function orderActionDock(input: {
   isSeller: boolean;
@@ -379,6 +391,11 @@ export function orderActionDock(input: {
    * Pre-accept: Edit + Cancel only when canAmend. After: dock none.
    */
   isDirectFacilitator?: boolean;
+  /**
+   * Any line shipped &gt; ordered. Buyer / trader mill hop get Decline after
+   * over-dispatch (Completeness 2026-11-18-over-dispatch-decline).
+   */
+  hasOverShipped?: boolean;
 }): OrderActionDock {
   if (!input.isSeller) {
     if (input.isDirectFacilitator === true) {
@@ -400,13 +417,23 @@ export function orderActionDock(input: {
       !millHop && requested && input.canAcceptQuote === true;
     const edit = input.canAmend === true;
     const openToRefuse = requested || input.status === 'confirmed';
+    // Strict over-ship Decline — same gate as API buyerMayRefuseOverShip.
+    // Never on Direct facilitator (early return above). Never exact/under ship.
+    const overRefuse = buyDockOverShipDecline({
+      status: input.status,
+      hasOverShipped: input.hasOverShipped === true,
+    });
     // Seller-logged (own catalog): confirmed on create. Decline stays on the
     // confirmed ticket so the buyer can refuse a phone-agreed log. Buyer-placed
-    // tickets keep Cancel for the same statuses. Mill hop: Cancel in ⋯ only.
+    // tickets keep Cancel for the same statuses. Mill hop: Cancel in ⋯ only —
+    // except after over-dispatch, when buyer and trader both get Decline.
     const declineLogged =
-      !millHop && input.createdBySeller === true && openToRefuse;
+      (!millHop && input.createdBySeller === true && openToRefuse) || overRefuse;
     const cancel =
-      !millHop && input.createdBySeller !== true && openToRefuse;
+      !millHop &&
+      input.createdBySeller !== true &&
+      openToRefuse &&
+      !overRefuse;
     if (!cancel && !declineLogged && !edit && !acceptQuote) {
       return { kind: 'none' };
     }

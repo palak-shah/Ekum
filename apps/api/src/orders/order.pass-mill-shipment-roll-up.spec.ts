@@ -2,8 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { OrderLineStatus, OrderStatus, OrderTradeMode } from '@ekum/domain-types';
 import { OrderService } from './order.service';
 
-describe('passMillEditShipmentToParent / settle trim', () => {
-  it('rebuilds hop-attributable parent shipments and leaves You LRs alone', async () => {
+describe('passMillEditShipmentToParent / settle trim (#40 edit + LR)', () => {
+  it('rebuilds hop-attributable parent shipments with LR/transporter and leaves You LRs alone', async () => {
     const hopItems = [
       {
         id: 'h-1',
@@ -24,8 +24,19 @@ describe('passMillEditShipmentToParent / settle trim', () => {
       shipments: [
         {
           id: 'hop-ship',
+          transporter: 'VRL',
+          lrNumber: 'LR-991',
+          parcelCount: 2,
           dispatchedAt: new Date('2026-01-02T00:00:00Z'),
           items: [{ orderItemId: 'h-1', quantity: { toNumber: () => 6 } }],
+          legs: [
+            {
+              lrNumber: 'LR-991',
+              billNumber: 'B-1',
+              imageUrls: [],
+              sortOrder: 0,
+            },
+          ],
         },
       ],
     };
@@ -135,8 +146,20 @@ describe('passMillEditShipmentToParent / settle trim', () => {
     expect(createdShipments[0]).toEqual(
       expect.objectContaining({
         orderId: 'parent-1',
+        transporter: 'VRL',
+        lrNumber: 'LR-991',
+        parcelCount: 2,
         items: {
           create: [{ orderItemId: 'p-mill', quantity: 6 }],
+        },
+        legs: {
+          create: [
+            expect.objectContaining({
+              lrNumber: 'LR-991',
+              billNumber: 'B-1',
+              sortOrder: 0,
+            }),
+          ],
         },
       }),
     );

@@ -3572,6 +3572,14 @@ export class OrderService {
       where: { id: up.id },
       data: { passHeldAt: dto.held ? new Date() : null, updatedByUserId: userId },
     });
+    // Resume: flush mill→parent that waited behind Hold (can't-supply / qty / settle).
+    // While held, shouldPassThrough blocks — never pass accidentally under Hold.
+    if (!dto.held) {
+      await this.passMillLinesToParent(up.id, actorCompanyId, userId);
+      if (up.status === OrderStatus.Settled) {
+        await this.passMillSettleToParent(up.id, actorCompanyId, userId);
+      }
+    }
     await this.trail.append({
       orderId: id,
       type: OrderTrailType.Updated,
@@ -3865,9 +3873,15 @@ export class OrderService {
         'Trader';
       actorRole = 'buyer';
     } else {
+      // Over-ship Decline: buyer only, and only while part_shipped/dispatched with
+      // a real overage — never widen Requested/Confirmed cancel, never seller/facilitator.
+      const overShipRefuse = this.buyerMayRefuseOverShip(order, actorCompanyId);
+      const fromStatuses = overShipRefuse
+        ? [order.status]
+        : [OrderStatus.Requested, OrderStatus.Confirmed];
       view = await this.transition(actorCompanyId, userId, id, {
         actor: 'buyer',
-        from: [OrderStatus.Requested, OrderStatus.Confirmed],
+        from: fromStatuses,
         next: OrderStatus.Cancelled,
         data: { closedAt: new Date() },
       });
@@ -3912,6 +3926,42 @@ export class OrderService {
       }
     }
     return map;
+  }
+
+  /** Any non-declined line shipped &gt; ordered. */
+  private orderHasOverShipped(order: {
+    items: Array<{ id: string; lineStatus: string; quantity: Prisma.Decimal }>;
+    shipments?: { items: { orderItemId: string; quantity: Prisma.Decimal }[] }[];
+  }): boolean {
+    const shippedByItem = this.shippedTotals(order);
+    return order.items.some((item) => {
+      if (item.lineStatus === OrderLineStatus.Declined) return false;
+      const shipped = shippedByItem.get(item.id) ?? 0;
+      return shipped > item.quantity.toNumber() + 1e-9;
+    });
+  }
+
+  /**
+   * Strict over-ship Decline gate (Completeness 2026-11-18-over-dispatch-decline).
+   * Buyer of this hop only · part_shipped|dispatched · real overage · not settled.
+   */
+  private buyerMayRefuseOverShip(
+    order: {
+      status: string;
+      buyerCompanyId: string;
+      items: Array<{ id: string; lineStatus: string; quantity: Prisma.Decimal }>;
+      shipments?: { items: { orderItemId: string; quantity: Prisma.Decimal }[] }[];
+    },
+    actorCompanyId: string,
+  ): boolean {
+    if (actorCompanyId !== order.buyerCompanyId) return false;
+    if (
+      order.status !== OrderStatus.PartShipped &&
+      order.status !== OrderStatus.Dispatched
+    ) {
+      return false;
+    }
+    return this.orderHasOverShipped(order);
   }
 
   /** Clear soft rate-ask intent when seller/buyer commits. */
@@ -5358,12 +5408,32 @@ export class OrderService {
         const parentItem = parent.items.find((item) => item.id === parentItemId);
         if (!parentItem) continue;
         if (millItem.lineStatus === OrderLineStatus.Declined) {
-          if (parentItem.lineStatus === OrderLineStatus.Declined) continue;
+          // Mirror setLineSupply: Declined + qty clamped to what mill kept (shipped).
+          const nextQty = millItem.quantity.toNumber();
+          const beforeQty = parentItem.quantity.toNumber();
+          if (
+            parentItem.lineStatus === OrderLineStatus.Declined &&
+            beforeQty === nextQty
+          ) {
+            continue;
+          }
           await tx.orderItem.update({
             where: { id: parentItemId },
-            data: { lineStatus: OrderLineStatus.Declined },
+            data: {
+              lineStatus: OrderLineStatus.Declined,
+              quantity: millItem.quantity,
+            },
           });
           declined += 1;
+          if (beforeQty !== nextQty) {
+            qtyChanged += 1;
+            qtyPayload.push({
+              orderItemId: parentItemId,
+              field: 'quantity',
+              before: beforeQty,
+              after: nextQty,
+            });
+          }
           continue;
         }
         if (
@@ -5514,7 +5584,16 @@ export class OrderService {
   ): Promise<void> {
     const mill = await this.prisma.order.findUnique({
       where: { id: millOrderId },
-      include: { items: true, seller: true },
+      include: {
+        items: true,
+        seller: true,
+        // Latest hop LR — copy transporter / LR onto buyer-visible parent ship.
+        shipments: {
+          include: { legs: true },
+          orderBy: { dispatchedAt: 'desc' },
+          take: 1,
+        },
+      },
     });
     if (!mill || !shouldPassThrough(mill)) return;
     await this.passMillLinesToParent(millOrderId, actorCompanyId, userId);
@@ -5532,9 +5611,14 @@ export class OrderService {
       mapped.push({ orderItemId: parentItemId, quantity: line.quantity });
     }
     if (mapped.length === 0) return;
+    const sourceShip = mill.shipments[0];
+    const sourceLegs = sourceShip?.legs ?? [];
     await this.prisma.orderShipment.create({
       data: {
         orderId: parent.id,
+        transporter: sourceShip?.transporter ?? null,
+        lrNumber: sourceShip?.lrNumber ?? null,
+        parcelCount: sourceShip?.parcelCount ?? null,
         dispatchedAt: new Date(),
         dispatchedByUserId: userId,
         items: {
@@ -5543,6 +5627,18 @@ export class OrderService {
             quantity: line.quantity,
           })),
         },
+        ...(sourceLegs.length > 0
+          ? {
+              legs: {
+                create: sourceLegs.map((leg) => ({
+                  lrNumber: leg.lrNumber,
+                  billNumber: leg.billNumber,
+                  imageUrls: leg.imageUrls,
+                  sortOrder: leg.sortOrder,
+                })),
+              },
+            }
+          : {}),
       },
     });
     const parentAfter = await this.prisma.order.findUnique({
@@ -5639,7 +5735,10 @@ export class OrderService {
       include: {
         items: true,
         seller: true,
-        shipments: { include: { items: true }, orderBy: { dispatchedAt: 'asc' } },
+        shipments: {
+          include: { items: true, legs: true },
+          orderBy: { dispatchedAt: 'asc' },
+        },
       },
     });
     if (!hop || !shouldPassThrough(hop)) return;
@@ -5680,9 +5779,13 @@ export class OrderService {
           parent.items,
         );
         if (mapped.length === 0) continue;
+        const hopLegs = hopShip.legs ?? [];
         await tx.orderShipment.create({
           data: {
             orderId: parent.id,
+            transporter: hopShip.transporter ?? null,
+            lrNumber: hopShip.lrNumber ?? null,
+            parcelCount: hopShip.parcelCount ?? null,
             dispatchedAt: hopShip.dispatchedAt,
             dispatchedByUserId: userId,
             items: {
@@ -5691,6 +5794,18 @@ export class OrderService {
                 quantity: line.quantity,
               })),
             },
+            ...(hopLegs.length > 0
+              ? {
+                  legs: {
+                    create: hopLegs.map((leg) => ({
+                      lrNumber: leg.lrNumber,
+                      billNumber: leg.billNumber,
+                      imageUrls: leg.imageUrls,
+                      sortOrder: leg.sortOrder,
+                    })),
+                  },
+                }
+              : {}),
           },
         });
       }
@@ -6228,9 +6343,9 @@ export class OrderService {
       where: { id: millOrderId },
       include: { items: true, seller: true },
     });
-    // Settle is terminal — pass even if Hold was on (Hold should not strand the parent).
-    if (!mill?.downstreamOrderId || !mill.upstreamReleasedAt) return;
-    await this.syncManageParentFromMillSettle(mill.downstreamOrderId, millOrderId, userId);
+    // Same Hold gate as lines/dispatch — never pass under Hold. Resume flushes settle.
+    if (!mill || !shouldPassThrough(mill)) return;
+    await this.syncManageParentFromMillSettle(mill.downstreamOrderId!, millOrderId, userId);
   }
 
   /**

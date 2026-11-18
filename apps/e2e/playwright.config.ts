@@ -23,10 +23,12 @@ export default defineConfig({
   projects: mobileProjects(true),
   webServer: [
     {
-      command: 'pnpm --filter @ekum/api dev',
+      // Build then `node dist/main.js` — nest --watch can race MODULE_NOT_FOUND on dist/main
+      // and exceed the health wait (seen as webServer timeout / ECONNRESET mid-OTP).
+      command: 'pnpm --filter @ekum/api build && pnpm --filter @ekum/api start',
       url: `${apiOrigin}/api/v1/health`,
       reuseExistingServer: !process.env.CI,
-      timeout: 180_000,
+      timeout: 300_000,
       env: {
         ...process.env,
         OTP_EXPOSE_DEV_CODE: 'true',

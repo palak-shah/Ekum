@@ -32,14 +32,21 @@ export function tradeListShipProgressLines(items: OrderView['items'] | undefined
 }
 
 /** Shared order-unit noun when every line agrees; otherwise omit. */
-function sharedUnitNoun(items: ShipLine[]): string | null {
+function sharedUnitNoun(items: ShipLine[], count: number): string | null {
   const units = items
     .map((line) => line.unit?.trim())
     .filter((unit): unit is string => Boolean(unit));
   if (units.length < 1) return null;
   const first = units[0]!;
   if (!units.every((unit) => unit === first)) return null;
-  return qtyCountNoun(first);
+  return qtyCountNoun(first, count);
+}
+
+/** Same shippable filter as `dispatchSheetShipProgress` — declined / open out. */
+function tradeListShippableLines(items: ShipLine[]): ShipLine[] {
+  return items.filter(
+    (line) => line.lineStatus === 'confirmed' || line.lineStatus === 'dispatched',
+  );
 }
 
 export function tradeListShipTotals(order: OrderView): {
@@ -48,15 +55,16 @@ export function tradeListShipTotals(order: OrderView): {
   ordered: number;
   noun: string | null;
 } {
-  const items = tradeListShipProgressLines(order.items);
+  const items = tradeListShippableLines(tradeListShipProgressLines(order.items));
   const shipped = items.reduce((sum, line) => sum + (line.shippedQuantity ?? 0), 0);
   const remaining = items.reduce(
     (sum, line) => sum + Math.max(0, line.remainingQuantity ?? 0),
     0,
   );
-  // Order unit qty only — never piecesPerPack × quantity.
+  // Order unit qty only — never piecesPerPack × quantity. Confirmed total only.
   const ordered = items.reduce((sum, line) => sum + Math.max(0, line.quantity ?? 0), 0);
-  return { shipped, remaining, ordered, noun: sharedUnitNoun(items) };
+  const nounCount = ordered > 0 ? ordered : shipped;
+  return { shipped, remaining, ordered, noun: sharedUnitNoun(items, nounCount) };
 }
 
 /** Confirmed / part-shipped with a qty — prototype live bar + `0/60 sets sent`. */

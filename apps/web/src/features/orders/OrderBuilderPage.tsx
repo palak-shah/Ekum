@@ -44,6 +44,7 @@ import {
   howManyOrderUnitsMixed,
   howManyPackSizesDiffer,
   qtyCountNoun,
+  qtyStepperUnitLabel,
 } from '@/features/orders/howManyLineMeta';
 import { OrderLineStack } from '@/features/orders/OrderLineStack';
 import { OrderQtyFooterSummary } from '@/features/orders/OrderQtyFooterSummary';
@@ -55,6 +56,7 @@ import {
 import { TransporterField } from '@/features/orders/TransporterField';
 import { orderBuilderPhotoDirty, orderBuilderStandardDirty } from './orderBuilderDirty';
 import { withPrefillSeller } from './orderBuilderPrefillSeller';
+import { DEFAULT_SELL_AS_UNIT } from '@/features/catalog/publishDefaults';
 import { navigateToOrderChat } from './navigateToOrderChat';
 
 interface PhotoLine {
@@ -248,6 +250,7 @@ export function OrderBuilderPage() {
             items: photos.map((line, index) => ({
               name: `Photo ${index + 1}`,
               quantity: Number(line.quantity),
+              unit: DEFAULT_SELL_AS_UNIT,
               images: [toAbsoluteMediaUrl(line.imageUrl)],
             })),
           };
@@ -255,6 +258,7 @@ export function OrderBuilderPage() {
     },
     onSuccess: (order) => {
       submitLeaveBypassRef.current = true;
+      showToast('1 order placed');
       void navigateToOrderChat(navigate, queryClient, order, { replace: true });
     },
     onError: (err) => {
@@ -647,7 +651,7 @@ export function OrderBuilderPage() {
                       onClick={() => openPhotoPieces(photo.id)}
                       disabled={photo.uploading}
                       className="absolute inset-0 disabled:opacity-60"
-                      aria-label={`Photo · ${photo.quantity} pieces`}
+                      aria-label={`Photo · ${photo.quantity} ${qtyCountNoun(DEFAULT_SELL_AS_UNIT, Number(photo.quantity) || 2)}`}
                     >
                       <ManagedImage
                         src={photo.previewUrl || photo.imageUrl}
@@ -677,7 +681,9 @@ export function OrderBuilderPage() {
               />
 
               <div className="flex flex-col gap-2">
-                <p className="text-sm font-emphasis tracking-tight text-ink">Pieces for all</p>
+                <p className="text-sm font-emphasis tracking-tight text-ink">
+                  {qtyStepperUnitLabel(DEFAULT_SELL_AS_UNIT)} for all
+                </p>
                 <div className="ekum-no-scrollbar flex min-w-0 max-w-full flex-nowrap items-center gap-1.5 overflow-x-auto overscroll-x-contain">
                   {QTY_PRESETS.map((preset) => (
                     <button
@@ -801,7 +807,7 @@ export function OrderBuilderPage() {
       <Sheet
         open={Boolean(editPhoto)}
         onClose={() => setEditPhotoId(null)}
-        title="Pieces for this photo"
+        title={`${qtyStepperUnitLabel(DEFAULT_SELL_AS_UNIT)} for this photo`}
         footer={
           editPhoto ? (
             <Button fullWidth onClick={applyPhotoPieces}>
@@ -835,7 +841,7 @@ export function OrderBuilderPage() {
                 </button>
               ))}
             </div>
-            <Field label="Pieces">
+            <Field label={qtyStepperUnitLabel(DEFAULT_SELL_AS_UNIT)}>
               <TextInput
                 type="number"
                 min={1}

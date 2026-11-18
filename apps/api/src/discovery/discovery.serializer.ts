@@ -14,6 +14,19 @@ import {
 import { collectionPreviewFromRow } from './collection-preview';
 import { collectionMemberFind } from '../catalog/collection-member-find';
 import { isGeneralKind } from '../catalog/general-collection';
+import {
+  collectionSourceShopNames,
+  type SourceCreditHop,
+} from './source-shop-credit';
+
+export {
+  collectionSourceShopNames,
+  revealedCreditCompanyId,
+  visitorDesignCreditCompanyName,
+  sourceHopsFromRows,
+  type SourceCreditHop,
+  type SourceCreditHopRow,
+} from './source-shop-credit';
 
 type CollectionCardRow = Collection & {
   company: Company;
@@ -36,24 +49,6 @@ type CollectionCardRow = Collection & {
   }>;
 };
 
-/** Foreign mill names for From credit — only when the pack opts in. */
-export function collectionSourceShopNames(
-  packCompanyId: string,
-  showSourceShops: boolean,
-  products?: Array<{
-    product: { companyId?: string; company?: { name: string } | null };
-  }>,
-): string[] {
-  if (!showSourceShops) return [];
-  const names = new Map<string, string>();
-  for (const row of products ?? []) {
-    const id = row.product.companyId;
-    if (!id || id === packCompanyId) continue;
-    const name = row.product.company?.name?.trim();
-    if (name) names.set(id, name);
-  }
-  return [...names.values()];
-}
 type ProductCardRow = Product & { company: Company };
 
 @Injectable()
@@ -78,6 +73,8 @@ export class DiscoverySerializer {
       viewerReposted?: boolean;
       viewerCompanyId?: string;
       repostEligibleCount?: number;
+      /** Immediate→outer repost source hops for visitor credit ceiling. */
+      sourceHops?: SourceCreditHop[];
     },
   ): CollectionCard {
     const preview = collectionPreviewFromRow(collection);
@@ -122,6 +119,12 @@ export class DiscoverySerializer {
         collection.companyId,
         collection.showSourceShops === true,
         collection.products,
+        opts?.sourceHops ?? [],
+        {
+          declaredSourceCollectionId:
+            (collection as { repostSourceCollectionId?: string | null })
+              .repostSourceCollectionId ?? null,
+        },
       ),
       viewerReposted: opts?.viewerReposted === true,
       repostEligibleCount:

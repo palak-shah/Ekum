@@ -208,9 +208,12 @@ export function howManyTotalPcsLabel(
   return `Total ${qtyPhrase(qty, unit)} = ${total} ${unitCountNoun(contents, total)}`;
 }
 
-/** Plural trade short — same vocabulary as rates (`mtrs`, `pcs`, not “metres”). */
-export function qtyCountNoun(unit: string | null | undefined): string {
-  return unitCountNoun(unit, 2);
+/**
+ * Trade short noun — same vocabulary as rates (`mtrs`, `pcs`, not “metres”).
+ * Pass real `count` for singular (“1 set”); default 2 keeps plural for labels.
+ */
+export function qtyCountNoun(unit: string | null | undefined, count = 2): string {
+  return unitCountNoun(unit, count);
 }
 
 /** Visible stepper caption — Capitalized unit noun. */

@@ -205,7 +205,7 @@ export function dispatchSheetShipProgress(
   const units = new Set(
     rows.map((item) => item.unit?.trim()).filter((unit): unit is string => Boolean(unit)),
   );
-  const noun = units.size === 1 ? qtyCountNoun([...units][0]!) : null;
+  const noun = units.size === 1 ? qtyCountNoun([...units][0]!, total) : null;
   const copy = noun
     ? `${shipped} of ${total} ${noun} sent`
     : `${shipped} of ${total} sent`;

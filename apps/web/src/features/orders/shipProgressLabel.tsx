@@ -47,6 +47,21 @@ export function orderLineOverShipped(item: {
   return Math.max(0, (item.shippedQuantity ?? 0) - (item.quantity ?? 0));
 }
 
+/** Any non-declined line shipped above ordered — unlocks buyer/trader Decline. */
+export function orderHasOverShipped(
+  items:
+    | Array<{
+        lineStatus?: string | null;
+        shippedQuantity?: number;
+        quantity?: number;
+      }>
+    | undefined,
+): boolean {
+  return (items ?? []).some(
+    (item) => item.lineStatus !== 'declined' && orderLineOverShipped(item) > 0,
+  );
+}
+
 /**
  * Always a pair: **dispatched N · pending M**, or **dispatched N · extra M**
  * when the seller sent more than ordered (extra accented).

@@ -34,7 +34,11 @@ import {
   collectionCardRateFields,
   collectionCardRateVisibility,
 } from '../discovery/collection-card-rate';
-import { collectionSourceShopNames } from '../discovery/discovery.serializer';
+import {
+  collectionSourceShopNames,
+  sourceHopsFromRows,
+} from '../discovery/discovery.serializer';
+import type { SourceCreditHopRow } from '../discovery/source-shop-credit';
 import { collectionCardInclude, collectionPreviewFromRow } from '../discovery/collection-preview';
 import { isAllowedFollow } from '../discovery/follow-access';
 import { cursorArgs, toCursorPage } from '../discovery/pagination';
@@ -446,6 +450,9 @@ export class CompanyService {
       viewerCompanyId,
       collectionIds,
     );
+    const sourceHopRows = await this.loadSourceCreditHopRows(
+      live.map((row) => (row as { repostSourceCollectionId?: string | null }).repostSourceCollectionId),
+    );
     return toCursorPage(live, query.limit, (row) => {
       const preview = collectionPreviewFromRow(row);
       const rate = collectionCardRateFields({
@@ -459,6 +466,10 @@ export class CompanyService {
         catalogRateUnit: (row as { catalogRateUnit?: string | null }).catalogRateUnit,
         products: row.products,
       });
+      const sourceHops = sourceHopsFromRows(
+        (row as { repostSourceCollectionId?: string | null }).repostSourceCollectionId,
+        sourceHopRows,
+      );
       return {
         id: row.id,
         name: row.name,
@@ -487,11 +498,56 @@ export class CompanyService {
           row.companyId,
           row.showSourceShops === true,
           row.products,
+          sourceHops,
+          {
+            declaredSourceCollectionId:
+              (row as { repostSourceCollectionId?: string | null }).repostSourceCollectionId ??
+              null,
+          },
         ),
         viewerReposted: repostedCollections.has(row.id),
         company: this.serializer.toPublicSummary(row.company),
       };
     });
+  }
+
+  /** Load repost-source packs (and their sources) for visitor credit ceiling. */
+  private async loadSourceCreditHopRows(
+    sourceIds: Array<string | null | undefined>,
+  ): Promise<Map<string, SourceCreditHopRow>> {
+    const byId = new Map<string, SourceCreditHopRow>();
+    let pending = [
+      ...new Set(sourceIds.filter((id): id is string => Boolean(id))),
+    ];
+    for (let depth = 0; depth < 4 && pending.length > 0; depth += 1) {
+      const rows = await this.prisma.collection.findMany({
+        where: { id: { in: pending } },
+        select: {
+          id: true,
+          companyId: true,
+          showSourceShops: true,
+          repostSourceCollectionId: true,
+          company: { select: { name: true } },
+        },
+      });
+      const next: string[] = [];
+      for (const row of rows) {
+        byId.set(row.id, {
+          companyId: row.companyId,
+          companyName: row.company.name,
+          showSourceShops: row.showSourceShops === true,
+          repostSourceCollectionId: row.repostSourceCollectionId,
+        });
+        if (
+          row.repostSourceCollectionId &&
+          !byId.has(row.repostSourceCollectionId)
+        ) {
+          next.push(row.repostSourceCollectionId);
+        }
+      }
+      pending = next;
+    }
+    return byId;
   }
 
   private async viewerRepostedCollectionIds(

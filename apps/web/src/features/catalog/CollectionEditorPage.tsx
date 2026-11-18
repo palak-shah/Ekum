@@ -1709,7 +1709,9 @@ export function CollectionEditorPage() {
             ? 'Published'
             : 'Collection saved',
       );
-      const stayOnEditor = appended || !opts.publish;
+      // Save in Draft leaves to You list + toast (#58). Stay only when appending
+      // into an existing pack mid-flow without publish.
+      const stayOnEditor = appended && !opts.publish;
       navigate(
         stayOnEditor
           ? `/catalog/collections/${collectionId}`
@@ -1719,7 +1721,7 @@ export function CollectionEditorPage() {
           : {
               replace: true,
               state: {
-                collectionFilter: 'published',
+                collectionFilter: opts.publish ? 'published' : 'draft',
                 productFilter: 'published',
               },
             },
