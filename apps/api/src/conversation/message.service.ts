@@ -203,7 +203,12 @@ export class MessageService {
     query: ListThreadMessagesQuery,
   ): Promise<CursorPage<MessageView>> {
     const actorCompanyId = assertActiveCompany(actor);
-    await this.threads.membershipOrThrow(threadId, actorCompanyId, actor.role, actor.userId);
+    const mine = await this.threads.membershipOrThrow(
+      threadId,
+      actorCompanyId,
+      actor.role,
+      actor.userId,
+    );
 
     const where = await this.listWhere(threadId, query, {
       companyId: actorCompanyId,
@@ -220,6 +225,14 @@ export class MessageService {
     const page = (hasMore ? rows.slice(0, query.limit) : rows).filter((row) =>
       messageVisibleToCompany(row, actorCompanyId),
     );
+    // Delivery watermark: other shop sees grey double when we have fetched their messages.
+    const now = new Date();
+    if (!mine.lastDeliveredAt || mine.lastDeliveredAt < now) {
+      await this.prisma.threadParticipant.update({
+        where: { id: mine.id },
+        data: { lastDeliveredAt: now },
+      });
+    }
     const references = await this.references.resolve(page, actorCompanyId);
     const replyMap = await this.replyPreviews(page, actorCompanyId);
     const ids = page.map((row) => row.id);

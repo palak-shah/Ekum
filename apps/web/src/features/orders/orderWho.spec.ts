@@ -2,12 +2,22 @@ import { describe, expect, it } from 'vitest';
 import { isTenDigitPhone, orderForBuyerLoggedToast, orderWhoMode } from './orderWho';
 
 describe('orderWhoMode', () => {
-  it('hides Who when they only buy', () => {
+  it('keeps Place on a peer pack when Order for buyer is unavailable', () => {
     expect(
       orderWhoMode({
         canLogForBuyer: false,
         actorCompanyId: 'me',
         sellerCompanyId: 'mill',
+      }),
+    ).toBe('for-me-default');
+  });
+
+  it('hides own-shop logging when there is no connected buyer', () => {
+    expect(
+      orderWhoMode({
+        canLogForBuyer: false,
+        actorCompanyId: 'me',
+        sellerCompanyId: 'me',
       }),
     ).toBe('hidden');
   });

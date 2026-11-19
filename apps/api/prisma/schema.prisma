@@ -752,6 +752,8 @@ model ThreadParticipant {
   /** When set, this chat is pinned for the company (private; sorted above unpinned). */
   pinnedAt   DateTime?
   lastReadAt DateTime?
+  /** Last time this shop fetched messages (delivery watermark). */
+  lastDeliveredAt DateTime?
   /** Last typing heartbeat from this shop. Stale after ~6s. */
   typingAt DateTime?
   /** Our-shop inbox hide (Archive / Delete). Not participant `archived`. Null = in All Chats. */

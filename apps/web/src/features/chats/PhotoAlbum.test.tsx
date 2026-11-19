@@ -61,7 +61,7 @@ describe('PhotoAlbum overflow (BM-01)', () => {
     expect(screen.queryByTestId('photo-album-overflow')).toBeNull();
   });
 
-  it('thumb size does not overlay +n on two cells', () => {
+  it('thumb size shows +n on two cells when overflowCount bumps imageless lines', () => {
     render(
       <PhotoAlbum
         urls={['https://example.com/a.jpg', 'https://example.com/b.jpg']}
@@ -69,7 +69,7 @@ describe('PhotoAlbum overflow (BM-01)', () => {
         size="thumb"
       />,
     );
-    expect(screen.queryByTestId('photo-album-overflow')).toBeNull();
+    expect(screen.getByTestId('photo-album-overflow')).toHaveTextContent('+1');
   });
 
   it('thumb size shows at most three cells with +N overflow on the last', () => {
@@ -94,7 +94,7 @@ describe('PhotoAlbum overflow (BM-01)', () => {
     render(<PhotoAlbum urls={['https://example.com/a.jpg']} size="thumb" />);
     const wrap = screen.getByTestId('photo-album-thumb');
     expect(wrap.className).toMatch(/w-fit/);
-    expect(wrap.firstElementChild?.className).toMatch(/h-\[60px\]/);
+    expect(wrap.firstElementChild?.className).toMatch(/h-20/);
     expect(wrap.querySelector('img')).toBeTruthy();
   });
 

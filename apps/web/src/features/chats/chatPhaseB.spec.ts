@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   isTypingFresh,
   messageBodyHasLink,
+  outgoingDeliveryTicks,
   outgoingSeenLabel,
   TYPING_STALE_MS,
 } from '@ekum/domain-types';
@@ -27,6 +28,37 @@ describe('chat Phase B helpers', () => {
         threadType: 'group',
         lastOutgoingCreatedAt: '2026-09-23T10:00:00.000Z',
         counterpartLastReadAt: '2026-09-23T10:01:00.000Z',
+      }),
+    ).toBeNull();
+  });
+
+  it('ladders sent → delivered → seen on Direct only', () => {
+    expect(
+      outgoingDeliveryTicks({
+        threadType: 'direct',
+        messageCreatedAt: '2026-09-23T10:00:00.000Z',
+      }),
+    ).toBe('sent');
+    expect(
+      outgoingDeliveryTicks({
+        threadType: 'direct',
+        messageCreatedAt: '2026-09-23T10:00:00.000Z',
+        counterpartLastDeliveredAt: '2026-09-23T10:01:00.000Z',
+      }),
+    ).toBe('delivered');
+    expect(
+      outgoingDeliveryTicks({
+        threadType: 'direct',
+        messageCreatedAt: '2026-09-23T10:00:00.000Z',
+        counterpartLastDeliveredAt: '2026-09-23T10:01:00.000Z',
+        counterpartLastReadAt: '2026-09-23T10:02:00.000Z',
+      }),
+    ).toBe('seen');
+    expect(
+      outgoingDeliveryTicks({
+        threadType: 'group',
+        messageCreatedAt: '2026-09-23T10:00:00.000Z',
+        counterpartLastReadAt: '2026-09-23T10:02:00.000Z',
       }),
     ).toBeNull();
   });

@@ -518,17 +518,42 @@ export function isTypingFresh(typingAt: Date | string | null | undefined, now = 
   return now - new Date(typingAt).getTime() < TYPING_STALE_MS;
 }
 
+export type OutgoingDeliveryTick = 'sent' | 'delivered' | 'seen';
+
+/** 1:1 outgoing tick ladder. Groups return null (no ticks). */
+export function outgoingDeliveryTicks(input: {
+  threadType: string;
+  messageCreatedAt: string | null | undefined;
+  counterpartLastDeliveredAt?: string | null | undefined;
+  counterpartLastReadAt?: string | null | undefined;
+}): OutgoingDeliveryTick | null {
+  if (input.threadType !== 'direct') return null;
+  if (!input.messageCreatedAt) return null;
+  const created = Date.parse(input.messageCreatedAt);
+  if (Number.isNaN(created)) return null;
+  const readAt = input.counterpartLastReadAt
+    ? Date.parse(input.counterpartLastReadAt)
+    : Number.NaN;
+  if (!Number.isNaN(readAt) && readAt >= created) return 'seen';
+  const deliveredAt = input.counterpartLastDeliveredAt
+    ? Date.parse(input.counterpartLastDeliveredAt)
+    : Number.NaN;
+  if (!Number.isNaN(deliveredAt) && deliveredAt >= created) return 'delivered';
+  return 'sent';
+}
+
 export function outgoingSeenLabel(input: {
   threadType: string;
   lastOutgoingCreatedAt: string | null | undefined;
   counterpartLastReadAt: string | null | undefined;
 }): string | null {
-  if (input.threadType !== 'direct') return null;
-  if (!input.lastOutgoingCreatedAt || !input.counterpartLastReadAt) return null;
-  if (Date.parse(input.counterpartLastReadAt) >= Date.parse(input.lastOutgoingCreatedAt)) {
-    return 'Seen';
-  }
-  return null;
+  return outgoingDeliveryTicks({
+    threadType: input.threadType,
+    messageCreatedAt: input.lastOutgoingCreatedAt,
+    counterpartLastReadAt: input.counterpartLastReadAt,
+  }) === 'seen'
+    ? 'Seen'
+    : null;
 }
 
 const LINK_HINT = /https?:\/\/|www\./i;
@@ -721,6 +746,7 @@ export interface ParticipantView {
   state: string;
   alertLevel: string;
   lastReadAt: string | null;
+  lastDeliveredAt?: string | null;
 }
 
 export interface ThreadSummary {

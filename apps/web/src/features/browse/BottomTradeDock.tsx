@@ -49,6 +49,8 @@ export function DockIconButton({
   label,
   onClick,
   disabled,
+  /** When set, keep the control tappable while looking disabled (Explore-style why toast). */
+  onDisabledClick,
   primary,
   badge,
   children,
@@ -57,24 +59,33 @@ export function DockIconButton({
   label: string;
   onClick: () => void;
   disabled?: boolean;
+  onDisabledClick?: () => void;
   /** Primary trade verb — filled accent (Order). */
   primary?: boolean;
   /** Quiet count on the icon (e.g. cart size on header Cart). Not for dock Add to cart — count lives on SelectAllFloat. */
   badge?: number;
   children: ReactNode;
 }) {
+  const softDisabled = Boolean(disabled && onDisabledClick);
   return (
     <button
       type="button"
       data-testid={testId}
-      disabled={disabled}
-      onClick={onClick}
+      disabled={disabled && !softDisabled}
+      aria-disabled={disabled || undefined}
+      onClick={() => {
+        if (disabled && onDisabledClick) {
+          onDisabledClick();
+          return;
+        }
+        onClick();
+      }}
       className={cx(
         'relative flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl border text-xs font-emphasis',
         primary
           ? 'border-accent bg-accent text-on-accent'
           : 'border-line bg-surface text-ink',
-        'disabled:opacity-40',
+        disabled ? 'opacity-40' : null,
       )}
     >
       <span className={cx('relative', primary ? 'text-on-accent' : 'text-accent')}>

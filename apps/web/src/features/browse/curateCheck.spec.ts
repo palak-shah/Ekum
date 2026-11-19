@@ -7,6 +7,8 @@ import {
   REPOST_NO_PERMISSION,
   canExploreRepost,
   cartMayAskRelist,
+  cartRepostBlockedEmpty,
+  cartRepostBlockedToast,
   curateAskAllLabel,
   curateAskKind,
   curateBlockReason,
@@ -193,6 +195,48 @@ describe('unavailable copy', () => {
     expect(zeroEligibleSharedReason(['NOT_DISCOVERABLE'])).toBe(CURATE_PACK_ONLY_SUMMARY);
     expect(cartMayAskRelist(['NOT_DISCOVERABLE'])).toBe(false);
     expect(cartMayAskRelist(['RELIST_NOT_ALLOWED', 'NOT_DISCOVERABLE'])).toBe(true);
+    expect(
+      cartRepostBlockedEmpty({
+        checkSettled: true,
+        allowedCount: 0,
+        blockedCodes: ['NOT_DISCOVERABLE'],
+        relistableAlbumCount: 0,
+      }),
+    ).toBe(true);
+    expect(
+      cartRepostBlockedEmpty({
+        checkSettled: true,
+        allowedCount: 0,
+        blockedCodes: ['RELIST_NOT_ALLOWED'],
+        relistableAlbumCount: 0,
+      }),
+    ).toBe(false);
+    expect(
+      cartRepostBlockedEmpty({
+        checkSettled: true,
+        allowedCount: 1,
+        blockedCodes: ['NOT_DISCOVERABLE'],
+        relistableAlbumCount: 0,
+      }),
+    ).toBe(false);
+    expect(
+      cartRepostBlockedEmpty({
+        checkSettled: true,
+        allowedCount: 0,
+        blockedCodes: ['NOT_DISCOVERABLE'],
+        relistableAlbumCount: 1,
+      }),
+    ).toBe(false);
+    expect(
+      cartRepostBlockedEmpty({
+        checkSettled: false,
+        allowedCount: 0,
+        blockedCodes: ['NOT_DISCOVERABLE'],
+        relistableAlbumCount: 0,
+      }),
+    ).toBe(false);
+    expect(cartRepostBlockedToast(['NOT_DISCOVERABLE'])).toBe(CURATE_PACK_ONLY_SUMMARY);
+    expect(cartRepostBlockedToast([])).toBe(REPOST_NO_PERMISSION);
     expect(REPOST_NO_PERMISSION).toBe("You don't have permission to repost these designs.");
   });
 });

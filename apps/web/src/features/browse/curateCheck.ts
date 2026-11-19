@@ -170,6 +170,29 @@ export function cartMayAskRelist(codes: string[]): boolean {
   return codes.some((code) => code === 'RELIST_NOT_ALLOWED');
 }
 
+/**
+ * Cart dock: block opening Repost when check settled, nothing allowed,
+ * no Relist Ask, and no relistable pack albums (Explore zero parity).
+ */
+export function cartRepostBlockedEmpty(input: {
+  checkSettled: boolean;
+  allowedCount: number;
+  blockedCodes: string[];
+  relistableAlbumCount: number;
+}): boolean {
+  if (!input.checkSettled) return false;
+  if (input.relistableAlbumCount > 0) return false;
+  if (input.allowedCount > 0) return false;
+  if (cartMayAskRelist(input.blockedCodes)) return false;
+  return input.blockedCodes.length > 0;
+}
+
+/** Toast when Cart Repost is blocked-empty. */
+export function cartRepostBlockedToast(codes: string[]): string {
+  const reason = zeroEligibleSharedReason(codes).trim();
+  return reason || REPOST_NO_PERMISSION;
+}
+
 export function groupRelistAskBatches(
   entries: { productId: string; sourceCollectionId?: string }[],
 ): { productIds: string[]; sourceCollectionId?: string }[] {

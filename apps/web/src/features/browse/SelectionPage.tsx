@@ -30,6 +30,8 @@ import type { BrowseShortlistEntry } from '@/features/browse/browseShortlist';
 import { useBrowseCart } from '@/features/browse/useBrowseCart';
 import {
   CURATE_ASK_RELIST,
+  cartRepostBlockedEmpty,
+  cartRepostBlockedToast,
   curateAskAllLabel,
   mayAskToPutInPack,
   groupRelistAskBatches,
@@ -153,6 +155,10 @@ export function SelectionPage() {
     }
     return map;
   }, [curateCheck.data?.blocked]);
+  const curateBlockedCodes = useMemo(
+    () => (curateCheck.data?.blocked ?? []).map((row) => row.code),
+    [curateCheck.data?.blocked],
+  );
 
   const relistAccess = useQuery({
     queryKey: [
@@ -276,6 +282,19 @@ export function SelectionPage() {
   const availableDesignCount = resolving ? shortlist.count : availableDesigns.length;
   const availableAlbumCount = resolving ? albumPick.count : availableAlbums.length;
   const availableTotal = availableDesignCount + availableAlbumCount;
+  const relistableAlbumCount = useMemo(
+    () => partitionRelistableAlbums(availableAlbums).allowed.length,
+    [availableAlbums],
+  );
+  const repostBlockedEmpty = cartRepostBlockedEmpty({
+    checkSettled: curateCheck.isSuccess,
+    allowedCount: curateCheck.data?.allowedProductIds.length ?? 0,
+    blockedCodes: curateBlockedCodes,
+    relistableAlbumCount,
+  });
+  const toastRepostBlocked = () => {
+    showToast(cartRepostBlockedToast(curateBlockedCodes));
+  };
 
   const lookOnlyCompanyIds = useMemo(() => {
     const ids = new Set<string>();
@@ -383,6 +402,10 @@ export function SelectionPage() {
 
   const onCurate = () => {
     if (availableTotal < 1) return;
+    if (repostBlockedEmpty) {
+      toastRepostBlocked();
+      return;
+    }
     toastSkippedUnavailable();
     const albums = resolving ? albumPick.entries : availableAlbums;
     const designs = resolving ? shortlist.entries : availableDesigns;
@@ -407,8 +430,23 @@ export function SelectionPage() {
     const cartAlbums = readCartAlbums();
     if (state.openCurate) {
       const { allowed: packAlbums } = partitionRelistableAlbums(cartAlbums);
-      if (packAlbums.length > 0) setCurateResolveOpen(true);
-      else if (cartDesigns.length > 0) openCurateWithDesigns(cartDesigns, []);
+      if (packAlbums.length > 0) {
+        setCurateResolveOpen(true);
+        return;
+      }
+      if (cartDesigns.length < 1) return;
+      if (
+        cartRepostBlockedEmpty({
+          checkSettled: curateCheck.isSuccess,
+          allowedCount: curateCheck.data?.allowedProductIds.length ?? 0,
+          blockedCodes: curateBlockedCodes,
+          relistableAlbumCount: 0,
+        })
+      ) {
+        showToast(cartRepostBlockedToast(curateBlockedCodes));
+        return;
+      }
+      openCurateWithDesigns(cartDesigns, []);
       return;
     }
     if (state.openOrder) {
@@ -661,7 +699,10 @@ export function SelectionPage() {
                           <DockIconButton
                             testId="selection-curate"
                             label="Repost"
-                            disabled={availableTotal < 1 || savingPick}
+                            disabled={availableTotal < 1 || savingPick || repostBlockedEmpty}
+                            onDisabledClick={
+                              repostBlockedEmpty ? toastRepostBlocked : undefined
+                            }
                             onClick={onCurate}
                           >
                             <RepostIcon width={22} height={22} />

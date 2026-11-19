@@ -1,28 +1,34 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import type { ProductView } from '@ekum/domain-types';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { api } from '@/lib/apiClient';
 import { HowManyEachSheet } from './HowManyEachSheet';
 
 vi.mock('@/lib/apiClient', () => ({
   api: {
-    get: vi.fn().mockImplementation(async (path: string) => {
-      if (path === '/connections') return [];
-      throw new Error('skip');
-    }),
+    get: vi.fn(),
     post: vi.fn(),
   },
   ApiError: class ApiError extends Error {},
 }));
+
+function mockApiGet(followers: unknown[] = [{ company: { id: 'buyer-1', name: 'Buyer' } }]) {
+  vi.mocked(api.get).mockImplementation(async (path: string) => {
+    if (path === '/connections') return [];
+    if (path === '/follows/followers') return followers;
+    throw new Error('skip');
+  });
+}
 
 vi.mock('@/ui/Toast', () => ({
   useToast: () => ({ showToast: vi.fn() }),
 }));
 
 vi.mock('@/lib/tradePresence', () => ({
-  useTradePresence: () => ({ selling: true, trading: true }),
+  useTradePresence: () => ({ selling: true, trading: true, isLoading: false }),
 }));
 
 vi.mock('@/lib/queries', () => ({
@@ -69,6 +75,10 @@ function renderSheet(props?: {
 }
 
 describe('HowManyEachSheet line chrome', () => {
+  beforeEach(() => {
+    mockApiGet();
+  });
+
   it('keeps the name clean and shows a one-line note field', () => {
     renderSheet();
     const name = screen.getByText('Navy');
@@ -228,12 +238,21 @@ describe('HowManyEachSheet line chrome', () => {
     expect(screen.queryByTestId('sheet-full-scroll')).toBeNull();
   });
 
-  it('order job: Place Order only — no Share or Ask rates; Order for buyer is a switch', () => {
+  it('order job: Place Order only — no Share or Ask rates; Order for buyer is a switch', async () => {
     renderSheet({ sheetJob: 'order' });
     expect(screen.getByTestId('how-many-place-order')).toHaveTextContent('Place Order');
-    expect(screen.getByTestId('how-many-order-for-buyer')).toBeInTheDocument();
+    expect(await screen.findByTestId('how-many-order-for-buyer')).toBeInTheDocument();
     expect(screen.queryByTestId('how-many-share')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Ask rates' })).toBeNull();
+  });
+
+  it('hides Order for buyer when there are no connected buyers', async () => {
+    mockApiGet([]);
+    renderSheet({ sheetJob: 'order' });
+    await waitFor(() => {
+      expect(screen.queryByTestId('how-many-order-for-buyer')).toBeNull();
+    });
+    expect(screen.getByTestId('how-many-place-order')).toBeInTheDocument();
   });
 
   it('peer pack of my mill SKUs still shows Place Order', () => {
@@ -242,10 +261,10 @@ describe('HowManyEachSheet line chrome', () => {
     expect(screen.queryByTestId('how-many-choose-buyer')).toBeNull();
   });
 
-  it('own shop hides Place Order and leaves Order for buyer on', () => {
+  it('own shop hides Place Order and leaves Order for buyer on', async () => {
     renderSheet({ sheetJob: 'order', sellerId: 'me', productCompanyId: 'me' });
     expect(screen.queryByTestId('how-many-place-order')).toBeNull();
-    expect(screen.getByTestId('how-many-order-for-buyer')).toBeInTheDocument();
+    expect(await screen.findByTestId('how-many-order-for-buyer')).toBeInTheDocument();
   });
 
   it('ask job: Ask rates only', () => {
@@ -260,14 +279,14 @@ describe('HowManyEachSheet line chrome', () => {
     const user = userEvent.setup();
     renderSheet({ sheetJob: 'order' });
     await user.click(screen.getByRole('button', { name: /Increase/i }));
-    await user.click(screen.getByTestId('how-many-order-for-buyer'));
+    await user.click(await screen.findByTestId('how-many-order-for-buyer'));
     expect(screen.queryByRole('heading', { name: 'Order for buyer' })).toBeNull();
     expect(screen.getByTestId('how-many-choose-buyer')).toHaveTextContent('Choose buyer');
     await user.click(screen.getByTestId('how-many-choose-buyer'));
     expect(screen.getByRole('heading', { name: 'Order for buyer' })).toBeInTheDocument();
   });
 
-  it('keeps sheet Note after lines, collapsed so designs stay the main job', () => {
+  it('keeps sheet Note after lines, collapsed so designs stay the main job', async () => {
     renderSheet();
     const extras = screen.getByTestId('how-many-extras');
     expect(within(extras).getByTestId('note-attach-add')).toHaveTextContent('Add note');
@@ -277,7 +296,7 @@ describe('HowManyEachSheet line chrome', () => {
       'placeholder',
       'Transporter · optional',
     );
-    expect(within(extras).getByTestId('how-many-order-for-buyer')).toBeInTheDocument();
+    expect(await within(extras).findByTestId('how-many-order-for-buyer')).toBeInTheDocument();
     expect(within(screen.getByTestId('how-many-footer')).queryByTestId('note-attach-add')).toBeNull();
   });
 
@@ -371,6 +390,58 @@ describe('HowManyEachSheet line chrome', () => {
       expect.objectContaining({ productId: 'p1', quantity: 1 }),
       expect.objectContaining({ productId: 'p2', quantity: 1 }),
     ]);
+  });
+
+  it('whole catalog collapses mill + own members with stamped pack id', () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const members = [
+      {
+        ...product,
+        id: 'mill-1',
+        name: 'Mill silk',
+        companyId: 'mill-a',
+        companyName: 'Mill A',
+        unit: 'pc',
+        piecesPerPack: null,
+        rate: 450,
+        catalogRateUnit: 'pc',
+        catalogCollectionId: 'cat-1',
+        catalogWhole: true,
+        catalogName: 'Season',
+      },
+      {
+        ...product,
+        id: 'own-1',
+        name: 'Own cotton',
+        unit: 'pc',
+        piecesPerPack: null,
+        rate: 450,
+        catalogRateUnit: 'pc',
+        catalogCollectionId: 'cat-1',
+        catalogWhole: true,
+        catalogName: 'Season',
+      },
+    ] as ProductView[];
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <HowManyEachSheet
+            open
+            onClose={vi.fn()}
+            sellerId="catalog-shop"
+            products={members}
+            onSendOrder={vi.fn()}
+            onAskRates={vi.fn()}
+            lockedProductIds={['mill-1', 'own-1']}
+          />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    expect(screen.getByTestId('how-many-catalog')).toBeInTheDocument();
+    expect(screen.getAllByTestId('qty-stepper')).toHaveLength(1);
+    const membersList = screen.getByTestId('how-many-catalog-members');
+    expect(within(membersList).getByText('Mill silk')).toBeInTheDocument();
+    expect(within(membersList).getByText('Own cotton')).toBeInTheDocument();
   });
 
 });

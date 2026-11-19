@@ -102,7 +102,12 @@ export function productToOrderShortlistEntry(
           ...(pack.sourceDirect ? { sourceDirect: true } : {}),
           sourcePackAllowForward: pack.allowForward !== false,
           ...(pack.catalogWhole
-            ? { catalogWhole: true, catalogName: pack.catalogName ?? albumName(pack) }
+            ? {
+                catalogWhole: true,
+                catalogName: pack.catalogName ?? albumName(pack),
+                // Collapse gate needs pack id even when mill members lack exclusive stamp.
+                catalogCollectionId: pack.collectionId,
+              }
             : {}),
         }
       : {}),

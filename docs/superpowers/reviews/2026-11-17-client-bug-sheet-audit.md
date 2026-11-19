@@ -93,19 +93,19 @@ Classification is **docs-based** (concepts / access / orders / collections / sel
 | 60 | Catalogue | `/more?tab=designs` opens Collections | Fixed | `tab=designs` aliases Designs like `products`. | — |
 | 61 | Catalogue | Title always “My collections” | Change / feature | Shipped shell title; rename with Library IA cut. | — |
 | 62 | Catalogue | Pick-and-choose looks like collection; min buried | Change / feature | Aligns with catalogue vs collection decisions. | — |
-| 63 | Catalogue | Whole-order catalogue shows selectable designs | Real bug | Whole-order must be one card / one qty. | Yes |
-| 64 | Catalogue | Home “New collections” includes catalogues | Parked | Home not to be touched yet per sheet. | — |
+| 63 | Catalogue | Whole-order catalogue shows selectable designs | Fixed | Whole-order = one How many card / one qty (`catalogCollectionId` on expand + DesignSet prepare). | — |
+| 64 | Catalogue | Home “New collections” includes catalogues | Fixed | Quiet **Catalog** chip on catalog rows (Collections tab kept; no Home IA rewrite). | — |
 | 65 | Repost | Show rates options incomplete vs artifact | Change / feature | Artifact gap. | — |
 | 66 | Repost | Reposted collection missing rate/auto-add/audience menu | Change / feature | Artifact incomplete. | — |
 | 67 | Repost | Repost tap: no done state / toast | Real bug | Explore should show reposted done icon + toast. | Yes |
 | 68 | Repost | External share icon no response | Close / retest | Intermittent; retest before fix. | — |
 | 69 | Repost | Buyer sees “They send the mill lots on” jargon | Polish | Copy; hide when Direct ticket mill. | — |
-| 70 | UI / chat | Select mode: tap thumb opens viewer | Misunderstanding | Tap view / long-press select is the kit pattern. | — |
-| 71 | UI / chat | Selection persists across pages | Misunderstanding | Traveling Selection is intentional. | — |
-| 72 | UI / chat | No sent/delivered/read ticks | Change / feature | Not shipped. | — |
+| 70 | UI / chat | Select mode: tap thumb opens viewer | WAD | Retest: media tap toggles while Selecting; long-press starts; name may still open (Explore). | — |
+| 71 | UI / chat | Selection persists across pages | Misunderstanding | Traveling Selection intentional — skipped this slice. | — |
+| 72 | UI / chat | No sent/delivered/read ticks | Fixed | 1:1 Sent / Delivered / Seen (`lastDeliveredAt` + Completeness `2026-11-19-chat-delivery-ticks`). | — |
 | 73 | UI / chat | Chat + attach menu incomplete | Discuss | Complaint follows Requests prototype; rest TBD. | — |
-| 74 | UI / chat | Blurry chat card thumbnails | Real bug | Wrong thumb size / density. | Yes |
+| 74 | UI / chat | Blurry chat card thumbnails | Fixed | Trade thumbs 80px + Thumbnail2. | — |
 | 75 | UI / chat | Category labels drop dashes / master labels | Discuss | Category presentation still being finalised. | — |
-| 76 | UI / chat | Buyer sees “Order for buyer” toggle | Real bug | Show only if actor has ≥1 connected buyer. | Yes |
+| 76 | UI / chat | Buyer sees “Order for buyer” toggle | Fixed | Toggle only when selling/trading **and** ≥1 follower buyer (no flash while loading). | — |
 | 77 | UI / chat | Same-for-all stepper starts blank | Parked | Same as #32 minimum package. | — |
-| 78 | UI / chat | First load Orders/Explore slow | Polish | Perf / skeletons. | — |
+| 78 | UI / chat | First load Orders/Explore slow | Fixed | List-shaped Skeleton on Orders + Explore first paint. | — |

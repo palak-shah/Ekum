@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useQueries } from '@tanstack/react-query';
+import { useQueries, useQuery } from '@tanstack/react-query';
 import {
   catalogBunchBill,
   collapseCatalogWholeLines,
@@ -7,6 +7,7 @@ import {
   MEDIA_VARIANT,
   type ExploreProductPreviewView,
   type ProductView,
+  type ShopFollowerView,
 } from '@ekum/domain-types';
 import { orderWhoMode } from '@/features/orders/orderWho';
 import { orderSheetTitle } from '@/features/orders/orderQtyUi';
@@ -114,9 +115,18 @@ export function HowManyEachSheet({
    */
   sheetJob?: 'order' | 'ask';
 }) {
-  const { selling, trading } = useTradePresence();
+  const { selling, trading, isLoading: presenceLoading } = useTradePresence();
   const me = useMyCompany();
   const { showToast } = useToast();
+  const canSellOrTrade = selling || trading;
+  const followers = useQuery({
+    queryKey: ['follows', 'followers'],
+    queryFn: () => api.get<ShopFollowerView[]>('/follows/followers'),
+    enabled: open && canSellOrTrade && !presenceLoading,
+    staleTime: 60_000,
+  });
+  const hasConnectedBuyer =
+    followers.isSuccess && (followers.data?.length ?? 0) > 0;
   const detailProducts =
     forBuyerProducts && forBuyerProducts.length > 0 ? forBuyerProducts : products;
   const details = useQueries({
@@ -133,17 +143,20 @@ export function HowManyEachSheet({
       detailProducts.map((product, index) => applyHowManyDetail(product, details[index]?.data)),
     [detailProducts, details],
   );
+  const canLogForBuyer =
+    !presenceLoading && canSellOrTrade && hasConnectedBuyer;
   const whoMode = orderWhoMode({
-    canLogForBuyer: selling || trading,
+    canLogForBuyer,
     actorCompanyId: me.data?.id ?? '',
     sellerCompanyId: sellerId,
   });
-  const canOrderForBuyer = whoMode !== 'hidden';
   /** Own shop log path hides Place; peer pack / mill keeps it. */
-  const showPlaceOrder = sheetJob === 'order' && whoMode !== 'buyer-only';
+  const showPlaceOrder = sheetJob === 'order' && whoMode === 'for-me-default';
+  const canOrderForBuyer =
+    canLogForBuyer && (whoMode === 'for-me-default' || whoMode === 'buyer-only');
   const footerSlots = howManyFooterSlots({
     sheetJob,
-    showPlaceOrder: whoMode !== 'buyer-only',
+    showPlaceOrder,
     canOrderForBuyer,
   });
   const showBuyerToggle = footerSlots.includes('order-buyer-toggle');

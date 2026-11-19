@@ -7,7 +7,7 @@ import {
 } from '@/features/collections/collectionAlbumTileModel';
 import { collectionOwnerSourceLine } from '@/features/catalog/collectionOwnerSourceLine';
 import { displayCollectionName } from '@/features/catalog/collectionCreateHelpers';
-import { isGeneralCollection } from '@/features/catalog/youLibraryKind';
+import { isCatalogCollection, isGeneralCollection } from '@/features/catalog/youLibraryKind';
 import {
   inboxSwipeAxis,
   inboxSwipeReveal,
@@ -88,7 +88,9 @@ export function YouCollectionListRow({
   const draft = !hideLibraryMeta && isDraft(collection.status);
   const archived = !hideLibraryMeta && collection.status === CollectionStatus.Archived;
   const general = isGeneralCollection(collection.kind);
+  const catalog = !hideLibraryMeta && isCatalogCollection(collection.kind);
   const generalBadge = hideLibraryMeta ? null : general ? 'General Collection' : null;
+  const catalogBadge = catalog && !general ? 'Catalog' : null;
   const meta = [source, archived ? 'Deleted' : null].filter(Boolean).join(' · ');
   const thumb = collection.libraryThumb ?? collection.coverImage ?? null;
   const rowRef = useRef<HTMLAnchorElement>(null);
@@ -140,7 +142,7 @@ export function YouCollectionListRow({
         <p className="truncate text-name font-emphasis tracking-tight text-ink">
           {highlightSearchText(displayCollectionName(collection.name), highlightQuery)}
         </p>
-        {meta || draft || generalBadge ? (
+        {meta || draft || generalBadge || catalogBadge ? (
           <p className="mt-0.5 flex min-w-0 items-center gap-1.5 text-xs text-muted">
             {meta ? <span className="truncate">{meta}</span> : null}
             {generalBadge ? (
@@ -149,6 +151,14 @@ export function YouCollectionListRow({
                 className="shrink-0 rounded-full bg-foam px-1.5 py-0.5 text-[10px] font-emphasis tracking-tight text-ink"
               >
                 {generalBadge}
+              </span>
+            ) : null}
+            {catalogBadge ? (
+              <span
+                data-testid="you-collection-catalog-chip"
+                className="shrink-0 rounded-full bg-foam px-1.5 py-0.5 text-[10px] font-emphasis tracking-tight text-ink"
+              >
+                {catalogBadge}
               </span>
             ) : null}
             {draft && !generalBadge ? (

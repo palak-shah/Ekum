@@ -30,7 +30,8 @@ import {
 import {
   MEDIA_VARIANT,
   CHAT_REACTION_EMOJIS,
-  outgoingSeenLabel,
+  outgoingDeliveryTicks,
+  type OutgoingDeliveryTick,
   activeMentionQuery,
   insertMentionAt,
   mentionCandidates,
@@ -1891,13 +1892,16 @@ export function ThreadPage() {
           threadVisibilityLabel(detail),
           detail.counterpart?.city,
         );
-  const lastOutgoing = [...ordered].reverse().find((row) => row.mine && !row.deletedForEveryone);
-  const counterpartRead = detail.participants?.find((row) => row.companyId !== companyId)?.lastReadAt;
-  const seenOnLast = outgoingSeenLabel({
-    threadType: detail.type,
-    lastOutgoingCreatedAt: lastOutgoing?.createdAt,
-    counterpartLastReadAt: counterpartRead,
-  });
+  const counterpart = detail.participants?.find((row) => row.companyId !== companyId);
+  const counterpartRead = counterpart?.lastReadAt;
+  const counterpartDelivered = counterpart?.lastDeliveredAt ?? null;
+  const tickForOutgoing = (createdAt: string): OutgoingDeliveryTick | null =>
+    outgoingDeliveryTicks({
+      threadType: detail.type,
+      messageCreatedAt: createdAt,
+      counterpartLastDeliveredAt: counterpartDelivered,
+      counterpartLastReadAt: counterpartRead,
+    });
 
   const mentionQuery = mentionLocked ? null : activeMentionQuery(draft, mentionCaret);
   const mentionItems = mentionQuery
@@ -2595,7 +2599,7 @@ export function ThreadPage() {
                   }
                   clusterTail={clusterTail}
                   replyFromLabel={quotedFrom}
-                  seen={Boolean(seenOnLast && lastOutgoing?.id === message.id)}
+                  tick={message.mine && !message.deletedForEveryone ? tickForOutgoing(message.createdAt) : null}
                   actions={
                     canCompose && !selecting && !systemNotice
                       ? {
@@ -3973,7 +3977,7 @@ function TimelineItem({
   onQuotePhoto,
   clusterTail = true,
   replyFromLabel,
-  seen = false,
+  tick = null,
   actions,
 }: {
   message: MessageView;
@@ -4015,7 +4019,7 @@ function TimelineItem({
   onQuotePhoto?: (index: number) => void;
   clusterTail?: boolean;
   replyFromLabel?: string;
-  seen?: boolean;
+  tick?: OutgoingDeliveryTick | null;
   actions?: MessageActions;
 }) {
   const navigate = useNavigate();
@@ -4160,7 +4164,7 @@ function TimelineItem({
             />
             <MessageTimeMeta
               createdAt={message.createdAt}
-              seen={seen}
+              tick={tick}
               className="py-1.5 pl-3 pr-3 text-muted"
             />
           </div>
@@ -4243,7 +4247,7 @@ function TimelineItem({
             </a>
             <MessageTimeMeta
               createdAt={message.createdAt}
-              seen={seen}
+              tick={tick}
               edited={Boolean(message.editedAt)}
               className="py-1.5 pl-3 pr-3 text-muted"
             />
@@ -4290,7 +4294,7 @@ function TimelineItem({
           </div>
           <MessageTimeMeta
             createdAt={message.createdAt}
-            seen={seen}
+            tick={tick}
             className="text-muted"
           />
         </div>
@@ -4383,7 +4387,7 @@ function TimelineItem({
           model={model}
           highlight={hl}
           onOpen={undefined}
-          seen={seen}
+          tick={tick}
         />
       </MessageChrome>
     );
@@ -4479,7 +4483,7 @@ function TimelineItem({
               : undefined
           }
           selecting={selecting}
-          seen={seen}
+          tick={tick}
         />
       </MessageChrome>
     );
@@ -4593,7 +4597,7 @@ function TimelineItem({
                 ) : null}
                 <MessageTimeMeta
                   createdAt={message.createdAt}
-                  seen={seen}
+                  tick={tick}
                   hug
                   className="text-muted"
                 />
@@ -4603,7 +4607,7 @@ function TimelineItem({
           {message.deletedForEveryone ? (
             <MessageTimeMeta
               createdAt={message.createdAt}
-              seen={seen}
+              tick={tick}
               className="mt-0.5 text-muted"
             />
           ) : null}
@@ -4688,7 +4692,7 @@ function TimelineItem({
                     : undefined
             }
             selecting={selecting}
-            seen={seen}
+            tick={tick}
           />
         </div>
       </MessageChrome>
@@ -4737,7 +4741,7 @@ function TimelineItem({
             </p>
             <MessageTimeMeta
               createdAt={message.createdAt}
-              seen={seen}
+              tick={tick}
               className="mt-1 text-meta text-muted"
             />
           </div>

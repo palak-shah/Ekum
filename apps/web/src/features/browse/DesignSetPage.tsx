@@ -8,10 +8,17 @@ import {
   designSetSlides,
   firstSlideIndexForProduct,
 } from '@/features/browse/designSetSlides';
+import { overlayShortlistEntries } from '@/features/browse/albumSelectModel';
+import {
+  writeBrowseShortlist,
+  type BrowseShortlistEntry,
+} from '@/features/browse/browseShortlist';
 import { designSetOpenIds, designSetToShortlist } from '@/features/browse/designSetShortlist';
 import { SelectModeControls } from '@/features/browse/SelectModeControls';
 import { selectAllState } from '@/features/browse/selectAllState';
+import { tradeableShortlistEntries } from '@/features/browse/selectionEligibility';
 import { useBrowseShortlist } from '@/features/browse/useBrowseShortlist';
+import { usePrepareCatalogOrder } from '@/features/browse/usePrepareCatalogOrder';
 import {
   type DesignBrowseLayout,
   designBrowsePhotoClass,
@@ -34,7 +41,11 @@ import {
 import { usePageOwnsBottomBand } from '@/features/browse/selectionBottomBand';
 import { CurateFromSelectionSheet } from '@/features/browse/CurateFromSelectionSheet';
 import { packHandlerName } from '@/features/browse/packOrderSource';
-import { orderGoesToSellerId, useShortlistOrderFlow } from '@/features/browse/useShortlistOrderFlow';
+import {
+  entriesAsProducts,
+  orderGoesToSellerId,
+  useShortlistOrderFlow,
+} from '@/features/browse/useShortlistOrderFlow';
 import { HowManyEachSheet } from '@/features/orders/HowManyEachSheet';
 import { useTradePresence } from '@/lib/tradePresence';
 import { LockIcon } from '@/ui/icons';
@@ -68,8 +79,12 @@ export function DesignSetPage() {
   );
   const shortlist = useBrowseShortlist();
   const orderFlow = useShortlistOrderFlow();
+  const { prepare: prepareCatalogOrder, preparing: preparingCatalogOrder } =
+    usePrepareCatalogOrder();
   const { trading } = useTradePresence();
   const [curateOpen, setCurateOpen] = useState(false);
+  const [qtyEntries, setQtyEntries] = useState<BrowseShortlistEntry[] | null>(null);
+  const [lockedProductIds, setLockedProductIds] = useState<string[]>([]);
 
   useEffect(() => {
     setLayout(readDesignBrowseLayout(companyId));
@@ -172,6 +187,32 @@ export function DesignSetPage() {
     setViewerOpen(false);
     shortlist.setSelectMode(true);
     toggleProduct(product);
+  };
+
+  const closeQty = () => {
+    orderFlow.setQtyOpen(false);
+    setQtyEntries(null);
+    setLockedProductIds([]);
+  };
+
+  /** Same prepare/expand path as DesignSheet / shop Order — whole catalogs collapse on How many. */
+  const startQty = (job: 'order' | 'ask') => {
+    setViewerOpen(false);
+    void (async () => {
+      orderFlow.setError(null);
+      const tradeable = tradeableShortlistEntries(setEntries);
+      if (tradeable.length < 1) return;
+      const prepared = await prepareCatalogOrder({
+        albums: [],
+        shortlist: tradeable,
+        quiet: true,
+      });
+      if (prepared.kind === 'error' || prepared.kind === 'resolve') return;
+      writeBrowseShortlist(overlayShortlistEntries(shortlist.entries, prepared.shortlist));
+      setQtyEntries(prepared.shortlist);
+      setLockedProductIds(prepared.lockedProductIds);
+      orderFlow.openQty(job);
+    })();
   };
 
   if (ids.length < 1) {
@@ -327,20 +368,16 @@ export function DesignSetPage() {
           <Button
             variant="secondary"
             fullWidth
-            onClick={() => {
-              setViewerOpen(false);
-              orderFlow.openQty('ask');
-            }}
+            disabled={preparingCatalogOrder}
+            onClick={() => startQty('ask')}
           >
             Ask for rates
           </Button>
           <Button
             fullWidth
             data-testid="design-set-order"
-            onClick={() => {
-              setViewerOpen(false);
-              orderFlow.openQty('order');
-            }}
+            disabled={preparingCatalogOrder}
+            onClick={() => startQty('order')}
           >
             Order
           </Button>
@@ -348,14 +385,15 @@ export function DesignSetPage() {
       ) : null}
       <HowManyEachSheet
         open={orderFlow.qtyOpen}
-        onClose={() => orderFlow.setQtyOpen(false)}
-        sellerId={orderGoesToSellerId(setEntries)}
-        products={orderFlow.products.filter((product) => openIds.includes(product.id))}
+        onClose={closeQty}
+        sellerId={orderGoesToSellerId(qtyEntries ?? setEntries)}
+        products={entriesAsProducts(qtyEntries ?? setEntries)}
         submitting={orderFlow.submitting}
         asking={orderFlow.asking}
         error={orderFlow.error}
-        orderGoesToName={packHandlerName(setEntries)}
+        orderGoesToName={packHandlerName(qtyEntries ?? setEntries)}
         sheetJob={orderFlow.qtyJob}
+        lockedProductIds={lockedProductIds}
         onSendOrder={(lines, place) =>
           orderFlow.sendOrder(lines, { ...place, collectionId: undefined })
         }

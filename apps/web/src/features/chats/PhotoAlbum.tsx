@@ -153,7 +153,7 @@ export function PhotoAlbum({
           data-interactive={canOpen ? undefined : 'false'}
         >
           {preview.map((_, index) => (
-            <div key={index} className="h-[60px] w-[60px] overflow-hidden rounded-[6px]">
+            <div key={index} className="h-20 w-20 overflow-hidden rounded-[6px]">
               <Cell
                 src={urlAt(preview, index)}
                 onClick={() => open(index)}
@@ -161,6 +161,7 @@ export function PhotoAlbum({
                 overlayClass={overlayClass}
                 locked={locked}
                 well="bg-canvas"
+                variant={MEDIA_VARIANT.Thumbnail2}
               />
             </div>
           ))}

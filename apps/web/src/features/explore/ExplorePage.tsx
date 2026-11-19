@@ -43,7 +43,7 @@ import {
   OpportunityDesignCard,
   BusinessShopTile,
 } from '@/ui/cards';
-import { Avatar, Button, EmptyState, LoadingBlock, SearchInput, cx } from '@/ui/kit';
+import { Avatar, Button, EmptyState, SearchInput, Skeleton, cx } from '@/ui/kit';
 import { FIELD_IDLE_FILL_CLASS } from '@/ui/fieldFill';
 import { ListSquareButton, listSquareButtonClass } from '@/ui/ListSearchRow';
 import { BackIcon, CartIcon, FilterIcon, SearchIcon } from '@/ui/icons';
@@ -365,7 +365,19 @@ function SupplierDirectory({
   const rows = directory.data?.pages.flatMap((page) => page.results) ?? [];
 
   if (directory.isLoading) {
-    return <LoadingBlock label="Loading suppliers…" />;
+    return (
+      <div className="flex flex-col gap-3 px-3 py-3" data-testid="explore-directory-skeleton">
+        {Array.from({ length: 6 }, (_, index) => (
+          <div key={index} className="flex items-center gap-3">
+            <Skeleton className="h-12 w-12 shrink-0 rounded-full" />
+            <div className="flex min-w-0 flex-1 flex-col gap-2">
+              <Skeleton className="h-4 w-2/3" />
+              <Skeleton className="h-3 w-1/3" />
+            </div>
+          </div>
+        ))}
+      </div>
+    );
   }
   if (directory.isError) {
     return (
@@ -1083,7 +1095,18 @@ export function ExplorePage() {
       ) : contentMode === 'businesses' ? (
         <SupplierDirectory filters={filters} />
       ) : landingBlocked || (tradeSide === 'selling' && company.isLoading) ? (
-        <LoadingBlock />
+        <div className="flex flex-col gap-4 px-3 py-3" data-testid="explore-feed-skeleton">
+          {Array.from({ length: 3 }, (_, index) => (
+            <div key={index} className="flex flex-col gap-2">
+              <div className="flex items-center gap-2">
+                <Skeleton className="h-9 w-9 shrink-0 rounded-full" />
+                <Skeleton className="h-4 w-32" />
+              </div>
+              <Skeleton className="aspect-[4/5] w-full rounded-xl" />
+              <Skeleton className="h-4 w-3/4" />
+            </div>
+          ))}
+        </div>
       ) : home.isError && !firstPaintPosts.length ? (
         <EmptyState
           title="Couldn’t load Explore"

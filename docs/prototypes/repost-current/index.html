@@ -1,0 +1,908 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Ekum Repost — current behaviour (prototype)</title>
+  <style>
+    :root {
+      --ink: #1a1f24;
+      --muted: #6b7280;
+      --line: #e5e7eb;
+      --foam: #f3f4f6;
+      --input: #f3f4f6;
+      --accent: #1f2a30;
+      --badge: #c8f135;
+      --danger: #b42318;
+      --ok: #067647;
+      --warn: #b54708;
+      --sim: #175cd3;
+      --page: #fafafa;
+      --phone: 390px;
+      --radius: 14px;
+      --font: "Segoe UI", system-ui, -apple-system, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: var(--font);
+      color: var(--ink);
+      background: linear-gradient(160deg, #eef1f4 0%, #f7f7f5 45%, #ebe8e1 100%);
+      min-height: 100vh;
+    }
+    a { color: var(--accent); }
+    button { font: inherit; cursor: pointer; }
+    .wrap {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 20px 16px 48px;
+      display: grid;
+      gap: 16px;
+      grid-template-columns: minmax(260px, 340px) minmax(0, 1fr);
+    }
+    @media (max-width: 900px) {
+      .wrap { grid-template-columns: 1fr; }
+    }
+    .panel {
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 16px;
+      box-shadow: 0 1px 0 rgba(0,0,0,.03);
+    }
+    h1 { font-size: 1.15rem; margin: 0 0 6px; }
+    h2 { font-size: .95rem; margin: 0 0 8px; }
+    h3 { font-size: .85rem; margin: 0 0 6px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+    .lede { color: var(--muted); font-size: .9rem; margin: 0 0 14px; line-height: 1.4; }
+    .note {
+      font-size: .8rem;
+      line-height: 1.35;
+      color: var(--muted);
+      background: var(--foam);
+      border-radius: 10px;
+      padding: 10px 12px;
+      margin: 10px 0;
+    }
+    .note strong { color: var(--ink); font-weight: 600; }
+    .roles { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+    .roles button, .nav button, .chip, .cta, .quiet {
+      border: 1px solid var(--line);
+      background: #fff;
+      border-radius: 999px;
+      padding: 8px 12px;
+      font-size: .85rem;
+    }
+    .roles button.active, .nav button.active {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+    .nav { display: flex; flex-direction: column; gap: 6px; }
+    .nav button { border-radius: 10px; text-align: left; }
+    .legend { display: grid; gap: 6px; margin-top: 12px; }
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: .75rem;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: 999px;
+      border: 1px solid transparent;
+    }
+    .tag::before {
+      content: "";
+      width: 7px; height: 7px; border-radius: 50%;
+      background: currentColor;
+    }
+    .tag-ok { color: var(--ok); background: #ecfdf3; border-color: #abefc6; }
+    .tag-sim { color: var(--sim); background: #eff8ff; border-color: #b2ddff; }
+    .tag-off { color: var(--muted); background: var(--foam); border-color: var(--line); }
+    .tag-miss { color: var(--warn); background: #fffaeb; border-color: #fedf89; }
+    .tag-unclear { color: #6941c6; background: #f4f3ff; border-color: #d9d6fe; }
+    .stage-head {
+      display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+      justify-content: space-between; margin-bottom: 12px;
+    }
+    .phone-shell {
+      width: min(100%, var(--phone));
+      margin: 0 auto;
+      background: #111;
+      border-radius: 28px;
+      padding: 10px;
+      box-shadow: 0 18px 40px rgba(0,0,0,.18);
+    }
+    .phone {
+      background: var(--page);
+      border-radius: 20px;
+      overflow: hidden;
+      min-height: 720px;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+    }
+    .status-bar {
+      height: 28px;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 14px; font-size: .7rem; color: var(--muted);
+    }
+    .screen { flex: 1; overflow: auto; padding-bottom: 72px; }
+    .topbar {
+      display: flex; align-items: center; gap: 8px;
+      padding: 8px 14px; border-bottom: 1px solid var(--line); background: #fff;
+      position: sticky; top: 0; z-index: 5;
+    }
+    .topbar .title { font-weight: 650; font-size: 1rem; flex: 1; }
+    .search {
+      flex: 1; height: 40px; border-radius: 10px; border: none;
+      background: var(--input); padding: 0 12px; color: var(--muted); font-size: .9rem;
+      display: flex; align-items: center;
+    }
+    .sq {
+      width: 40px; height: 40px; border-radius: 10px; border: none;
+      background: var(--foam); display: grid; place-items: center; font-size: .85rem;
+    }
+    .stories {
+      display: flex; gap: 12px; padding: 12px 14px; overflow-x: auto;
+    }
+    .story {
+      width: 56px; text-align: center; font-size: .65rem; color: var(--muted);
+    }
+    .story .ring {
+      width: 48px; height: 48px; border-radius: 50%;
+      padding: 2px;
+      background: conic-gradient(var(--badge), var(--accent), var(--badge));
+      margin: 0 auto 4px;
+    }
+    .story .ring > span {
+      display: block; width: 100%; height: 100%; border-radius: 50%;
+      background: #fff; border: 2px solid #fff;
+      display: grid; place-items: center; font-weight: 700; color: var(--accent); font-size: .75rem;
+    }
+    .feed { padding: 0 0 16px; }
+    .card { padding: 0 0 20px; }
+    .shop-row {
+      display: flex; align-items: center; gap: 8px;
+      padding: 0 14px 8px;
+    }
+    .avatar {
+      width: 36px; height: 36px; border-radius: 50%;
+      background: #dbe3ea; display: grid; place-items: center;
+      font-size: .7rem; font-weight: 700; color: var(--accent);
+    }
+    .shop-name { font-weight: 650; font-size: .9rem; flex: 1; }
+    .meta { font-size: .75rem; color: var(--muted); }
+    .photo {
+      margin: 0 14px; height: 220px; border-radius: 16px;
+      background: linear-gradient(135deg, #c5d0d8, #e8ddd0 55%, #d7c4a8);
+      display: grid; place-items: center; color: rgba(31,42,48,.55);
+      font-weight: 650; font-size: .95rem; position: relative;
+    }
+    .photo.alt { background: linear-gradient(135deg, #b9c8b4, #e2d6c2 50%, #c9b29a); }
+    .photo.alt2 { background: linear-gradient(135deg, #9db4c8, #e5d5c3 60%, #c3a992); }
+    .icons {
+      display: flex; align-items: center; gap: 14px;
+      padding: 10px 14px 4px;
+    }
+    .icon-btn {
+      border: none; background: transparent; padding: 0;
+      width: 28px; height: 28px; display: grid; place-items: center;
+      color: var(--ink); font-size: 1.05rem;
+    }
+    .icon-btn.disabled { color: #c4c7cc; cursor: not-allowed; }
+    .icon-btn.done { color: var(--ink); }
+    .icon-btn .tip {
+      display: none; position: absolute; margin-top: 36px; left: 14px;
+      background: #111; color: #fff; font-size: .7rem; padding: 6px 8px;
+      border-radius: 6px; white-space: nowrap; z-index: 8;
+    }
+    .caption {
+      display: flex; justify-content: space-between; gap: 8px;
+      padding: 4px 14px 0; font-size: .95rem; font-weight: 650;
+    }
+    .rate { color: var(--accent); white-space: nowrap; }
+    .tags { padding: 2px 14px 0; font-size: .75rem; color: var(--muted); }
+    .tabbar {
+      position: absolute; left: 0; right: 0; bottom: 0;
+      height: 56px; background: #fff; border-top: 1px solid var(--line);
+      display: grid; grid-template-columns: repeat(5, 1fr);
+      font-size: .65rem; color: var(--muted); z-index: 6;
+    }
+    .tabbar span {
+      display: grid; place-items: end center; padding-bottom: 8px; gap: 2px;
+    }
+    .tabbar .on { color: var(--accent); font-weight: 650; }
+    .sheet-backdrop {
+      position: absolute; inset: 0; background: rgba(17,17,17,.35);
+      display: none; z-index: 20; align-items: flex-end;
+    }
+    .sheet-backdrop.open { display: flex; }
+    .sheet {
+      width: 100%; max-height: 88%; background: #fff;
+      border-radius: 18px 18px 0 0; padding: 12px 16px 20px;
+      overflow: auto; animation: rise .18s ease-out;
+    }
+    @keyframes rise { from { transform: translateY(24px); opacity: .6; } to { transform: none; opacity: 1; } }
+    .sheet-handle {
+      width: 36px; height: 4px; border-radius: 999px; background: #d1d5db;
+      margin: 0 auto 10px;
+    }
+    .sheet-title { font-size: 1.05rem; font-weight: 700; margin-bottom: 4px; }
+    .field { margin: 12px 0; }
+    .field label { display: block; font-size: .8rem; color: var(--muted); margin-bottom: 6px; }
+    .field input, .field .fake-input {
+      width: 100%; height: 48px; border-radius: 12px; border: none;
+      background: var(--input); padding: 0 12px; font-size: 16px;
+    }
+    .chips { display: flex; gap: 8px; flex-wrap: wrap; }
+    .chip.active {
+      background: color-mix(in srgb, var(--badge) 55%, white);
+      border-color: transparent; font-weight: 650;
+    }
+    .chip.faded { opacity: .4; cursor: not-allowed; }
+    .check {
+      display: flex; gap: 10px; align-items: flex-start;
+      font-size: .9rem; margin: 10px 0; line-height: 1.3;
+    }
+    .check input { margin-top: 3px; }
+    .cta {
+      width: 100%; height: 48px; border-radius: 12px;
+      background: var(--accent); color: #fff; border: none;
+      font-weight: 650; margin-top: 8px;
+    }
+    .cta:disabled { opacity: .45; cursor: not-allowed; }
+    .quiet {
+      width: 100%; border: none; background: transparent;
+      color: var(--accent); font-size: .9rem; padding: 10px; margin-top: 4px;
+    }
+    .quiet:disabled { opacity: .45; }
+    .row {
+      display: flex; gap: 10px; align-items: center;
+      padding: 8px 0; border-bottom: 1px solid var(--line);
+    }
+    .thumb {
+      width: 48px; height: 48px; border-radius: 10px;
+      background: linear-gradient(135deg, #c5d0d8, #e8ddd0); flex-shrink: 0;
+    }
+    .row .name { font-size: .9rem; font-weight: 600; }
+    .row .sub { font-size: .75rem; color: var(--muted); }
+    .path-card {
+      border: 1px solid var(--line); border-radius: 14px;
+      padding: 14px; margin: 8px 0; background: #fff; text-align: left; width: 100%;
+    }
+    .path-card strong { display: block; margin-bottom: 2px; }
+    .path-card span { font-size: .8rem; color: var(--muted); }
+    .list-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 12px 0; border-bottom: 1px solid var(--line); gap: 8px;
+    }
+    .locked-on {
+      display: flex; justify-content: space-between; align-items: center;
+      border: 1px solid var(--line); background: var(--input);
+      border-radius: 12px; padding: 10px 12px; font-size: .9rem; margin: 6px 0;
+    }
+    .locked-on em {
+      font-style: normal; font-size: .7rem; font-weight: 700;
+      letter-spacing: .04em; text-transform: uppercase; color: var(--accent);
+    }
+    .toast {
+      position: absolute; left: 50%; bottom: 72px; transform: translateX(-50%);
+      background: #111; color: #fff; font-size: .8rem; padding: 10px 14px;
+      border-radius: 999px; opacity: 0; pointer-events: none; transition: opacity .2s;
+      z-index: 40; white-space: nowrap; max-width: 90%;
+    }
+    .toast.show { opacity: 1; }
+    .banner {
+      margin: 10px 14px; padding: 10px 12px; border-radius: 10px;
+      background: #eff8ff; color: #175cd3; font-size: .8rem; line-height: 1.35;
+    }
+    .banner.warn { background: #fffaeb; color: #b54708; }
+    .banner.muted { background: var(--foam); color: var(--muted); }
+    .pill {
+      display: inline-block; font-size: .7rem; padding: 2px 8px;
+      border-radius: 999px; background: var(--foam); color: var(--muted); margin-left: 6px;
+    }
+    .dock {
+      position: absolute; left: 0; right: 0; bottom: 0;
+      background: #fff; border-top: 1px solid var(--line);
+      padding: 10px 14px 14px; z-index: 7;
+      display: flex; gap: 10px; align-items: center;
+    }
+    .dock .cta { margin: 0; flex: 1; }
+    .dock-icon {
+      width: 48px; height: 48px; border-radius: 12px; border: none;
+      background: var(--foam); display: grid; place-items: center;
+    }
+    .hidden { display: none !important; }
+    .screen-block { display: none; }
+    .screen-block.active { display: block; }
+    .flow-steps { font-size: .8rem; color: var(--muted); line-height: 1.45; margin: 0 0 10px; padding-left: 18px; }
+    .aside-scroll { max-height: calc(100vh - 40px); overflow: auto; position: sticky; top: 16px; }
+    .grant {
+      border: 1px solid var(--line); border-radius: 12px; padding: 12px; margin: 8px 0;
+    }
+    .from-line { font-size: .8rem; color: var(--muted); padding: 0 14px; margin-top: 2px; }
+    .skip-toggle {
+      width: 100%; text-align: left; border: none; background: transparent;
+      color: var(--muted); font-size: .85rem; padding: 8px 0;
+    }
+    .danger-text { color: var(--danger); font-size: .85rem; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <aside class="panel aside-scroll">
+      <h1>Repost — current Ekum</h1>
+      <p class="lede">Read-only visual demo of behaviour that exists in the repo today. Not a redesign. Sample data only.</p>
+
+      <h3>Persona view</h3>
+      <div class="roles" id="roles">
+        <button type="button" data-role="supplier">Supplier</button>
+        <button type="button" data-role="trader" class="active">Trader</button>
+        <button type="button" data-role="buyer">Buyer</button>
+      </div>
+      <p class="note"><strong>Capability note:</strong> the app does not use Supplier / Trader / Buyer roles. Gates are <code>tradePresence.trading</code>, follow <code>look|pack</code>, and curate ceilings. These personas are demo lenses only.</p>
+
+      <h3>Screens</h3>
+      <div class="nav" id="nav"></div>
+
+      <h3>Action legend</h3>
+      <div class="legend">
+        <span class="tag tag-ok">Functional in product (simulated here)</span>
+        <span class="tag tag-sim">Prototype-only click (illustrates real flow)</span>
+        <span class="tag tag-off">Disabled / locked in product</span>
+        <span class="tag tag-miss">Not implemented</span>
+        <span class="tag tag-unclear">Unclear / open question</span>
+      </div>
+
+      <div class="note" style="margin-top:14px">
+        <strong>Source of truth:</strong> Explore feed icon row + <code>RepostSheet</code> / cart <code>CurateFromSelectionSheet</code> / Direct Links locked “On” auto-repost row. See README.
+      </div>
+    </aside>
+
+    <main class="panel">
+      <div class="stage-head">
+        <div>
+          <h2 id="screenTitle">Explore feed</h2>
+          <div id="screenTags"></div>
+        </div>
+        <div id="screenHint" class="note" style="margin:0; max-width:420px"></div>
+      </div>
+
+      <div class="phone-shell">
+        <div class="phone" id="phone">
+          <div class="status-bar"><span>9:41</span><span>Ekum</span></div>
+
+          <!-- ===== SUPPLIER ===== -->
+          <div class="screen-block" data-role="supplier" data-screen="s-followers" id="s-followers">
+            <div class="screen">
+              <div class="topbar"><div class="title">Followers</div></div>
+              <p class="banner muted">Businesses who can see your updates.</p>
+              <div style="padding:0 14px">
+                <div class="grant">
+                  <div style="font-weight:650">Meena Traders</div>
+                  <div class="sub meta">Surat · Wants to follow you and see your collections.</div>
+                  <label class="check"><input type="checkbox" id="allowRepostAsk" /> Allow Repost</label>
+                  <div style="display:flex; gap:8px; margin-top:8px">
+                    <button class="cta" style="margin:0" type="button" onclick="acceptFollow()">Accept</button>
+                    <button class="quiet" style="width:auto;border:1px solid var(--line);border-radius:12px;padding:0 14px" type="button">Reject</button>
+                  </div>
+                  <div class="note">Product: Accept = Look (see). Allow Repost on = Pack. <span class="tag tag-ok">working</span></div>
+                </div>
+                <div class="grant">
+                  <div style="font-weight:650">Ravi Agency</div>
+                  <div class="meta">Allowed · See + Repost</div>
+                  <div style="display:flex; gap:16px; margin-top:8px; font-size:.9rem">
+                    <label><input type="checkbox" checked disabled /> See</label>
+                    <label><input type="checkbox" id="packToggle" checked onchange="togglePack()" /> Repost</label>
+                    <button class="quiet" style="width:auto;padding:0;margin:0" type="button">Stop</button>
+                  </div>
+                  <div class="note">Pack → Look sends mill↔trader chat line “turned off Repost”. Does not delete existing reposts or Direct Links. <span class="tag tag-ok">working</span></div>
+                </div>
+              </div>
+            </div>
+            <div class="tabbar"><span>Home</span><span>Chats</span><span class="on">Network</span><span>Orders</span><span>You</span></div>
+          </div>
+
+          <div class="screen-block" data-role="supplier" data-screen="s-publish" id="s-publish">
+            <div class="screen">
+              <div class="topbar"><div class="title">Publish · Festive Loom Cut</div></div>
+              <div style="padding:12px 14px">
+                <div class="field"><label>Who can see this?</label>
+                  <div class="chips">
+                    <button type="button" class="chip active">My followers</button>
+                    <button type="button" class="chip">Selected</button>
+                  </div>
+                </div>
+                <div class="field"><label>Show rates?</label>
+                  <div class="chips">
+                    <button type="button" class="chip">On request</button>
+                    <button type="button" class="chip active">Visible</button>
+                  </div>
+                </div>
+                <label class="check"><input type="checkbox" checked /> Buyers can add these designs to their collections</label>
+                <label class="check"><input type="checkbox" /> Buyers can download these designs</label>
+                <p class="note">Own mill pack: no “Show supplier name”. After publish, eligible Direct Link traders receive an automatic Selected pack (server job) — only for collections created <em>after</em> the link. <span class="tag tag-ok">working</span></p>
+                <button class="cta" type="button" onclick="toast('Published · auto-repost job enqueued for Direct Link traders')">Publish</button>
+              </div>
+            </div>
+            <div class="tabbar"><span>Home</span><span>Chats</span><span>Explore</span><span>Orders</span><span class="on">You</span></div>
+          </div>
+
+          <div class="screen-block" data-role="supplier" data-screen="s-cascade" id="s-cascade">
+            <div class="screen">
+              <div class="topbar"><div class="title">Hide Festive Loom Cut?</div></div>
+              <div style="padding:14px">
+                <p class="lede">Unpublish / archive drafts <strong>all</strong> Published children with <code>repostSourceCollectionId</code> = this pack (manual and automatic).</p>
+                <ul class="flow-steps">
+                  <li>Trader auto-pack → Draft</li>
+                  <li>Trader manual Explore Repost of this pack → Draft</li>
+                  <li>Design-only hide does <strong>not</strong> enqueue propagate (read-time omission)</li>
+                </ul>
+                <p class="note"><span class="tag tag-unclear">unclear</span> Docs describe manual curation as independent; code’s <code>hideImmediateChildren</code> drafts manual children too.</p>
+                <button class="cta" type="button" onclick="toast('Pack Draft · children drafted via propagate')">Hide · Draft</button>
+              </div>
+            </div>
+            <div class="tabbar"><span>Home</span><span>Chats</span><span>Explore</span><span>Orders</span><span class="on">You</span></div>
+          </div>
+
+          <!-- ===== TRADER ===== -->
+          <div class="screen-block active" data-role="trader" data-screen="t-explore" id="t-explore">
+            <div class="screen">
+              <div class="topbar">
+                <div class="search">Search supplier, collection or design</div>
+                <button class="sq" type="button" title="Filter">☰</button>
+                <button class="sq" type="button" title="Cart">🛒</button>
+              </div>
+              <div class="stories">
+                <div class="story"><div class="ring"><span>You</span></div>You</div>
+                <div class="story"><div class="ring"><span>AL</span></div>Ahmedabad…</div>
+                <div class="story"><div class="ring"><span>SS</span></div>Surat Silk</div>
+              </div>
+              <div class="feed">
+                <article class="card" data-card="festive">
+                  <div class="shop-row">
+                    <div class="avatar">AL</div>
+                    <div class="shop-name">Ahmedabad Loom Co</div>
+                    <div class="meta">2h</div>
+                  </div>
+                  <div class="photo">Festive Loom Cut</div>
+                  <div class="icons">
+                    <button type="button" class="icon-btn" title="Repost" onclick="openRepostSheet('festive')" aria-label="Repost">↺</button>
+                    <button type="button" class="icon-btn" title="Message" onclick="toast('Message sheet — not Repost')">💬</button>
+                    <button type="button" class="icon-btn" title="Share" onclick="toast('Share sheet — independent of Repost')">➤</button>
+                    <span style="flex:1"></span>
+                    <button type="button" class="icon-btn" title="Bookmark" onclick="toast('Bookmark')">🔖</button>
+                  </div>
+                  <div class="caption"><span>Festive Loom Cut</span><span class="rate">₹180–220 /pc</span></div>
+                  <div class="tags">saree · festive</div>
+                </article>
+
+                <article class="card" data-card="own">
+                  <div class="shop-row">
+                    <div class="avatar">You</div>
+                    <div class="shop-name">You</div>
+                    <div class="meta">1d</div>
+                  </div>
+                  <div class="photo alt">Wedding Edit 2026</div>
+                  <div class="icons">
+                    <button type="button" class="icon-btn disabled" title="Own post" onclick="toast('Own post — Repost grayed')">↺</button>
+                    <button type="button" class="icon-btn disabled" title="Own post">💬</button>
+                    <button type="button" class="icon-btn" title="Share">➤</button>
+                    <span style="flex:1"></span>
+                    <button type="button" class="icon-btn">🔖</button>
+                  </div>
+                  <div class="caption"><span>Wedding Edit 2026</span><span class="rate">₹310 /set</span></div>
+                  <div class="tags">own post · Repost + Message gray</div>
+                </article>
+
+                <article class="card" data-card="done">
+                  <div class="shop-row">
+                    <div class="avatar">SS</div>
+                    <div class="shop-name">Surat Silk House</div>
+                    <div class="meta">3d</div>
+                  </div>
+                  <div class="photo alt2">Mill Lot — March</div>
+                  <div class="icons">
+                    <button type="button" class="icon-btn done" title="Already reposted" onclick="toast('You already reposted this.')">↺✓</button>
+                    <button type="button" class="icon-btn">💬</button>
+                    <button type="button" class="icon-btn">➤</button>
+                    <span style="flex:1"></span>
+                    <button type="button" class="icon-btn">🔖</button>
+                  </div>
+                  <div class="caption"><span>Mill Lot — March</span><span class="rate">₹95 /mtr</span></div>
+                  <div class="tags">viewerReposted · done icon · no sheet</div>
+                </article>
+
+                <article class="card" data-card="locked">
+                  <div class="shop-row">
+                    <div class="avatar">JP</div>
+                    <div class="shop-name">Jaipur Emporium</div>
+                    <div class="meta">5d</div>
+                  </div>
+                  <div class="photo">Look-only pack</div>
+                  <div class="icons">
+                    <button type="button" class="icon-btn disabled" onclick="toast('You don\'t have permission to repost these designs.')">↺</button>
+                    <button type="button" class="icon-btn">💬</button>
+                    <button type="button" class="icon-btn">➤</button>
+                    <span style="flex:1"></span>
+                    <button type="button" class="icon-btn">🔖</button>
+                  </div>
+                  <div class="caption"><span>Look-only pack</span></div>
+                  <div class="tags">repostEligibleCount 0 · gray + toast</div>
+                </article>
+              </div>
+            </div>
+            <div class="tabbar"><span>Home</span><span>Chats</span><span class="on">Explore</span><span>Orders</span><span>You</span></div>
+          </div>
+
+          <div class="screen-block" data-role="trader" data-screen="t-repost-sheet" id="t-repost-sheet">
+            <div class="screen" style="padding-bottom:0">
+              <div class="topbar"><button type="button" class="sq" onclick="go('t-explore')">←</button><div class="title">Explore</div></div>
+              <div class="banner">Sheet opens over the feed. Stays on Explore after success.</div>
+              <div style="opacity:.35;pointer-events:none;padding:0 14px">
+                <div class="photo" style="height:120px;margin:0">Festive Loom Cut</div>
+              </div>
+            </div>
+            <div class="sheet-backdrop open" id="repostBackdrop">
+              <div class="sheet" role="dialog" aria-label="Repost">
+                <div class="sheet-handle"></div>
+                <div class="sheet-title">Repost</div>
+                <p class="meta">Publish under your name for the buyers you choose.</p>
+
+                <div class="row"><div class="thumb"></div><div><div class="name">Peacock border saree</div><div class="sub">Ahmedabad Loom Co</div></div></div>
+                <div class="row"><div class="thumb" style="background:linear-gradient(135deg,#e8ddd0,#c5d0d8)"></div><div><div class="name">Gold butti blouse</div><div class="sub">Ahmedabad Loom Co</div></div></div>
+                <button type="button" class="skip-toggle" onclick="toggleSkip()">Skipped designs (1) ▾</button>
+                <div id="skipList" class="hidden">
+                  <div class="row"><div class="thumb"></div><div><div class="name">Pack-only remnant</div><div class="sub danger-text">Can't put in a collection</div></div></div>
+                  <p class="note">Explore sheet passes <code>allowRelistAsk={false}</code> — no Ask here. <span class="tag tag-ok">working</span></p>
+                </div>
+
+                <div class="field"><label>Name</label><input id="repostName" value="Festive Loom Cut" /></div>
+
+                <div class="field"><label>Who can see this?</label>
+                  <div class="chips" id="whoChips">
+                    <button type="button" class="chip active" data-who="followers" onclick="setWho(this)">My followers</button>
+                    <button type="button" class="chip" data-who="selected" onclick="setWho(this)">Selected</button>
+                    <button type="button" class="chip faded" title="Not offered on publish sheets" disabled>Everyone <span class="pill">not offered</span></button>
+                  </div>
+                </div>
+                <div id="selectedPick" class="hidden">
+                  <div class="chips">
+                    <button type="button" class="chip active">Surat retail</button>
+                    <button type="button" class="chip">+ Add group</button>
+                  </div>
+                  <p class="meta" style="margin:8px 0">2 businesses will see it · or Pick companies instead</p>
+                </div>
+
+                <div class="field"><label>Show rates?</label>
+                  <div class="chips">
+                    <button type="button" class="chip active">On request</button>
+                    <button type="button" class="chip">Visible</button>
+                  </div>
+                  <p class="meta">Defaults On request when pack has foreign members.</p>
+                </div>
+                <label class="check"><input type="checkbox" checked /> Buyers can add these designs to their collections</label>
+                <label class="check"><input type="checkbox" /> Buyers can download these designs</label>
+                <label class="check"><input type="checkbox" id="showSrc" /> Show supplier name</label>
+                <p class="note">Default off. No markup / rate fields on this sheet — members keep live supplier Product rows. <span class="tag tag-ok">working</span></p>
+
+                <button class="cta" type="button" onclick="doRepost(false)">Repost</button>
+                <button class="quiet" type="button" onclick="doRepost(true)">Repost + share a link · 48 hours</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="screen-block" data-role="trader" data-screen="t-cart" id="t-cart">
+            <div class="screen" style="padding-bottom:88px">
+              <div class="topbar"><div class="title">Cart</div></div>
+              <div style="padding:0 14px">
+                <div class="row"><div class="thumb"></div><div><div class="name">Peacock border saree</div><div class="sub">Ahmedabad Loom Co</div></div></div>
+                <div class="row"><div class="thumb"></div><div><div class="name">Gold butti blouse</div><div class="sub">Ahmedabad Loom Co</div></div></div>
+                <div class="row"><div class="thumb" style="opacity:.45"></div><div style="opacity:.55"><div class="name">Locked remnant</div><div class="sub">Can't put in a collection</div></div></div>
+              </div>
+              <p class="banner">Staging dock on Explore has no Repost. Repost appears after Add to cart, on this page.</p>
+            </div>
+            <div class="dock">
+              <button class="dock-icon" type="button" onclick="openCurateChoose()" title="Repost">↺</button>
+              <button class="dock-icon" type="button" onclick="toast('Bookmark')">🔖</button>
+              <button class="dock-icon" type="button" onclick="toast('Share')">➤</button>
+              <button class="cta" type="button" onclick="toast('Order / How many')">Order</button>
+            </div>
+          </div>
+
+          <div class="screen-block" data-role="trader" data-screen="t-curate" id="t-curate">
+            <div class="screen" style="padding-bottom:0">
+              <div class="topbar"><button type="button" class="sq" onclick="go('t-cart')">←</button><div class="title">Cart</div></div>
+            </div>
+            <div class="sheet-backdrop open">
+              <div class="sheet">
+                <div class="sheet-handle"></div>
+                <div class="sheet-title">Repost</div>
+                <p class="meta">2 designs from 1 business</p>
+                <div class="row"><div class="thumb"></div><div><div class="name">Peacock border saree</div><div class="sub">Ahmedabad Loom Co</div></div></div>
+                <div class="row"><div class="thumb"></div><div><div class="name">Gold butti blouse</div><div class="sub">Ahmedabad Loom Co</div></div></div>
+                <button type="button" class="skip-toggle">Skipped designs (1) · Ask available here</button>
+                <p class="note">Unlike Explore sheet, this path can Ask via <code>POST /relist-requests</code>. <span class="tag tag-ok">working</span></p>
+                <div id="curateModes">
+                  <button type="button" class="path-card" onclick="showCurateMode('existing')"><strong>Add to existing collection</strong><span>Pick a published collection</span></button>
+                  <button type="button" class="path-card" onclick="showCurateMode('new')"><strong>Add new</strong><span>Name it, then publish</span></button>
+                </div>
+                <div id="curateExisting" class="hidden">
+                  <button class="quiet" style="text-align:left;padding-left:0" type="button" onclick="showCurateMode('choose')">← Back</button>
+                  <div class="field"><input placeholder="Search your collections" /></div>
+                  <div class="list-row" onclick="toast('Added to Wedding Edit 2026 · navigates You collections')"><span>Wedding Edit 2026</span><span class="pill">Published</span></div>
+                  <div class="list-row" onclick="toast('Added to Saree Daily')"><span>Saree Daily</span><span class="pill">Published</span></div>
+                </div>
+                <div id="curateNew" class="hidden">
+                  <button class="quiet" style="text-align:left;padding-left:0" type="button" onclick="showCurateMode('choose')">← Back</button>
+                  <div class="field"><label>Name</label><input value="Surat picks — March" /></div>
+                  <p class="note">Publish opens Collection editor Publish sheet (not inline Who on this sheet). Save → draft on You collections. <span class="tag tag-ok">working</span></p>
+                  <div style="display:flex;gap:8px;align-items:center">
+                    <button class="dock-icon" type="button" onclick="toast('Collection draft saved')">💾</button>
+                    <button class="cta" style="margin:0" type="button" onclick="toast('Draft ready — finish publish')">Publish</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="screen-block" data-role="trader" data-screen="t-direct" id="t-direct">
+            <div class="screen">
+              <div class="topbar">
+                <div class="title">Direct links</div>
+                <button class="sq" type="button" onclick="openDirectCreate()">＋</button>
+              </div>
+              <div style="padding:0 14px">
+                <div class="search" style="margin:10px 0">Search</div>
+                <div class="list-row">
+                  <div><div class="name">Ahmedabad Loom Co → Meena Traders</div><div class="sub">Direct · group on first order</div></div>
+                  <button class="sq" type="button" style="color:var(--danger)" onclick="toast('Remove Direct link? Auto-reposting will stop. Existing orders stay.')">🗑</button>
+                </div>
+                <div class="list-row" style="opacity:.55">
+                  <div>
+                    <div class="name">Surat Silk House → Jaipur Emporium</div>
+                    <div class="sub">Repost off</div>
+                    <button class="cta" style="height:36px;margin-top:8px;width:auto;padding:0 12px;font-size:.8rem" type="button" onclick="toast('Ask to repost → POST /follows/share-ask')">Ask to repost</button>
+                  </div>
+                </div>
+              </div>
+              <p class="banner">Creating a link does not copy existing supplier albums. Only posts published after the link auto-hop. <span class="tag tag-ok">working</span></p>
+            </div>
+            <div class="tabbar"><span>Home</span><span>Chats</span><span class="on">Network</span><span>Orders</span><span>You</span></div>
+            <div class="sheet-backdrop" id="directCreate">
+              <div class="sheet">
+                <div class="sheet-handle"></div>
+                <div class="sheet-title">New Direct link</div>
+                <div class="field"><label>Supplier</label><div class="fake-input" style="display:flex;align-items:center">Ahmedabad Loom Co · Pack</div></div>
+                <div class="field"><label>Buyer</label><div class="fake-input" style="display:flex;align-items:center">Meena Traders</div></div>
+                <div class="locked-on"><span>Direct supplier orders</span><em>On</em></div>
+                <div class="locked-on"><span>Supplier, buyer, and you share a group</span><em>On</em></div>
+                <div class="locked-on"><span>New supplier posts go to this buyer</span><em>On</em></div>
+                <p class="note"><span class="tag tag-off">locked</span> Not a toggle. Lane JSON <code>autoRepost</code> stays false / non-editable; real hop is eligibility + propagate job. Save disabled unless supplier <code>accessKind === pack</code>.</p>
+                <button class="cta" type="button" onclick="toast('Saved for next orders. Group starts on the first order.'); closeDirectCreate()">Save</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="screen-block" data-role="trader" data-screen="t-manage" id="t-manage">
+            <div class="screen">
+              <div class="topbar"><div class="title">My collections</div></div>
+              <div style="padding:0 14px">
+                <div class="list-row">
+                  <div>
+                    <div class="name">Festive Loom Cut</div>
+                    <div class="sub">Published · lineage from Ahmedabad Loom Co</div>
+                  </div>
+                  <span class="pill">⋯</span>
+                </div>
+                <p class="note">A repost is an ordinary Collection. Edit / Hide Draft / Publish / Delete via library menus. No “Un-repost” on Explore. Row More has <strong>no Restore</strong>. <span class="tag tag-ok">working</span></p>
+                <p class="note"><span class="tag tag-miss">missing</span> No feed undo. <code>unarchive()</code> API always throws — deleted packs cannot be restored.</p>
+                <p class="note"><span class="tag tag-unclear">unclear</span> Owner editor imports <code>curatedMemberUnavailableReason</code> but no call site found for a visible “mill ended design” row.</p>
+              </div>
+            </div>
+            <div class="tabbar"><span>Home</span><span>Chats</span><span>Explore</span><span>Orders</span><span class="on">You</span></div>
+          </div>
+
+          <!-- ===== BUYER ===== -->
+          <div class="screen-block" data-role="buyer" data-screen="b-explore" id="b-explore">
+            <div class="screen">
+              <div class="topbar">
+                <div class="search">Search supplier, collection or design</div>
+                <button class="sq" type="button">☰</button>
+              </div>
+              <div class="stories">
+                <div class="story"><div class="ring"><span>RA</span></div>Ravi Agency</div>
+              </div>
+              <div class="feed">
+                <article class="card">
+                  <div class="shop-row">
+                    <div class="avatar">RA</div>
+                    <div class="shop-name">Ravi Agency</div>
+                    <div class="meta">1h</div>
+                  </div>
+                  <div class="photo">Festive Loom Cut</div>
+                  <div class="icons">
+                    <button type="button" class="icon-btn disabled" title="Buyer not trading" onclick="toast('Not Trading — Repost grayed')">↺</button>
+                    <button type="button" class="icon-btn">💬</button>
+                    <button type="button" class="icon-btn">➤</button>
+                    <span style="flex:1"></span>
+                    <button type="button" class="icon-btn">🔖</button>
+                  </div>
+                  <div class="caption"><span>Festive Loom Cut</span></div>
+                  <div class="from-line" id="buyerFrom" style="display:none">From Ahmedabad Loom Co</div>
+                  <div class="tags">Shop header = trader. Explore card has no From line unless album/shelf credit path.</div>
+                </article>
+                <p class="banner">Buyer on a Direct Link sees auto-repost packs as <strong>Selected</strong> to them (not on Followers feed for that skip-list). Album open / Place still work when Following. <span class="tag tag-ok">working</span></p>
+                <label class="check" style="padding:0 14px">
+                  <input type="checkbox" onchange="toggleBuyerFrom(this.checked)" />
+                  Simulate trader “Show supplier name” on
+                </label>
+              </div>
+            </div>
+            <div class="tabbar"><span>Home</span><span>Chats</span><span class="on">Explore</span><span>Orders</span><span>You</span></div>
+          </div>
+
+          <div class="screen-block" data-role="buyer" data-screen="b-album" id="b-album">
+            <div class="screen">
+              <div class="topbar"><button type="button" class="sq" onclick="go('b-explore')">←</button><div class="title">Festive Loom Cut</div></div>
+              <div class="photo" style="margin-top:10px">Pack cover</div>
+              <p class="from-line" style="padding-top:8px">From Ahmedabad Loom Co <span class="pill">when showSourceShops</span></p>
+              <div style="padding:8px 14px">
+                <div class="row"><div class="thumb"></div><div><div class="name">Peacock border saree</div><div class="sub" id="designFrom">From Ahmedabad Loom Co</div></div></div>
+                <div class="row"><div class="thumb"></div><div><div class="name">Gold butti blouse</div><div class="sub">From Ahmedabad Loom Co</div></div></div>
+              </div>
+              <p class="note" style="margin:10px 14px">Credit is display-only. Order / Message go to pack owner (trader) unless a Direct Link routes Place to the mill. Auto-repost forces showSourceShops on. <span class="tag tag-ok">working</span></p>
+              <p class="banner warn">Buyer never receives the “turned off Repost” chat system line — mill↔trader Direct only.</p>
+            </div>
+            <div class="tabbar"><span>Home</span><span>Chats</span><span class="on">Explore</span><span>Orders</span><span>You</span></div>
+          </div>
+
+          <div class="toast" id="toast"></div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    const SCREENS = {
+      supplier: [
+        { id: 's-followers', title: 'Followers · Allow Repost', tags: ['tag-ok'], hint: 'Grant Look vs Pack. This is the supplier-side gate traders need before Explore Repost / Direct Links.' },
+        { id: 's-publish', title: 'Supplier Publish', tags: ['tag-ok'], hint: 'Publishing a new pack after a Direct Link exists can enqueue auto-repost to the trader’s Selected buyers.' },
+        { id: 's-cascade', title: 'Hide source pack', tags: ['tag-ok', 'tag-unclear'], hint: 'Unpublish cascades Draft to source-linked children. Design-only hide does not propagate.' },
+      ],
+      trader: [
+        { id: 't-explore', title: 'Explore · Repost icon states', tags: ['tag-ok'], hint: 'Primary entry: Instagram icon row. Own / not trading / zero eligible / already reposted are gray or done — not a second dialect.' },
+        { id: 't-repost-sheet', title: 'RepostSheet (one-tap)', tags: ['tag-ok', 'tag-sim'], hint: 'Creates collection → set products → publish. Who = My followers | Selected only. No Everyone chip.' },
+        { id: 't-cart', title: 'Cart · multi-pick entry', tags: ['tag-ok'], hint: 'Repost on cart dock (Trading on). Album resolve: Use whole collection / Pick designs.' },
+        { id: 't-curate', title: 'CurateFromSelectionSheet', tags: ['tag-ok', 'tag-sim'], hint: 'Add to existing (published) or Add new (Save draft / Publish → editor sheet). Ask for locked designs lives here.' },
+        { id: 't-direct', title: 'Direct links · auto-repost', tags: ['tag-ok', 'tag-off'], hint: 'Locked On row “New supplier posts go to this buyer”. Real hop is server propagate — not a per-lane toggle.' },
+        { id: 't-manage', title: 'Manage repost as Collection', tags: ['tag-ok', 'tag-miss', 'tag-unclear'], hint: 'Ordinary You library lifecycle. No Un-repost. No restore from Archived.' },
+      ],
+      buyer: [
+        { id: 'b-explore', title: 'Buyer Explore', tags: ['tag-ok'], hint: 'Sees trader’s pack. Repost gray if not Trading. Selected auto-packs are skip-listed from Followers feed but still openable when Following.' },
+        { id: 'b-album', title: 'Buyer album credit', tags: ['tag-ok'], hint: 'From {mill} only when Show supplier name is on (forced on for auto-repost).' },
+      ],
+    };
+
+    let role = 'trader';
+    let screenId = 't-explore';
+
+    function tagHtml(list) {
+      const map = {
+        'tag-ok': ['tag-ok', 'working'],
+        'tag-sim': ['tag-sim', 'simulated'],
+        'tag-off': ['tag-off', 'locked / disabled'],
+        'tag-miss': ['tag-miss', 'not implemented'],
+        'tag-unclear': ['tag-unclear', 'unclear'],
+      };
+      return (list || []).map((k) => {
+        const [cls, label] = map[k];
+        return `<span class="tag ${cls}">${label}</span>`;
+      }).join(' ');
+    }
+
+    function renderNav() {
+      const nav = document.getElementById('nav');
+      nav.innerHTML = SCREENS[role].map((s) =>
+        `<button type="button" data-go="${s.id}" class="${s.id === screenId ? 'active' : ''}">${s.title}</button>`
+      ).join('');
+      nav.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => go(b.dataset.go)));
+    }
+
+    function go(id) {
+      const found = SCREENS[role].find((s) => s.id === id);
+      if (!found) return;
+      screenId = id;
+      document.querySelectorAll('.screen-block').forEach((el) => {
+        el.classList.toggle('active', el.id === id);
+      });
+      document.getElementById('screenTitle').textContent = found.title;
+      document.getElementById('screenTags').innerHTML = tagHtml(found.tags);
+      document.getElementById('screenHint').textContent = found.hint;
+      renderNav();
+      closeDirectCreate();
+    }
+
+    function setRole(next) {
+      role = next;
+      document.querySelectorAll('#roles button').forEach((b) => {
+        b.classList.toggle('active', b.dataset.role === role);
+      });
+      go(SCREENS[role][0].id);
+    }
+
+    document.querySelectorAll('#roles button').forEach((b) => {
+      b.addEventListener('click', () => setRole(b.dataset.role));
+    });
+
+    function toast(msg) {
+      const el = document.getElementById('toast');
+      el.textContent = msg;
+      el.classList.add('show');
+      clearTimeout(toast._t);
+      toast._t = setTimeout(() => el.classList.remove('show'), 2200);
+    }
+
+    function openRepostSheet() {
+      go('t-repost-sheet');
+    }
+
+    function toggleSkip() {
+      document.getElementById('skipList').classList.toggle('hidden');
+    }
+
+    function setWho(btn) {
+      document.querySelectorAll('#whoChips .chip:not(.faded)').forEach((c) => c.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('selectedPick').classList.toggle('hidden', btn.dataset.who !== 'selected');
+    }
+
+    function doRepost(withLink) {
+      const name = document.getElementById('repostName').value.trim() || 'Festive Loom Cut';
+      toast(withLink
+        ? `Reposted “${name}” · 48h link share/copy`
+        : `Reposted “${name}” · feed shows done icon`);
+      setTimeout(() => go('t-explore'), 900);
+    }
+
+    function openCurateChoose() {
+      go('t-curate');
+      showCurateMode('choose');
+    }
+
+    function showCurateMode(mode) {
+      document.getElementById('curateModes').classList.toggle('hidden', mode !== 'choose');
+      document.getElementById('curateExisting').classList.toggle('hidden', mode !== 'existing');
+      document.getElementById('curateNew').classList.toggle('hidden', mode !== 'new');
+    }
+
+    function openDirectCreate() {
+      document.getElementById('directCreate').classList.add('open');
+    }
+    function closeDirectCreate() {
+      const el = document.getElementById('directCreate');
+      if (el) el.classList.remove('open');
+    }
+
+    function acceptFollow() {
+      const pack = document.getElementById('allowRepostAsk').checked;
+      toast(pack ? 'Accepted · Pack (They can repost)' : 'Accepted · Look (see only)');
+    }
+
+    function togglePack() {
+      const on = document.getElementById('packToggle').checked;
+      toast(on
+        ? 'Repost on again'
+        : 'Pack→Look · chat: “Ahmedabad Loom Co turned off Repost for you · Request”');
+    }
+
+    function toggleBuyerFrom(on) {
+      document.getElementById('buyerFrom').style.display = on ? 'block' : 'none';
+    }
+
+    // Default persona: Trader (main Repost actor)
+    setRole('trader');
+  </script>
+</body>
+</html>

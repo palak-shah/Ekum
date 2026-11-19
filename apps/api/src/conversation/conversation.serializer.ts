@@ -99,6 +99,9 @@ export class ConversationSerializer {
       state: participant.state,
       alertLevel: participant.alertLevel,
       lastReadAt: participant.lastReadAt ? participant.lastReadAt.toISOString() : null,
+      lastDeliveredAt: participant.lastDeliveredAt
+        ? participant.lastDeliveredAt.toISOString()
+        : null,
     };
   }
 

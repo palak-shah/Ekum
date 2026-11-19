@@ -124,7 +124,40 @@ describe('expandPreviewMembers', () => {
     expect(rows[0]).toMatchObject({
       productId: 'p1',
       sourceCollectionId: 'cat-1',
+      catalogWhole: true,
+      catalogName: 'Season',
+      catalogCollectionId: 'cat-1',
     });
+  });
+
+  it('stamps pack catalogCollectionId on mill members without exclusive id', () => {
+    const rows = expandPreviewMembers(
+      preview({
+        products: [
+          {
+            ...member('mill-1', ProductStatus.Published, 'Mill silk'),
+            companyId: 'mill-a',
+            companyName: 'Mill A',
+            catalogCollectionId: null,
+          } as ProductView,
+          {
+            ...member('own-1', ProductStatus.Published, 'Own cotton'),
+            catalogCollectionId: 'cat-1',
+          } as ProductView,
+        ],
+      }),
+      {
+        collectionId: 'cat-1',
+        companyId: 'c1',
+        companyName: 'Shop',
+        allowForward: true,
+        name: 'Season',
+      },
+    );
+    expect(rows).toHaveLength(2);
+    expect(rows.every((row) => row.catalogWhole === true)).toBe(true);
+    expect(rows.every((row) => row.catalogCollectionId === 'cat-1')).toBe(true);
+    expect(rows.every((row) => row.catalogName === 'Season')).toBe(true);
   });
 });
 
@@ -177,6 +210,7 @@ describe('expandWholeCatalogsInShortlist', () => {
     expect(result.shortlist.map((row) => row.productId)).toEqual(['p1', 'p3']);
     expect(result.lockedProductIds).toEqual(['p1', 'p3']);
     expect(result.shortlist.every((row) => row.catalogWhole === true)).toBe(true);
+    expect(result.shortlist.every((row) => row.catalogCollectionId === 'cat-1')).toBe(true);
   });
 
   it('does not expand a pick catalog', async () => {

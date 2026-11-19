@@ -181,6 +181,30 @@ test.describe('catalog Order as whole @functional @catalog @orders', () => {
     await expectCatalogHowMany(page, catalogName, [silk, cotton]);
   });
 
+  test('design-set Order of whole members opens catalog How many', async ({ page, request }) => {
+    test.setTimeout(120_000);
+    const stamp = Date.now();
+    const catalogName = `Set whole ${stamp}`;
+    const silk = `Set silk ${stamp}`;
+    const cotton = `Set cotton ${stamp}`;
+
+    const auth = await raviAuth(page);
+    const catalog = await publishCatalog(request, auth, {
+      name: catalogName,
+      orderMode: 'whole',
+      designNames: [silk, cotton],
+    });
+
+    await loginAsMeena(page);
+    await page.goto(`/designs/set?ids=${catalog.productIds.join(',')}`);
+    await expect(page.getByTestId('design-set-page')).toBeVisible({ timeout: 20_000 });
+    await page.getByTestId('design-set-select').click();
+    await page.getByTestId('select-all-float-select-all').click();
+    await expect(page.getByTestId('design-set-trade-dock')).toBeVisible({ timeout: 10_000 });
+    await page.getByTestId('design-set-order').click();
+    await expectCatalogHowMany(page, catalogName, [silk, cotton]);
+  });
+
   test('Place 1 pc is one ticket row and Confirm has one tick', async ({ page, request }) => {
     test.setTimeout(180_000);
     const stamp = Date.now();

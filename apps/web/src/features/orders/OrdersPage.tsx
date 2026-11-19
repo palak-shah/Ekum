@@ -22,8 +22,8 @@ import {
   Chip,
   EmptyState,
   ErrorState,
-  LoadingBlock,
   SearchInput,
+  Skeleton,
   cx,
 } from '@/ui/kit';
 import { ListSearchRow, ListSquareButton } from '@/ui/ListSearchRow';
@@ -694,7 +694,11 @@ export function OrdersPage() {
       </div>
 
       {loading ? (
-        <LoadingBlock />
+        <div className="flex flex-col gap-2 px-3 py-2" data-testid="orders-list-skeleton">
+          {Array.from({ length: 5 }, (_, index) => (
+            <Skeleton key={index} className="h-[4.5rem] w-full rounded-xl" />
+          ))}
+        </div>
       ) : ordersFailed ? (
         <ErrorState message="Could not load orders." onRetry={() => void orders.refetch()} />
       ) : (

@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { useState, type CSSProperties, type ReactNode } from 'react';
+import type { OutgoingDeliveryTick } from '@ekum/domain-types';
 import { toAbsoluteMediaUrl } from '@/lib/mediaUrl';
 import { PhotoViewer } from '@/ui/PhotoViewer';
 import { Chip, cx } from '@/ui/kit';
@@ -229,13 +230,13 @@ function CardBody({
   highlight,
   chrome,
   chevronBleed,
-  seen,
+  tick,
 }: {
   model: ChatTradeCardModel;
   highlight: (text: string) => ReactNode;
   chrome: ReturnType<typeof directionChrome>;
   chevronBleed: boolean;
-  seen: boolean;
+  tick: OutgoingDeliveryTick | null;
 }) {
   const hasThumbs = model.thumbs.length > 0;
   const hasFooter = Boolean(model.actionRow && model.actionRow.length > 0);
@@ -323,7 +324,7 @@ function CardBody({
 
       <MessageTimeMeta
         createdAt={model.createdAt}
-        seen={seen}
+        tick={tick}
         testId="chat-trade-card-time"
         className={cx('px-2 pb-1 pt-0.5', bleed, underChevron, chrome.time)}
       />
@@ -398,7 +399,7 @@ export function ChatTradeCard({
   onOpen,
   selecting = false,
   clusterTail = true,
-  seen = false,
+  tick = null,
 }: {
   model: ChatTradeCardModel;
   highlight?: (text: string) => ReactNode;
@@ -406,8 +407,8 @@ export function ChatTradeCard({
   selecting?: boolean;
   /** WhatsApp last-of-run tail. Isolated cards default to tailed. */
   clusterTail?: boolean;
-  /** Blue ticks beside time when the other shop has read this last outgoing. */
-  seen?: boolean;
+  /** Direct outgoing delivery ticks beside the clock. */
+  tick?: OutgoingDeliveryTick | null;
 }) {
   const [albumIndex, setAlbumIndex] = useState<number | null>(null);
   const albumUrls = model.thumbs.map((url) => toAbsoluteMediaUrl(url)).filter(Boolean);
@@ -519,7 +520,7 @@ export function ChatTradeCard({
         ) : null}
         <MessageTimeMeta
           createdAt={model.createdAt}
-          seen={seen}
+          tick={tick}
           className={cx('mt-1 text-meta', chrome.time)}
         />
       </>
@@ -610,7 +611,7 @@ export function ChatTradeCard({
           highlight={highlight}
           chrome={chrome}
           chevronBleed={chevronBleed}
-          seen={seen}
+          tick={tick}
         />
       </div>
       {album}

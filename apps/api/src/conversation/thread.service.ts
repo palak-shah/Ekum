@@ -400,9 +400,10 @@ export class ThreadService {
     viewerUserId: string | null = null,
   ): Promise<ThreadDetail> {
     const mine = await this.membershipOrThrow(threadId, actorCompanyId, role, viewerUserId);
+    const now = new Date();
     await this.prisma.threadParticipant.update({
       where: { id: mine.id },
-      data: { lastReadAt: new Date() },
+      data: { lastReadAt: now, lastDeliveredAt: now },
     });
     return this.detail(threadId, actorCompanyId, role, viewerUserId);
   }

@@ -298,7 +298,7 @@ describe('ChatTradeCard section order', () => {
     render(
       <MemoryRouter>
         <ChatTradeCard
-          seen
+          tick="seen"
           model={model({
             kind: 'order',
             primary: 'Order #585D Requested',
