@@ -20,6 +20,11 @@ import { CompanySerializer } from '../access/company.serializer';
 import { ThreadService } from '../conversation/thread.service';
 import { DomainEvents } from '../events/events.module';
 import { isCollectionLiveForBuyers } from './collection-schedule';
+import {
+  activeCollectionViewGrantWhere,
+  collectionViewGrantExpiresAt,
+} from './collection-view-grant';
+import { packIdsSoftUnavailable } from './load-upstream-packs';
 
 @Injectable()
 export class CollectionViewRequestService {
@@ -52,10 +57,30 @@ export class CollectionViewRequestService {
       });
     }
 
-    const existingGrant = await this.prisma.collectionViewGrant.findUnique({
+    // Soft-unavailable: Ask cannot unlock designs — refuse before creating a request.
+    if (collection.repostSourceCollectionId) {
+      const softOff = await packIdsSoftUnavailable(this.prisma, [
+        {
+          id: collection.id,
+          companyId: collection.companyId,
+          repostSourceCollectionId: collection.repostSourceCollectionId,
+        },
+      ]);
+      if (softOff.has(collection.id)) {
+        throw new ForbiddenException({
+          code: 'UPSTREAM_RESTRICTED',
+          message: 'You can’t ask while the source pack is unavailable.',
+        });
+      }
+    }
+
+    const existingGrant = await this.prisma.collectionViewGrant.findFirst({
       where: {
-        collectionId_companyId: { collectionId, companyId: requesterCompanyId },
+        collectionId,
+        companyId: requesterCompanyId,
+        ...activeCollectionViewGrantWhere(),
       },
+      select: { id: true },
     });
     if (existingGrant) {
       throw new ConflictException({
@@ -176,12 +201,56 @@ export class CollectionViewRequestService {
     const request = await this.loadPendingForOwner(actorCompanyId, requestId);
     const collection = await this.prisma.collection.findUnique({
       where: { id: request.collectionId },
-      select: { id: true, name: true },
+      select: {
+        id: true,
+        name: true,
+        companyId: true,
+        status: true,
+        startsAt: true,
+        endsAt: true,
+        repostSourceCollectionId: true,
+      },
     });
     if (!collection) {
       throw new NotFoundException({ code: 'NOT_FOUND', message: 'Collection not found.' });
     }
+    // Only the pack owner may Allow (loadPendingForOwner). Upstream: refuse if the
+    // immediate source pack is gone/unpublished — trader cannot grant beyond that ceiling.
+    if (collection.companyId !== actorCompanyId) {
+      throw new ForbiddenException({
+        code: 'FORBIDDEN',
+        message: 'Not your request to decide.',
+      });
+    }
+    if (
+      collection.status !== CollectionStatus.Published ||
+      !isCollectionLiveForBuyers(collection)
+    ) {
+      throw new ConflictException({
+        code: 'NOT_AVAILABLE',
+        message: 'This pack is not available to share access.',
+      });
+    }
+    // Full upstream soft-unavailable (allowForward / unpublished / broken chain).
+    // Do not create a grant that cannot unlock products.
+    if (collection.repostSourceCollectionId) {
+      const softOff = await packIdsSoftUnavailable(this.prisma, [
+        {
+          id: collection.id,
+          companyId: collection.companyId,
+          repostSourceCollectionId: collection.repostSourceCollectionId,
+        },
+      ]);
+      if (softOff.has(collection.id)) {
+        throw new ForbiddenException({
+          code: 'UPSTREAM_RESTRICTED',
+          message: 'You can’t grant access while the source pack is unavailable.',
+        });
+      }
+    }
 
+    const now = new Date();
+    const expiresAt = collectionViewGrantExpiresAt(now);
     await this.prisma.collectionViewGrant.upsert({
       where: {
         collectionId_companyId: {
@@ -192,11 +261,12 @@ export class CollectionViewRequestService {
       create: {
         collectionId: request.collectionId,
         companyId: request.requesterCompanyId,
+        grantedAt: now,
+        expiresAt,
       },
-      update: { grantedAt: new Date() },
+      update: { grantedAt: now, expiresAt },
     });
 
-    const now = new Date();
     await this.prisma.collectionViewRequest.update({
       where: { id: request.id },
       data: { status: CollectionViewRequestStatus.Allowed, decidedAt: now },
@@ -330,7 +400,7 @@ export class CollectionViewRequestService {
       throw new NotFoundException({ code: 'NOT_FOUND', message: 'Collection not found.' });
     }
     const grants = await this.prisma.collectionViewGrant.findMany({
-      where: { collectionId },
+      where: { collectionId, ...activeCollectionViewGrantWhere() },
       include: { company: true },
       orderBy: { grantedAt: 'desc' },
     });
@@ -338,6 +408,7 @@ export class CollectionViewRequestService {
       companyId: row.companyId,
       company: this.companies.toPublicSummary(row.company),
       grantedAt: row.grantedAt.toISOString(),
+      expiresAt: row.expiresAt.toISOString(),
       collectionId: collection.id,
       collectionName: collection.name,
     }));
@@ -363,7 +434,7 @@ export class CollectionViewRequestService {
 
   async listMyGrants(viewerCompanyId: string): Promise<CollectionViewGrantView[]> {
     const grants = await this.prisma.collectionViewGrant.findMany({
-      where: { companyId: viewerCompanyId },
+      where: { companyId: viewerCompanyId, ...activeCollectionViewGrantWhere() },
       include: {
         collection: { include: { company: true } },
         company: true,
@@ -374,6 +445,7 @@ export class CollectionViewRequestService {
       companyId: row.companyId,
       company: this.companies.toPublicSummary(row.collection.company),
       grantedAt: row.grantedAt.toISOString(),
+      expiresAt: row.expiresAt.toISOString(),
       collectionId: row.collectionId,
       collectionName: row.collection.name,
     }));

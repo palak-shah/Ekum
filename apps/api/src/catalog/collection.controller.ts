@@ -20,7 +20,9 @@ import {
   otherPackCountsSchema,
   publishCollectionMembersSchema,
   publishCollectionSchema,
+  repostOfQuerySchema,
   setCollectionProductsSchema,
+  setRepostMemberPricingSchema,
   updateCollectionSchema,
   type ArchiveCollectionDto,
   type CreateCollectionDto,
@@ -30,7 +32,9 @@ import {
   type OtherPackCountsDto,
   type PublishCollectionDto,
   type PublishCollectionMembersDto,
+  type RepostOfQuery,
   type SetCollectionProductsDto,
+  type SetRepostMemberPricingDto,
   type UpdateCollectionDto,
 } from '@ekum/domain-types';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
@@ -60,6 +64,15 @@ export class CollectionController {
     @Query(new ZodValidationPipe(listCatalogQuerySchema)) query: ListCatalogQuery,
   ) {
     return this.collections.list(companyId, query);
+  }
+
+  /** Edit Repost — resolve my child pack by immediate Explore source (before :id). */
+  @Get('repost-of')
+  findRepostOf(
+    @CurrentCompanyId() companyId: string,
+    @Query(new ZodValidationPipe(repostOfQuerySchema)) query: RepostOfQuery,
+  ) {
+    return this.collections.findRepostOf(companyId, query);
   }
 
   @Get(':id')
@@ -136,6 +149,17 @@ export class CollectionController {
     return this.collections.publish(companyId, user.userId, id, dto);
   }
 
+  @Patch(':id/member-pricing')
+  @RequirePermission('uploads')
+  setRepostMemberPricing(
+    @CurrentCompanyId() companyId: string,
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(setRepostMemberPricingSchema)) dto: SetRepostMemberPricingDto,
+  ) {
+    return this.collections.setRepostMemberPricing(companyId, user.userId, id, dto);
+  }
+
   @Post(':id/ready')
   @RequirePermission('uploads')
   ready(
@@ -194,6 +218,17 @@ export class CollectionController {
     return this.collections.setStatus(companyId, user.userId, id, CollectionStatus.Draft, {
       alsoDraftDesigns: dto.alsoDraftDesigns,
     });
+  }
+
+  /** Explore Edit → Remove repost (Draft; preserve exploreActivityAt). */
+  @Post(':id/remove-repost')
+  @RequirePermission('uploads')
+  removeRepost(
+    @CurrentCompanyId() companyId: string,
+    @CurrentUser() user: AuthPrincipal,
+    @Param('id') id: string,
+  ) {
+    return this.collections.removeRepost(companyId, user.userId, id);
   }
 
   @Delete(':id')

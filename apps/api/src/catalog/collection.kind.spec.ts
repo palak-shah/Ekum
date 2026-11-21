@@ -11,8 +11,10 @@ import { qualifyingCollectionWhere } from './general-collection';
 import type { PrismaService } from '../core/prisma/prisma.service';
 import type { CatalogSerializer } from './catalog.serializer';
 import type { JobQueue } from '../jobs/job-queue.service';
+import type { MasterDataService } from './master-data/master-data.service';
 
 const jobs = { enqueue: vi.fn(async () => 'job-1') } as unknown as JobQueue;
+const masterData = {} as MasterDataService;
 
 describe('CollectionService general + catalog', () => {
   it('rejects setProducts on General Collection', async () => {
@@ -26,7 +28,7 @@ describe('CollectionService general + catalog', () => {
         }),
       },
     } as unknown as PrismaService;
-    const service = new CollectionService(prisma, {} as CatalogSerializer, jobs);
+    const service = new CollectionService(prisma, {} as CatalogSerializer, jobs, masterData);
     await expect(service.setProducts('company-1', 'u1', 'gc-1', ['p1'])).rejects.toBeInstanceOf(
       BadRequestException,
     );
@@ -66,7 +68,7 @@ describe('CollectionService general + catalog', () => {
       follow: { findMany: async () => [] },
       productRelistGrant: { findMany: async () => [] },
     } as unknown as PrismaService;
-    const service = new CollectionService(prisma, {} as CatalogSerializer, jobs);
+    const service = new CollectionService(prisma, {} as CatalogSerializer, jobs, masterData);
     await expect(service.setProducts('company-1', 'u1', 'cat-1', ['p1'])).rejects.toBeInstanceOf(
       ConflictException,
     );
@@ -108,6 +110,7 @@ describe('CollectionService general + catalog', () => {
       prisma,
       { toCollectionView } as unknown as CatalogSerializer,
       jobs,
+      masterData,
     );
     const rows = await service.list('company-1');
     expect(rows.map((row) => row.id)).toEqual(['gc-1', 'col-1']);
@@ -172,6 +175,7 @@ describe('CollectionService general + catalog', () => {
       prisma,
       { toCollectionDetail: () => ({ id: 'cat-1' }) } as unknown as CatalogSerializer,
       jobs,
+      masterData,
     );
     vi.spyOn(service, 'get').mockResolvedValue({ id: 'cat-1' } as never);
     await service.setProducts('company-1', 'u1', 'cat-1', ['keep']);
@@ -238,6 +242,7 @@ describe('CollectionService general + catalog', () => {
       prisma,
       { toCollectionDetail: () => ({ id: 'cat-1' }) } as unknown as CatalogSerializer,
       jobs,
+      masterData,
     );
     vi.spyOn(service, 'get').mockResolvedValue({ id: 'cat-1' } as never);
     await expect(service.setProducts('company-1', 'u1', 'cat-1', ['p1'])).resolves.toEqual({
@@ -276,7 +281,7 @@ describe('CollectionService general + catalog', () => {
       },
       collectionProduct: { findMany: async () => [] },
     } as unknown as PrismaService;
-    const service = new CollectionService(prisma, {} as CatalogSerializer, jobs);
+    const service = new CollectionService(prisma, {} as CatalogSerializer, jobs, masterData);
     await expect(service.setProducts('company-1', 'u1', 'col-1', ['p1'])).rejects.toBeInstanceOf(
       BadRequestException,
     );
@@ -311,7 +316,7 @@ describe('CollectionService general + catalog', () => {
       follow: { findMany: async () => [] },
       productRelistGrant: { findMany: async () => [] },
     } as unknown as PrismaService;
-    const service = new CollectionService(prisma, {} as CatalogSerializer, jobs);
+    const service = new CollectionService(prisma, {} as CatalogSerializer, jobs, masterData);
     await expect(service.setProducts('company-1', 'u1', 'col-1', ['p1'])).rejects.toBeInstanceOf(
       ConflictException,
     );
@@ -372,6 +377,7 @@ describe('CollectionService general + catalog', () => {
       prisma,
       { toCollectionDetail: () => ({ id: 'cat-new' }) } as unknown as CatalogSerializer,
       jobs,
+      masterData,
     );
     vi.spyOn(service, 'get').mockResolvedValue({ id: 'cat-new' } as never);
     await expect(
@@ -422,7 +428,7 @@ describe('CollectionService general + catalog', () => {
       follow: { findMany: async () => [] },
       productRelistGrant: { findMany: async () => [] },
     } as unknown as PrismaService;
-    const service = new CollectionService(prisma, {} as CatalogSerializer, jobs);
+    const service = new CollectionService(prisma, {} as CatalogSerializer, jobs, masterData);
     await expect(service.setProducts('company-1', 'u1', 'cat-new', ['p1'])).rejects.toBeInstanceOf(
       ConflictException,
     );
@@ -473,6 +479,7 @@ describe('CollectionService general + catalog', () => {
       prisma,
       { toCollectionDetail: () => ({ id: 'col-1' }) } as unknown as CatalogSerializer,
       jobs,
+      masterData,
     );
     vi.spyOn(service, 'get').mockResolvedValue({ id: 'col-1' } as never);
     await expect(
@@ -526,7 +533,7 @@ describe('CollectionService general + catalog', () => {
       productRelistGrant: { findMany: async () => [] },
       $transaction: async (fn: (client: typeof tx) => Promise<void>) => fn(tx),
     } as unknown as PrismaService;
-    const service = new CollectionService(prisma, {} as CatalogSerializer, jobs);
+    const service = new CollectionService(prisma, {} as CatalogSerializer, jobs, masterData);
     await expect(service.setProducts('company-1', 'u1', 'cat-1', ['p1'])).rejects.toBeInstanceOf(
       ConflictException,
     );
@@ -557,7 +564,7 @@ describe('CollectionService general + catalog', () => {
     const serializer = {
       toCollectionView: () => ({ id: 'col-1', status: CollectionStatus.Archived }),
     } as unknown as CatalogSerializer;
-    const service = new CollectionService(prisma, serializer, jobs);
+    const service = new CollectionService(prisma, serializer, jobs, masterData);
     await service.setStatus('company-1', 'u1', 'col-1', CollectionStatus.Archived, {
       alsoArchiveDesigns: true,
     });
@@ -593,7 +600,7 @@ describe('CollectionService general + catalog', () => {
     const serializer = {
       toCollectionView: (c: unknown) => c,
     } as unknown as CatalogSerializer;
-    const service = new CollectionService(prisma, serializer, jobs);
+    const service = new CollectionService(prisma, serializer, jobs, masterData);
     await service.update('company-1', 'u1', 'cat-1', {
       orderMode: CatalogOrderMode.Pick,
       kind: CollectionKind.Regular,
@@ -630,7 +637,7 @@ describe('CollectionService general + catalog', () => {
     const serializer = {
       toCollectionView: (c: unknown) => c,
     } as unknown as CatalogSerializer;
-    const service = new CollectionService(prisma, serializer, jobs);
+    const service = new CollectionService(prisma, serializer, jobs, masterData);
     await service.update('company-1', 'u1', 'col-1', {
       orderMode: CatalogOrderMode.Whole,
     });

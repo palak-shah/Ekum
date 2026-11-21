@@ -98,11 +98,13 @@ export function DesignSheet({
   canRemove = false,
   canDelete = false,
   canAddToPack = false,
+  canSetBuyerRate = false,
   addToPackSurface = 'album',
   onEdit,
   onRemove,
   onDelete,
   onAddToPack,
+  onSetBuyerRate,
   removeBusy = false,
   removeLabel = 'Remove from this collection',
   collectionId,
@@ -118,11 +120,13 @@ export function DesignSheet({
   canRemove?: boolean;
   canDelete?: boolean;
   canAddToPack?: boolean;
+  canSetBuyerRate?: boolean;
   addToPackSurface?: AddToPackLabelSurface;
   onEdit?: () => void;
   onRemove?: () => void;
   onDelete?: () => void;
   onAddToPack?: () => void;
+  onSetBuyerRate?: () => void;
   removeBusy?: boolean;
   removeLabel?: string;
   /** When set, Remove from this collection may appear in ⋯. */
@@ -193,6 +197,7 @@ export function DesignSheet({
   const moreIds = designSheetMoreIds({
     canEdit: Boolean(canEdit && onEdit),
     canPublish,
+    canSetBuyerRate: Boolean(canSetBuyerRate && onSetBuyerRate && collectionId),
     canRemove: Boolean(canRemove && onRemove && collectionId),
     canDelete: Boolean(canDelete && onDelete),
     canAddToPack: Boolean(canAddToPack && onAddToPack),
@@ -318,6 +323,20 @@ export function DesignSheet({
             onEdit();
           },
           testId: `${testIdPrefix}-edit`,
+        },
+      ];
+    }
+    if (id === 'buyerRate' && onSetBuyerRate) {
+      return [
+        {
+          id: 'buyer-rate',
+          label: 'Your rate for this design',
+          icon: <PencilIcon width={20} height={20} />,
+          onClick: () => {
+            setMoreOpen(false);
+            onSetBuyerRate();
+          },
+          testId: `${testIdPrefix}-buyer-rate`,
         },
       ];
     }

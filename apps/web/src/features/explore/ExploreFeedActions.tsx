@@ -4,9 +4,10 @@ import { useQueryClient } from '@tanstack/react-query';
 import type { CollectionCard, ExploreProductCard } from '@ekum/domain-types';
 import { CatalogShareSheet } from '@/features/browse/CatalogShareSheet';
 import {
-  ALREADY_REPOSTED_TOAST,
   REPOST_NO_PERMISSION,
   canExploreRepost,
+  canOpenExploreRepostEdit,
+  exploreRepostEditLabel,
   exploreRepostEligibleCount,
 } from '@/features/browse/curateCheck';
 import { SelectionMessageSheet } from '@/features/browse/SelectionMessageSheet';
@@ -27,9 +28,10 @@ import {
 /**
  * Instagram-placed icon row under Explore mosaics: left Repost · Message · Share,
  * Bookmark trailing right. Always show all four; gray out when not allowed
- * (own → Message + Repost; peer already reposted → done icon at full ink;
- * no forward / not trading → Repost). Selecting does **not** mute these —
- * mosaic taps still toggle pick; icons stay usable.
+ * (own → Message gray; own collection + Trading → Edit post / Edit repost at full ink;
+ * peer already reposted + Trading → Edit repost; not allowed → gray Repost icon —
+ * never an Edit label on a disabled control).
+ * Selecting does **not** mute these — mosaic taps still toggle pick; icons stay usable.
  * Message = quick enquire (stay on feed).
  */
 /** Quiet slide marks for a multi-photo Explore post. Centered on the icon row. */
@@ -82,6 +84,8 @@ export function ExploreFeedActions({
   const [bookmarkBusy, setBookmarkBusy] = useState(false);
   /** Flip done icon immediately after a successful Repost (before home refetch). */
   const [markedReposted, setMarkedReposted] = useState(false);
+  /** Child pack id after create — keeps muted edit icon without waiting for feed. */
+  const [localEditCollectionId, setLocalEditCollectionId] = useState<string | null>(null);
 
   const companyId = collection?.company.id ?? product?.company.id;
   const companyName = collection?.company.name ?? product?.company.name ?? '';
@@ -99,6 +103,25 @@ export function ExploreFeedActions({
     viewerReposted,
     trading: trade.trading,
     eligibleCount,
+  });
+  const canEditRepost = canOpenExploreRepostEdit({
+    isOwn,
+    viewerReposted,
+    trading: trade.trading,
+    ownEditableCollection: Boolean(isOwn && collection),
+  });
+  /** Own → this card id only (never upstream). Peer → viewer child stamp / local. */
+  const editCollectionId = canEditRepost
+    ? isOwn && collection
+      ? collection.id
+      : (localEditCollectionId ??
+        collection?.viewerRepostCollectionId ??
+        product?.viewerRepostCollectionId ??
+        null)
+    : null;
+  const editLabel = exploreRepostEditLabel({
+    isOwn,
+    isRepostChild: Boolean(collection?.isRepostChild),
   });
   const canMessage = !isOwn;
   const canShare = true;
@@ -159,12 +182,12 @@ export function ExploreFeedActions({
         data-testid="explore-feed-actions"
       >
         <div className="flex items-center gap-0.5" data-testid="explore-feed-actions-lead">
-          {viewerReposted && !isOwn ? (
+          {canEditRepost ? (
             <ActionIcon
               testId="explore-feed-repost"
-              label="Reposted"
+              label={editLabel}
               tone="done"
-              onClick={() => showToast(ALREADY_REPOSTED_TOAST)}
+              onClick={() => setRepostOpen(true)}
             >
               <RepostDoneIcon width={24} height={24} />
             </ActionIcon>
@@ -249,12 +272,17 @@ export function ExploreFeedActions({
           }
         />
       ) : null}
-      {repostOpen && canRepost && repostTarget ? (
+      {repostOpen && (canRepost || canEditRepost) && repostTarget ? (
         <RepostSheet
           open={repostOpen}
           onClose={() => setRepostOpen(false)}
-          onReposted={() => setMarkedReposted(true)}
+          onReposted={(childId) => {
+            setMarkedReposted(true);
+            if (childId) setLocalEditCollectionId(childId);
+          }}
           target={repostTarget}
+          editCollectionId={canEditRepost ? editCollectionId : undefined}
+          editTitle={canEditRepost ? editLabel : undefined}
         />
       ) : null}
     </>
@@ -282,7 +310,7 @@ function ActionIcon({
   disabled?: boolean;
   hint?: string;
   onDisabledActivate?: () => void;
-  /** Done = full ink, not gray. */
+  /** Done = full ink already-reposted (still clickable → edit). */
   tone?: 'done';
   children: ReactNode;
 }) {

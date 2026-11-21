@@ -34,6 +34,15 @@ export function asTradeDefaults(value: unknown): TradeDefaults {
   return {};
 }
 
+/**
+ * P3 shop-wide Pack policy in existing tradeDefaults JSON (no new Prisma column).
+ * Missing / true = Pack grants allowed; false = Pack OFF.
+ */
+export function isShopRepostPackAllowed(tradeDefaults: unknown): boolean {
+  const defaults = asTradeDefaults(tradeDefaults);
+  return defaults.shopRepostPackAllowed !== false;
+}
+
 export function mergeTradeDefaults(
   existing: unknown,
   patch: TradeDefaults,

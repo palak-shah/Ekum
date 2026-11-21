@@ -119,6 +119,24 @@ export function askToSeeThisPackBody(shop: string, kind?: string | null): string
   return `Ask ${shop} to open ${thisPack(kind)} so you can look through it. Not connect, and not putting designs in your collection.`;
 }
 
+/** Soft-unavailable (upstream lock) — not Ask / Request to access. */
+export function packUnavailableTitle(kind?: string | null): string {
+  return `This ${packNoun(kind)} isn’t available`;
+}
+
+export function packUnavailableBody(): string {
+  return 'Waiting on the source — designs stay locked until it restores them.';
+}
+
+/** Owner album when upstream locks buyers (F-08). No supplier names. */
+export function ownerUpstreamUnavailableTitle(kind?: string | null): string {
+  return `Buyers can’t open ${thisPack(kind)} right now`;
+}
+
+export function ownerUpstreamUnavailableBody(): string {
+  return 'Waiting on the source. Your designs stay here — buyers see them again when the source restores.';
+}
+
 export function askedToOpenThisPack(shop: string, kind?: string | null): string {
   return `Asked ${shop} to open ${thisPack(kind)}. Designs unlock after they Allow in chat.`;
 }

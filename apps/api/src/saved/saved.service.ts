@@ -17,6 +17,10 @@ import { connectionPairWhere } from '../access/connection-pair';
 import { toAuditActor } from '../common/audit';
 import { canDiscoverCollection } from '../catalog/audience-visibility';
 import { isCollectionLiveForBuyers } from '../catalog/collection-schedule';
+import {
+  packIdsSoftUnavailable,
+  resolveBuyerRepostPackAvailability,
+} from '../catalog/load-upstream-packs';
 
 const LEFTOVER_OFFER_REASON = 'No longer available';
 
@@ -51,6 +55,7 @@ type CollectionRow = AudienceTarget & {
   status: string;
   startsAt: Date | null;
   endsAt: Date | null;
+  repostSourceCollectionId?: string | null;
   company: {
     id: string;
     name: string;
@@ -77,11 +82,12 @@ const listInclude = {
     include: {
       company: { select: companySelect },
       products: {
+        where: { excluded: false },
         orderBy: { position: 'asc' as const },
         take: 4,
         include: { product: { select: { images: true, status: true } } },
       },
-      _count: { select: { products: true } },
+      _count: { select: { products: { where: { excluded: false } } } },
     },
   },
 };
@@ -103,7 +109,26 @@ export class SavedService {
       orderBy: { createdAt: 'desc' },
       include: listInclude,
     });
-    return rows.map((row) => this.toView(row));
+    const packRows = rows.flatMap((row) =>
+      row.collection
+        ? [
+            {
+              id: row.collection.id,
+              companyId: row.collection.companyId,
+              repostSourceCollectionId: (
+                row.collection as { repostSourceCollectionId?: string | null }
+              ).repostSourceCollectionId,
+            },
+          ]
+        : [],
+    );
+    const availability =
+      packRows.length > 0
+        ? await resolveBuyerRepostPackAvailability(this.prisma, packRows)
+        : null;
+    return rows.map((row) =>
+      this.toView(row, companyId, availability?.omitIds ?? new Set(), availability),
+    );
   }
 
   async create(companyId: string, userId: string, dto: CreateSavedItemDto): Promise<SavedItemView> {
@@ -154,7 +179,7 @@ export class SavedService {
       update: { savedByUserId: userId },
       include: listInclude,
     });
-    return this.toView(row);
+    return this.toView(row, companyId);
   }
 
   private async saveCollection(
@@ -167,12 +192,13 @@ export class SavedService {
       include: {
         company: { select: companySelect },
         products: {
+          where: { excluded: false },
           orderBy: { position: 'asc' },
           take: 4,
           // status required — live check skips packs with no published members
           include: { product: { select: { images: true, status: true } } },
         },
-        _count: { select: { products: true } },
+        _count: { select: { products: { where: { excluded: false } } } },
       },
     });
     if (!collection) {
@@ -191,7 +217,16 @@ export class SavedService {
       update: { savedByUserId: userId },
       include: listInclude,
     });
-    return this.toView(row);
+    const softOff = await packIdsSoftUnavailable(this.prisma, [
+      {
+        id: collection.id,
+        companyId: collection.companyId,
+        repostSourceCollectionId: (
+          collection as { repostSourceCollectionId?: string | null }
+        ).repostSourceCollectionId,
+      },
+    ]);
+    return this.toView(row, companyId, softOff);
   }
 
   /**
@@ -226,6 +261,16 @@ export class SavedService {
       return true;
     }
     if (!isCollectionLiveForBuyers(collection)) {
+      return false;
+    }
+    const softOff = await packIdsSoftUnavailable(this.prisma, [
+      {
+        id: collection.id,
+        companyId: collection.companyId,
+        repostSourceCollectionId: collection.repostSourceCollectionId,
+      },
+    ]);
+    if (softOff.has(collection.id)) {
       return false;
     }
     const ctx = await this.audienceContext(viewerCompanyId, collection.companyId);
@@ -267,15 +312,22 @@ export class SavedService {
     };
   }
 
-  private toView(row: {
-    id: string;
-    productId: string | null;
-    collectionId: string | null;
-    createdAt: Date;
-    savedByUser: { id: string; name: string | null } | null;
-    product: ProductRow | null;
-    collection: CollectionRow | null;
-  }): SavedItemView {
+  private toView(
+    row: {
+      id: string;
+      productId: string | null;
+      collectionId: string | null;
+      createdAt: Date;
+      savedByUser: { id: string; name: string | null } | null;
+      product: ProductRow | null;
+      collection: CollectionRow | null;
+    },
+    viewerCompanyId: string,
+    softOff: Set<string> = new Set(),
+    availability: Awaited<
+      ReturnType<typeof resolveBuyerRepostPackAvailability>
+    > | null = null,
+  ): SavedItemView {
     const savedBy = toAuditActor(row.savedByUser);
     if (row.productId && row.product) {
       const images = row.product.images ?? [];
@@ -308,13 +360,31 @@ export class SavedService {
       };
     }
     if (row.collectionId && row.collection) {
+      const isOwner = row.collection.companyId === viewerCompanyId;
+      const softUnavailable = !isOwner && softOff.has(row.collection.id);
+      const live = isCollectionLiveForBuyers(row.collection);
+      const eligibleIds = availability?.eligibleProductIdsByPackId.get(
+        row.collection.id,
+      );
+      const memberEntries =
+        !isOwner && eligibleIds
+          ? row.collection.products.filter((entry) =>
+              eligibleIds.has(entry.product.id),
+            )
+          : row.collection.products;
       const images: string[] = [];
-      for (const entry of row.collection.products) {
-        if (images.length >= 4) break;
-        const first = entry.product.images.find((url) => url?.trim());
-        if (first && !images.includes(first)) images.push(first);
+      if (!softUnavailable) {
+        for (const entry of memberEntries) {
+          if (images.length >= 4) break;
+          const first = entry.product.images.find((url) => url?.trim());
+          if (first && !images.includes(first)) images.push(first);
+        }
       }
-      const productCount = row.collection._count?.products ?? row.collection.products.length;
+      const productCount = softUnavailable
+        ? 0
+        : eligibleIds && !isOwner
+          ? memberEntries.length
+          : (row.collection._count?.products ?? row.collection.products.length);
       const imageCount = Math.max(images.length, productCount > 0 ? images.length : 0);
       return {
         id: row.id,
@@ -324,14 +394,12 @@ export class SavedService {
         name: row.collection.name,
         thumbUrl: images[0] ?? null,
         images,
-        imageCount: Math.max(imageCount, images.length),
+        imageCount: softUnavailable ? 0 : Math.max(imageCount, images.length),
         productCount,
         createdAt: row.createdAt.toISOString(),
         savedBy,
-        available: isCollectionLiveForBuyers(row.collection),
-        unavailableReason: isCollectionLiveForBuyers(row.collection)
-          ? null
-          : LEFTOVER_OFFER_REASON,
+        available: live && !softUnavailable,
+        unavailableReason: live && !softUnavailable ? null : LEFTOVER_OFFER_REASON,
       };
     }
     throw new BadRequestException({

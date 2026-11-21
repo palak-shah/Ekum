@@ -2,13 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { CollectionStatus, PublishAudience, RepostOrigin } from '@ekum/domain-types';
 import {
   audienceCompanyIdsForPublish,
+  pickImmediateSourceSurvivor,
   pickRootSurvivor,
   shouldReuseRepostChild,
 } from './collection-lineage';
 
-describe('pickRootSurvivor', () => {
-  it('keeps the oldest published pack when two manuals share a root', () => {
-    const survivor = pickRootSurvivor([
+describe('pickImmediateSourceSurvivor', () => {
+  it('keeps the oldest published pack among the same immediate-source set', () => {
+    const survivor = pickImmediateSourceSurvivor([
       {
         id: 'newer',
         status: CollectionStatus.Published,
@@ -23,6 +24,7 @@ describe('pickRootSurvivor', () => {
       },
     ]);
     expect(survivor?.id).toBe('older');
+    expect(pickRootSurvivor([survivor!])?.id).toBe('older');
   });
 });
 

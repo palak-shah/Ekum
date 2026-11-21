@@ -25,6 +25,10 @@ import {
   packNameTakenTitle,
   packNoun,
   packNounCap,
+  ownerUpstreamUnavailableBody,
+  ownerUpstreamUnavailableTitle,
+  packUnavailableBody,
+  packUnavailableTitle,
   pickWhoCanSeeThisPack,
   publishPackSheetTitle,
   publishThisPackBeforeShare,
@@ -72,6 +76,7 @@ const PAIR: Array<{ name: string; fn: CopyFn }> = [
   { name: 'allowedForThisPackOnly', fn: allowedForThisPackOnly },
   { name: 'onlyThisPackLabel', fn: onlyThisPackLabel },
   { name: 'askToSeeThisPack', fn: askToSeeThisPack },
+  { name: 'packUnavailableTitle', fn: packUnavailableTitle },
   { name: 'libraryReplaceKeepsPack', fn: libraryReplaceKeepsPack },
   { name: 'untitledPackFallback', fn: untitledPackFallback },
 ];
@@ -130,5 +135,18 @@ describe('pack kind copy never interchanges', () => {
     expect(catalogAsk).toContain('this catalog');
     expect(catalogAsk).not.toContain('this collection');
     expect(catalogAsk).toContain('your collection');
+  });
+
+  it('soft-unavailable copy is not Ask / Request to access', () => {
+    expect(packUnavailableTitle(COLLECTION)).toMatch(/isn’t available/);
+    expect(packUnavailableTitle(CATALOG)).toMatch(/catalog/);
+    expect(packUnavailableBody()).not.toMatch(/Ask|Request to access/i);
+    expect(packUnavailableBody()).toMatch(/source/i);
+  });
+
+  it('owner upstream banner never names a supplier', () => {
+    expect(ownerUpstreamUnavailableTitle(COLLECTION)).toMatch(/Buyers can’t open/);
+    expect(ownerUpstreamUnavailableBody()).toMatch(/source/i);
+    expect(ownerUpstreamUnavailableBody()).not.toMatch(/Ask|mill|supplier/i);
   });
 });

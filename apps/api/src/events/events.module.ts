@@ -12,6 +12,7 @@ import {
   type CollectionViewGrantedEvent,
   type RelistGrantedEvent,
   type FollowAllowedEvent,
+  type RepostSyncDesignsAddedEvent,
 } from './domain-events';
 
 /**
@@ -68,6 +69,10 @@ export class DomainEvents {
 
   followAllowed(payload: FollowAllowedEvent): void {
     this.emitter.emit(DomainEventName.FollowAllowed, payload);
+  }
+
+  repostSyncDesignsAdded(payload: RepostSyncDesignsAddedEvent): void {
+    this.emitter.emit(DomainEventName.RepostSyncDesignsAdded, payload);
   }
 }
 

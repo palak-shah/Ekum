@@ -51,3 +51,16 @@ export function sharedDesignDraftCopy(): { title: string; body: string; confirmL
 export function youLibraryDeletedLabel(): string {
   return 'Deleted';
 }
+
+/** Explore Edit → Remove repost confirm (no Delete; orders unchanged). */
+export function removeRepostCopy(): {
+  title: string;
+  body: string;
+  confirmLabel: string;
+} {
+  return {
+    title: 'Remove this repost?',
+    body: 'It will stop showing to buyers. Existing orders stay as they are.',
+    confirmLabel: 'Remove repost',
+  };
+}

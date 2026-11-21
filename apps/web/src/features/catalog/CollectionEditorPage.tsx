@@ -79,6 +79,7 @@ import {
   libraryDesignsForPicker,
   membershipWithNewFirst,
   ownedSelectedIds,
+  activeOwnerMemberIds,
   packRemoveNextMembership,
 } from '@/features/collections/ownerPackManage';
 import {
@@ -211,6 +212,16 @@ import {
   selectCreatedGroup,
   type PublishAudienceState,
 } from './PublishAudienceFields';
+import { RepostPricingFields } from '@/features/catalog/RepostPricingFields';
+import {
+  collectionHasRepostPricingSurface,
+  defaultPackRepostPricingForm,
+  publishPricingFieldsFromForm,
+  repostPricingFormFromPack,
+  repostPricingFormReady,
+  type RepostPricingFormState,
+} from '@/features/catalog/repostPricingForm';
+import { RepostMemberPricingSheet } from '@/features/catalog/RepostMemberPricingSheet';
 
 function toDateInput(iso: string | null | undefined): string {
   if (!iso) return '';
@@ -340,6 +351,10 @@ export function CollectionEditorPage() {
   const [publishAudience, setPublishAudience] = useState<PublishAudienceState>(() =>
     emptyPublishAudienceState(),
   );
+  const [pricingForm, setPricingForm] = useState<RepostPricingFormState>(() =>
+    defaultPackRepostPricingForm(),
+  );
+  const [memberPricingProductId, setMemberPricingProductId] = useState<string | null>(null);
   const [startsAt, setStartsAt] = useState('');
   const [endsAt, setEndsAt] = useState('');
   const [evergreen, setEvergreen] = useState(true);
@@ -653,7 +668,7 @@ export function CollectionEditorPage() {
       const loadedCategories = existing.data.categories ?? [];
       const firstLoad = identityHydratedId.current !== existing.data.id;
       identityHydratedId.current = existing.data.id;
-      setSelected(new Set(existing.data.products.map((product) => product.id)));
+      setSelected(new Set(activeOwnerMemberIds(existing.data.products)));
       if (!firstLoad) return;
       setForm({
         name: existing.data.name,
@@ -663,18 +678,19 @@ export function CollectionEditorPage() {
         masterCategoryId: existing.data.masterCategoryId ?? null,
       });
       setTagSlotsState(categoriesToTagSlots(loadedCategories));
+      const activeProducts = existing.data.products.filter((product) => !product.excluded);
       // Pack rate lives on the collection; fall back to unanimous members for older packs.
       const loadedRate =
         existing.data.rate != null
           ? formatRateInput(existing.data.rate, existing.data.rateMax ?? null)
-          : unanimousMemberRate(existing.data.products);
+          : unanimousMemberRate(activeProducts);
       if (loadedRate || !rateFieldsHydrated.current) {
         const rateParts = splitRateInput(loadedRate);
         setRateFrom(rateParts.from);
         setRateTo(rateParts.to);
         rateFieldsHydrated.current = true;
       }
-      const first = existing.data.products[0];
+      const first = activeProducts[0];
       const sellAs = packSellAsFromCollection(existing.data, first);
       const sellAsDispatch = normalizePackDispatchUnit(sellAs.unit, sellAs.dispatchUnit);
       // Pure updater — a ref gate inside setState dropped mtr/47 on Strict Mode’s second call.
@@ -704,6 +720,13 @@ export function CollectionEditorPage() {
           showSourceShops: existing.data.showSourceShops === true,
         }),
       );
+      setPricingForm(
+        repostPricingFormFromPack({
+          repostPricingMode: existing.data.repostPricingMode,
+          repostMarginValue: existing.data.repostMarginValue,
+          repostEditedRate: existing.data.repostEditedRate,
+        }),
+      );
       setStartsAt(toDateInput(existing.data.startsAt));
       setEndsAt(toDateInput(existing.data.endsAt));
       setEvergreen(!existing.data.endsAt);
@@ -719,7 +742,7 @@ export function CollectionEditorPage() {
         coverImage: existing.data.coverImage ?? '',
         categories: existing.data.categories ?? [],
         masterCategoryId: existing.data.masterCategoryId ?? null,
-        productIds: existing.data.products.map((product) => product.id).sort(),
+        productIds: activeOwnerMemberIds(existing.data.products).sort(),
         rateFrom: splitRateInput(loadedRate).from,
         rateTo: splitRateInput(loadedRate).to,
         unit: sellAs.unit,
@@ -1035,6 +1058,12 @@ export function CollectionEditorPage() {
         ...publishAudienceDtoFields(publishAudience),
         ...(canPublishAlready ? {} : { consentToSell: true }),
         ...schedulePayload(),
+        ...(showRepostPricing
+          ? publishPricingFieldsFromForm(pricingForm, {
+              rateMin: existing.data?.rate ?? null,
+              rateMax: existing.data?.rateMax ?? null,
+            })
+          : {}),
       };
       return api.post(`/collections/${id}/publish`, dto);
     },
@@ -1688,6 +1717,12 @@ export function CollectionEditorPage() {
             showSourceShops: hasForeignMembers ? publishAudience.showSourceShops : false,
             ...publishAudienceDtoFields(publishAudience),
             ...(canPublishAlready ? {} : { consentToSell: true }),
+            ...(showRepostPricing
+              ? publishPricingFieldsFromForm(pricingForm, {
+                  rateMin: parseRateInput(packRate).rate,
+                  rateMax: parseRateInput(packRate).rateMax,
+                })
+              : {}),
           });
         }
       }
@@ -1792,11 +1827,11 @@ export function CollectionEditorPage() {
     setManageSelecting(false);
   };
 
-  /** Same as album Remove — full owner GET, not local `selected` alone. */
+  /** Same as album Remove — full active owner GET, not local `selected` alone. */
   const ownerMemberIds = async () => {
     if (!id) return [...selected];
     const detail = await api.get<CollectionDetailView>(`/collections/${id}`);
-    return detail.products.map((product) => product.id);
+    return activeOwnerMemberIds(detail.products);
   };
 
   const onEditorRemove = async () => {
@@ -1897,10 +1932,23 @@ export function CollectionEditorPage() {
     });
   };
 
+  const createHasForeign = useMemo(() => {
+    const ownerId = company.data?.id;
+    if (!ownerId) return false;
+    return createLibraryDesigns.some((product) => product.companyId !== ownerId);
+  }, [createLibraryDesigns, company.data?.id]);
+  const showRepostPricing = collectionHasRepostPricingSurface({
+    memberPricing: existing.data?.memberPricing,
+    repostPricingMode: existing.data?.repostPricingMode,
+    hasForeignMembers: hasForeignMembers || createHasForeign,
+  });
+  const pricingReady = !showRepostPricing || repostPricingFormReady(pricingForm);
+
   const canSubmitPublish =
     (canPublishAlready || consent) &&
     publishAudienceCanSubmit(publishAudience) &&
-    canPublishAlbum;
+    canPublishAlbum &&
+    pricingReady;
 
   const showLifecycleMenu =
     editing &&
@@ -2416,7 +2464,8 @@ export function CollectionEditorPage() {
   const canCreatePublish =
     canOpenCreatePublish &&
     (canPublishAlready || consent) &&
-    publishAudienceCanSubmit(publishAudience);
+    publishAudienceCanSubmit(publishAudience) &&
+    pricingReady;
 
   const canCreateDraft = !creating && !quickUploading;
 
@@ -3051,6 +3100,17 @@ export function CollectionEditorPage() {
             </p>
           ) : null}
 
+          {showRepostPricing ? (
+            <RepostPricingFields
+              value={pricingForm}
+              onChange={(next) => {
+                setPricingForm(next);
+                setSheetError(null);
+              }}
+              testIdPrefix="editor-repost-pricing"
+            />
+          ) : null}
+
           <PublishAudienceFields
             state={publishAudience}
             onChange={(next) => {
@@ -3104,6 +3164,18 @@ export function CollectionEditorPage() {
         }
       >
         <div className="flex flex-col gap-3">
+          {Array.isArray(existing.data?.memberPricing) && memberSheet?.kind === 'product' ? (
+            <Button
+              fullWidth
+              variant="secondary"
+              data-testid="collection-member-buyer-rate"
+              onClick={() => {
+                setMemberPricingProductId(memberSheet.productId);
+              }}
+            >
+              Your rate for this design
+            </Button>
+          ) : null}
           <div>
             <p className="mb-2 text-sm font-emphasis text-ink">Photos</p>
             <div className="grid grid-cols-3 gap-2">
@@ -3443,6 +3515,17 @@ export function CollectionEditorPage() {
               ]
             : []
         }
+      />
+
+      <RepostMemberPricingSheet
+        open={Boolean(memberPricingProductId)}
+        collectionId={id}
+        productId={memberPricingProductId}
+        productName={
+          selectedProducts.find((p) => p.id === memberPricingProductId)?.name ??
+          selectableDesigns.find((p) => p.id === memberPricingProductId)?.name
+        }
+        onClose={() => setMemberPricingProductId(null)}
       />
     </div>
   );

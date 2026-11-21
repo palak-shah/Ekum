@@ -109,6 +109,21 @@ describe('Explore collection photo', () => {
     expect(screen.queryByTestId('explore-photo-prev')).toBeNull();
   });
 
+  it('shows quiet N new designs from exploreNewDesignCount only', () => {
+    wrap(
+      <OpportunityCollectionCard
+        opportunity={opportunity({ exploreNewDesignCount: 2 })}
+      />,
+    );
+    expect(screen.getByText('2 new designs')).toBeTruthy();
+    wrap(
+      <OpportunityCollectionCard
+        opportunity={opportunity({ exploreNewDesignCount: 0 })}
+      />,
+    );
+    expect(screen.queryAllByText(/new designs/).length).toBe(1);
+  });
+
   it('adds a View more card when more photos exist, with no count line', async () => {
     const user = userEvent.setup();
     const urls = [1, 2, 3, 4, 5, 6].map((n) => `https://img.example/${n}.jpg`);

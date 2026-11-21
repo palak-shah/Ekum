@@ -22,6 +22,8 @@ export type SourceCreditOpts = {
    * (source row unloadable), do not credit the end mill.
    */
   declaredSourceCollectionId?: string | null;
+  /** Full hop map — when provided, incomplete/cyclic chains fail closed. */
+  hopRows?: Map<string, SourceCreditHopRow>;
 };
 
 /** True when lineage claims a source pack but hops could not be resolved. */
@@ -30,6 +32,29 @@ export function sourceHopUnresolved(
   sourceHops: SourceCreditHop[],
 ): boolean {
   return Boolean(declaredSourceCollectionId) && sourceHops.length === 0;
+}
+
+/**
+ * Fail closed when the walk stopped early (missing hop) or looped.
+ * `loadedIds` is every id successfully loaded for this chain request.
+ */
+export function sourceHopChainIncomplete(
+  declaredSourceCollectionId: string | null | undefined,
+  sourceHops: SourceCreditHop[],
+  byId: Map<string, SourceCreditHopRow>,
+): boolean {
+  if (!declaredSourceCollectionId) return false;
+  if (sourceHopUnresolved(declaredSourceCollectionId, sourceHops)) return true;
+  let next: string | null = declaredSourceCollectionId;
+  const seen = new Set<string>();
+  while (next) {
+    if (seen.has(next)) return true;
+    seen.add(next);
+    const row = byId.get(next);
+    if (!row) return true;
+    next = row.repostSourceCollectionId ?? null;
+  }
+  return false;
 }
 
 /** Walk repostSourceCollectionId chain (immediate → outer). */
@@ -81,8 +106,14 @@ export function collectionSourceShopNames(
   opts: SourceCreditOpts = {},
 ): string[] {
   if (!showSourceShops) return [];
-  // Declared source but unloadable — never fall back to raw mill names.
+  // Declared source but unloadable / incomplete / cyclic — never fall back to raw mill names.
   if (sourceHopUnresolved(opts.declaredSourceCollectionId, sourceHops)) {
+    return [];
+  }
+  if (
+    opts.hopRows &&
+    sourceHopChainIncomplete(opts.declaredSourceCollectionId, sourceHops, opts.hopRows)
+  ) {
     return [];
   }
   const hopName = new Map(
@@ -113,6 +144,7 @@ export function visitorDesignCreditCompanyName(input: {
   productCompanyName: string | null;
   sourceHops?: SourceCreditHop[];
   declaredSourceCollectionId?: string | null;
+  hopRows?: Map<string, SourceCreditHopRow>;
 }): string {
   const {
     isOwner,
@@ -123,6 +155,7 @@ export function visitorDesignCreditCompanyName(input: {
     productCompanyName,
     sourceHops = [],
     declaredSourceCollectionId,
+    hopRows,
   } = input;
   const isForeign = productCompanyId !== packCompanyId;
   if (isOwner || !isForeign) {
@@ -132,6 +165,12 @@ export function visitorDesignCreditCompanyName(input: {
     return packCompanyName;
   }
   if (sourceHopUnresolved(declaredSourceCollectionId, sourceHops)) {
+    return packCompanyName;
+  }
+  if (
+    hopRows &&
+    sourceHopChainIncomplete(declaredSourceCollectionId, sourceHops, hopRows)
+  ) {
     return packCompanyName;
   }
   const creditId = revealedCreditCompanyId(productCompanyId, sourceHops);

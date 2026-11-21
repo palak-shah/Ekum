@@ -214,6 +214,20 @@ describe('toCollectionCard', () => {
     expect(off.sourceShopNames).toEqual([]);
   });
 
+  it('stamps isRepostChild from source lineage (title only)', () => {
+    expect(serializer.toCollectionCard(pack()).isRepostChild).toBe(false);
+    expect(
+      serializer.toCollectionCard(
+        pack({ repostSourceCollectionId: 'src-pack' } as Partial<CardRow>),
+      ).isRepostChild,
+    ).toBe(true);
+    expect(
+      serializer.toCollectionCard(
+        pack({ repostSourceProductId: 'p-src' } as Partial<CardRow>),
+      ).isRepostChild,
+    ).toBe(true);
+  });
+
   it('stamps viewer curate eligibility on the card', () => {
     expect(serializer.toCollectionCard(pack(), { repostEligibleCount: 0 }).repostEligibleCount).toBe(
       0,

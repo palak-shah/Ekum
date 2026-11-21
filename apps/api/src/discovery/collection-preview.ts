@@ -1,4 +1,5 @@
 import { ProductStatus } from '@ekum/domain-types';
+import { activeCollectionMemberWhere } from '../catalog/collection-membership';
 
 function memberIsPublished(product: { status?: string | null }): boolean {
   return product.status === ProductStatus.Published;
@@ -31,8 +32,9 @@ export function collectionPreviewFromRow(collection: {
   };
 }
 
-/** Live members only — draft / archived designs are not a pack on Explore. */
+/** Live members only — draft / archived / excluded designs are not a pack on Explore. */
 export const publishedCollectionMemberWhere = {
+  ...activeCollectionMemberWhere,
   product: { status: ProductStatus.Published },
 } as const;
 

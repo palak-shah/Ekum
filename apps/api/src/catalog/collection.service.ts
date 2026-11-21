@@ -13,14 +13,23 @@ import {
   JobType,
   ProductStatus,
   RepostOrigin,
+  applyOwnerSetProductsToMembership,
+  applySourceSyncToMembership,
+  forcePreserveExclusions,
   type CollectionDetailView,
   type CollectionView,
   type CreateCollectionDto,
   type CurateCheckView,
   type ListCatalogQuery,
+  type MembershipOrigin,
   type OtherPackCountsView,
   type PublishCollectionDto,
   type PublishCollectionMembersView,
+  type RepostMembershipRow,
+  type RepostMembershipWrite,
+  type RepostOfQuery,
+  type RepostOfView,
+  type SetRepostMemberPricingDto,
   type UpdateCollectionDto,
   uniqueSharedStringList,
   uniqueSharedValue,
@@ -67,10 +76,32 @@ import {
   packNoun,
   qualifyingCollectionWhere,
 } from './general-collection';
+import {
+  memberPricingOverrideFromRow,
+  packPricingConfigFromRow,
+  pricingDataForWrite,
+  resolvePackMemberBuyerRates,
+} from './repost-pricing-resolve';
 
 type ProductCeilingRow = CuratableProduct & {
   audienceCompanyIds: string[];
 };
+
+function asRepostMembershipRows(
+  rows: Array<{
+    productId: string;
+    membershipOrigin: string | null;
+    excluded: boolean;
+    explicitlyAddedAt: Date | null;
+  }>,
+): RepostMembershipRow[] {
+  return rows.map((row) => ({
+    productId: row.productId,
+    membershipOrigin: row.membershipOrigin as MembershipOrigin | null,
+    excluded: row.excluded,
+    explicitlyAddedAt: row.explicitlyAddedAt,
+  }));
+}
 
 /** Peer Repost has no Category picker — supplier already categorized (or old pack had none). */
 export function peerRepostOmitsCategoryPick(row: {
@@ -101,10 +132,14 @@ function curateExceptionCode(err: unknown): string {
   return 'INVALID_PRODUCTS';
 }
 
+/** Active (non-excluded) membership — tombstones stay in DB for sticky exclude. */
+const activeMemberWhere = { excluded: false } as const;
+
 const listInclude = {
   ...collectionActorInclude,
-  _count: { select: { products: true } },
+  _count: { select: { products: { where: activeMemberWhere } } },
   products: {
+    where: activeMemberWhere,
     orderBy: { position: 'asc' as const },
     include: {
       product: { include: { company: { select: { id: true, name: true } } } },
@@ -279,13 +314,77 @@ export class CollectionService {
         'code' in err &&
         (err as { code?: string }).code === 'P2002'
       ) {
+        const raced = await this.prisma.collection.findFirst({
+          where: {
+            companyId,
+            status: { not: CollectionStatus.Archived },
+            ...(repostSource.repostSourceCollectionId
+              ? { repostSourceCollectionId: repostSource.repostSourceCollectionId }
+              : {}),
+            ...(repostSource.repostSourceProductId
+              ? { repostSourceProductId: repostSource.repostSourceProductId }
+              : {}),
+          },
+          select: { id: true },
+        });
         throw new ConflictException({
           code: 'ALREADY_REPOSTED',
           message: 'You already reposted this.',
+          details: raced?.id ? { collectionId: raced.id } : undefined,
         });
       }
       throw err;
     }
+  }
+
+  /**
+   * Immediate-source child for Edit Repost — same row create would conflict on.
+   * Skips reusable draft / auto Selected (those stay create-reuse, not edit).
+   */
+  async findRepostOf(companyId: string, query: RepostOfQuery): Promise<RepostOfView> {
+    const existing = await this.findImmediateRepostChild(companyId, {
+      sourceCollectionId: query.sourceCollectionId,
+      sourceProductId: query.sourceProductId,
+    });
+    if (!existing || shouldReuseRepostChild(existing)) {
+      throw new NotFoundException({
+        code: 'NOT_FOUND',
+        message: 'No repost of that post yet.',
+      });
+    }
+    return { collectionId: existing.id };
+  }
+
+  private async findImmediateRepostChild(
+    companyId: string,
+    source: { sourceCollectionId?: string; sourceProductId?: string },
+  ): Promise<{
+    id: string;
+    status: string;
+    audience: string | null;
+    repostOrigin: string | null;
+  } | null> {
+    if (source.sourceCollectionId) {
+      return this.prisma.collection.findFirst({
+        where: {
+          companyId,
+          repostSourceCollectionId: source.sourceCollectionId,
+          status: { not: CollectionStatus.Archived },
+        },
+        select: { id: true, status: true, audience: true, repostOrigin: true },
+      });
+    }
+    if (source.sourceProductId) {
+      return this.prisma.collection.findFirst({
+        where: {
+          companyId,
+          repostSourceProductId: source.sourceProductId,
+          status: { not: CollectionStatus.Archived },
+        },
+        select: { id: true, status: true, audience: true, repostOrigin: true },
+      });
+    }
+    return null;
   }
 
   /** Explore Repost stamps — validate peer source + once-per-owner. */
@@ -331,13 +430,8 @@ export class CollectionService {
           message: 'You can’t repost your own pack.',
         });
       }
-      const existing = await this.prisma.collection.findFirst({
-        where: {
-          companyId,
-          repostSourceCollectionId: source.id,
-          status: { not: CollectionStatus.Archived },
-        },
-        select: { id: true, status: true, audience: true, repostOrigin: true },
+      const existing = await this.findImmediateRepostChild(companyId, {
+        sourceCollectionId: source.id,
       });
       if (existing) {
         if (shouldReuseRepostChild(existing)) {
@@ -352,6 +446,7 @@ export class CollectionService {
         throw new ConflictException({
           code: 'ALREADY_REPOSTED',
           message: 'You already reposted this.',
+          details: { collectionId: existing.id },
         });
       }
       return {
@@ -385,13 +480,8 @@ export class CollectionService {
         message: 'You can’t repost your own design.',
       });
     }
-    const existing = await this.prisma.collection.findFirst({
-      where: {
-        companyId,
-        repostSourceProductId: source.id,
-        status: { not: CollectionStatus.Archived },
-      },
-      select: { id: true, status: true, audience: true, repostOrigin: true },
+    const existing = await this.findImmediateRepostChild(companyId, {
+      sourceProductId: source.id,
     });
     if (existing) {
       if (shouldReuseRepostChild(existing)) {
@@ -406,6 +496,7 @@ export class CollectionService {
       throw new ConflictException({
         code: 'ALREADY_REPOSTED',
         message: 'You already reposted this.',
+        details: { collectionId: existing.id },
       });
     }
     return {
@@ -463,6 +554,7 @@ export class CollectionService {
       include: {
         ...collectionActorInclude,
         products: {
+          // Owner manages exclusions — include tombstones (excluded: true on ProductView).
           orderBy: { position: 'asc' },
           include: {
             product: {
@@ -489,7 +581,42 @@ export class CollectionService {
         products: generalMemberJoinRows(collection.id, members),
       });
     }
-    return this.serializer.toCollectionDetail(collection);
+    const detail = this.serializer.toCollectionDetail(collection);
+    const isRepostChild = peerRepostOmitsCategoryPick(
+      collection as {
+        repostSourceCollectionId?: string | null;
+        repostSourceProductId?: string | null;
+      },
+    );
+    if (!isRepostChild) {
+      return detail;
+    }
+    const resolved = await resolvePackMemberBuyerRates(this.prisma, collection, {
+      viewerCompanyId: companyId,
+      sourceDisclosed: true,
+    });
+    const packConfig = packPricingConfigFromRow(collection);
+    return {
+      ...detail,
+      memberPricing: collection.products
+        .filter((row) => !row.excluded)
+        .map((row) => {
+          const override = memberPricingOverrideFromRow(row);
+          const r = resolved.get(row.productId);
+          return {
+            productId: row.productId,
+            pricingMode: override?.mode ?? packConfig.mode,
+            marginValue: override?.marginValue ?? packConfig.marginValue,
+            editedRate: override?.editedRate ?? packConfig.editedRate,
+            editOwnBase: override?.editOwnBase ?? packConfig.editOwnBase,
+            hasOverride: override != null,
+            sourceRate: r?.sourceRate ?? null,
+            sourceDisclosed: r?.sourceDisclosed ?? false,
+            buyerFacing: r?.buyerFacing ?? null,
+            editInvalidated: r?.editInvalidated ?? false,
+          };
+        }),
+    };
   }
 
   async update(
@@ -629,7 +756,7 @@ export class CollectionService {
         ? [...new Set(dto.groupIds?.length ? dto.groupIds : dto.groupId ? [dto.groupId] : [])]
         : [];
     const members = await this.prisma.collectionProduct.findMany({
-      where: { collectionId: id },
+      where: { collectionId: id, ...activeMemberWhere },
       select: {
         productId: true,
         product: {
@@ -676,6 +803,9 @@ export class CollectionService {
       relistGrantedIds,
       lookOnlyOwnerIds,
       sourcePackAudience,
+      // Edit repost / republish: Who · rates · visibility — do not re-fail Pack→Look
+      // on members already on this live child (Meena and Ravi same path).
+      skipAddEligibility: existing.status === CollectionStatus.Published,
     });
 
     const rateVisibility = curatedPublishRateVisibility({
@@ -729,6 +859,15 @@ export class CollectionService {
       exploreActivityAt: existing.exploreActivityAt,
     });
 
+    const pricingWrite =
+      dto.repostPricingMode !== undefined
+        ? pricingDataForWrite({
+            repostPricingMode: dto.repostPricingMode,
+            repostMarginValue: dto.repostMarginValue,
+            repostEditedRate: dto.repostEditedRate,
+            repostEditOwnBase: dto.repostEditOwnBase,
+          })
+        : null;
     const collection = await this.prisma.collection.update({
       where: { id },
       data: {
@@ -746,6 +885,14 @@ export class CollectionService {
         ...(bumpExplore
           ? { exploreActivityAt: now, exploreNewDesignCount: 0 }
           : {}),
+        ...(pricingWrite
+          ? {
+              repostPricingMode: pricingWrite.repostPricingMode,
+              repostMarginValue: pricingWrite.repostMarginValue,
+              repostEditedRate: pricingWrite.repostEditedRate,
+              repostEditOwnBase: pricingWrite.repostEditOwnBase,
+            }
+          : {}),
       },
       include: listInclude,
     });
@@ -762,6 +909,58 @@ export class CollectionService {
     await this.enqueuePropagate(id);
     // Reload: scheduleExpire may have drafted immediately when endsAt is past.
     return this.toLatestCollectionView(id);
+  }
+
+  /**
+   * Owner sets per-design calc override on a repost pack.
+   * Null mode clears override (inherit pack). Never writes Product.rate.
+   */
+  async setRepostMemberPricing(
+    companyId: string,
+    userId: string,
+    collectionId: string,
+    dto: SetRepostMemberPricingDto,
+  ): Promise<CollectionDetailView> {
+    await this.owned(companyId, collectionId);
+    const pack = await this.prisma.collection.findUniqueOrThrow({
+      where: { id: collectionId },
+      select: { repostSourceCollectionId: true, repostSourceProductId: true },
+    });
+    if (!peerRepostOmitsCategoryPick(pack)) {
+      throw new BadRequestException({
+        code: 'NOT_REPOST',
+        message: 'Design pricing overrides are only for reposted packs.',
+      });
+    }
+    const member = await this.prisma.collectionProduct.findUnique({
+      where: {
+        collectionId_productId: {
+          collectionId,
+          productId: dto.productId,
+        },
+      },
+      select: { id: true },
+    });
+    if (!member) {
+      throw new NotFoundException({ code: 'NOT_FOUND', message: 'Design not in this pack.' });
+    }
+    const validated = pricingDataForWrite({
+      repostPricingMode: dto.pricingMode,
+      repostMarginValue: dto.marginValue,
+      repostEditedRate: dto.editedRate,
+      repostEditOwnBase: dto.editOwnBase,
+    });
+    await this.prisma.collectionProduct.update({
+      where: { id: member.id },
+      data: {
+        pricingMode: validated?.repostPricingMode ?? null,
+        marginValue: validated?.repostMarginValue ?? null,
+        editedRate: validated?.repostEditedRate ?? null,
+        editOwnBase: validated?.repostEditOwnBase ?? null,
+      },
+    });
+    void userId;
+    return this.get(companyId, collectionId);
   }
 
   async markReady(companyId: string, userId: string, id: string): Promise<CollectionView> {
@@ -791,7 +990,12 @@ export class CollectionService {
     userId: string,
     id: string,
     status: (typeof CollectionStatus)[keyof typeof CollectionStatus],
-    opts: { alsoArchiveDesigns?: boolean; alsoDraftDesigns?: boolean } = {},
+    opts: {
+      alsoArchiveDesigns?: boolean;
+      alsoDraftDesigns?: boolean;
+      /** Remove-repost: keep exploreActivityAt so republish does not climb Explore rank. */
+      preserveExploreActivity?: boolean;
+    } = {},
   ): Promise<CollectionView> {
     const existing = await this.owned(companyId, id);
     assertNotGeneralMutation((existing as { kind?: string }).kind, 'cannot change status');
@@ -812,12 +1016,14 @@ export class CollectionService {
     }
     const hideFromMarket =
       status === CollectionStatus.Draft || status === CollectionStatus.Archived;
+    const clearExploreActivity =
+      hideFromMarket && opts.preserveExploreActivity !== true;
     const collection = await this.prisma.collection.update({
       where: { id },
       data: {
         status,
         updatedByUserId: userId,
-        ...(hideFromMarket ? { exploreActivityAt: null } : {}),
+        ...(clearExploreActivity ? { exploreActivityAt: null } : {}),
       },
       include: listInclude,
     });
@@ -825,6 +1031,28 @@ export class CollectionService {
       await this.enqueuePropagate(id);
     }
     return this.serializer.toCollectionView(collection);
+  }
+
+  /** Explore Edit → Remove repost: Draft child; preserve Explore rank stamp. */
+  async removeRepost(
+    companyId: string,
+    userId: string,
+    id: string,
+  ): Promise<CollectionView> {
+    const existing = await this.owned(companyId, id);
+    const isChild = Boolean(
+      (existing as { repostSourceCollectionId?: string | null }).repostSourceCollectionId ||
+        (existing as { repostSourceProductId?: string | null }).repostSourceProductId,
+    );
+    if (!isChild) {
+      throw new BadRequestException({
+        code: 'NOT_ALLOWED',
+        message: 'Remove repost is only for a curated repost pack.',
+      });
+    }
+    return this.setStatus(companyId, userId, id, CollectionStatus.Draft, {
+      preserveExploreActivity: true,
+    });
   }
 
   async checkCurateProducts(
@@ -959,6 +1187,7 @@ export class CollectionService {
         where: {
           collectionId: id,
           productId: { in: uniqueIds },
+          ...activeMemberWhere,
           product: { companyId, status: ProductStatus.Draft },
         },
         select: { productId: true },
@@ -1015,11 +1244,43 @@ export class CollectionService {
     );
 
     const uniqueIds = [...new Set(productIds)];
+    const isRepost = peerRepostOmitsCategoryPick(existing);
+    const previousRows = await this.prisma.collectionProduct.findMany({
+      where: { collectionId: id },
+      select: {
+        productId: true,
+        membershipOrigin: true,
+        excluded: true,
+        explicitlyAddedAt: true,
+      },
+      orderBy: { position: 'asc' },
+    });
+    const sourceProductIds = isRepost
+      ? await this.activeSourceProductIds(existing)
+      : [];
+    const membershipWrites: RepostMembershipWrite[] | null = isRepost
+      ? applyOwnerSetProductsToMembership({
+          previous: asRepostMembershipRows(previousRows),
+          desiredProductIds: uniqueIds,
+          sourceProductIds,
+        })
+      : null;
+    const writeRows =
+      membershipWrites ??
+      uniqueIds.map((productId, position) => ({
+        productId,
+        position,
+        membershipOrigin: null as string | null,
+        excluded: false,
+        explicitlyAddedAt: null as Date | null,
+      }));
+    const activeWriteIds = writeRows.filter((row) => !row.excluded).map((row) => row.productId);
+
     const products =
-      uniqueIds.length === 0
+      activeWriteIds.length === 0
         ? []
         : await this.prisma.product.findMany({
-            where: { id: { in: uniqueIds } },
+            where: { id: { in: activeWriteIds } },
             select: {
               id: true,
               companyId: true,
@@ -1033,8 +1294,8 @@ export class CollectionService {
               categories: true,
             },
           });
-    if (uniqueIds.length > 0) {
-      if (products.length !== uniqueIds.length) {
+    if (activeWriteIds.length > 0) {
+      if (products.length !== activeWriteIds.length) {
         throw new BadRequestException({
           code: 'INVALID_PRODUCTS',
           message: 'One or more products could not be found.',
@@ -1048,12 +1309,10 @@ export class CollectionService {
       }
     }
 
-    const previousRows = await this.prisma.collectionProduct.findMany({
-      where: { collectionId: id },
-      select: { productId: true },
-    });
-    const previousIds = new Set(previousRows.map((row) => row.productId));
-    const newlyAddedIds = uniqueIds.filter((productId) => !previousIds.has(productId));
+    const previousActiveIds = new Set(
+      previousRows.filter((row) => !row.excluded).map((row) => row.productId),
+    );
+    const newlyAddedIds = activeWriteIds.filter((productId) => !previousActiveIds.has(productId));
     const addedProducts = products.filter((product) => newlyAddedIds.includes(product.id));
     if (addedProducts.length > 0) {
       const sourceCollectionId =
@@ -1082,6 +1341,7 @@ export class CollectionService {
             where: {
               productId: { in: ownIds },
               collectionId: { not: id },
+              ...activeMemberWhere,
               collection: qualifyingCollectionWhere(companyId),
             },
             select: { productId: true },
@@ -1143,9 +1403,25 @@ export class CollectionService {
     const stampOwnIds = catalogKind
       ? newlyAddedOwn.map((product) => product.id)
       : [];
+    const membershipData = writeRows.map((row) => ({
+      collectionId: id,
+      productId: row.productId,
+      position: row.position,
+      membershipOrigin: row.membershipOrigin,
+      excluded: row.excluded,
+      explicitlyAddedAt: row.explicitlyAddedAt,
+    }));
 
     if (catalogKind) {
       await this.prisma.$transaction(async (tx) => {
+        // Same Collection row lock as default/sync when this pack is a repost —
+        // catalog stamp/relocate must not race source sync or owner exclusion writes.
+        if (isRepost) {
+          await tx.$queryRawUnsafe(
+            `SELECT id FROM "Collection" WHERE id = $1 FOR UPDATE`,
+            id,
+          );
+        }
         if (relocatingOwn.length > 0) {
           const relocatingIdsList = relocatingOwn.map((product) => product.id);
           await tx.collectionProduct.deleteMany({
@@ -1182,14 +1458,8 @@ export class CollectionService {
           }
         }
         await tx.collectionProduct.deleteMany({ where: { collectionId: id } });
-        if (uniqueIds.length > 0) {
-          await tx.collectionProduct.createMany({
-            data: uniqueIds.map((productId, position) => ({
-              collectionId: id,
-              productId,
-              position,
-            })),
-          });
+        if (membershipData.length > 0) {
+          await tx.collectionProduct.createMany({ data: membershipData });
         }
         await tx.collection.update({
           where: { id },
@@ -1225,6 +1495,12 @@ export class CollectionService {
       });
     } else if (relocatingOwn.length > 0) {
       await this.prisma.$transaction(async (tx) => {
+        if (isRepost) {
+          await tx.$queryRawUnsafe(
+            `SELECT id FROM "Collection" WHERE id = $1 FOR UPDATE`,
+            id,
+          );
+        }
         const relocatingIdsList = relocatingOwn.map((product) => product.id);
         await tx.collectionProduct.deleteMany({
           where: {
@@ -1237,14 +1513,8 @@ export class CollectionService {
           data: { catalogCollectionId: null },
         });
         await tx.collectionProduct.deleteMany({ where: { collectionId: id } });
-        if (uniqueIds.length > 0) {
-          await tx.collectionProduct.createMany({
-            data: uniqueIds.map((productId, position) => ({
-              collectionId: id,
-              productId,
-              position,
-            })),
-          });
+        if (membershipData.length > 0) {
+          await tx.collectionProduct.createMany({ data: membershipData });
         }
         await tx.collection.update({
           where: { id },
@@ -1257,20 +1527,18 @@ export class CollectionService {
         });
       });
     } else {
-      await this.prisma.$transaction([
-        this.prisma.collectionProduct.deleteMany({ where: { collectionId: id } }),
-        ...(uniqueIds.length > 0
-          ? [
-              this.prisma.collectionProduct.createMany({
-                data: uniqueIds.map((productId, position) => ({
-                  collectionId: id,
-                  productId,
-                  position,
-                })),
-              }),
-            ]
-          : []),
-        this.prisma.collection.update({
+      await this.prisma.$transaction(async (tx) => {
+        if (isRepost) {
+          await tx.$queryRawUnsafe(
+            `SELECT id FROM "Collection" WHERE id = $1 FOR UPDATE`,
+            id,
+          );
+        }
+        await tx.collectionProduct.deleteMany({ where: { collectionId: id } });
+        if (membershipData.length > 0) {
+          await tx.collectionProduct.createMany({ data: membershipData });
+        }
+        await tx.collection.update({
           where: { id },
           data: {
             updatedByUserId: userId,
@@ -1278,8 +1546,8 @@ export class CollectionService {
               ? { exploreActivityAt: new Date(), exploreNewDesignCount }
               : {}),
           },
-        }),
-      ]);
+        });
+      });
     }
 
     if (shouldBumpExplore) {
@@ -1289,13 +1557,151 @@ export class CollectionService {
     return this.get(companyId, id);
   }
 
+  /**
+   * Source-driven membership sync for a repost child. Never clears exclusions;
+   * keeps local extras. Returns whether active membership / explore should bump.
+   *
+   * Concurrency: locks the Collection row (FOR UPDATE) inside the transaction so
+   * an interleaved owner setProducts exclusion cannot be wiped by a stale sync read.
+   */
+  async syncRepostMembershipFromSource(
+    companyId: string,
+    userId: string,
+    id: string,
+    input: {
+      sourceProductIds: string[];
+      previouslySyncedProductIds: string[];
+    },
+  ): Promise<{
+    membershipChanged: boolean;
+    activeProductIds: string[];
+    /** Newly active (non-excluded) designs — empty when only removals/exclusions. */
+    addedProductIds: string[];
+  }> {
+    const existing = await this.owned(companyId, id);
+    if (!peerRepostOmitsCategoryPick(existing)) {
+      return { membershipChanged: false, activeProductIds: [], addedProductIds: [] };
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRawUnsafe(
+        `SELECT id FROM "Collection" WHERE id = $1 FOR UPDATE`,
+        id,
+      );
+
+      const previousRows = await tx.collectionProduct.findMany({
+        where: { collectionId: id },
+        select: {
+          productId: true,
+          membershipOrigin: true,
+          excluded: true,
+          explicitlyAddedAt: true,
+        },
+        orderBy: { position: 'asc' },
+      });
+      const previousActive = previousRows
+        .filter((row) => !row.excluded)
+        .map((row) => row.productId);
+      const previousMembership = asRepostMembershipRows(previousRows);
+      const writeRows = applySourceSyncToMembership({
+        previous: previousMembership,
+        sourceProductIds: input.sourceProductIds,
+        previouslySyncedProductIds: input.previouslySyncedProductIds,
+      });
+      const safeRows = forcePreserveExclusions(writeRows, previousMembership);
+      const activeProductIds = safeRows
+        .filter((row) => !row.excluded)
+        .map((row) => row.productId);
+      const addedProductIds = activeProductIds.filter(
+        (productId) => !previousActive.includes(productId),
+      );
+      const membershipChanged =
+        activeProductIds.length !== previousActive.length ||
+        activeProductIds.some((productId) => !previousActive.includes(productId));
+
+      if (!membershipChanged) {
+        return { membershipChanged: false, activeProductIds, addedProductIds: [] };
+      }
+
+      const newlyActive = addedProductIds;
+      if (newlyActive.length > 0) {
+        const products = await tx.product.findMany({
+          where: { id: { in: newlyActive } },
+          select: {
+            id: true,
+            companyId: true,
+            audience: true,
+            audienceCompanyIds: true,
+            allowForward: true,
+            status: true,
+            postedToMarketAt: true,
+          },
+        });
+        const sourceCollectionId = existing.repostSourceCollectionId as string | null | undefined;
+        const discoverableIds = await this.discoverableProductIds(companyId, products, {
+          sourceCollectionId,
+        });
+        const relistGrantedIds = await this.relistGrantedProductIds(companyId, products);
+        const lookOnlyOwnerIds = await this.lookOnlyOwnerIds(companyId, products);
+        const sourcePackAudience = await this.sourcePackAudience(sourceCollectionId);
+        assertProductsCuratable({
+          curatorCompanyId: companyId,
+          products,
+          discoverableIds,
+          relistGrantedIds,
+          lookOnlyOwnerIds,
+          sourcePackAudience,
+        });
+      }
+
+      await tx.collectionProduct.deleteMany({ where: { collectionId: id } });
+      if (safeRows.length > 0) {
+        await tx.collectionProduct.createMany({
+          data: safeRows.map((row) => ({
+            collectionId: id,
+            productId: row.productId,
+            position: row.position,
+            membershipOrigin: row.membershipOrigin,
+            excluded: row.excluded,
+            explicitlyAddedAt: row.explicitlyAddedAt,
+          })),
+        });
+      }
+      await tx.collection.update({
+        where: { id },
+        data: { updatedByUserId: userId },
+      });
+      return { membershipChanged: true, activeProductIds, addedProductIds };
+    });
+  }
+
+  private async activeSourceProductIds(existing: {
+    repostSourceCollectionId?: string | null;
+    repostSourceProductId?: string | null;
+  }): Promise<string[]> {
+    if (existing.repostSourceProductId) {
+      return [existing.repostSourceProductId];
+    }
+    if (!existing.repostSourceCollectionId) return [];
+    const rows = await this.prisma.collectionProduct.findMany({
+      where: {
+        collectionId: existing.repostSourceCollectionId,
+        ...activeMemberWhere,
+        product: { status: ProductStatus.Published },
+      },
+      select: { productId: true },
+      orderBy: { position: 'asc' },
+    });
+    return rows.map((row) => row.productId);
+  }
+
   async remove(companyId: string, userId: string, id: string): Promise<void> {
     await this.setStatus(companyId, userId, id, CollectionStatus.Archived);
   }
 
   private async draftOwnMembers(companyId: string, userId: string, collectionId: string) {
     const rows = await this.prisma.collectionProduct.findMany({
-      where: { collectionId, product: { companyId } },
+      where: { collectionId, ...activeMemberWhere, product: { companyId } },
       select: { productId: true },
     });
     const ids = rows.map((row) => row.productId);
@@ -1312,7 +1718,7 @@ export class CollectionService {
     collectionId: string,
   ) {
     const rows = await this.prisma.collectionProduct.findMany({
-      where: { collectionId, product: { companyId } },
+      where: { collectionId, ...activeMemberWhere, product: { companyId } },
       select: { productId: true },
     });
     for (const row of rows) {
@@ -1454,6 +1860,7 @@ export class CollectionService {
         startsAt: true,
         endsAt: true,
         products: {
+          where: activeMemberWhere,
           select: {
             productId: true,
             product: { select: { id: true, status: true } },
@@ -1484,12 +1891,11 @@ export class CollectionService {
           },
           select: { status: true },
         }),
-        this.prisma.collectionViewGrant.findUnique({
+        this.prisma.collectionViewGrant.findFirst({
           where: {
-            collectionId_companyId: {
-              collectionId: pack.id,
-              companyId: viewerCompanyId,
-            },
+            collectionId: pack.id,
+            companyId: viewerCompanyId,
+            expiresAt: { gt: new Date() },
           },
           select: { id: true },
         }),
@@ -1548,7 +1954,12 @@ export class CollectionService {
     return new Set(follows.map((row) => row.followedCompanyId));
   }
 
-  /** Product ids with a ProductRelistGrant OR open via another company's pack allow. */
+  /**
+   * Product ids unlocked for this curator only:
+   * - their own ProductRelistGrant row, or
+   * - the **original seller’s** published pack with allowForward (owner pack open).
+   * Downstream trader packs never auto-unlock locked mill designs for the next hop.
+   */
   private async relistGrantedProductIds(
     curatorCompanyId: string,
     products: ProductCeilingRow[],
@@ -1568,14 +1979,17 @@ export class CollectionService {
         },
         select: { productId: true },
       }),
+      // Owner pack only — never a mid-hop trader’s allowForward pack (no chain free pass).
       this.prisma.collectionProduct.findMany({
         where: {
-          productId: { in: lockedIds },
-          collection: {
-            status: CollectionStatus.Published,
-            allowForward: true,
-            companyId: { not: curatorCompanyId },
-          },
+          OR: foreignLocked.map((product) => ({
+            productId: product.id,
+            collection: {
+              status: CollectionStatus.Published,
+              allowForward: true,
+              companyId: product.companyId,
+            },
+          })),
         },
         select: { productId: true },
       }),

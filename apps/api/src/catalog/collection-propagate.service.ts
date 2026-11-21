@@ -11,10 +11,12 @@ import {
 } from '@ekum/domain-types';
 import { PrismaService } from '../core/prisma/prisma.service';
 import { JobQueue } from '../jobs/job-queue.service';
-import { FollowStatus } from '../discovery/follow-access';
+import { DomainEvents } from '../events/events.module';
+import { isPackFollow } from '../discovery/follow-access';
+import { isShopRepostPackAllowed } from '../identity/trade-presence';
 import { canDiscoverCollection } from './audience-visibility';
 import { CollectionService } from './collection.service';
-import { pickRootSurvivor, resolveRepostRootId } from './collection-lineage';
+import { pickImmediateSourceSurvivor, resolveRepostRootId } from './collection-lineage';
 import {
   canUnionAutomaticSelected,
   mergeSelectedBuyers,
@@ -75,6 +77,7 @@ export class CollectionPropagateService {
     private readonly prisma: PrismaService,
     private readonly collections: CollectionService,
     private readonly jobs: JobQueue,
+    private readonly events: DomainEvents,
   ) {}
 
   async propagate(collectionId: string): Promise<void> {
@@ -92,6 +95,10 @@ export class CollectionPropagateService {
       await this.hideImmediateChildren(source.id);
       return;
     }
+
+    // Live relationship: sync every child that points at this pack as immediate source.
+    await this.syncAllImmediateChildren(source);
+
     const traders = await this.prisma.tradeLane.findMany({
       where: { sellerCompanyId: source.companyId, ticket: TradeLaneTicket.Mill },
       select: { traderCompanyId: true },
@@ -108,19 +115,71 @@ export class CollectionPropagateService {
     }
   }
 
+  private async syncAllImmediateChildren(source: SourceRow): Promise<void> {
+    const children = await this.prisma.collection.findMany({
+      where: {
+        repostSourceCollectionId: source.id,
+        status: { not: CollectionStatus.Archived },
+      },
+      select: { id: true, companyId: true },
+    });
+    for (const child of children) {
+      if (child.companyId !== source.companyId) {
+        const follow = await this.prisma.follow.findUnique({
+          where: {
+            followerCompanyId_followedCompanyId: {
+              followerCompanyId: child.companyId,
+              followedCompanyId: source.companyId,
+            },
+          },
+          select: { status: true, accessKind: true },
+        });
+        // P4: Pack→Look / unfollow stops future sync on this edge (packs kept).
+        if (!isPackFollow(follow)) {
+          continue;
+        }
+        // P3: shop-wide Pack OFF stops future Pack sync even if an edge races.
+        if (!(await this.shopPackAllowed(source.companyId))) {
+          continue;
+        }
+      }
+      const ownerUserId = await this.ownerUserId(child.companyId);
+      if (!ownerUserId) {
+        this.logger.warn(`No owner for ${child.companyId}; skip sync ${child.id}`);
+        continue;
+      }
+      try {
+        const changed = await this.syncMembership(
+          source,
+          child.id,
+          child.companyId,
+          ownerUserId,
+        );
+        if (changed) {
+          await this.jobs.enqueue(JobType.CollectionPropagate, { collectionId: child.id });
+        }
+      } catch (err) {
+        this.logger.warn(
+          `child sync skipped ${source.id} → ${child.id}: ${conflictCode(err) ?? 'failed'}`,
+        );
+      }
+    }
+  }
+
+  /**
+   * P1: do **not** Draft children when the source is unpublished or locked.
+   * Soft-unavailable is derived from upstream allowForward/status on read.
+   * Still enqueue children so deeper hops refresh membership / propagate.
+   */
   private async hideImmediateChildren(sourceId: string): Promise<void> {
     const children = await this.prisma.collection.findMany({
       where: {
         repostSourceCollectionId: sourceId,
-        status: CollectionStatus.Published,
+        status: { not: CollectionStatus.Archived },
       },
       select: { id: true },
     });
     if (children.length === 0) return;
-    await this.prisma.collection.updateMany({
-      where: { id: { in: children.map((row) => row.id) } },
-      data: { status: CollectionStatus.Draft, exploreActivityAt: null },
-    });
     for (const child of children) {
       await this.jobs.enqueue(JobType.CollectionPropagate, { collectionId: child.id });
     }
@@ -143,9 +202,14 @@ export class CollectionPropagateService {
           followedCompanyId: source.companyId,
         },
       },
-      select: { status: true },
+      select: { status: true, accessKind: true },
     });
-    if (following?.status !== FollowStatus.Allowed) {
+    // P4 / hop lock: Pack only — Look-only must not auto-deliver or sync.
+    if (!isPackFollow(following)) {
+      return;
+    }
+    // P3: shop-wide Pack OFF must stop Direct Link even if a Pack edge races.
+    if (!(await this.shopPackAllowed(source.companyId))) {
       return;
     }
     if (
@@ -175,22 +239,16 @@ export class CollectionPropagateService {
       return;
     }
 
-    const rootId = await resolveRepostRootId(this.prisma, source.id);
+    // Mesh: survivor by immediate source only — never merge via root.
     const existing = await this.prisma.collection.findMany({
       where: {
         companyId: traderCompanyId,
-        OR: [
-          ...(prismaModelHasField('Collection', 'repostRootCollectionId')
-            ? [{ repostRootCollectionId: rootId }]
-            : []),
-          { repostSourceCollectionId: source.id },
-          { repostSourceCollectionId: rootId },
-        ],
+        repostSourceCollectionId: source.id,
         status: { not: CollectionStatus.Archived },
       },
       orderBy: { createdAt: 'asc' },
     });
-    const survivor = pickRootSurvivor(existing);
+    const survivor = pickImmediateSourceSurvivor(existing);
     const ownerUserId = await this.ownerUserId(traderCompanyId);
     if (!ownerUserId) {
       this.logger.warn(`No owner for ${traderCompanyId}; skip propagate ${source.id}`);
@@ -215,6 +273,7 @@ export class CollectionPropagateService {
       return;
     }
 
+    const rootId = await resolveRepostRootId(this.prisma, source.id);
     try {
       const created = await this.collections.create(traderCompanyId, ownerUserId, {
         name: await this.uniquePackName(traderCompanyId, source.name, source.id),
@@ -238,10 +297,13 @@ export class CollectionPropagateService {
         showSourceShops: true,
         allowForward: source.allowForward,
         allowDownload: source.allowDownload,
+        // Visibility independent of calc — preserve source Ask/Show rates.
         rateVisibility:
           source.rateVisibility === RateVisibility.Visible
             ? RateVisibility.Visible
             : RateVisibility.OnRequest,
+        // Auto children calculate Same from immediate upstream (never Ask mode).
+        repostPricingMode: 'same',
       });
     } catch (err) {
       if (!isUniqueConflict(err)) {
@@ -250,21 +312,15 @@ export class CollectionPropagateService {
       const retry = await this.prisma.collection.findMany({
         where: {
           companyId: traderCompanyId,
-          OR: [
-            ...(prismaModelHasField('Collection', 'repostRootCollectionId')
-              ? [{ repostRootCollectionId: rootId }]
-              : []),
-            { repostSourceCollectionId: source.id },
-            { repostSourceCollectionId: rootId },
-          ],
+          repostSourceCollectionId: source.id,
           status: { not: CollectionStatus.Archived },
         },
         orderBy: { createdAt: 'asc' },
       });
-      const existing = pickRootSurvivor(retry);
-      if (!existing) throw err;
-      await this.syncMembership(source, existing.id, traderCompanyId, ownerUserId);
-      await this.syncSelectedBuyers(existing.id, buyers);
+      const existingRetry = pickImmediateSourceSurvivor(retry);
+      if (!existingRetry) throw err;
+      await this.syncMembership(source, existingRetry.id, traderCompanyId, ownerUserId);
+      await this.syncSelectedBuyers(existingRetry.id, buyers);
     }
   }
 
@@ -298,22 +354,18 @@ export class CollectionPropagateService {
     const incoming = sourceToken(source);
     const watermark = dest.repostSyncedSourceAt;
     const sourceIds = await this.publishedMemberIds(source.id);
-    const destRows = await this.prisma.collectionProduct.findMany({
-      where: { collectionId: destId },
-      select: { productId: true },
-    });
-    const destIds = destRows.map((row) => row.productId);
     const previouslySynced = asIdList(dest.repostSyncedProductIds);
-    const sourceSet = new Set(sourceIds);
-    const prevSet = new Set(previouslySynced);
-    const extras = destIds.filter((id) => !sourceSet.has(id) && !prevSet.has(id));
-    const nextIds = [...new Set([...sourceIds, ...extras])];
-    const membershipChanged =
-      nextIds.length !== destIds.length || nextIds.some((id) => !destIds.includes(id));
 
     if (watermark && incoming.getTime() < watermark.getTime()) {
       return false;
     }
+
+    const { membershipChanged, addedProductIds } =
+      await this.collections.syncRepostMembershipFromSource(traderCompanyId, userId, destId, {
+        sourceProductIds: sourceIds,
+        previouslySyncedProductIds: previouslySynced,
+      });
+
     if (watermark && incoming.getTime() === watermark.getTime() && !membershipChanged) {
       return false;
     }
@@ -321,10 +373,9 @@ export class CollectionPropagateService {
       return false;
     }
 
-    if (membershipChanged) {
-      await this.collections.setProducts(traderCompanyId, userId, destId, nextIds);
-    }
     const bump = membershipChanged && dest.status === CollectionStatus.Published;
+    // Count only newly active members from this sync (excludes unchanged / removed / tombstones).
+    const exploreNewDesignCount = addedProductIds.length;
     await this.prisma.collection.update({
       where: { id: destId },
       data: {
@@ -335,9 +386,22 @@ export class CollectionPropagateService {
               repostSyncedProductIds: sourceIds,
             }
           : {}),
-        ...(bump ? { exploreActivityAt: incoming } : {}),
+        ...(bump
+          ? { exploreActivityAt: incoming, exploreNewDesignCount }
+          : {}),
       },
     });
+
+    // Notify only when new active designs landed (not removals / unchanged / exclusions).
+    if (addedProductIds.length > 0) {
+      this.events.repostSyncDesignsAdded({
+        collectionId: destId,
+        collectionName: dest.name,
+        ownerCompanyId: traderCompanyId,
+        addedCount: addedProductIds.length,
+      });
+    }
+
     return bump;
   }
 
@@ -361,6 +425,7 @@ export class CollectionPropagateService {
     const rows = await this.prisma.collectionProduct.findMany({
       where: {
         collectionId,
+        excluded: false,
         product: { status: ProductStatus.Published },
       },
       select: { productId: true },
@@ -410,5 +475,15 @@ export class CollectionPropagateService {
       select: { userId: true },
     });
     return row?.userId ?? null;
+  }
+
+  private async shopPackAllowed(shopCompanyId: string): Promise<boolean> {
+    const settings = this.prisma.companySettings
+      ? await this.prisma.companySettings.findUnique({
+          where: { companyId: shopCompanyId },
+          select: { tradeDefaults: true },
+        })
+      : null;
+    return isShopRepostPackAllowed(settings?.tradeDefaults);
   }
 }

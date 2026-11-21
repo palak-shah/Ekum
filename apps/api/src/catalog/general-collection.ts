@@ -69,6 +69,13 @@ export function generalMemberJoinRows<T extends { id: string; createdAt: Date }>
   productId: string;
   position: number;
   createdAt: Date;
+  membershipOrigin: null;
+  excluded: false;
+  explicitlyAddedAt: null;
+  pricingMode: null;
+  marginValue: null;
+  editedRate: null;
+  editOwnBase: null;
   product: T;
 }> {
   return members.map((product, position) => ({
@@ -77,6 +84,13 @@ export function generalMemberJoinRows<T extends { id: string; createdAt: Date }>
     productId: product.id,
     position,
     createdAt: product.createdAt,
+    membershipOrigin: null,
+    excluded: false,
+    explicitlyAddedAt: null,
+    pricingMode: null,
+    marginValue: null,
+    editedRate: null,
+    editOwnBase: null,
     product,
   }));
 }

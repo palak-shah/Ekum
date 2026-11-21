@@ -71,10 +71,15 @@ export class DiscoverySerializer {
     collection: CollectionCardRow,
     opts?: {
       viewerReposted?: boolean;
+      viewerRepostCollectionId?: string | null;
       viewerCompanyId?: string;
       repostEligibleCount?: number;
       /** Immediate→outer repost source hops for visitor credit ceiling. */
       sourceHops?: SourceCreditHop[];
+      /** Full hop map for incomplete/cyclic fail-closed credit. */
+      hopRows?: Map<string, import('./source-shop-credit').SourceCreditHopRow>;
+      /** Batch 3: resolved buyer-facing band when pack uses calc modes. */
+      resolvedBand?: { rateMin: number | null; rateMax: number | null } | null;
     },
   ): CollectionCard {
     const preview = collectionPreviewFromRow(collection);
@@ -91,6 +96,7 @@ export class DiscoverySerializer {
           rateMax: collection.rateMax,
           catalogRateUnit: (collection as { catalogRateUnit?: string | null }).catalogRateUnit,
           products: collection.products,
+          resolvedBand: opts?.resolvedBand,
         });
     return {
       id: collection.id,
@@ -124,9 +130,15 @@ export class DiscoverySerializer {
           declaredSourceCollectionId:
             (collection as { repostSourceCollectionId?: string | null })
               .repostSourceCollectionId ?? null,
+          hopRows: opts?.hopRows,
         },
       ),
       viewerReposted: opts?.viewerReposted === true,
+      isRepostChild: Boolean(
+        (collection as { repostSourceCollectionId?: string | null }).repostSourceCollectionId ||
+          (collection as { repostSourceProductId?: string | null }).repostSourceProductId,
+      ),
+      viewerRepostCollectionId: opts?.viewerRepostCollectionId ?? null,
       repostEligibleCount:
         opts?.repostEligibleCount ?? collection._count.products,
       company: this.companySerializer.toPublicSummary(collection.company),
@@ -146,7 +158,11 @@ export class DiscoverySerializer {
 
   toExploreProductCard(
     product: ProductCardRow,
-    opts?: { viewerReposted?: boolean; repostEligibleCount?: number },
+    opts?: {
+      viewerReposted?: boolean;
+      viewerRepostCollectionId?: string | null;
+      repostEligibleCount?: number;
+    },
   ): ExploreProductCard {
     return {
       id: product.id,
@@ -164,6 +180,7 @@ export class DiscoverySerializer {
       catalogCollectionId:
         (product as { catalogCollectionId?: string | null }).catalogCollectionId ?? null,
       viewerReposted: opts?.viewerReposted === true,
+      viewerRepostCollectionId: opts?.viewerRepostCollectionId ?? null,
       repostEligibleCount: opts?.repostEligibleCount ?? (product.allowForward === false ? 0 : 1),
       company: this.companySerializer.toPublicSummary(product.company),
     };

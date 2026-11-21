@@ -111,7 +111,7 @@ export class TradeAccess {
         startsAt: true,
         endsAt: true,
         products: {
-          where: { productId: { in: productIds } },
+          where: { productId: { in: productIds }, excluded: false },
           select: {
             productId: true,
             product: { select: { id: true, status: true } },
@@ -125,12 +125,11 @@ export class TradeAccess {
 
     const ctx = await loadTradeAudienceCtx(this.prisma, buyerCompanyId, sellerCompanyId);
     const hasViewGrant =
-      (await this.prisma.collectionViewGrant.findUnique({
+      (await this.prisma.collectionViewGrant.findFirst({
         where: {
-          collectionId_companyId: {
-            collectionId: pack.id,
-            companyId: buyerCompanyId,
-          },
+          collectionId: pack.id,
+          companyId: buyerCompanyId,
+          expiresAt: { gt: new Date() },
         },
         select: { id: true },
       })) != null;

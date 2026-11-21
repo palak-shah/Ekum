@@ -14,6 +14,17 @@ describe('shouldBumpExploreOnPublish', () => {
     ).toBe(true);
   });
 
+  it('does not bump republish after Remove repost (stamp preserved)', () => {
+    expect(
+      shouldBumpExploreOnPublish({
+        priorStatus: CollectionStatus.Draft,
+        priorAudience: PublishAudience.Followers,
+        nextAudience: PublishAudience.Followers,
+        exploreActivityAt: new Date('2026-08-01T00:00:00.000Z'),
+      }),
+    ).toBe(false);
+  });
+
   it('bumps when Selected widens to Followers', () => {
     expect(
       shouldBumpExploreOnPublish({

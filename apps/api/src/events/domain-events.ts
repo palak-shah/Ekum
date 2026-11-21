@@ -16,6 +16,8 @@ export const DomainEventName = {
   CollectionViewGranted: 'collection.view_granted',
   RelistGranted: 'product.relist_granted',
   FollowAllowed: 'follow.allowed',
+  /** Source sync added new (non-excluded) designs to a trader's repost pack. */
+  RepostSyncDesignsAdded: 'repost.sync_designs_added',
 } as const;
 
 export interface AccessApprovedEvent {
@@ -94,4 +96,12 @@ export interface FollowAllowedEvent {
   followerCompanyId: string;
   shopCompanyId: string;
   accessKind: 'look' | 'pack';
+}
+
+/** Immediate-source sync landed new active designs on a child pack. */
+export interface RepostSyncDesignsAddedEvent {
+  collectionId: string;
+  collectionName: string;
+  ownerCompanyId: string;
+  addedCount: number;
 }

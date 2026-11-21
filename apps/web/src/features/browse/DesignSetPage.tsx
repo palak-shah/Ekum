@@ -361,8 +361,13 @@ export function DesignSetPage() {
       {dockUp ? (
         <BottomTradeDock testId="design-set-trade-dock" aboveAppNav={false}>
           {trading ? (
-            <Button variant="secondary" fullWidth onClick={() => setCurateOpen(true)}>
-              Curate
+            <Button
+              variant="secondary"
+              fullWidth
+              data-testid="design-set-repost"
+              onClick={() => setCurateOpen(true)}
+            >
+              Repost
             </Button>
           ) : null}
           <Button

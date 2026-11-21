@@ -160,6 +160,16 @@ export interface CollectionCard {
    */
   viewerReposted: boolean;
   /**
+   * True when this card is a curated/repost child (has source lineage).
+   * Explore title only: own → Edit repost vs Edit post. Must not redirect Save to upstream.
+   */
+  isRepostChild?: boolean;
+  /**
+   * Viewer's existing child pack for this immediate source (edit-from-Explore).
+   * Null/omit when not stamped or reusable draft/auto child.
+   */
+  viewerRepostCollectionId?: string | null;
+  /**
    * How many members this viewer can Curate (`checkCurateProducts`).
    * Explore Repost is on when > 0 (and Trading, not own, not already done).
    */
@@ -201,6 +211,10 @@ export interface ExploreProductCard {
    * Viewer already Reposted this design post (Explore once). False when unknown.
    */
   viewerReposted: boolean;
+  /**
+   * Viewer's existing child pack for this immediate design source (edit-from-Explore).
+   */
+  viewerRepostCollectionId?: string | null;
   /**
    * 1 when this viewer can Curate this design; 0 when locked / pack-only / look-only.
    */
@@ -319,6 +333,16 @@ export interface UniversalSearchResults {
 export interface CollectionPreviewView extends CollectionCard {
   connected: boolean;
   products: ProductView[] | null;
+  /**
+   * Upstream soft-unavailable (allowForward / publish chain). Distinct from
+   * audience Ask — products stay null even with a view grant until restored.
+   */
+  softUnavailable?: boolean;
+  /**
+   * Owner-only: upstream locks buyers out, but the owner still sees members.
+   * Do not leak supplier identity in client copy.
+   */
+  upstreamUnavailable?: boolean;
   /**
    * Visitor on a curated pack: Your paths ticket for this buyer × mills.
    * `me` = order / chat with the pack owner. `mill` = Direct. Null if owner or not curated.

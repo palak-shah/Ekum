@@ -27,6 +27,22 @@ export function exploreFeedCategoryLine(tags: string[] | null | undefined): stri
   return line || null;
 }
 
+/**
+ * Quiet Explore activity line from `exploreNewDesignCount`.
+ * 0 / missing → omit (no empty meta under the title).
+ */
+export function exploreFeedNewDesignsLine(
+  count: number | null | undefined,
+  opts?: { isOwn?: boolean },
+): string | null {
+  const n = typeof count === 'number' && Number.isFinite(count) ? Math.floor(count) : 0;
+  if (n < 1) return null;
+  if (opts?.isOwn) {
+    return n === 1 ? 'You added 1' : `You added ${n}`;
+  }
+  return n === 1 ? '1 new design' : `${n} new designs`;
+}
+
 /** Trim ends only — keep internal newlines. */
 export function exploreFeedAboutText(description: string | null | undefined): string | null {
   const text = description?.trim();

@@ -12,6 +12,7 @@ import {
   canViewCollectionProducts,
 } from './audience-visibility';
 import { isCollectionLiveForBuyers, liveWindowClauses } from './collection-schedule';
+import { resolveBuyerRepostPackAvailability } from './load-upstream-packs';
 
 type AudienceFields = {
   id: string;
@@ -21,6 +22,7 @@ type AudienceFields = {
   audienceCompanyIds: string[];
   startsAt: Date | null;
   endsAt: Date | null;
+  repostSourceCollectionId?: string | null;
 };
 
 /**
@@ -43,6 +45,7 @@ export async function productAccessibleViaCollection(
   const memberships = await prisma.collectionProduct.findMany({
     where: {
       productId,
+      excluded: false,
       collection: {
         status: CollectionStatus.Published,
         AND: liveWindowClauses(),
@@ -58,11 +61,23 @@ export async function productAccessibleViaCollection(
           audienceCompanyIds: true,
           startsAt: true,
           endsAt: true,
+          repostSourceCollectionId: true,
         },
       },
     },
     take: 25,
   });
+
+  const availability = await resolveBuyerRepostPackAvailability(
+    prisma,
+    memberships.map((row) => ({
+      id: row.collection.id,
+      companyId: row.collection.companyId,
+      repostSourceCollectionId: (
+        row.collection as { repostSourceCollectionId?: string | null }
+      ).repostSourceCollectionId,
+    })),
+  );
 
   for (const row of memberships) {
     const collection = row.collection as AudienceFields;
@@ -70,6 +85,16 @@ export async function productAccessibleViaCollection(
 
     if (collection.companyId === viewerCompanyId) {
       return true;
+    }
+
+    // Soft-unavailable descendant packs must not unlock design detail.
+    if (availability.omitIds.has(collection.id)) {
+      continue;
+    }
+    // Mixed pack still listed: synced/upstream members stay locked.
+    const eligibleIds = availability.eligibleProductIdsByPackId.get(collection.id);
+    if (eligibleIds && !eligibleIds.has(productId)) {
+      continue;
     }
 
     if (await visibility.isBlocked(viewerCompanyId, collection.companyId)) {
@@ -88,12 +113,11 @@ export async function productAccessibleViaCollection(
         select: { status: true },
       }))?.status === 'allowed';
     const hasViewGrant =
-      (await prisma.collectionViewGrant.findUnique({
+      (await prisma.collectionViewGrant.findFirst({
         where: {
-          collectionId_companyId: {
-            collectionId: collection.id,
-            companyId: viewerCompanyId,
-          },
+          collectionId: collection.id,
+          companyId: viewerCompanyId,
+          expiresAt: { gt: new Date() },
         },
         select: { id: true },
       })) != null;

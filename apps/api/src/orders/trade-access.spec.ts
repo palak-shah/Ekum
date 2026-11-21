@@ -77,7 +77,7 @@ function makeTradeAccess(options: {
       findMany: async () => options.collectionMemberships ?? [],
     },
     collectionViewGrant: {
-      findUnique: async () => null,
+      findFirst: async () => null,
     },
     message: {
       findFirst: async () => null,

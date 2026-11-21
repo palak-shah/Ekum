@@ -614,7 +614,7 @@ describe('CollectionService.setProducts', () => {
         ...followSourceShop(),
         findUnique: async () => ({ status: 'allowed' }),
       },
-      collectionViewGrant: { findUnique: async () => null },
+      collectionViewGrant: { findFirst: async () => null },
       collectionProduct: {
         findMany: async () => [],
         deleteMany: vi.fn(async () => ({})),
@@ -707,7 +707,7 @@ describe('CollectionService.checkCurateProducts', () => {
         findUnique: async () => ({ status: 'allowed' }),
       },
       productRelistGrant: { findMany: async () => [] },
-      collectionViewGrant: { findUnique: async () => null },
+      collectionViewGrant: { findFirst: async () => null },
       collection: {
         findUnique: async () => ({
           id: 'src-pack',
@@ -770,6 +770,69 @@ describe('CollectionService.remove', () => {
         }),
       }),
     );
+  });
+});
+
+describe('CollectionService.removeRepost', () => {
+  it('drafts a child pack without clearing exploreActivityAt', async () => {
+    const stamped = new Date('2026-08-01T00:00:00.000Z');
+    const collectionUpdate = vi.fn(async () => ({
+      id: 'child-1',
+      status: CollectionStatus.Draft,
+      exploreActivityAt: stamped,
+      _count: { products: 1 },
+    }));
+    const prisma = {
+      collection: {
+        findFirst: async () => ({
+          id: 'child-1',
+          companyId: 'company-1',
+          status: CollectionStatus.Published,
+          repostSourceCollectionId: 'src-1',
+          exploreActivityAt: stamped,
+        }),
+        update: collectionUpdate,
+      },
+    } as unknown as PrismaService;
+    const serializer = {
+      toCollectionView: (c: unknown) => c,
+    } as unknown as CatalogSerializer;
+    const service = new CollectionService(prisma, serializer, jobs);
+
+    await service.removeRepost('company-1', 'u1', 'child-1');
+
+    expect(collectionUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: CollectionStatus.Draft,
+          updatedByUserId: 'u1',
+        }),
+      }),
+    );
+    const data = collectionUpdate.mock.calls[0][0].data as Record<string, unknown>;
+    expect(data).not.toHaveProperty('exploreActivityAt');
+  });
+
+  it('refuses Remove repost on an original (no source)', async () => {
+    const prisma = {
+      collection: {
+        findFirst: async () => ({
+          id: 'orig-1',
+          companyId: 'company-1',
+          status: CollectionStatus.Published,
+          repostSourceCollectionId: null,
+          repostSourceProductId: null,
+        }),
+        update: vi.fn(),
+      },
+    } as unknown as PrismaService;
+    const serializer = {
+      toCollectionView: (c: unknown) => c,
+    } as unknown as CatalogSerializer;
+    const service = new CollectionService(prisma, serializer, jobs);
+    await expect(service.removeRepost('company-1', 'u1', 'orig-1')).rejects.toMatchObject({
+      response: expect.objectContaining({ code: 'NOT_ALLOWED' }),
+    });
   });
 });
 
@@ -1215,6 +1278,95 @@ describe('CollectionService.publish', () => {
       return true;
     });
     expect(collectionUpdate).not.toHaveBeenCalled();
+  });
+
+  it('republish of live curated pack skips Pack/Look re-check (Edit Save)', async () => {
+    const collectionUpdate = vi.fn(async () => ({
+      id: 'col-1',
+      status: CollectionStatus.Published,
+      endsAt: null,
+      _count: { products: 1 },
+    }));
+    const prisma = {
+      collection: {
+        findFirst: async () => ({
+          id: 'col-1',
+          companyId: 'company-1',
+          status: CollectionStatus.Published,
+          audience: 'followers',
+          startsAt: null,
+          endsAt: null,
+          exploreActivityAt: new Date('2026-01-01'),
+          repostSourceCollectionId: 'src-pack',
+        }),
+        update: collectionUpdate,
+        findUniqueOrThrow: async () => ({
+          id: 'col-1',
+          status: CollectionStatus.Published,
+          endsAt: null,
+          _count: { products: 1 },
+        }),
+        findUnique: async () => ({
+          id: 'src-pack',
+          audience: 'followers',
+        }),
+      },
+      company: {
+        findUniqueOrThrow: async () => ({ canPublish: true, canRelist: true }),
+        update: vi.fn(async () => ({})),
+      },
+      collectionProduct: {
+        findMany: async () => [
+          {
+            productId: 'foreign-1',
+            product: {
+              ...foreignPublishedProduct,
+              audience: 'followers',
+              allowForward: false,
+              rateVisibility: 'on_request',
+            },
+          },
+        ],
+      },
+      product: {
+        findMany: async () => [
+          {
+            ...foreignPublishedProduct,
+            audience: 'followers',
+            allowForward: false,
+            postedToMarketAt: null,
+          },
+        ],
+        updateMany: vi.fn(async () => ({ count: 0 })),
+      },
+      connection: { findMany: async () => [] },
+      companyBlock: { findMany: async () => [] },
+      follow: {
+        findMany: async (args?: { where?: { accessKind?: string } }) =>
+          args?.where?.accessKind === 'look'
+            ? [{ followedCompanyId: 'other-co', accessKind: 'look', status: 'allowed' }]
+            : [],
+      },
+      productRelistGrant: { findMany: async () => [] },
+      companySettings: {
+        findUnique: async () => null,
+        upsert: vi.fn(async () => ({})),
+      },
+    } as unknown as PrismaService;
+
+    const serializer = {
+      toCollectionView: (c: unknown) => c,
+    } as unknown as CatalogSerializer;
+    const service = new CollectionService(prisma, serializer, jobs);
+
+    await expect(
+      service.publish('company-1', 'u1', 'col-1', {
+        audience: 'followers',
+        rateVisibility: 'on_request',
+        allowForward: true,
+      }),
+    ).resolves.toMatchObject({ status: CollectionStatus.Published });
+    expect(collectionUpdate).toHaveBeenCalled();
   });
 
   it('grants canRelist on first curated publish with consent', async () => {
@@ -1819,8 +1971,51 @@ describe('CollectionService.create repost source', () => {
       expect(err).toBeInstanceOf(ConflictException);
       expect((err as ConflictException).getResponse()).toMatchObject({
         code: 'ALREADY_REPOSTED',
+        details: { collectionId: 'already' },
       });
     }
+  });
+
+  it('findRepostOf returns the immediate-source child id for Edit', async () => {
+    const prisma = {
+      collection: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: 'already',
+          status: CollectionStatus.Published,
+          audience: PublishAudience.Followers,
+          repostOrigin: RepostOrigin.Manual,
+        }),
+      },
+    } as unknown as PrismaService;
+    const service = new CollectionService(prisma, {} as CatalogSerializer, jobs);
+    await expect(
+      service.findRepostOf('me', { sourceCollectionId: 'src-col' }),
+    ).resolves.toEqual({ collectionId: 'already' });
+    expect(prisma.collection.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          companyId: 'me',
+          repostSourceCollectionId: 'src-col',
+        }),
+      }),
+    );
+  });
+
+  it('findRepostOf 404s for reusable draft/auto Selected children', async () => {
+    const prisma = {
+      collection: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: 'draft-1',
+          status: CollectionStatus.Draft,
+          audience: PublishAudience.Selected,
+          repostOrigin: RepostOrigin.Automatic,
+        }),
+      },
+    } as unknown as PrismaService;
+    const service = new CollectionService(prisma, {} as CatalogSerializer, jobs);
+    await expect(
+      service.findRepostOf('me', { sourceProductId: 'p1' }),
+    ).rejects.toMatchObject({ response: expect.objectContaining({ code: 'NOT_FOUND' }) });
   });
 
   it('reuses an automatic Selected pack instead of already-reposted', async () => {

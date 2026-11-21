@@ -14,9 +14,11 @@ vi.mock('@/lib/queries', () => ({
 const { MockApiError } = vi.hoisted(() => {
   class MockApiError extends Error {
     code?: string;
-    constructor(message: string, code?: string) {
+    details?: unknown;
+    constructor(message: string, code?: string, details?: unknown) {
       super(message);
       this.code = code;
+      this.details = details;
     }
   }
   return { MockApiError };
@@ -29,7 +31,16 @@ vi.mock('@/lib/apiClient', () => ({
         return {
           id: 'col-1',
           products: [
-            { id: 'p1', companyId: 'mill', audience: 'followers', name: 'Silk', images: [] },
+            {
+              id: 'p1',
+              companyId: 'mill',
+              audience: 'followers',
+              name: 'Silk',
+              images: [],
+              rate: 100,
+              rateMax: null,
+              unit: 'pc',
+            },
           ],
         };
       }
@@ -41,10 +52,43 @@ vi.mock('@/lib/apiClient', () => ({
     }),
     post: vi.fn(async () => ({ allowedProductIds: ['p1'], blocked: [] })),
     put: vi.fn(async () => ({})),
+    patch: vi.fn(async () => ({})),
     del: vi.fn(async () => ({})),
   },
   ApiError: MockApiError,
 }));
+
+function editDetail() {
+  return {
+    id: 'child-1',
+    name: 'My Wedding Edit',
+    audience: 'followers',
+    rateVisibility: 'on_request',
+    audienceCompanyIds: [],
+    audienceGroupIds: [],
+    allowForward: true,
+    allowDownload: false,
+    showSourceShops: false,
+    rate: null,
+    rateMax: null,
+    repostPricingMode: null,
+    repostMarginValue: null,
+    repostEditedRate: null,
+    products: [
+      {
+        id: 'p1',
+        companyId: 'mill',
+        name: 'Silk',
+        images: [],
+        excluded: false,
+        rate: 100,
+        rateMax: null,
+        unit: 'pc',
+      },
+    ],
+    memberPricing: [],
+  };
+}
 
 const target: RepostSheetTarget = {
   kind: 'collection',
@@ -183,5 +227,336 @@ describe('RepostSheet', () => {
     expect(screen.queryByTestId('repost-publish')).toBeNull();
     expect(screen.queryByTestId('repost-name')).toBeNull();
     expect(screen.queryByText('Who can see this?')).toBeNull();
+  });
+
+  it('gates calc behind Show rates; Edit shows design rows', async () => {
+    const user = userEvent.setup();
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(tree(target, client));
+    expect(await screen.findByTestId('repost-show-rates')).toBeTruthy();
+    expect(screen.queryByTestId('repost-pricing')).toBeNull();
+    await user.click(screen.getByTestId('repost-rates-on'));
+    expect(await screen.findByTestId('repost-pricing-choices')).toBeTruthy();
+    expect(screen.queryByTestId('repost-pricing-edit-list')).toBeNull();
+    await user.click(screen.getByTestId('repost-pricing-edit'));
+    expect(await screen.findByTestId('repost-pricing-edit-list')).toBeTruthy();
+    expect(screen.getByTestId('repost-pricing-edit-row-p1')).toHaveTextContent('Supplier');
+  });
+
+  it('create open upgrades to Edit when repost-of finds an existing child', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    vi.mocked(api.get).mockImplementation(async (path: string) => {
+      if (path === '/collections/repost-of') return { collectionId: 'child-1' };
+      if (path === '/collections/child-1') return editDetail();
+      if (path === '/connections') return [];
+      if (path === '/broadcasts/lists') return [];
+      if (path === '/settings') return { tradeDefaults: {} };
+      if (path === '/collections') return [];
+      if (path.startsWith('/explore/collections/')) {
+        return {
+          id: 'col-1',
+          products: [
+            {
+              id: 'p1',
+              companyId: 'mill',
+              audience: 'followers',
+              name: 'Silk',
+              images: [],
+              rate: 100,
+              rateMax: null,
+              unit: 'pc',
+            },
+          ],
+        };
+      }
+      return {};
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <ToastProvider>
+            <RepostSheet open onClose={() => undefined} target={target} />
+          </ToastProvider>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    expect(await screen.findByRole('heading', { name: 'Edit repost' })).toBeTruthy();
+    expect(await screen.findByTestId('repost-publish')).toHaveTextContent('Save');
+    expect(screen.getByTestId('repost-edit-rates-cue')).toBeTruthy();
+  });
+
+  it('edit without stamp id resolves via repost-of then shows Save', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    vi.mocked(api.get).mockImplementation(async (path: string) => {
+      if (path === '/collections/repost-of') {
+        return { collectionId: 'child-1' };
+      }
+      if (path === '/collections/child-1') return editDetail();
+      if (path === '/connections') return [];
+      if (path === '/broadcasts/lists') return [];
+      if (path === '/settings') return { tradeDefaults: {} };
+      if (path === '/collections') return [];
+      return {};
+    });
+    vi.mocked(api.post).mockImplementation(async (path: string) => {
+      if (path === '/collections/curate-check') {
+        return { allowedProductIds: ['p1'], blocked: [] };
+      }
+      if (path === '/collections') {
+        throw new Error('must not create when repost-of resolves');
+      }
+      return {};
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <ToastProvider>
+            <RepostSheet open onClose={() => undefined} target={target} editCollectionId={null} />
+          </ToastProvider>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    expect(await screen.findByRole('heading', { name: 'Edit repost' })).toBeTruthy();
+    expect(await screen.findByTestId('repost-name')).toHaveValue('My Wedding Edit');
+    expect(screen.getByTestId('repost-publish')).toHaveTextContent('Save');
+    expect(vi.mocked(api.post).mock.calls.some((c) => c[0] === '/collections')).toBe(false);
+    expect(
+      vi.mocked(api.get).mock.calls.some(
+        (c) => c[0] === '/collections/repost-of' && (c[1] as { sourceCollectionId?: string })?.sourceCollectionId === 'col-1',
+      ),
+    ).toBe(true);
+  });
+
+  it('edit without stamp falls back to ALREADY_REPOSTED details when repost-of misses', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    vi.mocked(api.get).mockImplementation(async (path: string) => {
+      if (path === '/collections/repost-of') {
+        throw new MockApiError('No repost of that post yet.', 'NOT_FOUND');
+      }
+      if (path === '/collections/child-1') return editDetail();
+      if (path === '/connections') return [];
+      if (path === '/broadcasts/lists') return [];
+      if (path === '/settings') return { tradeDefaults: {} };
+      if (path === '/collections') return [];
+      return {};
+    });
+    vi.mocked(api.post).mockImplementation(async (path: string) => {
+      if (path === '/collections/curate-check') {
+        return { allowedProductIds: ['p1'], blocked: [] };
+      }
+      if (path === '/collections') {
+        throw new MockApiError('You already reposted this.', 'ALREADY_REPOSTED', {
+          collectionId: 'child-1',
+        });
+      }
+      return {};
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <ToastProvider>
+            <RepostSheet open onClose={() => undefined} target={target} editCollectionId={null} />
+          </ToastProvider>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    expect(await screen.findByRole('heading', { name: 'Edit repost' })).toBeTruthy();
+    expect(await screen.findByTestId('repost-name')).toHaveValue('My Wedding Edit');
+    expect(screen.getByTestId('repost-publish')).toHaveTextContent('Save');
+  });
+
+  it('edit mode prefills from child pack and Save publishes without create', async () => {
+    const user = userEvent.setup();
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    vi.mocked(api.get).mockImplementation(async (path: string) => {
+      if (path === '/collections/child-1') return editDetail();
+      if (path === '/connections') return [];
+      if (path === '/broadcasts/lists') return [];
+      if (path === '/settings') return { tradeDefaults: {} };
+      if (path === '/collections') return [];
+      return {};
+    });
+    vi.mocked(api.post).mockImplementation(async (path: string) => {
+      if (path === '/collections/curate-check') {
+        return { allowedProductIds: ['p1'], blocked: [] };
+      }
+      if (path === '/collections/child-1/publish') return editDetail();
+      return { id: 'should-not-create' };
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <ToastProvider>
+            <RepostSheet
+              open
+              onClose={() => undefined}
+              target={target}
+              editCollectionId="child-1"
+            />
+          </ToastProvider>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    expect(await screen.findByRole('heading', { name: 'Edit repost' })).toBeTruthy();
+    expect(await screen.findByTestId('repost-name')).toHaveValue('My Wedding Edit');
+    expect(await screen.findByTestId('repost-show-rates')).toBeTruthy();
+    expect(screen.getByText('Who can see this?')).toBeTruthy();
+    expect(screen.getByTestId('repost-edit-rates-cue')).toHaveTextContent(
+      'New rates apply to new orders.',
+    );
+    await user.click(screen.getByTestId('repost-rates-on'));
+    expect(await screen.findByTestId('repost-pricing-choices')).toBeTruthy();
+    expect(screen.getByTestId('repost-pricing-edit')).toBeTruthy();
+    expect(screen.getByTestId('repost-pricing-same')).toBeTruthy();
+    await user.click(screen.getByTestId('repost-pricing-edit'));
+    expect(await screen.findByTestId('repost-pricing-edit-list')).toBeTruthy();
+    // Same keeps Save enabled (Edit without ₹ would disable it).
+    await user.click(screen.getByTestId('repost-pricing-same'));
+    const save = await screen.findByTestId('repost-publish');
+    expect(save).toHaveTextContent('Save');
+    expect(screen.queryByTestId('repost-link-48h')).toBeNull();
+    await user.click(save);
+    expect(vi.mocked(api.post).mock.calls.some((c) => c[0] === '/collections')).toBe(false);
+    expect(
+      vi.mocked(api.post).mock.calls.some((c) => c[0] === '/collections/child-1/publish'),
+    ).toBe(true);
+    const orderish = (path: unknown) =>
+      typeof path === 'string' && /(^|\/)orders(\/|$)/.test(path);
+    expect(vi.mocked(api.post).mock.calls.some((c) => orderish(c[0]))).toBe(false);
+    expect(vi.mocked(api.put).mock.calls.some((c) => orderish(c[0]))).toBe(false);
+    expect(vi.mocked(api.patch).mock.calls.some((c) => orderish(c[0]))).toBe(false);
+  });
+
+  it('editTitle Edit post overrides default Edit repost heading', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    vi.mocked(api.get).mockImplementation(async (path: string) => {
+      if (path === '/collections/col-own') return { ...editDetail(), id: 'col-own', name: 'My pack' };
+      if (path === '/connections') return [];
+      if (path === '/broadcasts/lists') return [];
+      if (path === '/settings') return { tradeDefaults: {} };
+      if (path === '/collections') return [];
+      return {};
+    });
+    vi.mocked(api.post).mockImplementation(async (path: string) => {
+      if (path === '/collections/curate-check') {
+        return { allowedProductIds: ['p1'], blocked: [] };
+      }
+      return {};
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <ToastProvider>
+            <RepostSheet
+              open
+              onClose={() => undefined}
+              target={{
+                kind: 'collection',
+                collectionId: 'col-own',
+                name: 'My pack',
+                coverImage: null,
+              }}
+              editCollectionId="col-own"
+              editTitle="Edit post"
+            />
+          </ToastProvider>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    expect(await screen.findByRole('heading', { name: 'Edit post' })).toBeTruthy();
+    expect(await screen.findByTestId('repost-publish')).toHaveTextContent('Save');
+    expect(screen.queryByTestId('repost-remove')).toBeNull();
+  });
+
+  it('Edit repost shows Remove repost and confirms via remove-repost API', async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    vi.mocked(api.get).mockImplementation(async (path: string) => {
+      if (path === '/collections/child-1') return editDetail();
+      if (path === '/connections') return [];
+      if (path === '/broadcasts/lists') return [];
+      if (path === '/settings') return { tradeDefaults: {} };
+      if (path === '/collections') return [];
+      return {};
+    });
+    vi.mocked(api.post).mockImplementation(async (path: string) => {
+      if (path === '/collections/curate-check') {
+        return { allowedProductIds: ['p1'], blocked: [] };
+      }
+      if (path === '/collections/child-1/remove-repost') {
+        return { id: 'child-1', status: 'draft' };
+      }
+      return {};
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <ToastProvider>
+            <RepostSheet
+              open
+              onClose={onClose}
+              target={target}
+              editCollectionId="child-1"
+              editTitle="Edit repost"
+            />
+          </ToastProvider>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    expect(await screen.findByTestId('repost-remove')).toBeTruthy();
+    await user.click(screen.getByTestId('repost-remove'));
+    expect(await screen.findByRole('heading', { name: 'Remove this repost?' })).toBeTruthy();
+    await user.click(screen.getByTestId('owner-pack-lifecycle-confirm'));
+    expect(
+      vi.mocked(api.post).mock.calls.some((c) => c[0] === '/collections/child-1/remove-repost'),
+    ).toBe(true);
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it('edit Save still publishes when curate-check blocks all members (settings-only)', async () => {
+    const user = userEvent.setup();
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    vi.mocked(api.get).mockImplementation(async (path: string) => {
+      if (path === '/collections/child-1') return editDetail();
+      if (path === '/connections') return [];
+      if (path === '/broadcasts/lists') return [];
+      if (path === '/settings') return { tradeDefaults: {} };
+      if (path === '/collections') return [];
+      return {};
+    });
+    vi.mocked(api.post).mockImplementation(async (path: string) => {
+      if (path === '/collections/curate-check') {
+        return {
+          allowedProductIds: [],
+          blocked: [{ productId: 'p1', code: 'FOLLOW_LOOK_ONLY' }],
+        };
+      }
+      if (path === '/collections/child-1/publish') return editDetail();
+      return {};
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <ToastProvider>
+            <RepostSheet
+              open
+              onClose={() => undefined}
+              target={target}
+              editCollectionId="child-1"
+            />
+          </ToastProvider>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    expect(await screen.findByRole('heading', { name: 'Edit repost' })).toBeTruthy();
+    expect(await screen.findByTestId('repost-unavailable-summary')).toBeTruthy();
+    const save = await screen.findByTestId('repost-publish');
+    expect(save).not.toBeDisabled();
+    await user.click(save);
+    expect(
+      vi.mocked(api.post).mock.calls.some((c) => c[0] === '/collections/child-1/publish'),
+    ).toBe(true);
+    expect(screen.queryByText(/can't go in a collection now/i)).toBeNull();
   });
 });

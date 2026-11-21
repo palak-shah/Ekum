@@ -49,9 +49,19 @@ export function membershipAfterRemove(
 }
 
 /**
- * Album and editor Remove must both start from **full owner membership**,
+ * Active owner membership ids for Remove / reload / editor hydrate.
+ * Excluded tombstones must never be re-listed — re-including them clears sticky exclude.
+ */
+export function activeOwnerMemberIds(
+  products: readonly { id: string; excluded?: boolean }[],
+): string[] {
+  return products.filter((product) => !product.excluded).map((product) => product.id);
+}
+
+/**
+ * Album and editor Remove must both start from **full active owner membership**,
  * not a partial local selection set — otherwise PUT can wipe unseen members
- * or leave wrong leftovers for GC.
+ * or leave wrong leftovers for GC. Never pass excluded tombstone ids.
  */
 export function packRemoveNextMembership(input: {
   fullOwnerMemberIds: readonly string[];

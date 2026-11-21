@@ -176,6 +176,29 @@ export class CatalogSerializer {
       showSourceShops: collection.showSourceShops === true,
       /** Legacy column ignored — path is TradeLane / Your paths. */
       orderPathPreference: null,
+      repostPricingMode:
+        (collection as { repostPricingMode?: string | null }).repostPricingMode ?? null,
+      repostMarginValue:
+        (collection as { repostMarginValue?: { toNumber: () => number } | null }).repostMarginValue ==
+        null
+          ? null
+          : (
+              collection as { repostMarginValue: { toNumber: () => number } }
+            ).repostMarginValue.toNumber(),
+      repostEditedRate:
+        (collection as { repostEditedRate?: { toNumber: () => number } | null }).repostEditedRate ==
+        null
+          ? null
+          : (
+              collection as { repostEditedRate: { toNumber: () => number } }
+            ).repostEditedRate.toNumber(),
+      repostEditOwnBase:
+        (collection as { repostEditOwnBase?: { toNumber: () => number } | null })
+          .repostEditOwnBase == null
+          ? null
+          : (
+              collection as { repostEditOwnBase: { toNumber: () => number } }
+            ).repostEditOwnBase.toNumber(),
       productCount:
         productCount ??
         publishedMemberCount(collection) ??
@@ -200,9 +223,13 @@ export class CatalogSerializer {
   }
 
   toCollectionDetail(collection: CollectionWithProducts): CollectionDetailView {
+    const activeCount = collection.products.filter((entry) => !entry.excluded).length;
     return {
-      ...this.toCollectionView(collection, collection.products.length),
-      products: collection.products.map((entry) => this.toProductView(entry.product)),
+      ...this.toCollectionView(collection, activeCount),
+      products: collection.products.map((entry) => ({
+        ...this.toProductView(entry.product),
+        ...(entry.excluded ? { excluded: true as const } : {}),
+      })),
     };
   }
 }

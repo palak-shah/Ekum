@@ -53,9 +53,34 @@ export function collectionCardRateFields(input: {
   rateMax?: { toNumber(): number } | number | null;
   catalogRateUnit?: string | null;
   products?: Array<{ product: RateMember }>;
+  /**
+   * Batch 3: when pack uses calc modes, pass the resolved buyer-facing band
+   * instead of raw Product.rate / Collection.rate hierarchy.
+   */
+  resolvedBand?: { rateMin: number | null; rateMax: number | null } | null;
 }): { rateMin: number | null; rateMax: number | null; rateUnit: string | null } {
   const empty = { rateMin: null, rateMax: null, rateUnit: null };
   if (input.rateVisibility !== RateVisibility.Visible) return empty;
+
+  if (input.resolvedBand) {
+    const { rateMin, rateMax } = input.resolvedBand;
+    if (rateMin == null) return empty;
+    const members = (input.products ?? []).map((entry) => entry.product);
+    const agreedRateUnit = (units: string[]): string | null => {
+      const clean = units.filter(Boolean);
+      if (clean.length === 0) return null;
+      return new Set(clean).size === 1 ? clean[0]! : null;
+    };
+    const stored = input.catalogRateUnit?.trim();
+    return {
+      rateMin,
+      rateMax: rateMax != null && rateMax > rateMin ? rateMax : null,
+      rateUnit:
+        stored ||
+        agreedRateUnit(members.map((p) => memberRateUnit(p))) ||
+        null,
+    };
+  }
 
   const packRate = asNumber(input.rate);
   const packMax = asNumber(input.rateMax);

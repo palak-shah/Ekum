@@ -9,7 +9,7 @@ import {
 import { api, ApiError } from '@/lib/apiClient';
 import { catalogRateDisplayUnit } from '@/lib/catalogRate';
 import { PageHeader } from '@/ui/PageHeader';
-import { Button, InlineNotice, LoadingBlock, cx } from '@/ui/kit';
+import { Button, InlineNotice, LoadingBlock, Sheet, cx } from '@/ui/kit';
 import { OptionSheetField } from '@/ui/OptionSheetField';
 import { OrderDispatchFields } from '@/features/catalog/OrderDispatchFields';
 import {
@@ -18,9 +18,19 @@ import {
   readCompanyPublishDefaults,
   readCompanySellAsUsual,
 } from '@/features/catalog/publishDefaults';
+import {
+  SHOP_REPOST_PACK_HINT_ON,
+  SHOP_REPOST_PACK_OFF_CONFIRM_ACTION,
+  SHOP_REPOST_PACK_OFF_CONFIRM_BODY,
+  SHOP_REPOST_PACK_OFF_CONFIRM_TITLE,
+  SHOP_REPOST_PACK_TITLE,
+  isShopRepostPackAllowed,
+} from '@/features/settings/shopRepostPack';
+import { useToast } from '@/ui/Toast';
 
 export function CatalogDefaultsPage() {
   const queryClient = useQueryClient();
+  const { showToast } = useToast();
   const settings = useQuery({
     queryKey: ['company-settings'],
     queryFn: () => api.get<CompanySettingsView>('/settings'),
@@ -35,6 +45,8 @@ export function CatalogDefaultsPage() {
   const [moq, setMoq] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [shopPackAllowed, setShopPackAllowed] = useState(true);
+  const [packOffConfirmOpen, setPackOffConfirmOpen] = useState(false);
 
   useEffect(() => {
     if (!settings.data) return;
@@ -48,6 +60,7 @@ export function CatalogDefaultsPage() {
     setCatalogRateUnit(sell.catalogRateUnit || Unit.Piece);
     setPiecesPerPack(sell.piecesPerPack);
     setMoq(sell.moq);
+    setShopPackAllowed(isShopRepostPackAllowed(settings.data.tradeDefaults));
   }, [settings.data]);
 
   const save = useMutation({
@@ -78,6 +91,38 @@ export function CatalogDefaultsPage() {
       setError(err instanceof ApiError ? err.message : 'Could not save defaults.');
     },
   });
+
+  const setShopPack = useMutation({
+    mutationFn: (allowed: boolean) =>
+      api.patch<{ ok: true; demoted: number }>('/follows/shop-repost-pack', { allowed }),
+    onSuccess: (result, allowed) => {
+      setShopPackAllowed(allowed);
+      setPackOffConfirmOpen(false);
+      void queryClient.invalidateQueries({ queryKey: ['company-settings'] });
+      if (!allowed) {
+        showToast(
+          result.demoted > 0
+            ? `Repost off · ${result.demoted} became look-only`
+            : 'Repost off for everyone',
+        );
+        return;
+      }
+      showToast('Repost available again — choose who can Repost one by one');
+    },
+    onError: (err) => {
+      showToast(err instanceof ApiError ? err.message : 'Could not update Repost.', 'danger');
+    },
+  });
+
+  const onShopPackToggle = (next: boolean) => {
+    if (!next && shopPackAllowed) {
+      setPackOffConfirmOpen(true);
+      return;
+    }
+    if (next && !shopPackAllowed) {
+      setShopPack.mutate(true);
+    }
+  };
 
   if (settings.isLoading) return <LoadingBlock />;
 
@@ -149,6 +194,27 @@ export function CatalogDefaultsPage() {
         </label>
       </section>
 
+      <section className="flex flex-col gap-2" data-testid="shop-repost-pack-section">
+        <h2 className="text-sm font-emphasis text-ink">Repost</h2>
+        <p className="text-xs text-muted">{SHOP_REPOST_PACK_HINT_ON}</p>
+        <label className="flex items-start gap-2 rounded-xl border border-line px-3 py-3 text-sm text-ink">
+          <input
+            type="checkbox"
+            className="mt-0.5"
+            data-testid="shop-repost-pack-toggle"
+            checked={shopPackAllowed}
+            disabled={setShopPack.isPending}
+            onChange={(e) => onShopPackToggle(e.target.checked)}
+          />
+          <span>{SHOP_REPOST_PACK_TITLE}</span>
+        </label>
+        {!shopPackAllowed ? (
+          <p className="text-xs text-muted" data-testid="shop-repost-pack-off-note">
+            Repost is off. Look-only stays; turning this on does not restore Repost automatically.
+          </p>
+        ) : null}
+      </section>
+
       <section className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-sm font-emphasis text-ink">Rate per</span>
@@ -181,6 +247,34 @@ export function CatalogDefaultsPage() {
       <Button fullWidth loading={save.isPending} onClick={() => save.mutate()}>
         Save defaults
       </Button>
+
+      <Sheet
+        open={packOffConfirmOpen}
+        onClose={() => !setShopPack.isPending && setPackOffConfirmOpen(false)}
+        title={SHOP_REPOST_PACK_OFF_CONFIRM_TITLE}
+        footer={
+          <div className="flex flex-col gap-2">
+            <Button
+              fullWidth
+              loading={setShopPack.isPending}
+              data-testid="shop-repost-pack-confirm-off"
+              onClick={() => setShopPack.mutate(false)}
+            >
+              {SHOP_REPOST_PACK_OFF_CONFIRM_ACTION}
+            </Button>
+            <Button
+              fullWidth
+              variant="secondary"
+              disabled={setShopPack.isPending}
+              onClick={() => setPackOffConfirmOpen(false)}
+            >
+              Keep Repost on
+            </Button>
+          </div>
+        }
+      >
+        <p className="text-sm text-muted">{SHOP_REPOST_PACK_OFF_CONFIRM_BODY}</p>
+      </Sheet>
     </div>
   );
 }

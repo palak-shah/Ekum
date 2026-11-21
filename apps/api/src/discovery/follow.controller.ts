@@ -18,9 +18,23 @@ const accessSchema = z.object({
 });
 type AccessDto = z.infer<typeof accessSchema>;
 
+const shopPackSchema = z.object({
+  allowed: z.boolean(),
+});
+type ShopPackDto = z.infer<typeof shopPackSchema>;
+
 @Controller({ path: 'follows', version: '1' })
 export class FollowController {
   constructor(private readonly follows: FollowService) {}
+
+  /** P3: shop-wide Pack ON/OFF (tradeDefaults + bulk Pack→Look when OFF). */
+  @Patch('shop-repost-pack')
+  setShopRepostPack(
+    @CurrentCompanyId() companyId: string,
+    @Body(new ZodValidationPipe(shopPackSchema)) dto: ShopPackDto,
+  ) {
+    return this.follows.setShopRepostPack(companyId, dto.allowed);
+  }
 
   @Post()
   follow(

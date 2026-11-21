@@ -1,6 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
 import { CollectionStatus, ProductStatus } from '@ekum/domain-types';
 import type { Prisma } from '@prisma/client';
+import { hasActivePublishedMemberWhere } from './collection-membership';
 
 /**
  * Parse schedule inputs from the wire (ISO datetime or YYYY-MM-DD).
@@ -41,15 +42,17 @@ export function assertValidLiveWindow(startsAt: Date | null, endsAt: Date | null
   }
 }
 
-/** At least one Published member — empty / all-draft packs waste a follower tap. */
+/** At least one active Published member — excluded tombstones do not keep a pack live. */
 export function hasPublishedDesignClause(): Prisma.CollectionWhereInput {
-  return { products: { some: { product: { status: ProductStatus.Published } } } };
+  return hasActivePublishedMemberWhere();
 }
 
 export function collectionHasPublishedMember(
-  products?: Array<{ product?: { status?: string } | null } | null> | null,
+  products?: Array<{ excluded?: boolean; product?: { status?: string } | null } | null> | null,
 ): boolean {
-  return (products ?? []).some((row) => row?.product?.status === ProductStatus.Published);
+  return (products ?? []).some(
+    (row) => !row?.excluded && row?.product?.status === ProductStatus.Published,
+  );
 }
 
 /** Buyer-facing: published, inside the live window, and has a live design. */

@@ -1,5 +1,5 @@
 /**
- * DesignSheet ⋯ rows — Bookmark always; then Edit · Publish · Add to pack · Remove · Delete (own).
+ * DesignSheet ⋯ rows — Bookmark always; then Edit · Your rate · Publish · Add to pack · Remove · Delete.
  * Remove only when the sheet has collection context.
  */
 export function designSheetMoreIds(input: {
@@ -8,11 +8,16 @@ export function designSheetMoreIds(input: {
   canDelete: boolean;
   canAddToPack?: boolean;
   canPublish?: boolean;
-}): Array<'bookmark' | 'edit' | 'publish' | 'addToPack' | 'remove' | 'delete'> {
-  const ids: Array<'bookmark' | 'edit' | 'publish' | 'addToPack' | 'remove' | 'delete'> = [
-    'bookmark',
-  ];
+  /** Owner repost pack — per-design buyer rate override. */
+  canSetBuyerRate?: boolean;
+}): Array<
+  'bookmark' | 'edit' | 'buyerRate' | 'publish' | 'addToPack' | 'remove' | 'delete'
+> {
+  const ids: Array<
+    'bookmark' | 'edit' | 'buyerRate' | 'publish' | 'addToPack' | 'remove' | 'delete'
+  > = ['bookmark'];
   if (input.canEdit) ids.push('edit');
+  if (input.canSetBuyerRate) ids.push('buyerRate');
   if (input.canPublish) ids.push('publish');
   if (input.canAddToPack) ids.push('addToPack');
   if (input.canRemove) ids.push('remove');

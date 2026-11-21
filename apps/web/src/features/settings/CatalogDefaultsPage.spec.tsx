@@ -9,12 +9,17 @@ vi.mock('@/lib/apiClient', () => ({
       tradeDefaults: {},
     })),
     put: vi.fn(async () => ({})),
+    patch: vi.fn(async () => ({ ok: true, demoted: 0 })),
   },
   ApiError: class ApiError extends Error {},
 }));
 
 vi.mock('@/ui/PageHeader', () => ({
   PageHeader: ({ title }: { title: string }) => <h1>{title}</h1>,
+}));
+
+vi.mock('@/ui/Toast', () => ({
+  useToast: () => ({ showToast: vi.fn() }),
 }));
 
 describe('CatalogDefaultsPage', () => {
@@ -38,5 +43,20 @@ describe('CatalogDefaultsPage', () => {
       );
     });
     expect(screen.getByLabelText('Rate unit')).toBeTruthy();
+  });
+
+  it('exposes shop-wide Repost Pack control', async () => {
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={client}>
+        <CatalogDefaultsPage />
+      </QueryClientProvider>,
+    );
+    await waitFor(() => {
+      expect(screen.getByTestId('shop-repost-pack-toggle')).toBeChecked();
+    });
+    expect(screen.getByTestId('shop-repost-pack-section')).toBeTruthy();
   });
 });

@@ -9,9 +9,10 @@ const BROAD_AUDIENCES = new Set<string>([
 
 /**
  * Whether publishing should bump exploreActivityAt.
- * First publish / republish after hide always bumps. Audience-only tweaks of an
- * already-live Selected pack do not. Widening to Followers/Everyone/Connections
- * (or first activity stamp) does resurface.
+ * First publish / republish after hide (activity cleared) bumps. Audience-only
+ * tweaks of an already-live Selected pack do not. Widening to
+ * Followers/Everyone/Connections (or first activity stamp) does resurface.
+ * Remove-repost keeps exploreActivityAt through Draft — republish must not climb rank.
  */
 export function shouldBumpExploreOnPublish(input: {
   priorStatus: string;
@@ -20,6 +21,8 @@ export function shouldBumpExploreOnPublish(input: {
   exploreActivityAt: Date | string | null;
 }): boolean {
   if (input.priorStatus !== CollectionStatus.Published) {
+    // Stamp preserved (Remove repost) → keep prior rank slot.
+    if (input.exploreActivityAt) return false;
     return true;
   }
   if (!input.exploreActivityAt) {

@@ -58,4 +58,15 @@ describe('designSheetMoreIds', () => {
       designSheetMoreIds({ canEdit: false, canRemove: true, canDelete: false }),
     ).toEqual(['bookmark', 'remove']);
   });
+
+  it('owner repost: Your rate sits after Edit', () => {
+    expect(
+      designSheetMoreIds({
+        canEdit: false,
+        canRemove: true,
+        canDelete: false,
+        canSetBuyerRate: true,
+      }),
+    ).toEqual(['bookmark', 'buyerRate', 'remove']);
+  });
 });

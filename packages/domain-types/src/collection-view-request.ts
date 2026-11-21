@@ -33,6 +33,8 @@ export interface CollectionViewGrantView {
   companyId: string;
   company: PublicCompanySummary;
   grantedAt: string;
+  /** ISO end of look-through (48h from Allow). */
+  expiresAt: string;
   collectionId: string;
   collectionName: string;
 }

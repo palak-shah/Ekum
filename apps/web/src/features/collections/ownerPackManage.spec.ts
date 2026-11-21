@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  activeOwnerMemberIds,
   canDeleteSelected,
   deleteNeedsMultiPackConfirm,
   libraryDesignsForPicker,
@@ -83,6 +84,39 @@ describe('packRemoveNextMembership (album ≡ editor)', () => {
     expect(albumNext).toEqual(['a', 'c', 'draft-hidden']);
     // Wrong path: only “visible selected” as currentIds would drop draft-hidden.
     expect(membershipAfterRemove(['a', 'b', 'c'], removeIds)).not.toEqual(albumNext);
+  });
+});
+
+describe('activeOwnerMemberIds + remove (sticky exclude)', () => {
+  it('omits excluded tombstones so Remove cannot clear sticky exclude', () => {
+    const afterReload = [
+      { id: 'keep', excluded: false },
+      { id: 'tombstone', excluded: true },
+      { id: 'remove-me', excluded: false },
+    ];
+    const active = activeOwnerMemberIds(afterReload);
+    expect(active).toEqual(['keep', 'remove-me']);
+    const next = packRemoveNextMembership({
+      fullOwnerMemberIds: active,
+      removeIds: ['remove-me'],
+    });
+    expect(next).toEqual(['keep']);
+    // Wrong path: mapping all product ids would re-list the tombstone and clear exclude.
+    expect(
+      packRemoveNextMembership({
+        fullOwnerMemberIds: afterReload.map((row) => row.id),
+        removeIds: ['remove-me'],
+      }),
+    ).toEqual(['keep', 'tombstone']);
+  });
+
+  it('explicit re-add is the only path that puts an excluded id back in desired', () => {
+    const active = activeOwnerMemberIds([
+      { id: 'a' },
+      { id: 'excluded-x', excluded: true },
+    ]);
+    expect(active).toEqual(['a']);
+    expect([...active, 'excluded-x']).toEqual(['a', 'excluded-x']);
   });
 });
 

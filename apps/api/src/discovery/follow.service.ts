@@ -23,6 +23,10 @@ import {
   FollowAccessKind,
   FollowStatus,
 } from './follow-access';
+import {
+  isShopRepostPackAllowed,
+  mergeTradeDefaults,
+} from '../identity/trade-presence';
 
 export function millRepostOffBody(traderName: string): string {
   return `You turned off Repost for ${traderName}`;
@@ -298,6 +302,9 @@ export class FollowService {
       throw new NotFoundException({ code: 'NOT_FOUND', message: 'Ask not found.' });
     }
 
+    if (decision === 'pack') {
+      await this.assertShopPackAllowed(shopCompanyId);
+    }
     const accessKind = decision === 'pack' ? FollowAccessKind.Pack : FollowAccessKind.Look;
     await this.prisma.follow.update({
       where: { id: row.id },
@@ -363,6 +370,9 @@ export class FollowService {
       throw new NotFoundException({ code: 'NOT_FOUND', message: 'Follower not found.' });
     }
 
+    if (accessKind === 'pack') {
+      await this.assertShopPackAllowed(shopCompanyId);
+    }
     const nextKind = accessKind === 'pack' ? FollowAccessKind.Pack : FollowAccessKind.Look;
     const updated = await this.prisma.follow.update({
       where: { id: row.id },
@@ -376,6 +386,63 @@ export class FollowService {
       await this.notifyShareOff(shopCompanyId, followerCompanyId);
     }
     return this.toFollowerView(updated);
+  }
+
+  /**
+   * P3 shop-wide Pack OFF: persist policy, convert every Pack follower to Look,
+   * notify each edge. Existing descendant packs stay (soft-unavailable / sync stop).
+   */
+  async setShopRepostPack(
+    shopCompanyId: string,
+    allowed: boolean,
+  ): Promise<{ ok: true; demoted: number }> {
+    const settings = await this.prisma.companySettings.findUnique({
+      where: { companyId: shopCompanyId },
+    });
+    const next = mergeTradeDefaults(settings?.tradeDefaults, {
+      shopRepostPackAllowed: allowed,
+    });
+    await this.prisma.companySettings.upsert({
+      where: { companyId: shopCompanyId },
+      create: { companyId: shopCompanyId, tradeDefaults: next },
+      update: { tradeDefaults: next },
+    });
+    if (allowed) {
+      return { ok: true, demoted: 0 };
+    }
+    const packFollowers = await this.prisma.follow.findMany({
+      where: {
+        followedCompanyId: shopCompanyId,
+        status: FollowStatus.Allowed,
+        accessKind: FollowAccessKind.Pack,
+      },
+      select: { id: true, followerCompanyId: true },
+    });
+    if (packFollowers.length > 0) {
+      await this.prisma.follow.updateMany({
+        where: { id: { in: packFollowers.map((row) => row.id) } },
+        data: { accessKind: FollowAccessKind.Look },
+      });
+      for (const row of packFollowers) {
+        await this.notifyShareOff(shopCompanyId, row.followerCompanyId);
+      }
+    }
+    return { ok: true, demoted: packFollowers.length };
+  }
+
+  private async assertShopPackAllowed(shopCompanyId: string): Promise<void> {
+    const settings = this.prisma.companySettings
+      ? await this.prisma.companySettings.findUnique({
+          where: { companyId: shopCompanyId },
+          select: { tradeDefaults: true },
+        })
+      : null;
+    if (!isShopRepostPackAllowed(settings?.tradeDefaults)) {
+      throw new ForbiddenException({
+        code: 'SHOP_PACK_OFF',
+        message: 'This shop is not granting Repost right now.',
+      });
+    }
   }
 
   /** Mill Pack→Look only — exact mill↔trader Direct; Buyer never gets this line. */

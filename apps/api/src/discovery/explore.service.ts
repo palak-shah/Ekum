@@ -7,6 +7,7 @@ import {
   PublishAudience,
   RateVisibility,
   VerificationStatus,
+  isRepostPricingMode,
   type CollectionCard,
   type CollectionPreviewView,
   type CompanyCard,
@@ -55,10 +56,19 @@ import {
   DiscoverySerializer,
 } from './discovery.serializer';
 import type { SourceCreditHopRow } from './source-shop-credit';
+import { loadSourceCreditHopRows } from './load-source-credit-hops';
 import {
   canDiscoverCollection,
   canViewCollectionProducts,
 } from '../catalog/audience-visibility';
+import {
+  projectEligibleCollectionMembers,
+  resolveBuyerRepostPackAvailability,
+} from '../catalog/load-upstream-packs';
+import {
+  filterSoftAvailableProducts,
+  filterViewerEligibleMembers,
+} from '../catalog/repost-availability';
 import {
   hasPublishedDesignClause,
   isCollectionLiveForBuyers,
@@ -71,6 +81,11 @@ import {
 import { collectionCardInclude, publishedCollectionMemberWhere } from './collection-preview';
 import { cursorArgs, toCursorPage } from './pagination';
 import { rankWindowTake } from './rank-window';
+import {
+  buyerFacingBand,
+  resolvePackMemberBuyerRates,
+  resolvedBandsForPacks,
+} from '../catalog/repost-pricing-resolve';
 import {
   interestHitLabel,
   matchesCompanyInterest,
@@ -550,26 +565,50 @@ export class ExploreService {
     const live = withLiveDesigns(rows).filter(
       (row) => isDirectedAudience(row.audience) || broadcastCollectionIds.includes(row.id),
     );
-    const eligible = await this.eligibleCountByCollection(viewerCompanyId, live);
+    const availability = await resolveBuyerRepostPackAvailability(
+      this.prisma,
+      live.map((row) => ({
+        id: row.id,
+        companyId: row.companyId,
+        repostSourceCollectionId: (
+          row as { repostSourceCollectionId?: string | null }
+        ).repostSourceCollectionId,
+      })),
+    );
+    const softOff = availability.omitIds;
+    const visible = live
+      .filter((row) => row.companyId === viewerCompanyId || !softOff.has(row.id))
+      .map((row) =>
+        projectEligibleCollectionMembers(
+          row,
+          viewerCompanyId,
+          availability.eligibleProductIdsByPackId.get(row.id),
+        ),
+      );
+    const eligible = await this.eligibleCountByCollection(viewerCompanyId, visible);
     const stamps = await this.viewerRepostStamps(viewerCompanyId, {
-      collectionIds: live.map((row) => row.id),
+      collectionIds: visible.map((row) => row.id),
       productIds: [],
     });
     const sourceHopRows = await this.loadSourceCreditHopRows(
-      live.map(
+      visible.map(
         (row) =>
           (row as { repostSourceCollectionId?: string | null }).repostSourceCollectionId,
       ),
     );
-    return live.map((row) => {
+    const bands = await this.resolvedBandsByPack(viewerCompanyId, visible);
+    return visible.map((row) => {
       const card = this.discovery.toCollectionCard(row, {
         viewerCompanyId,
         viewerReposted: stamps.collections.has(row.id),
+        viewerRepostCollectionId: stamps.collections.get(row.id) ?? null,
         repostEligibleCount: eligible.get(row.id) ?? 0,
         sourceHops: sourceHopsFromRows(
           (row as { repostSourceCollectionId?: string | null }).repostSourceCollectionId,
           sourceHopRows,
         ),
+        hopRows: sourceHopRows,
+        resolvedBand: bands.get(row.id) ?? null,
       });
       const memberCompanyIds = row.products.map((entry) => entry.product.companyId);
       return {
@@ -686,14 +725,17 @@ export class ExploreService {
           take: windowTake,
         }),
       ]);
-      const merged = await this.hideDesignsCoveredByPacks(
-        diversifyNewestThenFill(
-          [
-            ...withLiveDesigns(collections).map((row) => this.toCollectionFeedRow(row)),
-            ...products.map((row) => this.toProductFeedRow(row)),
-          ].sort(byPostedAtDesc),
-          (row) => row.company.id,
-          windowTake,
+      const merged = await this.omitSoftUnavailableFeedRows(
+        viewerCompanyId,
+        await this.hideDesignsCoveredByPacks(
+          diversifyNewestThenFill(
+            [
+              ...withLiveDesigns(collections).map((row) => this.toCollectionFeedRow(row)),
+              ...products.map((row) => this.toProductFeedRow(row)),
+            ].sort(byPostedAtDesc),
+            (row) => row.company.id,
+            windowTake,
+          ),
         ),
       );
       const page = pageMerged(merged, query, (row) => row.feedId);
@@ -707,10 +749,15 @@ export class ExploreService {
               .repostSourceCollectionId,
         ),
       );
+      const bands = await this.resolvedBandsByPack(
+        viewerCompanyId,
+        page.filter((row) => row.collection).map((row) => row.collection!),
+      );
       return toCursorPage(
         page,
         query.limit,
-        (row) => this.toExplorePost(row, stamps, eligible, viewerCompanyId, sourceHopRows),
+        (row) =>
+          this.toExplorePost(row, stamps, eligible, viewerCompanyId, sourceHopRows, bands),
         (row) => row.feedId,
       );
     }
@@ -782,7 +829,14 @@ export class ExploreService {
         ];
     const merged = pinOwnRows(ranked, (row) => row.company.id === viewerCompanyId);
 
-    const page = pageMerged(await this.hideDesignsCoveredByPacks(merged), query, (row) => row.feedId);
+    const page = pageMerged(
+      await this.omitSoftUnavailableFeedRows(
+        viewerCompanyId,
+        await this.hideDesignsCoveredByPacks(merged),
+      ),
+      query,
+      (row) => row.feedId,
+    );
     const stamps = await this.viewerRepostStampsForFeed(viewerCompanyId, page);
     const eligible = await this.eligibleForFeedRows(viewerCompanyId, page);
     const sourceHopRows = await this.loadSourceCreditHopRows(
@@ -793,10 +847,15 @@ export class ExploreService {
             .repostSourceCollectionId,
       ),
     );
+    const bands = await this.resolvedBandsByPack(
+      viewerCompanyId,
+      page.filter((row) => row.collection).map((row) => row.collection!),
+    );
     return toCursorPage(
       page,
       query.limit,
-      (row) => this.toExplorePost(row, stamps, eligible, viewerCompanyId, sourceHopRows),
+      (row) =>
+        this.toExplorePost(row, stamps, eligible, viewerCompanyId, sourceHopRows, bands),
       (row) => row.feedId,
     );
   }
@@ -866,11 +925,14 @@ export class ExploreService {
       }),
     ]);
 
-    const merged = await this.hideDesignsCoveredByPacks(
-      [
-        ...withLiveDesigns(collections).map((row) => this.toCollectionFeedRow(row)),
-        ...products.map((row) => this.toProductFeedRow(row)),
-      ].sort(byPostedAtDesc),
+    const merged = await this.omitSoftUnavailableFeedRows(
+      viewerCompanyId,
+      await this.hideDesignsCoveredByPacks(
+        [
+          ...withLiveDesigns(collections).map((row) => this.toCollectionFeedRow(row)),
+          ...products.map((row) => this.toProductFeedRow(row)),
+        ].sort(byPostedAtDesc),
+      ),
     );
     const page = merged.slice(0, take);
     const stamps = await this.viewerRepostStampsForFeed(viewerCompanyId, page);
@@ -883,10 +945,15 @@ export class ExploreService {
             .repostSourceCollectionId,
       ),
     );
+    const bands = await this.resolvedBandsByPack(
+      viewerCompanyId,
+      page.filter((row) => row.collection).map((row) => row.collection!),
+    );
     return toCursorPage(
       page,
       query.limit,
-      (row) => this.toExplorePost(row, stamps, eligible, viewerCompanyId, sourceHopRows),
+      (row) =>
+        this.toExplorePost(row, stamps, eligible, viewerCompanyId, sourceHopRows, bands),
       (row) => row.feedId,
     );
   }
@@ -1103,6 +1170,7 @@ export class ExploreService {
           updatedAt: true,
           coverImage: true,
           products: {
+            where: { excluded: false },
             orderBy: { position: 'asc' as const },
             take: 2,
             select: { product: { select: { images: true } } },
@@ -1239,8 +1307,12 @@ export class ExploreService {
       where: { id },
       include: {
         company: true,
-        _count: { select: { products: true } },
-        products: { orderBy: { position: 'asc' }, include: { product: true } },
+        _count: { select: { products: { where: { excluded: false } } } },
+        products: {
+          where: { excluded: false },
+          orderBy: { position: 'asc' },
+          include: { product: true },
+        },
       },
     });
 
@@ -1250,32 +1322,34 @@ export class ExploreService {
       throw notFound();
     }
 
-    const isOwner = collection.companyId === viewerCompanyId;
-    if (isOwner && isGeneralKind((collection as { kind?: string }).kind)) {
+    // Narrow away `null` before reassignment (Prisma include types widen on `let` writes).
+    let album = collection;
+    const isOwner = album.companyId === viewerCompanyId;
+    if (isOwner && isGeneralKind((album as { kind?: string }).kind)) {
       const members = await this.prisma.product.findMany({
         where: generalMemberProductWhere(viewerCompanyId),
         orderBy: { createdAt: 'desc' },
       });
-      const collectionId = collection.id;
-      collection = {
-        ...collection,
+      const collectionId = album.id;
+      album = {
+        ...album,
         products: generalMemberJoinRows(collectionId, members),
-        _count: { ...collection._count, products: members.length },
+        _count: { ...album._count, products: members.length },
       };
     }
-    collection = {
-      ...collection,
-      products: presentCollectionProducts(collection.products),
+    album = {
+      ...album,
+      products: presentCollectionProducts(album.products),
     };
     const connected =
-      isOwner || (await this.visibility.canViewCatalog(viewerCompanyId, collection.companyId));
+      isOwner || (await this.visibility.canViewCatalog(viewerCompanyId, album.companyId));
     const following =
       isOwner ||
       (await this.prisma.follow.findUnique({
         where: {
           followerCompanyId_followedCompanyId: {
             followerCompanyId: viewerCompanyId,
-            followedCompanyId: collection.companyId,
+            followedCompanyId: album.companyId,
           },
         },
         select: { status: true },
@@ -1286,34 +1360,68 @@ export class ExploreService {
     // just to reach the shell (was only bypassing the old hard 404).
     const hasViewGrant =
       !isOwner &&
-      (await this.prisma.collectionViewGrant.findUnique({
+      (await this.prisma.collectionViewGrant.findFirst({
         where: {
-          collectionId_companyId: { collectionId: id, companyId: viewerCompanyId },
+          collectionId: id,
+          companyId: viewerCompanyId,
+          expiresAt: { gt: new Date() },
         },
         select: { id: true },
       })) != null;
     if (!isOwner) {
-      if (await this.visibility.isBlocked(viewerCompanyId, collection.companyId)) {
+      if (await this.visibility.isBlocked(viewerCompanyId, album.companyId)) {
         throw notFound();
       }
-      if (!isCollectionLiveForBuyers(collection)) {
+      if (!isCollectionLiveForBuyers(album)) {
         throw notFound();
       }
-      // Live published + known shop → soft shell (products null) so Ask can show.
-      // Hard 404 only when blocked / not live / missing (above).
+      // Live published + known shop → soft shell (products null). Soft-unavailable
+      // vs Ask is distinguished via softUnavailable on the preview. Hard 404 only
+      // when blocked / not live / missing (above).
     }
+
+    const albumAvailability = await resolveBuyerRepostPackAvailability(this.prisma, [
+      {
+        id: album.id,
+        companyId: album.companyId,
+        repostSourceCollectionId: (
+          album as { repostSourceCollectionId?: string | null }
+        ).repostSourceCollectionId,
+      },
+    ]);
+    const upstreamSoftOmit = albumAvailability.omitIds.has(album.id);
+    const upstreamChainSoft = albumAvailability.chainSoftIds.has(album.id);
+    // Buyers: full soft shell only when omitted. Owners: banner when chain soft.
+    const softUnavailable = !isOwner && upstreamSoftOmit;
+    const upstreamUnavailable = isOwner && upstreamChainSoft;
 
     const showProducts =
       isOwner ||
-      canViewCollectionProducts(viewerCompanyId, collection, audienceCtx, hasViewGrant);
+      (!softUnavailable &&
+        canViewCollectionProducts(viewerCompanyId, album, audienceCtx, hasViewGrant));
 
     let products: ProductView[] | null = null;
     if (showProducts) {
+      const memberRows = isOwner
+        ? album.products
+        : upstreamChainSoft
+          ? filterViewerEligibleMembers(
+              album.companyId,
+              album.products.map((entry) => ({
+                ...entry,
+                membershipOrigin: (
+                  entry as { membershipOrigin?: string | null }
+                ).membershipOrigin,
+                excluded: (entry as { excluded?: boolean }).excluded === true,
+              })),
+              true,
+            )
+          : filterSoftAvailableProducts(album.companyId, album.products);
       const foreignSourceIds = [
         ...new Set(
-          collection.products
+          memberRows
             .map((entry) => entry.product.companyId)
-            .filter((sourceId) => sourceId !== collection.companyId),
+            .filter((sourceId) => sourceId !== album.companyId),
         ),
       ];
       const connectedToSource = new Map<string, boolean>();
@@ -1327,7 +1435,7 @@ export class ExploreService {
       );
 
       const ownerIds = [
-        ...new Set(collection.products.map((entry) => entry.product.companyId)),
+        ...new Set(memberRows.map((entry) => entry.product.companyId)),
       ];
       const ownerRows = await this.prisma.company.findMany({
         where: { id: { in: ownerIds } },
@@ -1335,15 +1443,23 @@ export class ExploreService {
       });
       const ownerName = new Map(ownerRows.map((row) => [row.id, row.name]));
 
-      const packOwnerName = collection.company.name;
+      const packOwnerName = album.company.name;
       const sourceHopRows = await this.loadSourceCreditHopRows([
-        (collection as { repostSourceCollectionId?: string | null }).repostSourceCollectionId,
+        (album as { repostSourceCollectionId?: string | null }).repostSourceCollectionId,
       ]);
       const sourceHops = sourceHopsFromRows(
-        (collection as { repostSourceCollectionId?: string | null }).repostSourceCollectionId,
+        (album as { repostSourceCollectionId?: string | null }).repostSourceCollectionId,
         sourceHopRows,
       );
-      products = collection.products
+      const usesCalc = isRepostPricingMode(
+        (album as { repostPricingMode?: string | null }).repostPricingMode,
+      );
+      const albumBuyerRates = usesCalc
+        ? await resolvePackMemberBuyerRates(this.prisma, album, {
+            viewerCompanyId,
+          })
+        : null;
+      products = memberRows
         .filter((entry) =>
           isOwner
             ? entry.product.status !== ProductStatus.Archived
@@ -1354,31 +1470,42 @@ export class ExploreService {
         // Owner: real mill. Visitors: Show supplier + hop ceiling (never leak hidden S1).
         const companyName = visitorDesignCreditCompanyName({
           isOwner,
-          showSourceShops: collection.showSourceShops === true,
-          packCompanyId: collection.companyId,
+          showSourceShops: album.showSourceShops === true,
+          packCompanyId: album.companyId,
           packCompanyName: packOwnerName,
           productCompanyId: entry.product.companyId,
           productCompanyName: millName,
           sourceHops,
           declaredSourceCollectionId:
-            (collection as { repostSourceCollectionId?: string | null })
+            (album as { repostSourceCollectionId?: string | null })
               .repostSourceCollectionId ?? null,
+          hopRows: sourceHopRows,
         });
         const view = {
           ...this.catalog.toProductView(entry.product),
           companyName,
         };
+        if (usesCalc) {
+          const buyerFacing = albumBuyerRates?.get(entry.productId)?.buyerFacing ?? null;
+          if (isOwner) {
+            return { ...view, rate: buyerFacing };
+          }
+          if (!connected && album.rateVisibility === RateVisibility.OnRequest) {
+            return { ...view, rate: null };
+          }
+          return { ...view, rate: buyerFacing };
+        }
         if (isOwner) {
           return view;
         }
         // Rates stay "on request" until connected when the collection says so.
-        if (!connected && collection.rateVisibility === RateVisibility.OnRequest) {
+        if (!connected && album.rateVisibility === RateVisibility.OnRequest) {
           return { ...view, rate: null };
         }
         // Foreign members: apply the source product's rate ceiling for this viewer.
         const sourceId = entry.product.companyId;
         if (
-          sourceId !== collection.companyId &&
+          sourceId !== album.companyId &&
           entry.product.rateVisibility === RateVisibility.OnRequest &&
           !connectedToSource.get(sourceId)
         ) {
@@ -1390,9 +1517,9 @@ export class ExploreService {
 
     const millCompanyIds = [
       ...new Set(
-        collection.products
+        album.products
           .map((entry) => entry.product.companyId)
-          .filter((sourceId) => sourceId !== collection.companyId),
+          .filter((sourceId) => sourceId !== album.companyId),
       ),
     ];
     let viewerTicket: 'me' | 'mill' | null = null;
@@ -1400,7 +1527,7 @@ export class ExploreService {
     if (!isOwner && millCompanyIds.length > 0) {
       const lanes = await this.prisma.tradeLane.findMany({
         where: {
-          traderCompanyId: collection.companyId,
+          traderCompanyId: album.companyId,
           buyerCompanyId: viewerCompanyId,
           sellerCompanyId: { in: millCompanyIds },
         },
@@ -1417,7 +1544,7 @@ export class ExploreService {
       const laneByMill = new Map(lanes.map((lane) => [lane.sellerCompanyId, lane]));
       const packMills = await millShareActiveSet(
         this.prisma,
-        collection.companyId,
+        album.companyId,
         millCompanyIds,
       );
       directMillCompanyIds = millCompanyIds.filter((millId) => {
@@ -1431,22 +1558,39 @@ export class ExploreService {
     }
 
     const albumSourceHopRows = await this.loadSourceCreditHopRows([
-      (collection as { repostSourceCollectionId?: string | null }).repostSourceCollectionId,
+      (album as { repostSourceCollectionId?: string | null }).repostSourceCollectionId,
     ]);
     const albumSourceHops = sourceHopsFromRows(
-      (collection as { repostSourceCollectionId?: string | null }).repostSourceCollectionId,
+      (album as { repostSourceCollectionId?: string | null }).repostSourceCollectionId,
       albumSourceHopRows,
     );
-    const card = this.discovery.toCollectionCard(collection, {
+    const generalAlbum = isGeneralKind((album as { kind?: string }).kind);
+    // Calc modes: band from resolved buyer-facing (never raw foreign Product.rate).
+    let resolvedAlbumBand: { rateMin: number | null; rateMax: number | null } | null =
+      null;
+    if (
+      !generalAlbum &&
+      isRepostPricingMode((album as { repostPricingMode?: string | null }).repostPricingMode)
+    ) {
+      const resolved = await resolvePackMemberBuyerRates(this.prisma, album, {
+        viewerCompanyId,
+      });
+      resolvedAlbumBand = buyerFacingBand(
+        [...resolved.values()].map((row) => row.buyerFacing),
+      );
+    }
+    const card = this.discovery.toCollectionCard(album, {
       viewerCompanyId,
       sourceHops: albumSourceHops,
+      hopRows: albumSourceHopRows,
+      resolvedBand: resolvedAlbumBand,
     });
     const sourceShopNames =
       card.sourceShopNames.length > 0
         ? card.sourceShopNames
         : collectionSourceShopNames(
-            collection.companyId,
-            collection.showSourceShops === true,
+            album.companyId,
+            album.showSourceShops === true,
             (products ?? []).map((row) => ({
               product: {
                 companyId: row.companyId,
@@ -1456,11 +1600,11 @@ export class ExploreService {
             albumSourceHops,
             {
               declaredSourceCollectionId:
-                (collection as { repostSourceCollectionId?: string | null })
+                (album as { repostSourceCollectionId?: string | null })
                   .repostSourceCollectionId ?? null,
+              hopRows: albumSourceHopRows,
             },
           );
-    const generalAlbum = isGeneralKind((collection as { kind?: string }).kind);
     // Album facts: pack rate first; else min–max priced designs. Owner always
     // sees the band; on_request hides it from other users only.
     // General Collection is leftover storage — not a pack ₹ band.
@@ -1468,30 +1612,34 @@ export class ExploreService {
       ? { rateMin: null, rateMax: null, rateUnit: null }
       : collectionCardRateFields({
           rateVisibility: collectionCardRateVisibility({
-            rateVisibility: collection.rateVisibility,
-            packCompanyId: collection.companyId,
+            rateVisibility: album.rateVisibility,
+            packCompanyId: album.companyId,
             viewerCompanyId,
           }),
-          rate: collection.rate,
-          rateMax: collection.rateMax,
-          catalogRateUnit: (collection as { catalogRateUnit?: string | null }).catalogRateUnit,
-          products: collection.products,
+          rate: album.rate,
+          rateMax: album.rateMax,
+          catalogRateUnit: (album as { catalogRateUnit?: string | null }).catalogRateUnit,
+          products: album.products,
+          resolvedBand: resolvedAlbumBand,
         });
-    const description = collection.description?.trim() || null;
-    // Locked pack: name + shop for Ask — no cover/design thumbs (or chat open is pointless).
+    const description = album.description?.trim() || null;
+    // Locked / soft-unavailable: name + shop — no cover, designs, rates, or supplier credit.
+    // softUnavailable flag lets the client show unavailable chrome (not Ask).
     if (!showProducts) {
       return {
         ...card,
-        sourceShopNames,
-        rateMin: albumRate.rateMin,
-        rateMax: albumRate.rateMax,
-        rateUnit: albumRate.rateUnit,
-        description,
+        sourceShopNames: softUnavailable ? [] : sourceShopNames,
+        rateMin: softUnavailable ? null : albumRate.rateMin,
+        rateMax: softUnavailable ? null : albumRate.rateMax,
+        rateUnit: softUnavailable ? null : albumRate.rateUnit,
+        description: softUnavailable ? null : description,
         coverImage: null,
         previewImages: [],
         imageCount: 0,
         connected,
         products: null,
+        softUnavailable,
+        upstreamUnavailable: false,
         viewerTicket: null,
         directMillCompanyIds: [],
       };
@@ -1505,6 +1653,8 @@ export class ExploreService {
       description,
       connected,
       products,
+      softUnavailable: false,
+      upstreamUnavailable,
       productCount: products?.length ?? 0,
       viewerTicket,
       directMillCompanyIds,
@@ -1767,6 +1917,7 @@ export class ExploreService {
             updatedAt: true,
             coverImage: true,
             products: {
+              where: { excluded: false },
               orderBy: { position: 'asc' },
               take: 2,
               select: { product: { select: { images: true } } },
@@ -1963,7 +2114,7 @@ export class ExploreService {
   private async memberProductIdsForCollections(collectionIds: string[]): Promise<Set<string>> {
     if (collectionIds.length === 0) return new Set();
     const members = await this.prisma.collectionProduct.findMany({
-      where: { collectionId: { in: collectionIds } },
+      where: { collectionId: { in: collectionIds }, excluded: false },
       select: { productId: true },
     });
     return new Set(members.map((row) => row.productId));
@@ -1977,6 +2128,46 @@ export class ExploreService {
       ),
     ];
     return omitCoveredDesignFeedRows(rows, await this.memberProductIdsForCollections(collectionIds));
+  }
+
+  /** P1: omit soft-unavailable descendant packs from buyer-facing Explore feeds. */
+  private async omitSoftUnavailableFeedRows(
+    viewerCompanyId: string,
+    rows: FeedRow[],
+  ): Promise<FeedRow[]> {
+    const packs = rows.flatMap((row) =>
+      row.kind === 'collection' && row.collection
+        ? [
+            {
+              id: row.collection.id,
+              companyId: row.collection.companyId,
+              repostSourceCollectionId: (
+                row.collection as { repostSourceCollectionId?: string | null }
+              ).repostSourceCollectionId,
+            },
+          ]
+        : [],
+    );
+    if (packs.length === 0) return rows;
+    const availability = await resolveBuyerRepostPackAvailability(this.prisma, packs);
+    const softOff = availability.omitIds;
+    return rows.flatMap((row) => {
+      if (row.kind !== 'collection' || !row.collection) return [row];
+      if (row.collection.companyId === viewerCompanyId) return [row];
+      if (softOff.has(row.collection.id)) return [];
+      const eligibleIds = availability.eligibleProductIdsByPackId.get(row.collection.id);
+      if (!eligibleIds) return [row];
+      return [
+        {
+          ...row,
+          collection: projectEligibleCollectionMembers(
+            row.collection,
+            viewerCompanyId,
+            eligibleIds,
+          ),
+        },
+      ];
+    });
   }
 
   private toCollectionFeedRow(row: CollectionCardRow): FeedRow {
@@ -1999,6 +2190,13 @@ export class ExploreService {
     };
   }
 
+  private resolvedBandsByPack(
+    viewerCompanyId: string,
+    rows: Parameters<typeof resolvedBandsForPacks>[2],
+  ) {
+    return resolvedBandsForPacks(this.prisma, viewerCompanyId, rows);
+  }
+
   /** Stamp Explore cards so already-reposted peer posts show the done icon. */
   private async toCollectionCardPage(
     viewerCompanyId: string,
@@ -2009,22 +2207,46 @@ export class ExploreService {
       collectionIds: rows.map((row) => row.id),
       productIds: [],
     });
-    const eligible = await this.eligibleCountByCollection(viewerCompanyId, rows);
+    const availability = await resolveBuyerRepostPackAvailability(
+      this.prisma,
+      rows.map((row) => ({
+        id: row.id,
+        companyId: row.companyId,
+        repostSourceCollectionId: (
+          row as { repostSourceCollectionId?: string | null }
+        ).repostSourceCollectionId,
+      })),
+    );
+    const softOff = availability.omitIds;
+    const visible = rows
+      .filter((row) => row.companyId === viewerCompanyId || !softOff.has(row.id))
+      .map((row) =>
+        projectEligibleCollectionMembers(
+          row,
+          viewerCompanyId,
+          availability.eligibleProductIdsByPackId.get(row.id),
+        ),
+      );
+    const eligible = await this.eligibleCountByCollection(viewerCompanyId, visible);
     const sourceHopRows = await this.loadSourceCreditHopRows(
-      rows.map(
+      visible.map(
         (row) =>
           (row as { repostSourceCollectionId?: string | null }).repostSourceCollectionId,
       ),
     );
-    return toCursorPage(rows, limit, (row) =>
+    const bands = await this.resolvedBandsByPack(viewerCompanyId, visible);
+    return toCursorPage(visible, limit, (row) =>
       this.discovery.toCollectionCard(row, {
         viewerReposted: stamps.collections.has(row.id),
+        viewerRepostCollectionId: stamps.collections.get(row.id) ?? null,
         viewerCompanyId,
         repostEligibleCount: eligible.get(row.id) ?? 0,
         sourceHops: sourceHopsFromRows(
           (row as { repostSourceCollectionId?: string | null }).repostSourceCollectionId,
           sourceHopRows,
         ),
+        hopRows: sourceHopRows,
+        resolvedBand: bands.get(row.id) ?? null,
       }),
     );
   }
@@ -2032,39 +2254,7 @@ export class ExploreService {
   private async loadSourceCreditHopRows(
     sourceIds: Array<string | null | undefined>,
   ): Promise<Map<string, SourceCreditHopRow>> {
-    const byId = new Map<string, SourceCreditHopRow>();
-    let pending = [
-      ...new Set(sourceIds.filter((id): id is string => Boolean(id))),
-    ];
-    for (let depth = 0; depth < 4 && pending.length > 0; depth += 1) {
-      const hopRows = await this.prisma.collection.findMany({
-        where: { id: { in: pending } },
-        select: {
-          id: true,
-          companyId: true,
-          showSourceShops: true,
-          repostSourceCollectionId: true,
-          company: { select: { name: true } },
-        },
-      });
-      const next: string[] = [];
-      for (const row of hopRows) {
-        byId.set(row.id, {
-          companyId: row.companyId,
-          companyName: row.company.name,
-          showSourceShops: row.showSourceShops === true,
-          repostSourceCollectionId: row.repostSourceCollectionId,
-        });
-        if (
-          row.repostSourceCollectionId &&
-          !byId.has(row.repostSourceCollectionId)
-        ) {
-          next.push(row.repostSourceCollectionId);
-        }
-      }
-      pending = next;
-    }
-    return byId;
+    return loadSourceCreditHopRows(this.prisma, sourceIds);
   }
 
   private async toProductCardPage(
@@ -2083,6 +2273,7 @@ export class ExploreService {
     return toCursorPage(rows, limit, (row) =>
       this.discovery.toExploreProductCard(row, {
         viewerReposted: stamps.products.has(row.id),
+        viewerRepostCollectionId: stamps.products.get(row.id) ?? null,
         repostEligibleCount: allowed.has(row.id) ? 1 : 0,
       }),
     );
@@ -2091,7 +2282,7 @@ export class ExploreService {
   private async viewerRepostStampsForFeed(
     viewerCompanyId: string,
     rows: FeedRow[],
-  ): Promise<{ collections: Set<string>; products: Set<string> }> {
+  ): Promise<{ collections: Map<string, string>; products: Map<string, string> }> {
     return this.viewerRepostStamps(viewerCompanyId, {
       collectionIds: rows.flatMap((row) =>
         row.kind === 'collection' && row.collection ? [row.collection.id] : [],
@@ -2102,14 +2293,21 @@ export class ExploreService {
     });
   }
 
+  /**
+   * Source id → viewer's existing child pack id (edit-from-Explore).
+   * Skips reusable draft/auto Selected children (those stay create-reuse).
+   */
   private async viewerRepostStamps(
     viewerCompanyId: string,
     ids: { collectionIds: string[]; productIds: string[] },
-  ): Promise<{ collections: Set<string>; products: Set<string> }> {
+  ): Promise<{
+    collections: Map<string, string>;
+    products: Map<string, string>;
+  }> {
     const collectionIds = [...new Set(ids.collectionIds)];
     const productIds = [...new Set(ids.productIds)];
     if (collectionIds.length === 0 && productIds.length === 0) {
-      return { collections: new Set(), products: new Set() };
+      return { collections: new Map(), products: new Map() };
     }
     const mine = await this.prisma.collection.findMany({
       where: {
@@ -2123,6 +2321,7 @@ export class ExploreService {
         ],
       },
       select: {
+        id: true,
         repostSourceCollectionId: true,
         repostSourceProductId: true,
         status: true,
@@ -2130,12 +2329,16 @@ export class ExploreService {
         repostOrigin: true,
       },
     });
-    const collections = new Set<string>();
-    const products = new Set<string>();
+    const collections = new Map<string, string>();
+    const products = new Map<string, string>();
     for (const row of mine) {
       if (shouldReuseRepostChild(row)) continue;
-      if (row.repostSourceCollectionId) collections.add(row.repostSourceCollectionId);
-      if (row.repostSourceProductId) products.add(row.repostSourceProductId);
+      if (row.repostSourceCollectionId) {
+        collections.set(row.repostSourceCollectionId, row.id);
+      }
+      if (row.repostSourceProductId) {
+        products.set(row.repostSourceProductId, row.id);
+      }
     }
     return { collections, products };
   }
@@ -2252,10 +2455,11 @@ export class ExploreService {
 
   private toExplorePost(
     row: FeedRow,
-    stamps: { collections: Set<string>; products: Set<string> },
+    stamps: { collections: Map<string, string>; products: Map<string, string> },
     eligible: { collections: Map<string, number>; products: Map<string, number> },
     viewerCompanyId: string,
     sourceHopRows: Map<string, SourceCreditHopRow> = new Map(),
+    resolvedBands: Map<string, { rateMin: number | null; rateMax: number | null }> = new Map(),
   ): ExplorePost {
     if (row.kind === 'collection' && row.collection) {
       return {
@@ -2264,6 +2468,7 @@ export class ExploreService {
         postedAt: row.postedAt.toISOString(),
         collection: this.discovery.toCollectionCard(row.collection, {
           viewerReposted: stamps.collections.has(row.collection.id),
+          viewerRepostCollectionId: stamps.collections.get(row.collection.id) ?? null,
           viewerCompanyId,
           repostEligibleCount: eligible.collections.get(row.collection.id) ?? 0,
           sourceHops: sourceHopsFromRows(
@@ -2271,6 +2476,8 @@ export class ExploreService {
               .repostSourceCollectionId,
             sourceHopRows,
           ),
+          hopRows: sourceHopRows,
+          resolvedBand: resolvedBands.get(row.collection.id) ?? null,
         }),
       };
     }
@@ -2281,6 +2488,7 @@ export class ExploreService {
         postedAt: row.postedAt.toISOString(),
         product: this.discovery.toExploreProductCard(row.product, {
           viewerReposted: stamps.products.has(row.product.id),
+          viewerRepostCollectionId: stamps.products.get(row.product.id) ?? null,
           repostEligibleCount: eligible.products.get(row.product.id) ?? 0,
         }),
       };

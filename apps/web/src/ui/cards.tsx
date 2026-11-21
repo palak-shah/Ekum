@@ -30,6 +30,7 @@ import { ExploreFeedCaption } from '@/features/explore/ExploreFeedCaption';
 import { ExploreFeedActions } from '@/features/explore/ExploreFeedActions';
 import {
   exploreFeedCategoryLine,
+  exploreFeedNewDesignsLine,
   exploreFeedRateLine,
 } from '@/features/explore/exploreFeedCaptionLines';
 import { noteExploreCollectionOpen } from '@/features/explore/exploreScrollSession';
@@ -307,6 +308,9 @@ export function OpportunityCollectionCard({
       >
         <ExploreFeedCaption
           title={collection.name}
+          meta={exploreFeedNewDesignsLine(collection.exploreNewDesignCount, {
+            isOwn,
+          })}
           rateLine={rateLine}
           categoryLine={categoryLine}
         />

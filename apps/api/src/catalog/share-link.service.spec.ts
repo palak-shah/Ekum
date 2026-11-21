@@ -184,7 +184,7 @@ describe('ShareLinkService', () => {
     expect(findMany).not.toHaveBeenCalled();
   });
 
-  it('claims a collection token into a view grant then album path', async () => {
+  it('claims a collection token to album path without creating a view grant', async () => {
     const upsert = vi.fn(async () => ({}));
     const prisma = {
       catalogShareLink: {
@@ -200,7 +200,12 @@ describe('ShareLinkService', () => {
         findUnique: vi
           .fn()
           .mockResolvedValueOnce(liveCollection())
-          .mockResolvedValueOnce({ id: 'c1', companyId: 'owner' }),
+          .mockResolvedValueOnce({
+            id: 'c1',
+            companyId: 'owner',
+            status: CollectionStatus.Published,
+            allowForward: true,
+          }),
       },
       collectionProduct: { findMany: vi.fn(async () => []) },
       collectionViewGrant: { upsert },
@@ -209,16 +214,10 @@ describe('ShareLinkService', () => {
     const claimed = await svc.claim('buyer', 'tok');
     expect(claimed.path).toBe('/collections/c1');
     expect(claimed.kind).toBe('collection');
-    expect(upsert).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: {
-          collectionId_companyId: { collectionId: 'c1', companyId: 'buyer' },
-        },
-      }),
-    );
+    expect(upsert).not.toHaveBeenCalled();
   });
 
-  it('does not grant the owner a view grant on claim', async () => {
+  it('owner claim also never writes a view grant', async () => {
     const upsert = vi.fn(async () => ({}));
     const prisma = {
       catalogShareLink: {
@@ -234,13 +233,149 @@ describe('ShareLinkService', () => {
         findUnique: vi
           .fn()
           .mockResolvedValueOnce(liveCollection())
-          .mockResolvedValueOnce({ id: 'c1', companyId: 'owner' }),
+          .mockResolvedValueOnce({
+            id: 'c1',
+            companyId: 'owner',
+            status: CollectionStatus.Published,
+            allowForward: true,
+          }),
       },
       collectionProduct: { findMany: vi.fn(async () => []) },
       collectionViewGrant: { upsert },
     } as unknown as PrismaService;
     const svc = new ShareLinkService(prisma);
     const claimed = await svc.claim('owner', 'tok');
+    expect(claimed.path).toBe('/collections/c1');
+    expect(upsert).not.toHaveBeenCalled();
+  });
+
+  it('creates a share link without requiring the recipient to have access', async () => {
+    const collection = liveCollection({ audience: PublishAudience.Selected });
+    const prisma = {
+      collection: { findUnique: vi.fn(async () => collection) },
+      catalogShareLink: {
+        create: vi.fn(async () => ({})),
+        findUnique: vi.fn(async () => ({
+          token: 'tok',
+          collectionId: 'c1',
+          productId: null,
+          productIds: [],
+          expiresAt: new Date(Date.now() + 60_000),
+        })),
+      },
+    } as unknown as PrismaService;
+    const view = await new ShareLinkService(prisma).create('stranger-sharer', {
+      collectionId: 'c1',
+    });
+    expect(view.path.startsWith('/s/')).toBe(true);
+    expect(view.open).toBe(false);
+  });
+
+  it('guest open stays closed with no design metadata (Request access surface)', async () => {
+    const findMany = vi.fn();
+    const prisma = {
+      catalogShareLink: {
+        findUnique: vi.fn(async () => ({
+          token: 't',
+          collectionId: 'c1',
+          productId: null,
+          expiresAt: new Date(Date.now() + 60_000),
+        })),
+      },
+      collection: { findUnique: vi.fn(async () => liveCollection()) },
+      collectionProduct: { findMany },
+    } as unknown as PrismaService;
+    const view = await new ShareLinkService(prisma).get('t');
+    expect(view.open).toBe(false);
+    expect(view.designs).toEqual([]);
+    expect(findMany).not.toHaveBeenCalled();
+  });
+
+  it('OG teaser skips excluded membership rows', async () => {
+    const findMany = vi.fn(async (args: { where?: { excluded?: boolean } }) => {
+      expect(args.where?.excluded).toBe(false);
+      return [
+        { product: { id: 'active', name: 'Live', images: ['a.jpg'] } },
+      ];
+    });
+    const prisma = {
+      catalogShareLink: {
+        findUnique: vi.fn(async () => ({
+          token: 't',
+          collectionId: 'c1',
+          productId: null,
+          productIds: [],
+          expiresAt: new Date(Date.now() + 60_000),
+        })),
+      },
+      collection: { findUnique: vi.fn(async () => liveCollection({ coverImage: 'cover.jpg' })) },
+      collectionProduct: { findMany },
+    } as unknown as PrismaService;
+    const svc = new ShareLinkService(prisma);
+    const teaser = await svc.teaserImagePaths('t');
+    expect(findMany).toHaveBeenCalled();
+    expect(teaser.paths).toEqual(['a.jpg']);
+  });
+
+  it('refuses claim when the pack is no longer published (revoke / draft)', async () => {
+    const upsert = vi.fn(async () => ({}));
+    const prisma = {
+      catalogShareLink: {
+        findUnique: vi.fn(async () => ({
+          token: 'tok',
+          collectionId: 'c1',
+          productId: null,
+          productIds: [],
+          expiresAt: new Date(Date.now() + 60_000),
+        })),
+      },
+      collection: {
+        findUnique: vi
+          .fn()
+          .mockResolvedValueOnce(liveCollection())
+          .mockResolvedValueOnce({
+            id: 'c1',
+            companyId: 'owner',
+            status: CollectionStatus.Draft,
+            allowForward: true,
+          }),
+      },
+      collectionProduct: { findMany: vi.fn(async () => []) },
+      collectionViewGrant: { upsert },
+    } as unknown as PrismaService;
+    await expect(new ShareLinkService(prisma).claim('buyer', 'tok')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+    expect(upsert).not.toHaveBeenCalled();
+  });
+
+  it('claim navigates when allowForward is off (view grant is Ask→Allow only)', async () => {
+    const upsert = vi.fn(async () => ({}));
+    const prisma = {
+      catalogShareLink: {
+        findUnique: vi.fn(async () => ({
+          token: 'tok',
+          collectionId: 'c1',
+          productId: null,
+          productIds: [],
+          expiresAt: new Date(Date.now() + 60_000),
+        })),
+      },
+      collection: {
+        findUnique: vi
+          .fn()
+          .mockResolvedValueOnce(liveCollection({ allowForward: false }))
+          .mockResolvedValueOnce({
+            id: 'c1',
+            companyId: 'owner',
+            status: CollectionStatus.Published,
+            allowForward: false,
+          }),
+      },
+      collectionProduct: { findMany: vi.fn(async () => []) },
+      collectionViewGrant: { upsert },
+    } as unknown as PrismaService;
+    const claimed = await new ShareLinkService(prisma).claim('buyer', 'tok');
     expect(claimed.path).toBe('/collections/c1');
     expect(upsert).not.toHaveBeenCalled();
   });

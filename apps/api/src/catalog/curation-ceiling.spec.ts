@@ -55,6 +55,20 @@ describe('assertProductsCuratable', () => {
     ).not.toThrow();
   });
 
+  it('does not treat another company’s grant as this curator’s unlock (hop isolation)', () => {
+    // A granted B; C presents empty relistGrantedIds — still RELIST_NOT_ALLOWED.
+    expectBadRequest(
+      () =>
+        assertProductsCuratable({
+          curatorCompanyId: 'buyer-c',
+          products: [{ ...base, allowForward: false, companyId: 'supplier-a' }],
+          discoverableIds: new Set(['p1']),
+          relistGrantedIds: new Set(),
+        }),
+      'RELIST_NOT_ALLOWED',
+    );
+  });
+
   it('allows look-only when Everyone + allowForward', () => {
     expect(() =>
       assertProductsCuratable({
@@ -186,6 +200,32 @@ describe('assertProductsCuratable', () => {
         products: [{ ...base, companyId: 'me', allowForward: false }],
       }),
     ).not.toThrow();
+  });
+
+  it('skipAddEligibility skips Pack/Look re-check but keeps audience ceiling', () => {
+    expect(() =>
+      assertProductsCuratable({
+        curatorCompanyId: 'me',
+        products: [{ ...base, audience: 'followers', allowForward: false }],
+        lookOnlyOwnerIds: new Set(['other']),
+        discoverableIds: new Set(),
+        relistGrantedIds: new Set(),
+        skipAddEligibility: true,
+        publishAudience: 'followers',
+      }),
+    ).not.toThrow();
+
+    expectBadRequest(
+      () =>
+        assertProductsCuratable({
+          curatorCompanyId: 'me',
+          products: [{ ...base, audience: 'followers', allowForward: false }],
+          lookOnlyOwnerIds: new Set(['other']),
+          skipAddEligibility: true,
+          publishAudience: 'everyone',
+        }),
+      'CURATED_AUDIENCE_TOO_WIDE',
+    );
   });
 });
 

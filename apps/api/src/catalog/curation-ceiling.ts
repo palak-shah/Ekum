@@ -31,6 +31,12 @@ export type AssertProductsCuratableInput = {
   lookOnlyOwnerIds?: Set<string>;
   /** When Reposting a pack, use the source collection audience for look-only exemption. */
   sourcePackAudience?: string;
+  /**
+   * Already-live curated pack (settings / rates / who republish).
+   * Skip Pack/Look/discoverability re-litigation for members already on the child;
+   * still enforce publish audience ceiling.
+   */
+  skipAddEligibility?: boolean;
 };
 
 function skipsLookOnlyBlock(
@@ -66,37 +72,40 @@ export function assertProductsCuratable(input: AssertProductsCuratableInput): vo
     relistGrantedIds,
     lookOnlyOwnerIds,
     sourcePackAudience,
+    skipAddEligibility = false,
   } = input;
 
-  for (const product of products) {
-    if (!isForeign(curatorCompanyId, product)) {
-      continue;
-    }
+  if (!skipAddEligibility) {
+    for (const product of products) {
+      if (!isForeign(curatorCompanyId, product)) {
+        continue;
+      }
 
-    const granted = relistGrantedIds?.has(product.id) === true;
+      const granted = relistGrantedIds?.has(product.id) === true;
 
-    if (
-      lookOnlyOwnerIds?.has(product.companyId) === true &&
-      !skipsLookOnlyBlock(product, granted, sourcePackAudience)
-    ) {
-      throw new BadRequestException({
-        code: 'FOLLOW_LOOK_ONLY',
-        message: "They haven't allowed putting their designs in a collection.",
-      });
-    }
+      if (
+        lookOnlyOwnerIds?.has(product.companyId) === true &&
+        !skipsLookOnlyBlock(product, granted, sourcePackAudience)
+      ) {
+        throw new BadRequestException({
+          code: 'FOLLOW_LOOK_ONLY',
+          message: "They haven't allowed putting their designs in a collection.",
+        });
+      }
 
-    if (!product.allowForward && !granted) {
-      throw new BadRequestException({
-        code: 'RELIST_NOT_ALLOWED',
-        message: "This seller doesn't allow putting this in a collection.",
-      });
-    }
+      if (!product.allowForward && !granted) {
+        throw new BadRequestException({
+          code: 'RELIST_NOT_ALLOWED',
+          message: "This seller doesn't allow putting this in a collection.",
+        });
+      }
 
-    if (discoverableIds !== undefined && !discoverableIds.has(product.id)) {
-      throw new BadRequestException({
-        code: 'NOT_DISCOVERABLE',
-        message: 'One or more products are not visible to you.',
-      });
+      if (discoverableIds !== undefined && !discoverableIds.has(product.id)) {
+        throw new BadRequestException({
+          code: 'NOT_DISCOVERABLE',
+          message: 'One or more products are not visible to you.',
+        });
+      }
     }
   }
 

@@ -66,6 +66,7 @@ import {
   type ForwardOrderNoteDto,
   TradeLaneTicket,
   showBillTotalOnOrders,
+  isRepostPricingMode,
 } from '@ekum/domain-types';
 import {
   claimParentItemId,
@@ -110,6 +111,9 @@ import {
   resolveCatalogWholeStamps,
   type CatalogWholePackHint,
 } from './catalog-whole-order';
+import {
+  resolvePackMemberBuyerRates,
+} from '../catalog/repost-pricing-resolve';
 import {
   primaryLrFromLegs,
   resolveParcelCount,
@@ -522,7 +526,10 @@ export class OrderService {
         orderMode: true,
         orderPathPreference: true,
         company: { select: { settings: { select: { tradeDefaults: true } } } },
-        products: { select: { productId: true, product: { select: { status: true } } } },
+        products: {
+          where: { excluded: false },
+          select: { productId: true, product: { select: { status: true } } },
+        },
       },
     });
     if (!collection) {
@@ -5444,12 +5451,18 @@ export class OrderService {
         }
         const nextQty = millItem.quantity.toNumber();
         const beforeQty = parentItem.quantity.toNumber();
-        const nextRate = millItem.rate != null ? millItem.rate.toNumber() : null;
+        const millRate = millItem.rate != null ? millItem.rate.toNumber() : null;
+        const parentRate = parentItem.rate != null ? parentItem.rate.toNumber() : null;
+        // Batch 3: parent Sell stores buyer-facing; hop Buy stores supplier rate.
+        // Never overwrite a distinct parent buyer-facing rate with the mill rate.
+        const copyRate =
+          millRate != null &&
+          (parentRate == null || Math.abs(parentRate - millRate) < 0.005);
         await tx.orderItem.update({
           where: { id: parentItemId },
           data: {
             quantity: millItem.quantity,
-            ...(nextRate != null ? { rate: millItem.rate } : {}),
+            ...(copyRate ? { rate: millItem.rate } : {}),
             lineStatus:
               millItem.lineStatus === OrderLineStatus.Dispatched
                 ? OrderLineStatus.Dispatched
@@ -5457,6 +5470,7 @@ export class OrderService {
             ...(parentItem.confirmedQuantity == null
               ? { confirmedQuantity: millItem.confirmedQuantity ?? millItem.quantity }
               : {}),
+            // confirmedRate remains write-once.
             ...(parentItem.confirmedRate == null && millItem.confirmedRate != null
               ? { confirmedRate: millItem.confirmedRate }
               : {}),
@@ -7307,6 +7321,36 @@ export class OrderService {
       stamps,
     );
 
+    // Parent Sell from a curated pack: stamp resolved buyer-facing when calc mode is set.
+    // Mill hops omit catalogWholePack → keep supplier Product.rate.
+    let buyerFacingByProduct = new Map<string, number | null>();
+    const packHint = opts.catalogWholePack;
+    if (packHint?.id) {
+      const pack = await this.prisma.collection.findUnique({
+        where: { id: packHint.id },
+        select: {
+          id: true,
+          companyId: true,
+          rate: true,
+          rateVisibility: true,
+          repostSourceCollectionId: true,
+          repostPricingMode: true,
+          repostMarginValue: true,
+          repostEditedRate: true,
+          repostEditOwnBase: true,
+        },
+      });
+      if (pack && isRepostPricingMode(pack.repostPricingMode)) {
+        const resolved = await resolvePackMemberBuyerRates(this.prisma, pack, {
+          viewerCompanyId: pack.companyId,
+          sourceDisclosed: true,
+        });
+        for (const [productId, row] of resolved) {
+          buyerFacingByProduct.set(productId, row.buyerFacing);
+        }
+      }
+    }
+
     return dto.items.map((item) => {
       const product = item.productId ? byId.get(item.productId) : undefined;
       if (!product || (product as { status?: string }).status === ProductStatus.Archived) {
@@ -7318,6 +7362,10 @@ export class OrderService {
         });
       }
       const stamp = item.productId ? stamps.get(item.productId) : undefined;
+      const resolvedRate =
+        item.productId && buyerFacingByProduct.has(item.productId)
+          ? buyerFacingByProduct.get(item.productId) ?? null
+          : product.rate;
       return withPrismaField(
         'OrderItem',
         'catalogWhole',
@@ -7343,7 +7391,7 @@ export class OrderService {
                       productId: product.id,
                       name: product.name,
                       sku: product.sku,
-                      rate: product.rate,
+                      rate: resolvedRate,
                       unit: product.unit ?? item.unit ?? null,
                       image: product.images[0] ?? null,
                       images: product.images,

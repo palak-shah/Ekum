@@ -447,6 +447,16 @@ model Collection {
   repostSyncedSourceAt DateTime?
   /** Source member product ids as of last successful sync (for removals). */
   repostSyncedProductIds Json?
+  /**
+   * Repost buyer-facing calculation (Batch 3). Never `ask` —
+   * Ask = rateVisibility on_request.
+   * same | margin_fixed | margin_percent | edit
+   */
+  repostPricingMode   String?
+  repostMarginValue   Decimal? @db.Decimal(12, 2)
+  repostEditedRate    Decimal? @db.Decimal(12, 2)
+  /** Disclosed source basis when Edit was entered; null = independent quote. */
+  repostEditOwnBase   Decimal? @db.Decimal(12, 2)
   /** Live window start (UTC). null = live as soon as published. */
   startsAt            DateTime?
   /** Live window end (UTC). null = evergreen. When passed → Hide to draft. */
@@ -578,6 +588,8 @@ model CollectionViewGrant {
   collectionId String
   companyId    String
   grantedAt    DateTime @default(now())
+  /** Look-through ends here (48h from Allow). Expired rows are inert until deleted. */
+  expiresAt    DateTime
   createdAt    DateTime @default(now())
 
   collection Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
@@ -585,6 +597,7 @@ model CollectionViewGrant {
 
   @@unique([collectionId, companyId])
   @@index([companyId, grantedAt])
+  @@index([expiresAt])
 }
 
 /// Pending Ask to see a collection. Allow → grant; Deny is silent to requester.
@@ -655,6 +668,23 @@ model CollectionProduct {
   collectionId String
   productId    String
   position     Int      @default(0)
+  /**
+   * Repost provenance: synced from immediate source vs locally added.
+   * Null on non-repost packs (or pre-backfill rows that are not source-linked).
+   */
+  membershipOrigin String?
+  /** Soft-removed synced member; sticky until explicit owner re-add. */
+  excluded         Boolean  @default(false)
+  /** Set when an excluded member is explicitly re-added by the owner. */
+  explicitlyAddedAt DateTime?
+  /**
+   * Per-design buyer-facing calc override (Batch 3). Null mode = inherit pack.
+   * Modes: same | margin_fixed | margin_percent | edit — never ask.
+   */
+  pricingMode      String?
+  marginValue      Decimal? @db.Decimal(12, 2)
+  editedRate       Decimal? @db.Decimal(12, 2)
+  editOwnBase      Decimal? @db.Decimal(12, 2)
   createdAt    DateTime @default(now())
 
   collection Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
@@ -662,6 +692,7 @@ model CollectionProduct {
 
   @@unique([collectionId, productId])
   @@index([productId])
+  @@index([collectionId, excluded])
 }
 
 /// A reference bookmark: exactly one of productId or collectionId (enforced in

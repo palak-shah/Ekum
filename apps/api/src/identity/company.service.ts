@@ -39,6 +39,12 @@ import {
   sourceHopsFromRows,
 } from '../discovery/discovery.serializer';
 import type { SourceCreditHopRow } from '../discovery/source-shop-credit';
+import { loadSourceCreditHopRows } from '../discovery/load-source-credit-hops';
+import {
+  projectEligibleCollectionMembers,
+  resolveBuyerRepostPackAvailability,
+} from '../catalog/load-upstream-packs';
+import { resolvedBandsForPacks } from '../catalog/repost-pricing-resolve';
 import { collectionCardInclude, collectionPreviewFromRow } from '../discovery/collection-preview';
 import { isAllowedFollow } from '../discovery/follow-access';
 import { cursorArgs, toCursorPage } from '../discovery/pagination';
@@ -393,6 +399,7 @@ export class CompanyService {
       postedAt: (row.postedToMarketAt ?? row.createdAt).toISOString(),
       allowForward: row.allowForward !== false,
       viewerReposted: repostedProducts.has(row.id),
+      viewerRepostCollectionId: repostedProducts.get(row.id) ?? null,
       company: this.serializer.toPublicSummary(row.company),
     }));
   }
@@ -431,7 +438,11 @@ export class CompanyService {
           ...(isOwner ? [{ companyId: targetId }] : []),
         ],
         AND: [
-          { products: { some: { product: { status: ProductStatus.Published } } } },
+          {
+            products: {
+              some: { excluded: false, product: { status: ProductStatus.Published } },
+            },
+          },
           ...(isOwner
             ? []
             : [
@@ -445,15 +456,43 @@ export class CompanyService {
     });
 
     const live = rows.filter((row) => row._count.products > 0);
-    const collectionIds = live.map((row) => row.id);
+    const availability = isOwner
+      ? null
+      : await resolveBuyerRepostPackAvailability(
+          this.prisma,
+          live.map((row) => ({
+            id: row.id,
+            companyId: row.companyId,
+            repostSourceCollectionId: (
+              row as { repostSourceCollectionId?: string | null }
+            ).repostSourceCollectionId,
+          })),
+        );
+    const softOff = availability?.omitIds ?? new Set<string>();
+    const visible = live
+      .filter((row) => !softOff.has(row.id))
+      .map((row) =>
+        availability
+          ? projectEligibleCollectionMembers(
+              row,
+              viewerCompanyId,
+              availability.eligibleProductIdsByPackId.get(row.id),
+            )
+          : row,
+      );
+    const collectionIds = visible.map((row) => row.id);
     const repostedCollections = await this.viewerRepostedCollectionIds(
       viewerCompanyId,
       collectionIds,
     );
     const sourceHopRows = await this.loadSourceCreditHopRows(
-      live.map((row) => (row as { repostSourceCollectionId?: string | null }).repostSourceCollectionId),
+      visible.map(
+        (row) =>
+          (row as { repostSourceCollectionId?: string | null }).repostSourceCollectionId,
+      ),
     );
-    return toCursorPage(live, query.limit, (row) => {
+    const bands = await resolvedBandsForPacks(this.prisma, viewerCompanyId, visible);
+    return toCursorPage(visible, query.limit, (row) => {
       const preview = collectionPreviewFromRow(row);
       const rate = collectionCardRateFields({
         rateVisibility: collectionCardRateVisibility({
@@ -465,6 +504,7 @@ export class CompanyService {
         rateMax: row.rateMax,
         catalogRateUnit: (row as { catalogRateUnit?: string | null }).catalogRateUnit,
         products: row.products,
+        resolvedBand: bands.get(row.id) ?? null,
       });
       const sourceHops = sourceHopsFromRows(
         (row as { repostSourceCollectionId?: string | null }).repostSourceCollectionId,
@@ -503,9 +543,15 @@ export class CompanyService {
             declaredSourceCollectionId:
               (row as { repostSourceCollectionId?: string | null }).repostSourceCollectionId ??
               null,
+            hopRows: sourceHopRows,
           },
         ),
         viewerReposted: repostedCollections.has(row.id),
+        isRepostChild: Boolean(
+          (row as { repostSourceCollectionId?: string | null }).repostSourceCollectionId ||
+            (row as { repostSourceProductId?: string | null }).repostSourceProductId,
+        ),
+        viewerRepostCollectionId: repostedCollections.get(row.id) ?? null,
         company: this.serializer.toPublicSummary(row.company),
       };
     });
@@ -515,74 +561,46 @@ export class CompanyService {
   private async loadSourceCreditHopRows(
     sourceIds: Array<string | null | undefined>,
   ): Promise<Map<string, SourceCreditHopRow>> {
-    const byId = new Map<string, SourceCreditHopRow>();
-    let pending = [
-      ...new Set(sourceIds.filter((id): id is string => Boolean(id))),
-    ];
-    for (let depth = 0; depth < 4 && pending.length > 0; depth += 1) {
-      const rows = await this.prisma.collection.findMany({
-        where: { id: { in: pending } },
-        select: {
-          id: true,
-          companyId: true,
-          showSourceShops: true,
-          repostSourceCollectionId: true,
-          company: { select: { name: true } },
-        },
-      });
-      const next: string[] = [];
-      for (const row of rows) {
-        byId.set(row.id, {
-          companyId: row.companyId,
-          companyName: row.company.name,
-          showSourceShops: row.showSourceShops === true,
-          repostSourceCollectionId: row.repostSourceCollectionId,
-        });
-        if (
-          row.repostSourceCollectionId &&
-          !byId.has(row.repostSourceCollectionId)
-        ) {
-          next.push(row.repostSourceCollectionId);
-        }
-      }
-      pending = next;
-    }
-    return byId;
+    return loadSourceCreditHopRows(this.prisma, sourceIds);
   }
 
   private async viewerRepostedCollectionIds(
     viewerCompanyId: string,
     collectionIds: string[],
-  ): Promise<Set<string>> {
-    if (collectionIds.length === 0) return new Set();
+  ): Promise<Map<string, string>> {
+    if (collectionIds.length === 0) return new Map();
     const mine = await this.prisma.collection.findMany({
       where: {
         companyId: viewerCompanyId,
+        status: { not: CollectionStatus.Archived },
         repostSourceCollectionId: { in: collectionIds },
       },
-      select: { repostSourceCollectionId: true },
+      select: { id: true, repostSourceCollectionId: true },
     });
-    return new Set(
-      mine
-        .map((row) => row.repostSourceCollectionId)
-        .filter((id): id is string => Boolean(id)),
-    );
+    const out = new Map<string, string>();
+    for (const row of mine) {
+      if (row.repostSourceCollectionId) out.set(row.repostSourceCollectionId, row.id);
+    }
+    return out;
   }
 
   private async viewerRepostedProductIds(
     viewerCompanyId: string,
     productIds: string[],
-  ): Promise<Set<string>> {
-    if (productIds.length === 0) return new Set();
+  ): Promise<Map<string, string>> {
+    if (productIds.length === 0) return new Map();
     const mine = await this.prisma.collection.findMany({
       where: {
         companyId: viewerCompanyId,
+        status: { not: CollectionStatus.Archived },
         repostSourceProductId: { in: productIds },
       },
-      select: { repostSourceProductId: true },
+      select: { id: true, repostSourceProductId: true },
     });
-    return new Set(
-      mine.map((row) => row.repostSourceProductId).filter((id): id is string => Boolean(id)),
-    );
+    const out = new Map<string, string>();
+    for (const row of mine) {
+      if (row.repostSourceProductId) out.set(row.repostSourceProductId, row.id);
+    }
+    return out;
   }
 }

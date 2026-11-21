@@ -31,6 +31,13 @@ describe('ExploreFeedCaption', () => {
     expect(screen.queryByText(/designs/i)).toBeNull();
   });
 
+  it('shows quiet new-design meta when provided', () => {
+    render(
+      <ExploreFeedCaption title="Festive Silks" meta="3 new designs" rateLine="₹900/pc" />,
+    );
+    expect(screen.getByText('3 new designs')).toBeTruthy();
+  });
+
   it('does not show the collection description', () => {
     render(<ExploreFeedCaption title="Festive Silks" />);
     expect(screen.queryByText('More…')).toBeNull();

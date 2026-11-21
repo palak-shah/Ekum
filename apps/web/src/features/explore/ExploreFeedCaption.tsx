@@ -12,7 +12,7 @@ export function ExploreFeedCaption({
   className,
 }: {
   title: string;
-  /** Optional; omitted on Explore feed (no N designs / activity under title). */
+  /** Quiet activity when `exploreNewDesignCount` > 0; omit otherwise. */
   meta?: string | null;
   rateLine?: string | null;
   categoryLine?: string | null;

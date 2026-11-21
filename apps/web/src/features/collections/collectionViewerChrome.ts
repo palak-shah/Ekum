@@ -2,15 +2,32 @@ import { categoriesToTagSlots, ProductStatus } from '@ekum/domain-types';
 import { youCanViewThisPack } from '@/features/catalog/packKindCopy';
 import { collectionShowsPackIdentityFacts } from '@/features/catalog/youLibraryKind';
 
-/** Owner album lists drafts; buyers (and non-owner GC) see published only. */
-export function collectionViewerListedProducts<T extends { status: string }>(
-  products: T[],
-  input: { kind?: string | null; isOwner?: boolean } = {},
-): T[] {
+/**
+ * Owner album lists drafts; buyers (and non-owner GC) see published only.
+ * Excluded tombstones stay out of the active lot (sticky exclude).
+ */
+export function collectionViewerListedProducts<
+  T extends { status: string; excluded?: boolean },
+>(products: T[], input: { kind?: string | null; isOwner?: boolean } = {}): T[] {
+  const active = products.filter((product) => !product.excluded);
   if (input.isOwner) {
-    return products.filter((product) => product.status !== ProductStatus.Archived);
+    return active.filter((product) => product.status !== ProductStatus.Archived);
   }
-  return products.filter((product) => product.status === ProductStatus.Published);
+  return active.filter((product) => product.status === ProductStatus.Published);
+}
+
+/** Album body when products are null — soft-unavailable ≠ Ask. */
+export type CollectionAlbumAccessShell = 'lot' | 'unavailable' | 'pending' | 'ask';
+
+export function collectionAlbumAccessShell(input: {
+  hasProducts: boolean;
+  softUnavailable?: boolean;
+  accessPending?: boolean;
+}): CollectionAlbumAccessShell {
+  if (input.hasProducts) return 'lot';
+  if (input.softUnavailable) return 'unavailable';
+  if (input.accessPending) return 'pending';
+  return 'ask';
 }
 
 /**
@@ -240,7 +257,7 @@ export function designSheetRateBand(rateLabel: string | null | undefined): strin
 
 /**
  * Quiet ⋯ footer — only when real Ekum rules need it.
- * Forward/Share stay free; Curate lock uses allowForward.
+ * Forward/Share stay free; Repost lock uses allowForward.
  */
 export function collectionMoreMenuNote(input: {
   visitor: boolean;
@@ -250,7 +267,9 @@ export function collectionMoreMenuNote(input: {
 }): string | null {
   if (!input.visitor) return null;
   if (input.lookOnly) return youCanViewThisPack(input.kind);
-  if (!input.allowForward) return 'You can look through — Curate into your collection is off.';
+  if (!input.allowForward) {
+    return 'You can look through — Repost into your collection is off.';
+  }
   return null;
 }
 

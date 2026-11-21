@@ -19,7 +19,13 @@ import {
   sourceHopsFromRows,
 } from './discovery.serializer';
 import type { SourceCreditHopRow } from './source-shop-credit';
+import { loadSourceCreditHopRows } from './load-source-credit-hops';
 import { discoverableProfileWhere } from './follow-access';
+import {
+  projectEligibleCollectionMembers,
+  resolveBuyerRepostPackAvailability,
+} from '../catalog/load-upstream-packs';
+import { resolvedBandsForPacks } from '../catalog/repost-pricing-resolve';
 import { collectionCardInclude } from './collection-preview';
 import { cursorArgs, toCursorPage } from './pagination';
 
@@ -172,25 +178,51 @@ export class SearchService {
           { OR: audienceVisibilityOr(viewerCompanyId) },
           { OR: [{ startsAt: null }, { startsAt: { lte: new Date() } }] },
           { OR: [{ endsAt: null }, { endsAt: { gte: new Date() } }] },
-          { products: { some: { product: { status: ProductStatus.Published } } } },
+          {
+            products: {
+              some: { excluded: false, product: { status: ProductStatus.Published } },
+            },
+          },
         ],
       },
       include: collectionCardInclude,
       ...cursorArgs(query),
     });
+    const availability = await resolveBuyerRepostPackAvailability(
+      this.prisma,
+      rows.map((row) => ({
+        id: row.id,
+        companyId: row.companyId,
+        repostSourceCollectionId: (
+          row as { repostSourceCollectionId?: string | null }
+        ).repostSourceCollectionId,
+      })),
+    );
+    const visible = rows
+      .filter((row) => !availability.omitIds.has(row.id))
+      .map((row) =>
+        projectEligibleCollectionMembers(
+          row,
+          viewerCompanyId,
+          availability.eligibleProductIdsByPackId.get(row.id),
+        ),
+      );
     const sourceHopRows = await this.loadSourceCreditHopRows(
-      rows.map(
+      visible.map(
         (row) =>
           (row as { repostSourceCollectionId?: string | null }).repostSourceCollectionId,
       ),
     );
-    return toCursorPage(rows, query.limit, (row) =>
+    const bands = await resolvedBandsForPacks(this.prisma, viewerCompanyId, visible);
+    return toCursorPage(visible, query.limit, (row) =>
       this.discovery.toCollectionCard(row, {
         viewerCompanyId,
         sourceHops: sourceHopsFromRows(
           (row as { repostSourceCollectionId?: string | null }).repostSourceCollectionId,
           sourceHopRows,
         ),
+        hopRows: sourceHopRows,
+        resolvedBand: bands.get(row.id) ?? null,
       }),
     );
   }
@@ -198,39 +230,7 @@ export class SearchService {
   private async loadSourceCreditHopRows(
     sourceIds: Array<string | null | undefined>,
   ): Promise<Map<string, SourceCreditHopRow>> {
-    const byId = new Map<string, SourceCreditHopRow>();
-    let pending = [
-      ...new Set(sourceIds.filter((id): id is string => Boolean(id))),
-    ];
-    for (let depth = 0; depth < 4 && pending.length > 0; depth += 1) {
-      const hopRows = await this.prisma.collection.findMany({
-        where: { id: { in: pending } },
-        select: {
-          id: true,
-          companyId: true,
-          showSourceShops: true,
-          repostSourceCollectionId: true,
-          company: { select: { name: true } },
-        },
-      });
-      const next: string[] = [];
-      for (const row of hopRows) {
-        byId.set(row.id, {
-          companyId: row.companyId,
-          companyName: row.company.name,
-          showSourceShops: row.showSourceShops === true,
-          repostSourceCollectionId: row.repostSourceCollectionId,
-        });
-        if (
-          row.repostSourceCollectionId &&
-          !byId.has(row.repostSourceCollectionId)
-        ) {
-          next.push(row.repostSourceCollectionId);
-        }
-      }
-      pending = next;
-    }
-    return byId;
+    return loadSourceCreditHopRows(this.prisma, sourceIds);
   }
 
   private async designs(

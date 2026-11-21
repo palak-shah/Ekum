@@ -6,6 +6,8 @@ import {
   CURATE_PACK_ONLY_SUMMARY,
   REPOST_NO_PERMISSION,
   canExploreRepost,
+  canOpenExploreRepostEdit,
+  exploreRepostEditLabel,
   cartMayAskRelist,
   cartRepostBlockedEmpty,
   cartRepostBlockedToast,
@@ -175,6 +177,51 @@ describe('canExploreRepost', () => {
     expect(canExploreRepost({ ...ok, isOwn: true })).toBe(false);
     expect(canExploreRepost({ ...ok, viewerReposted: true })).toBe(false);
     expect(canExploreRepost({ ...ok, trading: false })).toBe(false);
+  });
+});
+
+describe('canOpenExploreRepostEdit', () => {
+  it('opens peer edit when trading and already reposted', () => {
+    const ok = { isOwn: false, viewerReposted: true, trading: true };
+    expect(canOpenExploreRepostEdit(ok)).toBe(true);
+    expect(canOpenExploreRepostEdit({ ...ok, viewerReposted: false })).toBe(false);
+    expect(canOpenExploreRepostEdit({ ...ok, trading: false })).toBe(false);
+  });
+
+  it('opens own collection edit when trading; blocks trading off and solo designs', () => {
+    expect(
+      canOpenExploreRepostEdit({
+        isOwn: true,
+        viewerReposted: false,
+        trading: true,
+        ownEditableCollection: true,
+      }),
+    ).toBe(true);
+    expect(
+      canOpenExploreRepostEdit({
+        isOwn: true,
+        viewerReposted: false,
+        trading: false,
+        ownEditableCollection: true,
+      }),
+    ).toBe(false);
+    expect(
+      canOpenExploreRepostEdit({
+        isOwn: true,
+        viewerReposted: false,
+        trading: true,
+        ownEditableCollection: false,
+      }),
+    ).toBe(false);
+  });
+});
+
+describe('exploreRepostEditLabel', () => {
+  it('uses Edit post for own original and Edit repost otherwise', () => {
+    expect(exploreRepostEditLabel({ isOwn: true, isRepostChild: false })).toBe('Edit post');
+    expect(exploreRepostEditLabel({ isOwn: true, isRepostChild: true })).toBe('Edit repost');
+    expect(exploreRepostEditLabel({ isOwn: false, isRepostChild: false })).toBe('Edit repost');
+    expect(exploreRepostEditLabel({ isOwn: false, isRepostChild: true })).toBe('Edit repost');
   });
 });
 

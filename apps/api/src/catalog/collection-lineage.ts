@@ -46,8 +46,17 @@ type ExistingPack = {
   exploreActivityAt?: Date | null;
 };
 
-/** Oldest published survivor; else oldest row. Never deletes duplicates. */
+/**
+ * Oldest published survivor among packs that already share the same immediate
+ * source (caller must filter by `repostSourceCollectionId` / product). Never
+ * merges across different paths via root. Never deletes duplicates.
+ */
 export function pickRootSurvivor<T extends ExistingPack>(rows: T[]): T | null {
+  return pickImmediateSourceSurvivor(rows);
+}
+
+/** Same as pickRootSurvivor — name for Batch 1 mesh call sites. */
+export function pickImmediateSourceSurvivor<T extends ExistingPack>(rows: T[]): T | null {
   if (rows.length === 0) return null;
   const live = rows.filter((row) => row.status === CollectionStatus.Published);
   const pool = live.length > 0 ? live : rows;

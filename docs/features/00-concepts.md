@@ -46,7 +46,7 @@ Some companies are dual-network (**traders** in product language only): buy, cur
 | Curate | Pick designs/collections from one or more suppliers into a **curated collection** for their buyers |
 | Saved | **Reference** shortlist of designs/collections (not a copy catalog); hub under You; feeds Curate collection — see Slice A design |
 | Publish | Same audience model as any publish — **Explore is not supplier-only** |
-| Permission ceiling | Cannot outrun the **original seller’s** audience / **buyers can forward** lock |
+| Permission ceiling | Cannot outrun the **original seller’s** audience / **buyers can forward** lock. **Repost permission is relationship-specific** — A→B never auto-inherits to B’s buyers; each hop needs its own explicit grant (TradeLane Pack / ProductRelistGrant / owner pack open). View ≠ Repost. Direct Link / auto-repost obey the same hop rule. |
 | Forward vs Curate | **Forward** = share someone’s card as-is; **Curate** = assemble into **your** collection then publish (still under source ceiling) |
 | Stories | Viewer sees a company when they are an **allowed** follower or are connected and it has **published** to feed (own or curated) |
 | Explore trade-side | **All** (default) · **Buying** · **Selling** — see [explore](./explore.md) |
@@ -79,7 +79,7 @@ flowchart LR
 | **Ask to repost** | Pack/Repost upgrade on an existing Follow path (`share-ask`). |
 | **Request to access** | Gated / forwarded pack view ask (`collection-view-requests`) — not Follow, not Connect. |
 | **Collection view Ask** | **Ask to see this collection** — open designs to look through. Owner Allow → **Granted on request** (not Connection, not collection/relist). Deny silent. |
-| **Collection / relist Ask** | **Ask to put in my collection** — unlock Curate when collection permission is off. Distinct chat card (“wants to put … in their collection”). Never bare **Ask**. Via **your** collection → **you** decide (your publish allow); via mill’s own post → mill. Mill Allow ≠ chain free pass. |
+| **Collection / relist Ask** | **Ask to put in my collection** — unlock Curate when collection permission is off. Distinct chat card (“wants to put … in their collection”). Never bare **Ask**. Via **your** collection → **you** decide (your publish allow within upstream ceiling); via mill’s own post → mill. **Mill Allow ≠ chain free pass** — granting Trader B does **not** grant Buyer C; C must Ask the authorized owner. A trader cannot Allow beyond upstream restriction. |
 | **Connect invite** | Open referral link (`/r/:token`) — redeem sends an access request to the sender (they approve); targeted vouch still needs the target’s approve. |
 | **Connection** | Mutual pair (`active`) from **Follow Allow** or **Message / Ask-to-connect Approve**. Both can chat. Connection alone does **not** grant Follow or Followers packs or Private profile unlock. **Either** side can **Block** (silent directed edge). Each clears **only its own** block. Chat noise is **Mute**, not a Connection pause. See [access-and-connections](./access-and-connections.md). |
 | **Block** | Directed `CompanyBlock`. Either edge → shop/API **404** / `CANNOT_MESSAGE`. Other party is not told. Approve never clears blocks — each side **Unblock**s its edge; both clear → Connection only (not Follow). |
@@ -117,7 +117,7 @@ When publishing (or updating visibility), the sheet sets:
 | Field | Values | Default practice |
 |-------|--------|------------------|
 | **Audience** | API: `everyone` · `connections` · `followers` · `selected` (+ company IDs and optional **Buyer group(s)**). **Publish / Visibility UI:** **My followers** · **Selected** only (no Everyone). Legacy `everyone` / `connections` rows are **migrated and enforced as Followers** (same as the sheet chip — no “hidden Everyone” until save). Not My connections — connections mix suppliers. | Followers |
-| **Rate visibility** | `visible` · `on_request` | On request (or company usual) |
+| **Rate visibility** | `visible` · `on_request` | On request (or company usual). **`on_request` is Ask** — buyers enquire via existing **Ask for rates** / inquiry; not a separate pricing-mode enum. Repost **calculation** modes (Same / Margin / Edit — Batch 3) are independent of this field. |
 | **Buyers can add these designs to their collections** | checkbox (on by default) | Uncheck = lock **Curate / relist** only. **Forward** stays free |
 
 | Audience | Who sees on Explore |
@@ -131,7 +131,7 @@ When publishing (or updating visibility), the sheet sets:
 
 **Staff audit:** Product, Collection, and Order store `createdByUserId` / `updatedByUserId` (names on list/detail). Full AuditLog history UI is later.
 
-**Trust:** **Forward / Share** (pass the card as-is) is **free**. **View** is checked when they **open** the collection or design — ask the **catalog owner**, not the last forwarder. **Bookmark** (Saved) is a private shortlist and stays free. **Curate** puts designs in **your** album (My designs); that needs `allowForward` (product: **allowRelist**). Locked → `RELIST_NOT_ALLOWED`. Snapshot still stored as `allowForward` on Product / Collection. Never claim “exclusive” without the relist gate.
+**Trust:** **Forward / Share** (pass the card as-is) is **free**. **View** is checked when they **open** the collection or design — ask the **catalog owner**, not the last forwarder (`CollectionViewGrant` — not Curate). **Bookmark** (Saved) is a private shortlist and stays free. **Curate / Repost** puts designs in **your** album; that needs a **relationship-specific** unlock (`allowForward` / ProductRelistGrant / TradeLane Pack / owner pack open) — never inherited by the recipient’s buyers. Locked → `RELIST_NOT_ALLOWED`. Snapshot still stored as `allowForward` on Product / Collection. Never claim “exclusive” without the relist gate.
 
 ## Designs vs collections
 

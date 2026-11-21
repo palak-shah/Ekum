@@ -7,6 +7,7 @@ import {
   rateVisibilityValues,
   unitValues,
 } from './enums';
+import { repostPricingModeValues } from './repost-pricing';
 
 /**
  * Catalog contracts. A Product (design) is the live entity: name optional on
@@ -196,6 +197,32 @@ export const curateCheckSchema = z.object({
 });
 export type CurateCheckDto = z.infer<typeof curateCheckSchema>;
 
+/**
+ * Resolve my existing non-reusable repost child for an immediate Explore source.
+ * Exactly one of sourceCollectionId / sourceProductId.
+ */
+export const repostOfQuerySchema = z
+  .object({
+    sourceCollectionId: z.string().min(1).optional(),
+    sourceProductId: z.string().min(1).optional(),
+  })
+  .superRefine((value, ctx) => {
+    const hasCol = Boolean(value.sourceCollectionId);
+    const hasProd = Boolean(value.sourceProductId);
+    if (hasCol === hasProd) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Pass exactly one of sourceCollectionId or sourceProductId.',
+        path: hasCol ? ['sourceProductId'] : ['sourceCollectionId'],
+      });
+    }
+  });
+export type RepostOfQuery = z.infer<typeof repostOfQuerySchema>;
+
+export interface RepostOfView {
+  collectionId: string;
+}
+
 export interface CurateCheckBlocked {
   productId: string;
   code: string;
@@ -278,6 +305,15 @@ export const publishCollectionSchema = z
     startsAt: optionalScheduleInstant,
     /** Live window end. Omit to leave unchanged; null = evergreen. */
     endsAt: optionalScheduleInstant,
+    /**
+     * Repost calculation mode (Batch 3). Never `ask` — Ask = rateVisibility on_request.
+     * Omit to leave unchanged on Visibility updates.
+     */
+    repostPricingMode: z.enum(repostPricingModeValues).nullable().optional(),
+    repostMarginValue: z.number().finite().nullable().optional(),
+    repostEditedRate: z.number().nonnegative().nullable().optional(),
+    /** Disclosed source basis for Edit; null = independent quote. */
+    repostEditOwnBase: z.number().nonnegative().nullable().optional(),
   })
   .superRefine((value, ctx) => {
     if (value.audience === 'selected' && (!value.companyIds || value.companyIds.length === 0)) {
@@ -289,6 +325,16 @@ export const publishCollectionSchema = z
     }
   });
 export type PublishCollectionDto = z.infer<typeof publishCollectionSchema>;
+
+/** Owner sets per-design buyer-facing calc override (null mode clears → inherit pack). */
+export const setRepostMemberPricingSchema = z.object({
+  productId: z.string().min(1),
+  pricingMode: z.enum(repostPricingModeValues).nullable(),
+  marginValue: z.number().finite().nullable().optional(),
+  editedRate: z.number().nonnegative().nullable().optional(),
+  editOwnBase: z.number().nonnegative().nullable().optional(),
+});
+export type SetRepostMemberPricingDto = z.infer<typeof setRepostMemberPricingSchema>;
 
 /**
  * Publish a design = live on Explore for the chosen audience.
@@ -305,6 +351,11 @@ export interface ProductView {
   id: string;
   /** Owning company — needed to detect curated (foreign) collection members. */
   companyId: string;
+  /**
+   * Owner album only: sticky exclusion tombstone. Buyers never see excluded members.
+   * Absent/false = active in the pack.
+   */
+  excluded?: boolean;
   /** Present on Explore pack previews so Direct confirm can name each owner. */
   companyName?: string | null;
   name: string;
@@ -414,6 +465,14 @@ export interface CollectionView {
    * null = use pack owner Profile default at order time.
    */
   orderPathPreference: string | null;
+  /**
+   * Repost calc mode (Batch 3). Null = legacy / inherit hierarchy.
+   * Ask remains `rateVisibility: on_request` — never a calc mode.
+   */
+  repostPricingMode?: string | null;
+  repostMarginValue?: number | null;
+  repostEditedRate?: number | null;
+  repostEditOwnBase?: number | null;
   productCount: number;
   /** Distinct photos across cover + member designs. */
   photoCount: number;
@@ -431,6 +490,24 @@ export interface CollectionView {
 
 export interface CollectionDetailView extends CollectionView {
   products: ProductView[];
+  /**
+   * Owner album: per-design resolved buyer-facing preview (never leaks
+   * restricted upstream source rates to non-owners — owner-only surface).
+   */
+  memberPricing?: Array<{
+    productId: string;
+    /** Effective mode (override or pack). */
+    pricingMode: string | null;
+    marginValue: number | null;
+    editedRate: number | null;
+    editOwnBase: number | null;
+    /** True when CollectionProduct carries its own calc override. */
+    hasOverride: boolean;
+    sourceRate: number | null;
+    sourceDisclosed: boolean;
+    buyerFacing: number | null;
+    editInvalidated: boolean;
+  }>;
 }
 
 export const SHARE_LINK_DESIGNS_MAX = 50;

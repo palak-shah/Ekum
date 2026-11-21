@@ -55,8 +55,9 @@ describe('SavedService.create', () => {
         findUnique: async () => null,
       },
       follow: {
-        findMany: async () => [],
+        findMany: async () => [{ followedCompanyId: 'seller-co' }],
       },
+      companyBlock: { count: async () => 0 },
       savedItem: { upsert },
     };
     const service = makeService(prisma);
@@ -98,6 +99,7 @@ describe('SavedService.create', () => {
       follow: {
         findMany: async () => [],
       },
+      companyBlock: { count: async () => 0 },
       savedItem: { upsert: vi.fn() },
     };
     const service = makeService(prisma);
@@ -124,6 +126,7 @@ describe('SavedService.create', () => {
 describe('SavedService.list', () => {
   it('lists saved items for the company newest first', async () => {
     const prisma = {
+      collection: { findMany: async () => [] },
       savedItem: {
         findMany: async () => [
           {
@@ -222,7 +225,9 @@ describe('SavedService.create (connected audience)', () => {
       connection: {
         findUnique: async () => ({ status: ConnectionStatus.Active }),
       },
-      follow: { findMany: async () => [] },
+      // Legacy connections audience remaps to Followers — need allowed follow.
+      follow: { findMany: async () => [{ followedCompanyId: 'seller-co' }] },
+      companyBlock: { count: async () => 0 },
       savedItem: { upsert },
     };
     const service = makeService(prisma);
@@ -268,9 +273,13 @@ describe('SavedService.create (collection bookmark)', () => {
       collection: liveCollection,
     }));
     const prisma = {
-      collection: { findUnique: async () => liveCollection },
+      collection: {
+        findUnique: async () => liveCollection,
+        findMany: async () => [],
+      },
       connection: { findUnique: async () => null },
       follow: { findMany: async () => [{ followedCompanyId: 'seller-co' }] },
+      companyBlock: { count: async () => 0 },
       savedItem: { upsert },
     };
     const service = makeService(prisma);
@@ -297,9 +306,13 @@ describe('SavedService.create (collection bookmark)', () => {
       collection: thumbsOnly,
     }));
     const prisma = {
-      collection: { findUnique: async () => thumbsOnly },
+      collection: {
+        findUnique: async () => thumbsOnly,
+        findMany: async () => [],
+      },
       connection: { findUnique: async () => null },
       follow: { findMany: async () => [{ followedCompanyId: 'seller-co' }] },
+      companyBlock: { count: async () => 0 },
       savedItem: { upsert },
     };
     const service = makeService(prisma);

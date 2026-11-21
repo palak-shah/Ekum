@@ -128,6 +128,10 @@ type Props = {
   maxAudience?: string | null;
   /** Curated / Repost packs: Show supplier name toggle (default off). */
   showSourceShopsOption?: boolean;
+  /**
+   * Explore RepostSheet owns Show rates above calc — hide the duplicate under Who.
+   */
+  hideShowRates?: boolean;
 };
 
 export function PublishAudienceFields({
@@ -146,6 +150,7 @@ export function PublishAudienceFields({
   isVisibilityUpdate = false,
   maxAudience = null,
   showSourceShopsOption = false,
+  hideShowRates = false,
 }: Props) {
   const whoReady = Boolean(state.audience);
   const showSelectedExtras = state.audience === PublishAudience.Selected;
@@ -361,31 +366,33 @@ export function PublishAudienceFields({
 
       {showRules ? (
         <div className="flex flex-col gap-3">
-          <div>
-            <p className="mb-2 text-sm font-emphasis text-ink">Show rates?</p>
-            <div className="flex flex-col gap-1.5">
-              {(
-                [
-                  [RateVisibility.OnRequest, 'On request'],
-                  [RateVisibility.Visible, 'Visible'],
-                ] as const
-              ).map(([value, label]) => (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() => onChange({ ...state, rateVisibility: value, policyHint: null })}
-                  className={cx(
-                    'rounded-xl border px-3 py-2.5 text-left text-sm',
-                    state.rateVisibility === value
-                      ? 'border-accent bg-accent/5 font-emphasis text-ink'
-                      : 'border-line text-muted',
-                  )}
-                >
-                  {label}
-                </button>
-              ))}
+          {!hideShowRates ? (
+            <div>
+              <p className="mb-2 text-sm font-emphasis text-ink">Show rates?</p>
+              <div className="flex flex-col gap-1.5">
+                {(
+                  [
+                    [RateVisibility.OnRequest, 'On request'],
+                    [RateVisibility.Visible, 'Visible'],
+                  ] as const
+                ).map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => onChange({ ...state, rateVisibility: value, policyHint: null })}
+                    className={cx(
+                      'rounded-xl border px-3 py-2.5 text-left text-sm',
+                      state.rateVisibility === value
+                        ? 'border-accent bg-accent/5 font-emphasis text-ink'
+                        : 'border-line text-muted',
+                    )}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          ) : null}
 
           <label className="flex items-start gap-2 rounded-xl border border-line px-3 py-3 text-sm text-ink">
             <input

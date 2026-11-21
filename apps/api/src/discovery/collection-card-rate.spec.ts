@@ -238,4 +238,69 @@ describe('collectionCardRateFields', () => {
       }),
     ).toEqual({ rateMin: 91, rateMax: null, rateUnit: 'mtr' });
   });
+
+  it('prefers resolved buyer-facing band over raw product rates (Batch 3)', () => {
+    expect(
+      collectionCardRateFields({
+        rateVisibility: 'visible',
+        rate: 100,
+        products: [{ product: { rate: 100, unit: 'pc' } }],
+        resolvedBand: { rateMin: 110, rateMax: 120 },
+      }),
+    ).toEqual({ rateMin: 110, rateMax: 120, rateUnit: 'pc' });
+  });
 });
+
+/**
+ * Batch 3.2 documentation — existing product rule (do not change without Completeness).
+ *
+ * Precedence when Show rates is Visible:
+ * 1. `resolvedBand` when Batch 3 calc mode supplied (buyer-facing aggregate)
+ * 2. Else explicit pack `Collection.rate` / `rateMax` when set
+ * 3. Else derived min–max from priced member design rates (same unit)
+ *
+ * Pack cards therefore may show a derived design band when the owner never set
+ * a pack rate and no calc resolvedBand is passed — that is current Explore/shop
+ * language, not automatic persistence onto Collection.rate.
+ */
+describe('pack-card rate source (documented existing rule)', () => {
+  it('uses explicit pack rate when set (not design rates)', () => {
+    expect(
+      collectionCardRateFields({
+        rateVisibility: 'visible',
+        rate: 500,
+        rateMax: 700,
+        products: [
+          { product: { rate: 100, unit: 'pc' } },
+          { product: { rate: 900, unit: 'pc' } },
+        ],
+      }),
+    ).toEqual({ rateMin: 500, rateMax: 700, rateUnit: 'pc' });
+  });
+
+  it('falls back to design min–max when pack rate is unset and no resolvedBand', () => {
+    expect(
+      collectionCardRateFields({
+        rateVisibility: 'visible',
+        rate: null,
+        rateMax: null,
+        products: [
+          { product: { rate: 200, unit: 'pc' } },
+          { product: { rate: 400, unit: 'pc' } },
+        ],
+      }),
+    ).toEqual({ rateMin: 200, rateMax: 400, rateUnit: 'pc' });
+  });
+
+  it('resolvedBand wins over both pack rate and design rates', () => {
+    expect(
+      collectionCardRateFields({
+        rateVisibility: 'visible',
+        rate: 500,
+        products: [{ product: { rate: 100, unit: 'pc' } }],
+        resolvedBand: { rateMin: 110, rateMax: null },
+      }),
+    ).toEqual({ rateMin: 110, rateMax: null, rateUnit: 'pc' });
+  });
+});
+

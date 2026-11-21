@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   RateVisibility,
+  RepostPricingMode,
   type BroadcastListView,
   type CollectionDetailView,
   type CollectionPreviewView,
@@ -15,7 +16,24 @@ import {
   type SetCollectionProductsDto,
   type ShareLinkView,
 } from '@ekum/domain-types';
+import {
+  RepostPricingFields,
+  type RepostEditDesignRow,
+} from '@/features/catalog/RepostPricingFields';
+import {
+  defaultPackRepostPricingForm,
+  exploreShowRatesOn,
+  isPrototypeMarginMode,
+  memberPricingDtoFromForm,
+  publishPricingFieldsFromForm,
+  repostPricingFormFromPack,
+  repostSheetPricingReady,
+  type RepostPricingFormState,
+} from '@/features/catalog/repostPricingForm';
+import { formatCatalogRate } from '@/lib/catalogRate';
 import { BuyerGroupFormSheet } from '@/features/broadcast/BuyerGroupFormSheet';
+import { OwnerPackLifecycleSheet } from '@/features/catalog/OwnerPackLifecycleSheet';
+import { removeRepostCopy } from '@/features/catalog/ownerPackLifecycle';
 import {
   catalogShareCopiedToast,
   catalogShareInviteText,
@@ -39,6 +57,7 @@ import {
   publishAudienceCanSubmit,
   publishAudienceDtoFields,
   PublishAudienceFields,
+  restorePublishAudienceState,
   selectCreatedGroup,
   type PublishAudienceState,
 } from '@/features/catalog/PublishAudienceFields';
@@ -46,7 +65,7 @@ import { api, ApiError } from '@/lib/apiClient';
 import { useMyCompany } from '@/lib/queries';
 import { canNativeShare, catalogShareCopy, shareOrCopyInvite } from '@/lib/shareInvite';
 import { useToast } from '@/ui/Toast';
-import { Button, Field, InlineNotice, Sheet, TextArea, TextInput } from '@/ui/kit';
+import { Button, Field, InlineNotice, Sheet, TextArea, TextInput, cx } from '@/ui/kit';
 
 export type RepostSheetTarget =
   | {
@@ -63,21 +82,56 @@ export type RepostSheetTarget =
       thumbUrl?: string | null;
     };
 
+const MEMBERSHIP_UNAVAILABLE =
+  "These designs can't go in a collection now.";
+
+function alreadyRepostedCollectionId(err: unknown): string | null {
+  // Duck-type — avoid `instanceof ApiError` (Vite can duplicate the class).
+  if (!err || typeof err !== 'object') return null;
+  const record = err as { code?: unknown; details?: unknown };
+  if (record.code !== 'ALREADY_REPOSTED') return null;
+  const details = record.details;
+  if (!details || typeof details !== 'object') return null;
+  const id = (details as { collectionId?: unknown }).collectionId;
+  return typeof id === 'string' && id.length > 0 ? id : null;
+}
+
+async function fetchRepostOfCollectionId(target: RepostSheetTarget): Promise<string | null> {
+  const found = await api.get<{ collectionId?: string }>(
+    '/collections/repost-of',
+    target.kind === 'collection'
+      ? { sourceCollectionId: target.collectionId }
+      : { sourceProductId: target.productId },
+  );
+  return typeof found?.collectionId === 'string' && found.collectionId.length > 0
+    ? found.collectionId
+    : null;
+}
+
 /**
  * Per-post Repost: publish under my name with Publish Who / rules + quiet 48h link.
- * Stays on the current page — does not open Your selection.
+ * Edit mode updates the existing child pack — never creates a second one.
  */
 export function RepostSheet({
   open,
   onClose,
   onReposted,
   target,
+  editCollectionId,
+  editTitle,
 }: {
   open: boolean;
   onClose: () => void;
-  /** Fired after publish succeeds so the feed can show the done icon immediately. */
-  onReposted?: () => void;
+  /** Fired after publish/update succeeds so the feed can stamp the done icon. */
+  onReposted?: (childCollectionId?: string) => void;
   target: RepostSheetTarget | null;
+  /**
+   * Edit mode when provided (string id, or null to resolve via ALREADY_REPOSTED).
+   * Omit for create.
+   */
+  editCollectionId?: string | null;
+  /** Own original → Edit post; own child / peer child → Edit repost. */
+  editTitle?: 'Edit post' | 'Edit repost';
 }) {
   const me = useMyCompany();
   const queryClient = useQueryClient();
@@ -94,7 +148,34 @@ export function RepostSheet({
   const [sheetError, setSheetError] = useState<string | null>(null);
   const [readyInvite, setReadyInvite] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [removeConfirmOpen, setRemoveConfirmOpen] = useState(false);
+  const [removing, setRemoving] = useState(false);
+  /** Batch 3 calc — Ask stays Show rates (rateVisibility), not a mode. */
+  const [pricingForm, setPricingForm] = useState<RepostPricingFormState>(() =>
+    defaultPackRepostPricingForm(),
+  );
+  /** Prototype Edit drafts — preserved across mode switches. */
+  const [editRatesByProductId, setEditRatesByProductId] = useState<Record<string, string>>(
+    {},
+  );
+  const wantEdit = editCollectionId !== undefined;
+  /** Child pack id for edit (prop or ALREADY_REPOSTED details). */
+  const [resolvedEditId, setResolvedEditId] = useState<string | null>(
+    typeof editCollectionId === 'string' ? editCollectionId : null,
+  );
+  const [baselineProductIds, setBaselineProductIds] = useState<string[]>([]);
+  const [resolvingEdit, setResolvingEdit] = useState(false);
   const seededSource = useRef<string>('');
+  const editHydrated = useRef(false);
+  /** Ignore stale resolve results after Strict Mode remount / close. */
+  const resolveGen = useRef(0);
+
+  // Prefer prop; keep local resolve when create hits ALREADY_REPOSTED.
+  useEffect(() => {
+    if (typeof editCollectionId === 'string') setResolvedEditId(editCollectionId);
+  }, [editCollectionId]);
+
+  const editing = Boolean(resolvedEditId);
 
   const packPreview = useQuery({
     queryKey: ['explore', 'collections', target?.kind === 'collection' ? target.collectionId : ''],
@@ -102,16 +183,35 @@ export function RepostSheet({
       api.get<CollectionPreviewView>(
         `/explore/collections/${(target as { collectionId: string }).collectionId}`,
       ),
-    enabled: open && target?.kind === 'collection',
+    enabled: open && target?.kind === 'collection' && !editing,
+  });
+
+  const editDetail = useQuery({
+    queryKey: ['collections', 'detail', resolvedEditId ?? ''],
+    queryFn: () => api.get<CollectionDetailView>(`/collections/${resolvedEditId}`),
+    enabled: open && Boolean(resolvedEditId),
   });
 
   const productIds = useMemo(() => {
+    if (editing && editDetail.data) {
+      return editDetail.data.products
+        .filter((product) => !product.excluded)
+        .map((product) => product.id);
+    }
     if (!target) return [] as string[];
     if (target.kind === 'product') return [target.productId];
     return (packPreview.data?.products ?? []).map((product) => product.id);
-  }, [target, packPreview.data?.products]);
+  }, [editing, editDetail.data, target, packPreview.data?.products]);
 
   const ceilingMembers = useMemo(() => {
+    if (editing && editDetail.data) {
+      return editDetail.data.products
+        .filter((product) => !product.excluded)
+        .map((product) => ({
+          companyId: product.companyId,
+          audience: 'followers',
+        }));
+    }
     if (!target) return [];
     if (target.kind === 'product') {
       return [{ companyId: target.companyId, audience: 'followers' }];
@@ -120,7 +220,7 @@ export function RepostSheet({
       companyId: product.companyId,
       audience: product.audience || 'followers',
     }));
-  }, [target, packPreview.data?.products]);
+  }, [editing, editDetail.data, target, packPreview.data?.products]);
 
   const maxAudience = useMemo(
     () => maxPublishAudienceForCuratedPack(myCompanyId, ceilingMembers),
@@ -140,6 +240,7 @@ export function RepostSheet({
       'repost',
       productIds.join('|'),
       sourceCollectionId ?? '',
+      resolvedEditId ?? '',
     ],
     queryFn: () =>
       api.post<CurateCheckView>('/collections/curate-check', {
@@ -156,13 +257,30 @@ export function RepostSheet({
     queryFn: () => api.get<CollectionView[]>('/collections'),
     enabled: open,
   });
-  const nameTargets = useMemo(
-    () => curateExistingTargets(Array.isArray(owned.data) ? owned.data : []),
-    [owned.data],
-  );
+  const nameTargets = useMemo(() => {
+    const all = curateExistingTargets(Array.isArray(owned.data) ? owned.data : []);
+    if (!resolvedEditId) return all;
+    return all.filter((pack) => pack.id !== resolvedEditId);
+  }, [owned.data, resolvedEditId]);
   const nameClash = findOwnedPackByName(nameTargets, name);
 
   const memberEntries = useMemo(() => {
+    if (editing && editDetail.data) {
+      return editDetail.data.products
+        .filter((product) => !product.excluded)
+        .map((product) => ({
+          productId: product.id,
+          name: product.name,
+          thumbUrl: product.images?.[0] ?? null,
+          companyId: product.companyId,
+          companyName: product.companyName ?? '',
+          rate: product.rate ?? null,
+          rateMax: product.rateMax ?? null,
+          unit: product.unit ?? null,
+          dispatchUnit: product.dispatchUnit ?? null,
+          catalogRateUnit: product.catalogRateUnit ?? null,
+        }));
+    }
     if (!target) return [];
     if (target.kind === 'product') {
       return [
@@ -172,6 +290,11 @@ export function RepostSheet({
           thumbUrl: target.thumbUrl ?? null,
           companyId: target.companyId,
           companyName: '',
+          rate: null as number | null,
+          rateMax: null as number | null,
+          unit: null as string | null,
+          dispatchUnit: null as string | null,
+          catalogRateUnit: null as string | null,
         },
       ];
     }
@@ -181,13 +304,46 @@ export function RepostSheet({
       thumbUrl: product.images?.[0] ?? null,
       companyId: product.companyId,
       companyName: product.companyName ?? '',
+      rate: product.rate ?? null,
+      rateMax: product.rateMax ?? null,
+      unit: product.unit ?? null,
+      dispatchUnit: product.dispatchUnit ?? null,
+      catalogRateUnit: product.catalogRateUnit ?? null,
     }));
-  }, [target, packPreview.data?.products]);
+  }, [editing, editDetail.data, target, packPreview.data?.products]);
 
   const { allowed: allowedRows, blocked: blockedRows } = partitionCurateByCheck(
     memberEntries,
     curateCheck.data,
   );
+
+  const editDesignRows: RepostEditDesignRow[] = useMemo(() => {
+    // Edit mode shows active members even when curate-check soft-fails (settings-only save).
+    const allowed = new Set(editing ? productIds : allowedIds);
+    return memberEntries
+      .filter((row) => allowed.has(row.productId))
+      .map((row) => {
+        const disclosed =
+          row.rate != null && Number.isFinite(row.rate) ? row.rate : null;
+        const label =
+          disclosed != null
+            ? formatCatalogRate({
+                rate: row.rate,
+                rateMax: row.rateMax,
+                unit: row.unit,
+                dispatchUnit: row.dispatchUnit,
+                catalogRateUnit: row.catalogRateUnit,
+              })
+            : null;
+        return {
+          productId: row.productId,
+          name: row.name,
+          thumbUrl: row.thumbUrl,
+          supplierRate: disclosed,
+          supplierRateLabel: label ? `Supplier ${label}` : null,
+        };
+      });
+  }, [memberEntries, allowedIds, editing, productIds]);
 
   const connections = useQuery({
     queryKey: ['connections'],
@@ -213,23 +369,74 @@ export function RepostSheet({
       : target?.kind === 'product'
         ? `p:${target.productId}`
         : '';
+  const seedKey = editing ? `edit:${resolvedEditId}` : sourceKey;
 
   useEffect(() => {
-    if (!open || !target || !sourceKey) return;
-    if (seededSource.current === sourceKey) return;
-    seededSource.current = sourceKey;
+    if (!open || !target || !sourceKey || editing) return;
+    if (seededSource.current === seedKey) return;
+    seededSource.current = seedKey;
     setName(target.name.trim());
     setConsent(false);
     setSheetError(null);
     setReadyInvite(null);
-  }, [open, sourceKey, target]);
+    setPricingForm(defaultPackRepostPricingForm());
+    setEditRatesByProductId({});
+    setBaselineProductIds([]);
+  }, [open, sourceKey, seedKey, target, editing]);
 
   useEffect(() => {
-    if (!open) seededSource.current = '';
-  }, [open]);
+    if (!open || !editing || !editDetail.data || !resolvedEditId) return;
+    if (editHydrated.current && seededSource.current === seedKey) return;
+    editHydrated.current = true;
+    seededSource.current = seedKey;
+    const detail = editDetail.data;
+    const activeIds = detail.products.filter((p) => !p.excluded).map((p) => p.id);
+    setName(detail.name.trim());
+    setConsent(false);
+    setSheetError(null);
+    setReadyInvite(null);
+    setBaselineProductIds(activeIds);
+    setPublishAudience(
+      restorePublishAudienceState({
+        audience: detail.audience || 'followers',
+        audienceCompanyIds: detail.audienceCompanyIds ?? [],
+        audienceGroupIds: detail.audienceGroupIds ?? [],
+        rateVisibility: detail.rateVisibility,
+        allowForward: detail.allowForward !== false,
+        allowDownload: detail.allowDownload === true,
+        showSourceShops: detail.showSourceShops === true,
+        maxAudience,
+      }),
+    );
+    setPricingForm(
+      repostPricingFormFromPack({
+        repostPricingMode: detail.repostPricingMode,
+        repostMarginValue: detail.repostMarginValue,
+        repostEditedRate: detail.repostEditedRate,
+      }),
+    );
+    const drafts: Record<string, string> = {};
+    for (const row of detail.memberPricing ?? []) {
+      if (row.pricingMode === RepostPricingMode.Edit && row.editedRate != null) {
+        drafts[row.productId] = String(row.editedRate);
+      }
+    }
+    setEditRatesByProductId(drafts);
+  }, [open, editing, editDetail.data, resolvedEditId, seedKey, maxAudience]);
 
   useEffect(() => {
-    if (!open || !settings.data) return;
+    if (!open) {
+      seededSource.current = '';
+      editHydrated.current = false;
+      resolveGen.current += 1;
+      setResolvingEdit(false);
+      setResolvedEditId(typeof editCollectionId === 'string' ? editCollectionId : null);
+    }
+  }, [open, editCollectionId]);
+
+  // Create defaults for Who — skipped once edit detail hydrates.
+  useEffect(() => {
+    if (!open || !settings.data || editing || wantEdit) return;
     const usual = readCompanyPublishDefaults(settings.data.tradeDefaults);
     setPublishAudience({
       ...emptyPublishAudienceState(usual),
@@ -239,38 +446,202 @@ export function RepostSheet({
         ? 'Rates stay on request when this collection includes others’ designs.'
         : null,
     });
-  }, [open, settings.data, hasForeign]);
+  }, [open, settings.data, hasForeign, editing, wantEdit]);
+
+  // Resolve my existing child for this source (edit without stamp, or create when stamp lagged).
+  useEffect(() => {
+    if (!open || !target || resolvedEditId) return;
+    // Stamp id already known — no lookup.
+    if (typeof editCollectionId === 'string') return;
+    const gen = ++resolveGen.current;
+    let cancelled = false;
+    if (wantEdit) {
+      setResolvingEdit(true);
+      setSheetError(null);
+    }
+    void (async () => {
+      const adopt = (id: string) => {
+        setResolvedEditId(id);
+        onReposted?.(id);
+        setSheetError(null);
+      };
+      try {
+        const found = await fetchRepostOfCollectionId(target);
+        if (cancelled || gen !== resolveGen.current) return;
+        if (found) {
+          adopt(found);
+          return;
+        }
+        if (wantEdit) setSheetError("Couldn't open this repost.");
+      } catch (lookupErr) {
+        if (cancelled || gen !== resolveGen.current) return;
+        // Create path: lookup miss is fine — stay on create. Never probe-create here.
+        if (!wantEdit) return;
+        // Edit path: probe create only for ALREADY_REPOSTED.details (legacy).
+        try {
+          await api.post<CollectionDetailView>('/collections', {
+            name: target.name.trim() || 'Repost',
+            categories: [],
+            ...(target.kind === 'collection'
+              ? { repostSourceCollectionId: target.collectionId }
+              : { repostSourceProductId: target.productId }),
+          } satisfies CreateCollectionDto);
+          if (cancelled || gen !== resolveGen.current) return;
+          setSheetError("Couldn't open this repost.");
+        } catch (err) {
+          if (cancelled || gen !== resolveGen.current) return;
+          const id = alreadyRepostedCollectionId(err);
+          if (id) {
+            adopt(id);
+            return;
+          }
+          try {
+            const retry = await fetchRepostOfCollectionId(target);
+            if (cancelled || gen !== resolveGen.current) return;
+            if (retry) {
+              adopt(retry);
+              return;
+            }
+          } catch {
+            // fall through
+          }
+          setSheetError(
+            err instanceof ApiError
+              ? err.message
+              : lookupErr instanceof ApiError
+                ? lookupErr.message
+                : "Couldn't open this repost.",
+          );
+        }
+      } finally {
+        if (!cancelled && gen === resolveGen.current && wantEdit) setResolvingEdit(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+    // onReposted omitted — parent often passes a new inline fn each render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- stamp parent once per open/target
+  }, [open, target, wantEdit, resolvedEditId, editCollectionId]);
 
   const packLocked =
+    !editing &&
     target?.kind === 'collection' &&
     !packPreview.isLoading &&
     packPreview.data != null &&
     packPreview.data.products == null;
 
-  const previewPending = target?.kind === 'collection' && packPreview.isLoading;
-  const previewFailed = target?.kind === 'collection' && packPreview.isError;
-  const noMembers =
-    target?.kind === 'collection' &&
-    !packPreview.isLoading &&
-    !packPreview.isError &&
-    packPreview.data != null &&
-    Array.isArray(packPreview.data.products) &&
-    packPreview.data.products.length === 0;
+  const previewPending = wantEdit
+    ? resolvingEdit || (Boolean(resolvedEditId) && editDetail.isLoading)
+    : target?.kind === 'collection' && packPreview.isLoading;
+  const previewFailed = wantEdit
+    ? (!resolvingEdit && !resolvedEditId) || editDetail.isError
+    : target?.kind === 'collection' && packPreview.isError;
+  const noMembers = editing
+    ? !editDetail.isLoading &&
+      !editDetail.isError &&
+      editDetail.data != null &&
+      productIds.length === 0
+    : target?.kind === 'collection' &&
+      !packPreview.isLoading &&
+      !packPreview.isError &&
+      packPreview.data != null &&
+      Array.isArray(packPreview.data.products) &&
+      packPreview.data.products.length === 0;
   const showPublishForm =
     Boolean(target) && !previewPending && !previewFailed && !packLocked && !noMembers;
   const previewErrorMessage =
-    packPreview.error instanceof ApiError
-      ? packPreview.error.message
-      : "Couldn't load these designs.";
+    wantEdit && !resolvedEditId && sheetError
+      ? sheetError
+      : editing && editDetail.error instanceof ApiError
+        ? editDetail.error.message
+        : packPreview.error instanceof ApiError
+          ? packPreview.error.message
+          : "Couldn't load these designs.";
 
-  const canSubmit =
-    Boolean(name.trim()) &&
-    allowedIds.length >= 1 &&
-    !nameClash &&
-    (canPublishAlready || consent) &&
-    publishAudienceCanSubmit(publishAudience) &&
-    !packLocked &&
-    !curateCheck.isLoading;
+  const showRates = exploreShowRatesOn(publishAudience.rateVisibility);
+  const pricingReady = repostSheetPricingReady({
+    showRates,
+    form: pricingForm,
+    editProductIds: editing ? productIds : allowedIds,
+    editRatesByProductId,
+  });
+
+  const supplierCue = useMemo(() => {
+    const disclosed = editDesignRows.filter((row) => row.supplierRate != null);
+    if (disclosed.length === 0) return null;
+    if (disclosed.length === 1 && disclosed[0]?.supplierRateLabel) {
+      return disclosed[0].supplierRateLabel;
+    }
+    const band = formatCatalogRate({
+      rate: packPreview.data?.rateMin ?? null,
+      rateMax: packPreview.data?.rateMax ?? null,
+      unit: packPreview.data?.rateUnit ?? null,
+    });
+    return band && band !== 'On request' ? `Supplier ${band}` : null;
+  }, [editDesignRows, packPreview.data?.rateMin, packPreview.data?.rateMax, packPreview.data?.rateUnit]);
+
+  const buyerRatePreview = useMemo(() => {
+    if (!showRates || !isPrototypeMarginMode(pricingForm.mode)) return null;
+    const base = packPreview.data?.rateMin;
+    if (base == null || !Number.isFinite(base)) return null;
+    const margin = Number(pricingForm.marginValue);
+    if (!Number.isFinite(margin)) return null;
+    const next =
+      pricingForm.mode === RepostPricingMode.MarginPercent
+        ? base * (1 + margin / 100)
+        : base + margin;
+    if (!Number.isFinite(next)) return null;
+    const label = formatCatalogRate({
+      rate: Math.round(next * 100) / 100,
+      unit: packPreview.data?.rateUnit ?? null,
+    });
+    return label && label !== 'On request' ? label : null;
+  }, [
+    showRates,
+    pricingForm.mode,
+    pricingForm.marginValue,
+    packPreview.data?.rateMin,
+    packPreview.data?.rateUnit,
+  ]);
+
+  const membershipUnchanged =
+    editing &&
+    productIds.length === baselineProductIds.length &&
+    productIds.every((id) => baselineProductIds.includes(id));
+
+  const editMembershipOk =
+    Boolean(membershipUnchanged) ||
+    (productIds.length >= 1 && productIds.every((id) => allowedIds.includes(id)));
+
+  const canSubmit = editing
+    ? Boolean(name.trim()) &&
+      editMembershipOk &&
+      !nameClash &&
+      (canPublishAlready || consent) &&
+      publishAudienceCanSubmit(publishAudience) &&
+      pricingReady &&
+      !curateCheck.isLoading
+    : Boolean(name.trim()) &&
+      allowedIds.length >= 1 &&
+      !nameClash &&
+      (canPublishAlready || consent) &&
+      publishAudienceCanSubmit(publishAudience) &&
+      pricingReady &&
+      !packLocked &&
+      !curateCheck.isLoading;
+
+  const setShowRates = (on: boolean) => {
+    setPublishAudience((prev) => ({
+      ...prev,
+      rateVisibility: on ? RateVisibility.Visible : RateVisibility.OnRequest,
+      // Soft hint for foreign packs — trader can still turn Show rates on.
+      policyHint: !on && hasForeign
+        ? 'Rates stay on request when this collection includes others’ designs.'
+        : null,
+    }));
+  };
 
   const addToExisting = async (pack: CollectionView) => {
     if (allowedIds.length < 1) return;
@@ -329,6 +700,94 @@ export function RepostSheet({
     }
   };
 
+  const buildPublishDto = (): PublishCollectionDto => {
+    const ratesOn = exploreShowRatesOn(publishAudience.rateVisibility);
+    const memberIds = editing ? productIds : allowedIds;
+    const publishForm =
+      ratesOn && pricingForm.mode === RepostPricingMode.Edit && memberIds.length === 1
+        ? {
+            ...pricingForm,
+            editedRate: editRatesByProductId[memberIds[0]!] ?? pricingForm.editedRate,
+          }
+        : ratesOn
+          ? pricingForm
+          : defaultPackRepostPricingForm();
+    return {
+      audience: publishAudience.audience as PublishCollectionDto['audience'],
+      rateVisibility: publishAudience.rateVisibility as PublishCollectionDto['rateVisibility'],
+      allowForward: publishAudience.allowForward,
+      allowDownload: publishAudience.allowDownload,
+      showSourceShops: hasForeign ? publishAudience.showSourceShops : false,
+      ...publishAudienceDtoFields(publishAudience),
+      ...(canPublishAlready ? {} : { consentToSell: true }),
+      ...publishPricingFieldsFromForm(publishForm, {
+        rateMin: packPreview.data?.rateMin ?? editDetail.data?.rate ?? null,
+        rateMax: packPreview.data?.rateMax ?? editDetail.data?.rateMax ?? null,
+      }),
+    };
+  };
+
+  const patchEditMemberPricing = async (collectionId: string, memberIds: string[]) => {
+    const ratesOn = exploreShowRatesOn(publishAudience.rateVisibility);
+    if (!ratesOn || pricingForm.mode !== RepostPricingMode.Edit) return;
+    const byId = new Map(editDesignRows.map((row) => [row.productId, row]));
+    for (const productId of memberIds) {
+      const draft = editRatesByProductId[productId];
+      if (draft == null || draft.trim() === '') continue;
+      const row = byId.get(productId);
+      await api.patch(`/collections/${collectionId}/member-pricing`, {
+        ...memberPricingDtoFromForm(
+          productId,
+          {
+            mode: RepostPricingMode.Edit,
+            marginValue: '',
+            editedRate: draft,
+          },
+          row?.supplierRate ?? null,
+        ),
+      });
+    }
+  };
+
+  const runEditSave = async () => {
+    if (!resolvedEditId) throw new Error('Nothing to update');
+    const packName = name.trim();
+    if (!packName) throw new Error('Enter a collection name.');
+
+    const membershipChanged = !membershipUnchanged;
+    if (membershipChanged) {
+      const check = await api.post<CurateCheckView>('/collections/curate-check', {
+        productIds,
+        ...(sourceCollectionId ? { sourceCollectionId } : {}),
+      });
+      const allowed = new Set(check.allowedProductIds ?? []);
+      if (productIds.length < 1 || productIds.some((id) => !allowed.has(id))) {
+        setSheetError(MEMBERSHIP_UNAVAILABLE);
+        void queryClient.invalidateQueries({ queryKey: ['collections', 'curate-check'] });
+        return;
+      }
+      await api.put<CollectionDetailView>(`/collections/${resolvedEditId}/products`, {
+        productIds,
+        ...(sourceCollectionId ? { sourceCollectionId } : {}),
+      } satisfies SetCollectionProductsDto);
+    }
+
+    if (editDetail.data && editDetail.data.name.trim() !== packName) {
+      await api.patch(`/collections/${resolvedEditId}`, { name: packName });
+    }
+
+    await api.post(`/collections/${resolvedEditId}/publish`, buildPublishDto());
+    await patchEditMemberPricing(resolvedEditId, productIds);
+
+    void queryClient.invalidateQueries({ queryKey: ['my-collections'] });
+    void queryClient.invalidateQueries({ queryKey: ['explore'] });
+    void queryClient.invalidateQueries({ queryKey: ['collections', 'detail', resolvedEditId] });
+    void queryClient.invalidateQueries({ queryKey: ['company-settings'] });
+    onReposted?.(resolvedEditId);
+    showToast('Updated');
+    onClose();
+  };
+
   const runRepost = async (withLink: boolean) => {
     if (!target) throw new Error('Nothing to repost');
     const packName = name.trim();
@@ -355,22 +814,14 @@ export function RepostSheet({
         ...(sourceCollectionId ? { sourceCollectionId } : {}),
       } satisfies SetCollectionProductsDto);
 
-      const dto: PublishCollectionDto = {
-        audience: publishAudience.audience as PublishCollectionDto['audience'],
-        rateVisibility: publishAudience.rateVisibility as PublishCollectionDto['rateVisibility'],
-        allowForward: publishAudience.allowForward,
-        allowDownload: publishAudience.allowDownload,
-        showSourceShops: hasForeign ? publishAudience.showSourceShops : false,
-        ...publishAudienceDtoFields(publishAudience),
-        ...(canPublishAlready ? {} : { consentToSell: true }),
-      };
-      await api.post(`/collections/${created.id}/publish`, dto);
+      await api.post(`/collections/${created.id}/publish`, buildPublishDto());
+      await patchEditMemberPricing(created.id, allowedIds);
 
       void queryClient.invalidateQueries({ queryKey: ['my-collections'] });
       void queryClient.invalidateQueries({ queryKey: ['explore'] });
       void queryClient.invalidateQueries({ queryKey: ['company-settings'] });
       void queryClient.invalidateQueries({ queryKey: ['company', 'me'] });
-      onReposted?.();
+      onReposted?.(created.id);
       showToast(
         !publishAudience.allowForward
           ? 'Reposted · Buyers can’t add these to collections.'
@@ -392,6 +843,12 @@ export function RepostSheet({
       }
       onClose();
     } catch (err) {
+      const conflictId = alreadyRepostedCollectionId(err);
+      if (conflictId) {
+        setResolvedEditId(conflictId);
+        editHydrated.current = false;
+        throw err;
+      }
       if (createdId) {
         try {
           await api.del(`/collections/${createdId}`);
@@ -409,17 +866,38 @@ export function RepostSheet({
     setSheetError(null);
     setReadyInvite(null);
     try {
+      if (editing) {
+        await runEditSave();
+        return;
+      }
       await runRepost(withLink);
     } catch (err) {
       if (err instanceof ApiError && err.code === 'ALREADY_REPOSTED') {
-        onReposted?.();
-        void queryClient.invalidateQueries({ queryKey: ['explore'] });
-        showToast('You already reposted this.');
-        onClose();
+        let conflictId = alreadyRepostedCollectionId(err);
+        if (!conflictId && target) {
+          try {
+            conflictId = await fetchRepostOfCollectionId(target);
+          } catch {
+            conflictId = null;
+          }
+        }
+        if (conflictId) {
+          setResolvedEditId(conflictId);
+          editHydrated.current = false;
+          setSheetError(null);
+          onReposted?.(conflictId);
+          void queryClient.invalidateQueries({ queryKey: ['explore'] });
+          // Stay open in edit mode — do not toast-close.
+        } else {
+          onReposted?.();
+          void queryClient.invalidateQueries({ queryKey: ['explore'] });
+          showToast('You already reposted this.');
+          onClose();
+        }
       } else if (err instanceof ApiError && err.code === 'COLLECTION_NAME_TAKEN') {
         setSheetError(CURATE_NAME_TAKEN);
       } else if (err instanceof ApiError && isCurateCeilingError(err)) {
-        setSheetError(null);
+        setSheetError(MEMBERSHIP_UNAVAILABLE);
         void queryClient.invalidateQueries({ queryKey: ['collections', 'curate-check'] });
       } else {
         const clash = err instanceof ApiError ? collectionNameClash(err) : null;
@@ -428,7 +906,7 @@ export function RepostSheet({
             ? CURATE_NAME_TAKEN
             : err instanceof ApiError
               ? err.message
-              : (err as Error).message || 'Could not repost.',
+              : (err as Error).message || (editing ? 'Could not update.' : 'Could not repost.'),
         );
       }
     } finally {
@@ -436,7 +914,29 @@ export function RepostSheet({
     }
   };
 
-  const busy = saving;
+  const busy = saving || removing;
+  const showRemoveRepost = Boolean(editing && editTitle === 'Edit repost' && resolvedEditId);
+  const removeCopy = removeRepostCopy();
+
+  const onRemoveRepost = async () => {
+    if (!resolvedEditId || removing) return;
+    setRemoving(true);
+    setSheetError(null);
+    try {
+      await api.post(`/collections/${resolvedEditId}/remove-repost`);
+      void queryClient.invalidateQueries({ queryKey: ['explore'] });
+      void queryClient.invalidateQueries({ queryKey: ['collections'] });
+      setRemoveConfirmOpen(false);
+      onClose();
+      showToast('Repost removed');
+    } catch (err) {
+      setSheetError(
+        err instanceof ApiError ? err.message : "Couldn't remove this repost.",
+      );
+    } finally {
+      setRemoving(false);
+    }
+  };
 
   return (
     <>
@@ -445,11 +945,17 @@ export function RepostSheet({
         onClose={() => {
           if (!busy) onClose();
         }}
-        title="Repost"
+        title={
+          wantEdit || editing ? (editTitle ?? 'Edit repost') : 'Repost'
+        }
         footer={
-          !showPublishForm || (allowedIds.length < 1 && !curateCheck.isLoading) ? null : (
+          !showPublishForm ||
+          (!editing && allowedIds.length < 1 && !curateCheck.isLoading) ||
+          (editing && productIds.length < 1 && !curateCheck.isLoading && !showRemoveRepost)
+            ? null
+            : (
           <div className="flex flex-col gap-2">
-            {nameClash ? (
+            {nameClash && !editing ? (
               <Button
                 fullWidth
                 disabled={busy || allowedIds.length < 1}
@@ -460,14 +966,30 @@ export function RepostSheet({
               </Button>
             ) : (
               <>
+            {!(editing && productIds.length < 1) ? (
             <Button
               fullWidth
               disabled={!canSubmit || busy}
               data-testid="repost-publish"
               onClick={() => void onRepostClick(false)}
             >
-              {busy && !readyInvite ? 'Reposting…' : 'Repost'}
+              {busy && !readyInvite && !removing
+                ? editing
+                  ? 'Saving…'
+                  : 'Reposting…'
+                : editing
+                  ? 'Save'
+                  : 'Repost'}
             </Button>
+            ) : null}
+            {editing ? (
+              <p
+                data-testid="repost-edit-rates-cue"
+                className="text-center text-[12px] text-ink-3"
+              >
+                New rates apply to new orders.
+              </p>
+            ) : (
             <button
               type="button"
               disabled={!canSubmit || busy}
@@ -481,6 +1003,18 @@ export function RepostSheet({
                   ? 'Repost + share a link · 48 hours'
                   : 'Repost + copy a link · 48 hours'}
             </button>
+            )}
+            {showRemoveRepost ? (
+              <button
+                type="button"
+                disabled={busy}
+                data-testid="repost-remove"
+                onClick={() => setRemoveConfirmOpen(true)}
+                className="text-center text-sm text-danger disabled:opacity-50"
+              >
+                Remove repost
+              </button>
+            ) : null}
               </>
             )}
           </div>
@@ -568,11 +1102,71 @@ export function RepostSheet({
                 />
               </Field>
 
+              <div className="flex flex-col gap-2" data-testid="repost-show-rates">
+                <p className="text-sm font-emphasis text-ink">Show rates</p>
+                <div className="grid grid-cols-2 gap-1.5">
+                  <button
+                    type="button"
+                    data-testid="repost-rates-off"
+                    onClick={() => setShowRates(false)}
+                    className={cx(
+                      'rounded-xl border px-3 py-2.5 text-left text-sm',
+                      !showRates
+                        ? 'border-accent bg-accent/5 font-emphasis text-ink'
+                        : 'border-line text-muted',
+                    )}
+                  >
+                    On request
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="repost-rates-on"
+                    onClick={() => setShowRates(true)}
+                    className={cx(
+                      'rounded-xl border px-3 py-2.5 text-left text-sm',
+                      showRates
+                        ? 'border-accent bg-accent/5 font-emphasis text-ink'
+                        : 'border-line text-muted',
+                    )}
+                  >
+                    Show rates
+                  </button>
+                </div>
+                {!showRates && hasForeign ? (
+                  <p className="text-xs text-muted" data-testid="repost-rates-foreign-hint">
+                    Rates stay on request when this collection includes others’ designs.
+                  </p>
+                ) : null}
+              </div>
+
+              {showRates ? (
+                <RepostPricingFields
+                  variant="prototype"
+                  value={pricingForm}
+                  onChange={(next) => {
+                    setPricingForm(next);
+                    setSheetError(null);
+                  }}
+                  editDesigns={editDesignRows}
+                  editRatesByProductId={editRatesByProductId}
+                  onEditRateChange={(productId, rate) => {
+                    setEditRatesByProductId((prev) => ({ ...prev, [productId]: rate }));
+                    setSheetError(null);
+                  }}
+                  supplierCue={supplierCue}
+                  buyerRatePreview={buyerRatePreview}
+                />
+              ) : null}
+
               <PublishAudienceFields
                 state={publishAudience}
                 onChange={(next) => {
                   setSheetError(null);
-                  setPublishAudience(next);
+                  // Show rates gate owns rateVisibility — keep Who from overwriting it.
+                  setPublishAudience({
+                    ...next,
+                    rateVisibility: publishAudience.rateVisibility,
+                  });
                 }}
                 lists={broadcastLists.data ?? []}
                 connections={activeConnections}
@@ -580,6 +1174,8 @@ export function RepostSheet({
                 tradeDefaults={settings.data?.tradeDefaults}
                 maxAudience={maxAudience}
                 showSourceShopsOption={hasForeign}
+                hideShowRates
+                isVisibilityUpdate={editing}
                 showConsent={!canPublishAlready}
                 consent={consent}
                 onConsent={setConsent}
@@ -617,6 +1213,18 @@ export function RepostSheet({
           );
           void queryClient.invalidateQueries({ queryKey: ['broadcast-lists'] });
         }}
+      />
+
+      <OwnerPackLifecycleSheet
+        open={removeConfirmOpen}
+        onClose={() => {
+          if (!removing) setRemoveConfirmOpen(false);
+        }}
+        busy={removing}
+        title={removeCopy.title}
+        body={removeCopy.body}
+        confirmLabel={removeCopy.confirmLabel}
+        onConfirm={() => void onRemoveRepost()}
       />
     </>
   );

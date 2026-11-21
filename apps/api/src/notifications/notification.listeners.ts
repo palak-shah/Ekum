@@ -11,6 +11,7 @@ import {
   type OrderStatusChangedEvent,
   type PaymentAskEvent,
   type ReturnEvent,
+  type RepostSyncDesignsAddedEvent,
 } from '../events/domain-events';
 import { PrismaService } from '../core/prisma/prisma.service';
 import { NotificationService } from './notification.service';
@@ -104,6 +105,25 @@ export class NotificationListeners {
         body,
         refType: 'product',
         refId: event.productIds[0] ?? undefined,
+      }),
+    );
+  }
+
+  @OnEvent(DomainEventName.RepostSyncDesignsAdded)
+  async onRepostSyncDesignsAdded(event: RepostSyncDesignsAddedEvent): Promise<void> {
+    if (event.addedCount < 1) return;
+    const body =
+      event.addedCount === 1
+        ? `1 new design in ${event.collectionName}`
+        : `${event.addedCount} new designs in ${event.collectionName}`;
+    await this.guard(() =>
+      this.notifications.create({
+        recipientCompanyId: event.ownerCompanyId,
+        type: NotificationType.Collection,
+        title: 'Designs added to your collection',
+        body,
+        refType: 'collection',
+        refId: event.collectionId,
       }),
     );
   }

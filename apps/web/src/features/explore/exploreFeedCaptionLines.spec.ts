@@ -2,10 +2,26 @@ import { describe, expect, it } from 'vitest';
 import {
   exploreFeedAboutText,
   exploreFeedCategoryLine,
+  exploreFeedNewDesignsLine,
   exploreFeedRateLine,
   exploreFeedSourceLine,
   visitorPackSourceLine,
 } from './exploreFeedCaptionLines';
+
+describe('exploreFeedNewDesignsLine', () => {
+  it('omits zero / missing', () => {
+    expect(exploreFeedNewDesignsLine(0)).toBeNull();
+    expect(exploreFeedNewDesignsLine(null)).toBeNull();
+    expect(exploreFeedNewDesignsLine(undefined)).toBeNull();
+  });
+
+  it('formats peer and own lines', () => {
+    expect(exploreFeedNewDesignsLine(1)).toBe('1 new design');
+    expect(exploreFeedNewDesignsLine(3)).toBe('3 new designs');
+    expect(exploreFeedNewDesignsLine(1, { isOwn: true })).toBe('You added 1');
+    expect(exploreFeedNewDesignsLine(4, { isOwn: true })).toBe('You added 4');
+  });
+});
 
 describe('exploreFeedRateLine', () => {
   it('formats a band with the unit slash tight', () => {

@@ -5,11 +5,22 @@ import type { VisibilityService } from '../access/visibility.service';
 
 function makePrisma(
   memberships: unknown[],
-  opts: { following?: boolean } = {},
+  opts: {
+    following?: boolean;
+    upstream?: Array<{
+      id: string;
+      allowForward: boolean;
+      status: string;
+      repostSourceCollectionId?: string | null;
+    }>;
+  } = {},
 ) {
   return {
     collectionProduct: {
       findMany: vi.fn(async () => memberships),
+    },
+    collection: {
+      findMany: vi.fn(async () => opts.upstream ?? []),
     },
     follow: {
       findUnique: vi.fn(async () =>
@@ -17,7 +28,7 @@ function makePrisma(
       ),
     },
     collectionViewGrant: {
-      findUnique: vi.fn(async () => null),
+      findFirst: vi.fn(async () => null),
     },
   } as unknown as PrismaService;
 }
@@ -94,5 +105,39 @@ describe('productAccessibleViaCollection', () => {
       wasSharedInChat: async () => false,
     });
     expect(ok).toBe(true);
+  });
+
+  it('does not unlock via soft-unavailable descendant pack', async () => {
+    const prisma = makePrisma(
+      [
+        {
+          collection: {
+            id: 'repost1',
+            companyId: 'trader',
+            status: 'published',
+            audience: 'everyone',
+            audienceCompanyIds: [] as string[],
+            startsAt: null,
+            endsAt: null,
+            repostSourceCollectionId: 'mill1',
+          },
+        },
+      ],
+      {
+        following: true,
+        upstream: [
+          {
+            id: 'mill1',
+            allowForward: false,
+            status: 'published',
+            repostSourceCollectionId: null,
+          },
+        ],
+      },
+    );
+    const ok = await productAccessibleViaCollection(prisma, visibility(), 'viewer', 'p1', {
+      wasSharedInChat: async () => false,
+    });
+    expect(ok).toBe(false);
   });
 });

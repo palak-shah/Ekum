@@ -22,9 +22,28 @@ vi.mock('@/lib/queries', () => ({
   useMyCompany: () => ({ data: { id: 'me', capabilities: { publish: true } } }),
 }));
 
-vi.mock('@/lib/tradePresence', () => ({
-  useTradePresence: () => ({ trading: true, buying: true, selling: true }),
+const tradePresence = vi.hoisted(() => ({
+  trading: true,
+  buying: true,
+  selling: true,
 }));
+
+vi.mock('@/lib/tradePresence', () => ({
+  useTradePresence: () => tradePresence,
+}));
+
+const { MockApiError } = vi.hoisted(() => {
+  class MockApiError extends Error {
+    code?: string;
+    details?: unknown;
+    constructor(message: string, code?: string, details?: unknown) {
+      super(message);
+      this.code = code;
+      this.details = details;
+    }
+  }
+  return { MockApiError };
+});
 
 vi.mock('@/lib/apiClient', () => ({
   api: {
@@ -51,9 +70,7 @@ vi.mock('@/lib/apiClient', () => ({
     }),
     post: vi.fn(async () => ({ allowedProductIds: ['p1'], blocked: [] })),
   },
-  ApiError: class ApiError extends Error {
-    code?: string;
-  },
+  ApiError: MockApiError,
 }));
 
 const collection: CollectionCard = {
@@ -99,9 +116,28 @@ function wrap(ui: React.ReactNode) {
   );
 }
 
+function ownCollectionDetail(id: string, name: string) {
+  return {
+    id,
+    name,
+    audience: 'followers',
+    rateVisibility: 'on_request',
+    audienceCompanyIds: [],
+    audienceGroupIds: [],
+    allowForward: true,
+    allowDownload: false,
+    showSourceShops: false,
+    products: [{ id: 'p1', companyId: 'me', name: 'Silk', images: [], excluded: false }],
+    memberPricing: [],
+  };
+}
+
 describe('ExploreFeedActions', () => {
   beforeEach(() => {
     navigate.mockClear();
+    tradePresence.trading = true;
+    vi.mocked(api.get).mockClear();
+    vi.mocked(api.post).mockClear();
     vi.mocked(api.get).mockImplementation(async (path: string) => {
       if (path.startsWith('/explore/collections/')) {
         return {
@@ -163,7 +199,94 @@ describe('ExploreFeedActions', () => {
     expect(screen.getByPlaceholderText('What do you think of this?')).toBeTruthy();
   });
 
-  it('grays out Message and Repost on own posts; Share · Bookmark stay enabled', () => {
+  it('own original + Trading → Edit post; Message gray; Share · Bookmark on', async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.get).mockImplementation(async (path: string) => {
+      if (path === '/collections/col-own') {
+        return ownCollectionDetail('col-own', 'My Wedding Edit');
+      }
+      if (path === '/connections') return [];
+      if (path === '/broadcasts/lists') return [];
+      if (path === '/settings') return { tradeDefaults: {} };
+      if (path === '/collections') return [];
+      return {};
+    });
+    vi.mocked(api.post).mockImplementation(async (path: string) => {
+      if (path === '/collections') {
+        throw new Error('must not create when editing own original');
+      }
+      if (path === '/collections/curate-check') {
+        return { allowedProductIds: ['p1'], blocked: [] };
+      }
+      return {};
+    });
+    wrap(
+      <ExploreFeedActions
+        collection={{
+          ...collection,
+          id: 'col-own',
+          company: { ...collection.company, id: 'me', name: 'My Shop' },
+        }}
+      />,
+    );
+    const repost = screen.getByTestId('explore-feed-repost');
+    expect(screen.getByTestId('explore-feed-message')).toBeDisabled();
+    expect(repost).toHaveAttribute('aria-label', 'Edit post');
+    expect(repost).toHaveAttribute('data-repost', 'done');
+    expect(repost).not.toBeDisabled();
+    expect(screen.getByTestId('explore-feed-bookmark')).toBeEnabled();
+    expect(screen.getByTestId('explore-feed-share')).toBeEnabled();
+    await user.click(repost);
+    expect(await screen.findByRole('heading', { name: 'Edit post' })).toBeTruthy();
+    expect(await screen.findByTestId('repost-publish')).toHaveTextContent('Save');
+    expect(vi.mocked(api.get).mock.calls.some((c) => c[0] === '/collections/col-own')).toBe(
+      true,
+    );
+    expect(vi.mocked(api.get).mock.calls.some((c) => c[0] === '/collections/repost-of')).toBe(
+      false,
+    );
+    expect(vi.mocked(api.post).mock.calls.some((c) => c[0] === '/collections')).toBe(false);
+  });
+
+  it('own repost child + Trading → Edit repost with card id (not upstream)', async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.get).mockImplementation(async (path: string) => {
+      if (path === '/collections/my-child') {
+        return ownCollectionDetail('my-child', 'My curated pack');
+      }
+      if (path === '/collections/repost-of') {
+        throw new Error('own child must not resolve upstream');
+      }
+      if (path === '/connections') return [];
+      if (path === '/broadcasts/lists') return [];
+      if (path === '/settings') return { tradeDefaults: {} };
+      if (path === '/collections') return [];
+      return {};
+    });
+    wrap(
+      <ExploreFeedActions
+        collection={{
+          ...collection,
+          id: 'my-child',
+          isRepostChild: true,
+          company: { ...collection.company, id: 'me', name: 'My Shop' },
+        }}
+      />,
+    );
+    const repost = screen.getByTestId('explore-feed-repost');
+    expect(repost).toHaveAttribute('aria-label', 'Edit repost');
+    await user.click(repost);
+    expect(await screen.findByRole('heading', { name: 'Edit repost' })).toBeTruthy();
+    expect(vi.mocked(api.get).mock.calls.some((c) => c[0] === '/collections/my-child')).toBe(
+      true,
+    );
+    expect(vi.mocked(api.get).mock.calls.some((c) => c[0] === '/collections/repost-of')).toBe(
+      false,
+    );
+  });
+
+  it('Trading OFF blocks own editing — gray Repost, no Edit label', () => {
+    tradePresence.trading = false;
     wrap(
       <ExploreFeedActions
         collection={{
@@ -172,23 +295,130 @@ describe('ExploreFeedActions', () => {
         }}
       />,
     );
+    const repost = screen.getByTestId('explore-feed-repost');
+    expect(repost).toHaveAttribute('aria-label', 'Repost');
+    expect(repost).toBeDisabled();
+    expect(repost).not.toHaveAttribute('data-repost', 'done');
     expect(screen.getByTestId('explore-feed-message')).toBeDisabled();
-    expect(screen.getByTestId('explore-feed-repost')).toBeDisabled();
-    expect(screen.getByTestId('explore-feed-bookmark')).toBeEnabled();
-    expect(screen.getByTestId('explore-feed-share')).toBeEnabled();
   });
 
-  it('shows done Repost icon when viewer already reposted — not gray; toast; no sheet', async () => {
+  it('peer already-reposted + Trading OFF stays gray Repost (not Edit label)', () => {
+    tradePresence.trading = false;
+    wrap(
+      <ExploreFeedActions
+        collection={{
+          ...collection,
+          viewerReposted: true,
+          viewerRepostCollectionId: 'child-1',
+        }}
+      />,
+    );
+    const repost = screen.getByTestId('explore-feed-repost');
+    expect(repost).toHaveAttribute('aria-label', 'Repost');
+    expect(repost).toBeDisabled();
+    expect(repost).not.toHaveAttribute('data-repost', 'done');
+  });
+
+  it('muted Edit without child id resolves via repost-of (no stamp id)', async () => {
     const user = userEvent.setup();
+    vi.mocked(api.get).mockImplementation(async (path: string) => {
+      if (path === '/collections/repost-of') {
+        return { collectionId: 'child-1' };
+      }
+      if (path === '/collections/child-1') {
+        return {
+          id: 'child-1',
+          name: 'My Wedding Edit',
+          audience: 'followers',
+          rateVisibility: 'on_request',
+          audienceCompanyIds: [],
+          audienceGroupIds: [],
+          allowForward: true,
+          allowDownload: false,
+          showSourceShops: false,
+          products: [
+            { id: 'p1', companyId: 'mill', name: 'Silk', images: [], excluded: false },
+          ],
+          memberPricing: [],
+        };
+      }
+      if (path === '/connections') return [];
+      if (path === '/broadcasts/lists') return [];
+      if (path === '/settings') return { tradeDefaults: {} };
+      if (path === '/collections') return [];
+      return {};
+    });
+    vi.mocked(api.post).mockImplementation(async (path: string) => {
+      if (path === '/collections/curate-check') {
+        return { allowedProductIds: ['p1'], blocked: [] };
+      }
+      if (path === '/collections') {
+        throw new Error('must not create when repost-of resolves');
+      }
+      return {};
+    });
     wrap(<ExploreFeedActions collection={{ ...collection, viewerReposted: true }} />);
     const repost = screen.getByTestId('explore-feed-repost');
-    expect(repost).toHaveAttribute('data-repost', 'done');
-    expect(repost).toHaveAttribute('aria-label', 'Reposted');
-    expect(repost.className).not.toMatch(/opacity-40/);
+    expect(repost).toHaveAttribute('aria-label', 'Edit repost');
     expect(repost).not.toBeDisabled();
     await user.click(repost);
-    expect(screen.queryByRole('heading', { name: 'Repost' })).toBeNull();
-    expect(screen.getByText('You already reposted this.')).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: 'Edit repost' })).toBeTruthy();
+    expect(await screen.findByTestId('repost-publish')).toHaveTextContent('Save');
+    expect(vi.mocked(api.post).mock.calls.some((c) => c[0] === '/collections')).toBe(false);
+  });
+
+  it('shows muted Edit repost icon when already stamped — opens edit sheet, no toast', async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.get).mockImplementation(async (path: string) => {
+      if (path === '/collections/child-1') {
+        return {
+          id: 'child-1',
+          name: 'My Wedding Edit',
+          audience: 'followers',
+          rateVisibility: 'on_request',
+          audienceCompanyIds: [],
+          audienceGroupIds: [],
+          allowForward: true,
+          allowDownload: false,
+          showSourceShops: false,
+          products: [
+            { id: 'p1', companyId: 'mill', name: 'Silk', images: [], excluded: false },
+          ],
+          memberPricing: [],
+        };
+      }
+      if (path.startsWith('/explore/collections/')) {
+        return {
+          id: 'col-1',
+          products: [
+            { id: 'p1', companyId: 'mill', audience: 'followers', name: 'Silk', images: [] },
+          ],
+        };
+      }
+      if (path === '/connections') return [];
+      if (path === '/broadcasts/lists') return [];
+      if (path === '/settings') return { tradeDefaults: {} };
+      if (path === '/collections') return [];
+      return {};
+    });
+    wrap(
+      <ExploreFeedActions
+        collection={{
+          ...collection,
+          viewerReposted: true,
+          viewerRepostCollectionId: 'child-1',
+        }}
+      />,
+    );
+    const repost = screen.getByTestId('explore-feed-repost');
+    expect(repost).toHaveAttribute('data-repost', 'done');
+    expect(repost).toHaveAttribute('aria-label', 'Edit repost');
+    expect(repost.className).not.toMatch(/opacity-40|opacity-50/);
+    expect(repost).not.toBeDisabled();
+    await user.click(repost);
+    expect(await screen.findByRole('heading', { name: 'Edit repost' })).toBeTruthy();
+    expect(screen.queryByText('You already reposted this.')).toBeNull();
+    expect(await screen.findByTestId('repost-publish')).toHaveTextContent('Save');
   });
 
   it('grays out Repost when zero designs are eligible; Share stays on; tap does not open sheet', async () => {

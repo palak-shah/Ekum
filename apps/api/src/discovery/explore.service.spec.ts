@@ -44,7 +44,7 @@ function makeService(
       findFirst: async () => (opts?.sharedInChat ? { id: 'm1' } : null),
     },
     collectionViewGrant: {
-      findUnique: async () => null,
+      findFirst: async () => null,
     },
     company: {
       findMany: async ({ where }: { where: { id: { in: string[] } } }) =>
@@ -769,7 +769,16 @@ describe('ExploreService.collectionDetail trust rules', () => {
         findMany: async (args: { where?: { companyId?: string; OR?: unknown } }) => {
           if (args.where && 'OR' in (args.where as object)) {
             stampWhere = args.where;
-            return [{ repostSourceCollectionId: 'peer-col', repostSourceProductId: null }];
+            return [
+              {
+                id: 'my-child',
+                repostSourceCollectionId: 'peer-col',
+                repostSourceProductId: null,
+                status: 'published',
+                audience: 'followers',
+                repostOrigin: 'manual',
+              },
+            ];
           }
           return [peerPack];
         },
@@ -778,13 +787,14 @@ describe('ExploreService.collectionDetail trust rules', () => {
     const discovery = {
       toCollectionCard: (
         row: { id: string; companyId: string; company?: { id: string }; _count: { products: number } },
-        opts?: { viewerReposted?: boolean },
+        opts?: { viewerReposted?: boolean; viewerRepostCollectionId?: string | null },
       ) => ({
         id: row.id,
         name: 'Peer Pack',
         company: { id: row.company?.id ?? row.companyId },
         productCount: row._count.products,
         viewerReposted: opts?.viewerReposted === true,
+        viewerRepostCollectionId: opts?.viewerRepostCollectionId ?? null,
         updatedAt: new Date().toISOString(),
       }),
     } as unknown as DiscoverySerializer;
@@ -808,6 +818,7 @@ describe('ExploreService.collectionDetail trust rules', () => {
     });
     expect(stampWhere).not.toHaveProperty('audience');
     expect(page.results[0]?.viewerReposted).toBe(true);
+    expect(page.results[0]?.viewerRepostCollectionId).toBe('my-child');
   });
 
   it('stamps viewerReposted for a published Selected hop, not draft / automatic Selected', async () => {
@@ -837,6 +848,7 @@ describe('ExploreService.collectionDetail trust rules', () => {
           if (args.where?.companyId === 'me') {
             return [
               {
+                id: 'my-child',
                 repostSourceCollectionId: 'peer-col',
                 repostSourceProductId: null,
                 status: 'published',
@@ -852,10 +864,15 @@ describe('ExploreService.collectionDetail trust rules', () => {
     const discovery = {
       toCollectionCard: (
         row: { id: string },
-        opts?: { viewerReposted?: boolean; repostEligibleCount?: number },
+        opts?: {
+          viewerReposted?: boolean;
+          viewerRepostCollectionId?: string | null;
+          repostEligibleCount?: number;
+        },
       ) => ({
         id: row.id,
         viewerReposted: opts?.viewerReposted === true,
+        viewerRepostCollectionId: opts?.viewerRepostCollectionId ?? null,
         repostEligibleCount: opts?.repostEligibleCount ?? 0,
       }),
     } as unknown as DiscoverySerializer;
@@ -873,6 +890,7 @@ describe('ExploreService.collectionDetail trust rules', () => {
     );
     const page = await service.collections('me', { limit: 20, following: true });
     expect(page.results[0]?.viewerReposted).toBe(true);
+    expect(page.results[0]?.viewerRepostCollectionId).toBe('my-child');
     expect(page.results[0]?.repostEligibleCount).toBe(1);
   });
 

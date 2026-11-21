@@ -7,6 +7,8 @@ export * from './company-business-info';
 export * from './access';
 export * from './catalog';
 export * from './repost-hop';
+export * from './repost-membership';
+export * from './repost-pricing';
 export * from './category-taxonomy';
 export * from './collection-view-request';
 export * from './relist-request';

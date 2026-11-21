@@ -43,6 +43,13 @@ describe('general collection identity', () => {
         productId: 'p1',
         position: 0,
         createdAt,
+        membershipOrigin: null,
+        excluded: false,
+        explicitlyAddedAt: null,
+        pricingMode: null,
+        marginValue: null,
+        editedRate: null,
+        editOwnBase: null,
         product: { id: 'p1', createdAt, name: 'Saree' },
       },
     ]);

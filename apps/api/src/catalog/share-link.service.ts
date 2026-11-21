@@ -10,6 +10,7 @@ import {
 } from '@ekum/domain-types';
 import { PrismaService } from '../core/prisma/prisma.service';
 import { randomToken } from '../common/crypto.util';
+import { resolveBuyerRepostPackAvailability } from './load-upstream-packs';
 import { shareLinkOpenForCollection, shareLinkOpenForProduct } from './share-link-view';
 
 const TTL_MS = 48 * 60 * 60 * 1000;
@@ -99,34 +100,24 @@ export class ShareLinkService {
   }
 
   /**
-   * Authenticated redeem: collection → view grant (open designs); then path to open.
-   * Product / designs links still hand off to the viewer (soft Ask when locked).
+   * Authenticated redeem: navigate to the target only.
+   * Never creates CollectionViewGrant — recipient must Request Access; pack owner Allows.
    */
   async claim(actorCompanyId: string, token: string): Promise<ShareLinkClaimView> {
     const view = await this.get(token);
     if (view.kind === 'collection') {
       const collection = await this.prisma.collection.findUnique({
         where: { id: view.targetId },
-        select: { id: true, companyId: true },
+        select: {
+          id: true,
+          companyId: true,
+          status: true,
+        },
       });
-      if (!collection) {
+      if (!collection || collection.status !== CollectionStatus.Published) {
         throw new NotFoundException({ code: 'NOT_FOUND', message: 'This link has expired.' });
       }
-      if (collection.companyId !== actorCompanyId) {
-        await this.prisma.collectionViewGrant.upsert({
-          where: {
-            collectionId_companyId: {
-              collectionId: collection.id,
-              companyId: actorCompanyId,
-            },
-          },
-          create: {
-            collectionId: collection.id,
-            companyId: actorCompanyId,
-          },
-          update: { grantedAt: new Date() },
-        });
-      }
+      void actorCompanyId;
       return {
         kind: 'collection',
         targetId: view.targetId,
@@ -169,27 +160,43 @@ export class ShareLinkService {
         where: { id: row.collectionId },
         select: {
           id: true,
+          companyId: true,
           name: true,
           coverImage: true,
           audience: true,
           status: true,
           startsAt: true,
           endsAt: true,
+          repostSourceCollectionId: true,
           company: { select: { name: true } },
         },
       });
       if (!collection) {
         throw new NotFoundException({ code: 'NOT_FOUND', message: 'This link has expired.' });
       }
-      const open = shareLinkOpenForCollection(collection);
-      const designs = open ? await this.collectionDesigns(collection.id) : [];
+      const availability = await resolveBuyerRepostPackAvailability(this.prisma, [
+        {
+          id: collection.id,
+          companyId: collection.companyId,
+          repostSourceCollectionId: collection.repostSourceCollectionId,
+        },
+      ]);
+      const softUnavailable = availability.omitIds.has(collection.id);
+      const open = !softUnavailable && shareLinkOpenForCollection(collection);
+      const eligibleIds = availability.eligibleProductIdsByPackId.get(collection.id);
+      let designs = open ? await this.collectionDesigns(collection.id) : [];
+      if (open && eligibleIds) {
+        designs = designs.filter((d) => eligibleIds.has(d.id));
+      }
       return {
         token,
         kind: 'collection',
         targetId: collection.id,
         name: collection.name,
         companyName: collection.company.name,
-        image: collection.coverImage,
+        image: softUnavailable
+          ? null
+          : designs[0]?.image ?? collection.coverImage,
         audience: collection.audience,
         open,
         designs,
@@ -249,7 +256,42 @@ export class ShareLinkService {
       throw new NotFoundException({ code: 'NOT_FOUND', message: 'This link has expired.' });
     }
     if (row.collectionId) {
-      const designs = await this.collectionDesigns(row.collectionId);
+      // Soft-unavailable packs must not leak design thumbs via OG teasers.
+      // Closed packs may still tease eligible thumbs; get() hides designs when !open.
+      if (view.designs.length === 0 && !view.image && !view.open) {
+        // Omitted soft pack (get cleared image + designs).
+        return { paths: [], companyName: view.companyName };
+      }
+      let designs =
+        view.designs.length > 0
+          ? view.designs
+          : await this.collectionDesigns(row.collectionId);
+      if (view.designs.length === 0 && row.collectionId) {
+        const collection = await this.prisma.collection.findUnique({
+          where: { id: row.collectionId },
+          select: {
+            id: true,
+            companyId: true,
+            repostSourceCollectionId: true,
+          },
+        });
+        if (collection) {
+          const availability = await resolveBuyerRepostPackAvailability(this.prisma, [
+            {
+              id: collection.id,
+              companyId: collection.companyId,
+              repostSourceCollectionId: collection.repostSourceCollectionId,
+            },
+          ]);
+          if (availability.omitIds.has(collection.id)) {
+            return { paths: [], companyName: view.companyName };
+          }
+          const eligibleIds = availability.eligibleProductIdsByPackId.get(collection.id);
+          if (eligibleIds) {
+            designs = designs.filter((d) => eligibleIds.has(d.id));
+          }
+        }
+      }
       const paths = designs
         .map((d) => d.image)
         .filter((p): p is string => Boolean(p))
@@ -355,8 +397,9 @@ export class ShareLinkService {
   }
 
   private async collectionDesigns(collectionId: string): Promise<ShareLinkDesignPreview[]> {
+    // Active members only — excluded tombstones never appear in teasers or open payloads.
     const rows = await this.prisma.collectionProduct.findMany({
-      where: { collectionId },
+      where: { collectionId, excluded: false },
       orderBy: { position: 'asc' },
       select: {
         product: { select: { id: true, name: true, images: true } },

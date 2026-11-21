@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ProductStatus } from '@ekum/domain-types';
 import {
+  collectionAlbumAccessShell,
   collectionAlbumIdentityInput,
   collectionFactsCategoryLine,
   collectionFactsLine,
@@ -64,6 +65,71 @@ describe('collectionViewerListedProducts', () => {
       { id: 'a', status: ProductStatus.Published },
       { id: 'b', status: ProductStatus.Draft },
     ]);
+  });
+
+  it('drops excluded tombstones for owner and visitor', () => {
+    expect(
+      collectionViewerListedProducts(
+        [
+          { id: 'a', status: ProductStatus.Published, excluded: true },
+          { id: 'b', status: ProductStatus.Published },
+          { id: 'c', status: ProductStatus.Draft, excluded: true },
+        ],
+        { kind: 'regular', isOwner: true },
+      ),
+    ).toEqual([{ id: 'b', status: ProductStatus.Published }]);
+    expect(
+      collectionViewerListedProducts([
+        { id: 'a', status: ProductStatus.Published, excluded: true },
+        { id: 'b', status: ProductStatus.Published },
+      ]),
+    ).toEqual([{ id: 'b', status: ProductStatus.Published }]);
+  });
+});
+
+describe('collectionAlbumAccessShell', () => {
+  it('soft-unavailable beats Ask and pending', () => {
+    expect(
+      collectionAlbumAccessShell({
+        hasProducts: false,
+        softUnavailable: true,
+        accessPending: true,
+      }),
+    ).toBe('unavailable');
+    expect(
+      collectionAlbumAccessShell({
+        hasProducts: false,
+        softUnavailable: true,
+        accessPending: false,
+      }),
+    ).toBe('unavailable');
+  });
+
+  it('preserves Ask / pending when not soft-unavailable', () => {
+    expect(
+      collectionAlbumAccessShell({
+        hasProducts: false,
+        softUnavailable: false,
+        accessPending: true,
+      }),
+    ).toBe('pending');
+    expect(
+      collectionAlbumAccessShell({
+        hasProducts: false,
+        softUnavailable: false,
+        accessPending: false,
+      }),
+    ).toBe('ask');
+  });
+
+  it('lot wins when products are present', () => {
+    expect(
+      collectionAlbumAccessShell({
+        hasProducts: true,
+        softUnavailable: true,
+        accessPending: true,
+      }),
+    ).toBe('lot');
   });
 });
 
@@ -297,7 +363,7 @@ describe('collectionMoreMenuNote', () => {
     ).toBeNull();
   });
 
-  it('explains look-only and Curate lock without blocking Forward', () => {
+  it('explains look-only and Repost lock without blocking Forward', () => {
     expect(
       collectionMoreMenuNote({ visitor: true, lookOnly: true, allowForward: true }),
     ).toBe('You can view this collection.');
@@ -311,7 +377,7 @@ describe('collectionMoreMenuNote', () => {
     ).toBe('You can view this catalog.');
     expect(
       collectionMoreMenuNote({ visitor: true, allowForward: false }),
-    ).toBe('You can look through — Curate into your collection is off.');
+    ).toBe('You can look through — Repost into your collection is off.');
   });
 });
 

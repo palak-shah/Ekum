@@ -19,6 +19,7 @@ import { PrismaService } from '../core/prisma/prisma.service';
 import { VisibilityService } from '../access/visibility.service';
 import { canViewCollectionProducts } from '../catalog/audience-visibility';
 import { isCollectionLiveForBuyers } from '../catalog/collection-schedule';
+import { resolveBuyerRepostPackAvailability } from '../catalog/load-upstream-packs';
 import { isHeldFromSupplier } from '../orders/orderHold';
 
 function catalogDesignLive(status?: string | null): boolean {
@@ -91,9 +92,11 @@ export class ReferenceResolver {
               status: true,
               startsAt: true,
               endsAt: true,
+              repostSourceCollectionId: true,
               company: { select: { id: true, name: true } },
-              _count: { select: { products: true } },
+              _count: { select: { products: { where: { excluded: false } } } },
               products: {
+                where: { excluded: false },
                 orderBy: { position: 'asc' },
                 select: { product: { select: { images: true, status: true } } },
               },
@@ -153,6 +156,19 @@ export class ReferenceResolver {
     const paymentById = new Map(payments.map((row) => [row.id, row]));
     const complaintById = new Map(complaints.map((row) => [row.id, row]));
 
+    const packAvailability =
+      collections.length > 0
+        ? await resolveBuyerRepostPackAvailability(
+            this.prisma,
+            collections.map((row) => ({
+              id: row.id,
+              companyId: row.companyId,
+              repostSourceCollectionId: row.repostSourceCollectionId,
+            })),
+          )
+        : null;
+    const softUnavailableIds = packAvailability?.omitIds ?? new Set<string>();
+
     const audienceCtxByOwner = await this.audienceContextByOwner(viewerCompanyId, [
       ...products.map((row) => row.companyId),
       ...collections.map((row) => row.companyId),
@@ -164,6 +180,7 @@ export class ReferenceResolver {
         where: {
           companyId: viewerCompanyId,
           collectionId: { in: collectionIds },
+          expiresAt: { gt: new Date() },
         },
         select: { collectionId: true },
       });
@@ -241,21 +258,39 @@ export class ReferenceResolver {
         });
       } else if (message.type === MessageType.CollectionCard) {
         const collection = collectionById.get(message.referenceId);
-        const designThumbs = (collection?.products ?? [])
+        const isOwner =
+          Boolean(viewerCompanyId) && collection?.companyId === viewerCompanyId;
+        const softUnavailable =
+          Boolean(collection) &&
+          !isOwner &&
+          softUnavailableIds.has(message.referenceId);
+        const eligibleIds =
+          !isOwner && collection
+            ? packAvailability?.eligibleProductIdsByPackId.get(collection.id)
+            : undefined;
+        const memberProducts = softUnavailable
+          ? []
+          : (collection?.products ?? []).filter((row) =>
+              eligibleIds ? eligibleIds.has(row.product.id) : true,
+            );
+        const designThumbs = memberProducts
           .map((row) => row.product.images[0])
           .filter((url): url is string => Boolean(url))
           .slice(0, 4);
-        const fallback = designThumbs[0] ?? collection?.coverImage ?? null;
+        const fallback = softUnavailable
+          ? null
+          : designThumbs[0] ?? collection?.coverImage ?? null;
         const images =
           designThumbs.length > 0 ? designThumbs : fallback ? [fallback] : [];
         const imagesLocked =
-          Boolean(collection) &&
-          !this.canShowCatalogImages(
-            viewerCompanyId,
-            collection!,
-            audienceCtxByOwner,
-            grantedCollectionIds.has(message.referenceId),
-          );
+          softUnavailable ||
+          (Boolean(collection) &&
+            !this.canShowCatalogImages(
+              viewerCompanyId,
+              collection!,
+              audienceCtxByOwner,
+              grantedCollectionIds.has(message.referenceId),
+            ));
         references.set(message.id, {
           kind: 'collection',
           id: message.referenceId,
@@ -263,11 +298,18 @@ export class ReferenceResolver {
           image: fallback,
           images: images.length > 0 ? images : null,
           imagesLocked,
-          itemCount: collection?._count.products ?? null,
+          itemCount: softUnavailable
+            ? null
+            : eligibleIds
+              ? memberProducts.length
+              : (collection?._count.products ?? null),
           ownerCompanyId: collection?.company?.id ?? collection?.companyId ?? null,
           ownerCompanyName: collection?.company?.name ?? null,
           allowForward: collection ? collection.allowForward !== false : true,
-          available: collection != null && isCollectionLiveForBuyers(collection),
+          available:
+            collection != null &&
+            !softUnavailable &&
+            isCollectionLiveForBuyers(collection),
         });
       } else if (message.type === MessageType.PaymentCard) {
         const ask = paymentById.get(message.referenceId);

@@ -126,6 +126,7 @@ import {
   collectionFactsLine,
   collectionShowHandleCopy,
   collectionThisPackSelectedIds,
+  collectionAlbumAccessShell,
   collectionViewerListedProducts,
   designTileMetaLine,
   designTileRateOverlay,
@@ -142,7 +143,9 @@ import type { MoreActionItem } from '@/ui/MoreActionsSheet';
 import { OwnerCollectionMoreSheet } from '@/features/collections/OwnerCollectionMoreSheet';
 import { OwnerPackDeleteSheet } from '@/features/collections/OwnerPackDeleteSheet';
 import { OwnerPackReplaceSheet } from '@/features/collections/OwnerPackReplaceSheet';
+import { RepostMemberPricingSheet } from '@/features/catalog/RepostMemberPricingSheet';
 import {
+  activeOwnerMemberIds,
   canDeleteSelected,
   deleteNeedsMultiPackConfirm,
   libraryDesignsForPicker,
@@ -171,6 +174,10 @@ import {
   bookmarkThisPackLabel,
   findInThisPack,
   noDesignsInThisPack,
+  ownerUpstreamUnavailableBody,
+  ownerUpstreamUnavailableTitle,
+  packUnavailableBody,
+  packUnavailableTitle,
   removedAccessToThisPack,
   shareThisPackLabel,
 } from '@/features/catalog/packKindCopy';
@@ -282,6 +289,7 @@ export function CollectionViewerPage() {
   const orderFlow = useShortlistOrderFlow();
   const [layout, setLayout] = useState<Layout>(() => readDesignBrowseLayout(myCompanyId));
   const [viewerProduct, setViewerProduct] = useState<ProductView | null>(null);
+  const [memberPricingProduct, setMemberPricingProduct] = useState<ProductView | null>(null);
   const [addToPackDesigns, setAddToPackDesigns] = useState<ProductView[] | null>(null);
   const [viewerIndex, setViewerIndex] = useState(0);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -458,6 +466,13 @@ export function CollectionViewerPage() {
 
   const companyId = collection.data?.company.id ?? '';
   const isOwner = Boolean(me.data?.id && companyId && me.data.id === companyId);
+  /** Owner GET — memberPricing only on stamped repost children. */
+  const ownerDetail = useQuery({
+    queryKey: ['collections', 'detail', id],
+    queryFn: () => api.get<CollectionDetailView>(`/collections/${id}`),
+    enabled: Boolean(id) && isOwner,
+  });
+  const canSetBuyerRate = isOwner && Array.isArray(ownerDetail.data?.memberPricing);
   const directThread = findDirectThreadForCompany(threads.data?.results, companyId);
   const products = collectionViewerListedProducts(collection.data?.products ?? [], {
     kind: collection.data?.kind,
@@ -653,7 +668,7 @@ export function CollectionViewerPage() {
   const ownerMemberIds = async () => {
     if (!id) return products.map((product) => product.id);
     const detail = await api.get<CollectionDetailView>(`/collections/${id}`);
-    return detail.products.map((product) => product.id);
+    return activeOwnerMemberIds(detail.products);
   };
 
   const clearOwnerManageSelect = () => {
@@ -1308,6 +1323,18 @@ export function CollectionViewerPage() {
 
       </div>
 
+      {isOwner && data.upstreamUnavailable ? (
+        <Card
+          className="flex flex-col gap-1"
+          data-testid="collection-owner-upstream-unavailable"
+        >
+          <p className="text-sm font-emphasis text-ink">
+            {ownerUpstreamUnavailableTitle(data.kind)}
+          </p>
+          <p className="text-xs text-muted">{ownerUpstreamUnavailableBody()}</p>
+        </Card>
+      ) : null}
+
       {isOwner && thisPackSelectedCount > 0 ? (
         <MoreActionsSheet
           open={moreOpen}
@@ -1524,7 +1551,14 @@ export function CollectionViewerPage() {
             </BottomTradeDock>
           ) : null}
 
-      {data.products ? (
+      {(() => {
+        const shell = collectionAlbumAccessShell({
+          hasProducts: Boolean(data.products),
+          softUnavailable: data.softUnavailable === true,
+          accessPending,
+        });
+        if (shell === 'lot') {
+          return (
         <div data-testid="collection-lot-tools">
         <BrowseLotChrome
           findOpen={searchOpen}
@@ -1615,7 +1649,29 @@ export function CollectionViewerPage() {
         )}
         </BrowseLotChrome>
         </div>
-      ) : accessPending ? (
+          );
+        }
+        if (shell === 'unavailable') {
+          return (
+        <Card
+          className="flex flex-col items-center gap-3 text-center"
+          data-testid="collection-soft-unavailable"
+        >
+          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-foam text-muted">
+            <LockIcon />
+          </span>
+          <div>
+            <p className="text-sm font-emphasis text-ink">{packUnavailableTitle(data.kind)}</p>
+            <p className="text-xs text-muted">{packUnavailableBody()}</p>
+          </div>
+          <Link to={`/company/${data.company.id}`} className="text-xs font-emphasis text-accent">
+            {FOLLOW_ON_THEIR_SHOP_LABEL}
+          </Link>
+        </Card>
+          );
+        }
+        if (shell === 'pending') {
+          return (
         <AccessPendingCard
           companyId={data.company.id}
           companyName={data.company.name}
@@ -1623,7 +1679,9 @@ export function CollectionViewerPage() {
           onOpenChat={openColdMessage}
           opening={false}
         />
-      ) : (
+          );
+        }
+        return (
         <Card className="flex flex-col items-center gap-3 text-center">
           <span className="flex h-12 w-12 items-center justify-center rounded-full bg-foam text-muted">
             <LockIcon />
@@ -1641,7 +1699,8 @@ export function CollectionViewerPage() {
             {FOLLOW_ON_THEIR_SHOP_LABEL}
           </Link>
         </Card>
-      )}
+        );
+      })()}
 
       {data.products && isCuratedPack && !isOwner && !handlePack ? (
         <Card className="flex flex-col gap-2">
@@ -1886,6 +1945,7 @@ export function CollectionViewerPage() {
           canRemove={isOwner}
           canAddToPack={isOwner && addToPackCanOffer([viewerProduct])}
           addToPackSurface={addToPackSurface}
+          canSetBuyerRate={canSetBuyerRate}
           canDelete={collectionOwnerCanEditDesign({
             isOwner,
             myCompanyId: me.data?.id,
@@ -1900,6 +1960,10 @@ export function CollectionViewerPage() {
             setViewerProduct(null);
             navigate(`/catalog/products/${designId}`);
           }}
+          onSetBuyerRate={() => {
+            setMemberPricingProduct(viewerProduct);
+            setViewerProduct(null);
+          }}
           onRemove={() => {
             void onOwnerRemove([viewerProduct.id]);
           }}
@@ -1912,6 +1976,14 @@ export function CollectionViewerPage() {
           testIdPrefix="collection-design-sheet"
         />
       ) : null}
+
+      <RepostMemberPricingSheet
+        open={Boolean(memberPricingProduct)}
+        collectionId={id}
+        productId={memberPricingProduct?.id}
+        productName={memberPricingProduct?.name}
+        onClose={() => setMemberPricingProduct(null)}
+      />
 
       <AddToPackSheet
         open={addToPackDesigns != null}

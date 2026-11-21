@@ -19,12 +19,36 @@ function millLanes(
   };
 }
 
+function syncStub(
+  result: {
+    membershipChanged: boolean;
+    activeProductIds?: string[];
+    addedProductIds?: string[];
+  } = {
+    membershipChanged: false,
+    activeProductIds: ['d1'],
+    addedProductIds: [],
+  },
+) {
+  return vi.fn(async () => ({
+    activeProductIds: result.activeProductIds ?? ['d1'],
+    addedProductIds: result.addedProductIds ?? [],
+    membershipChanged: result.membershipChanged,
+  }));
+}
+
 describe('CollectionPropagateService', () => {
-  it('Example A: two triggers for the same root create one pack', async () => {
+  it('Example A: two triggers for the same immediate source create one pack', async () => {
     const create = vi.fn(async () => ({ id: 'POST-301' }));
     const setProducts = vi.fn(async () => ({}));
     const publish = vi.fn(async () => ({}));
-    const collections = { create, setProducts, publish } as unknown as CollectionService;
+    const syncRepostMembershipFromSource = syncStub();
+    const collections = {
+      create,
+      setProducts,
+      publish,
+      syncRepostMembershipFromSource,
+    } as unknown as CollectionService;
     const jobs = { enqueue: vi.fn(async () => 'job') } as unknown as JobQueue;
 
     const source = {
@@ -45,6 +69,17 @@ describe('CollectionPropagateService', () => {
       collection: {
         findUnique: vi.fn(async ({ where }: { where: { id: string } }) => {
           if (where.id === 'POST-100') return source;
+          if (where.id === 'POST-301') {
+            return {
+              id: 'POST-301',
+              status: CollectionStatus.Published,
+              createdAt: new Date('2026-10-28'),
+              exploreActivityAt: new Date('2026-10-28'),
+              companyId: 't3',
+              repostSyncedSourceAt: new Date('2026-10-28'),
+              repostSyncedProductIds: ['d1'],
+            };
+          }
           return { ...source, id: where.id, companyId: 's1', repostSourceCollectionId: null };
         }),
         findMany: vi.fn(async () => []),
@@ -53,7 +88,7 @@ describe('CollectionPropagateService', () => {
       },
       tradeLane: millLanes(),
       follow: {
-        findUnique: vi.fn(async () => ({ status: 'allowed' })),
+        findUnique: vi.fn(async () => ({ status: 'allowed', accessKind: 'pack' })),
       },
       collectionProduct: {
         findMany: vi.fn(async () => [{ productId: 'd1' }]),
@@ -63,7 +98,7 @@ describe('CollectionPropagateService', () => {
       },
     } as unknown as PrismaService;
 
-    const service = new CollectionPropagateService(prisma, collections, jobs);
+    const service = new CollectionPropagateService(prisma, collections, jobs, { repostSyncDesignsAdded: vi.fn() } as never);
     await service.propagate('POST-100');
     expect(create).toHaveBeenCalledTimes(1);
     expect(publish).toHaveBeenCalledWith(
@@ -84,12 +119,96 @@ describe('CollectionPropagateService', () => {
         createdAt: new Date('2026-10-28'),
         exploreActivityAt: new Date('2026-10-28'),
         companyId: 't3',
-        repostSyncedSourceAt: new Date('2026-10-28'),
-        repostSyncedProductIds: ['d1'],
       },
     ]);
     await service.propagate('POST-100');
     expect(create).toHaveBeenCalledTimes(1);
+  });
+
+  it('mesh: two distinct immediate sources for the same trader stay separate packs', async () => {
+    const create = vi.fn(async () => ({ id: 'POST-C-via-A' }));
+    const syncRepostMembershipFromSource = syncStub();
+    const sourceA = {
+      id: 'POST-A',
+      companyId: 'trader-a',
+      name: 'A pack',
+      coverImage: null,
+      status: CollectionStatus.Published,
+      audience: 'followers',
+      audienceCompanyIds: [],
+      allowForward: true,
+      allowDownload: false,
+      rateVisibility: 'on_request',
+      categories: [],
+      exploreActivityAt: new Date('2026-11-20'),
+      updatedAt: new Date('2026-11-20'),
+      createdAt: new Date('2026-11-20'),
+      repostSourceCollectionId: 'POST-S1',
+    };
+    const prisma = {
+      collection: {
+        findUnique: vi.fn(async ({ where }: { where: { id: string } }) => {
+          if (where.id === 'POST-A') return sourceA;
+          if (where.id === 'POST-S1') {
+            return { id: 'POST-S1', companyId: 's1', repostSourceCollectionId: null };
+          }
+          return sourceA;
+        }),
+        findMany: vi.fn(async (args: { where?: { repostSourceCollectionId?: string } }) => {
+          // Existing pack is via B, not A — must not collapse to that survivor.
+          if (args?.where?.repostSourceCollectionId === 'POST-A') return [];
+          return [];
+        }),
+        findFirst: vi.fn(async () => null),
+        update: vi.fn(async () => ({})),
+      },
+      tradeLane: millLanes([{ traderCompanyId: 'c1' }], [
+        { buyerCompanyId: 'b1', createdAt: new Date('2026-10-01') },
+      ]),
+      follow: { findUnique: vi.fn(async () => ({ status: 'allowed', accessKind: 'pack' })) },
+      collectionProduct: { findMany: vi.fn(async () => [{ productId: 'd1' }]) },
+      companyMembership: { findFirst: vi.fn(async () => ({ userId: 'owner-c' })) },
+    } as unknown as PrismaService;
+
+    // Seed a same-root pack via B that must NOT be chosen when delivering A.
+    const viaB = {
+      id: 'POST-C-via-B',
+      status: CollectionStatus.Published,
+      createdAt: new Date('2026-11-01'),
+      exploreActivityAt: new Date('2026-11-01'),
+      companyId: 'c1',
+      repostRootCollectionId: 'POST-S1',
+      repostSourceCollectionId: 'POST-B',
+    };
+    prisma.collection.findMany = vi.fn(
+      async (args: {
+        where?: { repostSourceCollectionId?: string; companyId?: string; OR?: unknown };
+      }) => {
+        if (args?.where?.repostSourceCollectionId === 'POST-A') return [];
+        // Legacy root OR must not be used; if somehow queried, via-B would incorrectly win.
+        if (args?.where?.OR) return [viaB];
+        return [];
+      },
+    );
+
+    await new CollectionPropagateService(
+      prisma,
+      {
+        create,
+        setProducts: vi.fn(async () => ({})),
+        publish: vi.fn(async () => ({})),
+        syncRepostMembershipFromSource,
+      } as unknown as CollectionService,
+      { enqueue: vi.fn() } as unknown as JobQueue,
+      { repostSyncDesignsAdded: vi.fn() } as never,
+    ).propagate('POST-A');
+
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(create).toHaveBeenCalledWith(
+      'c1',
+      'owner-c',
+      expect.objectContaining({ repostSourceCollectionId: 'POST-A' }),
+    );
   });
 
   it('still hops the next trader when one pack cannot copy members', async () => {
@@ -127,14 +246,20 @@ describe('CollectionPropagateService', () => {
         [{ traderCompanyId: 't1' }, { traderCompanyId: 't2' }],
         [{ buyerCompanyId: 'b1' }],
       ),
-      follow: { findUnique: vi.fn(async () => ({ status: 'allowed' })) },
+      follow: { findUnique: vi.fn(async () => ({ status: 'allowed', accessKind: 'pack' })) },
       collectionProduct: { findMany: vi.fn(async () => [{ productId: 'd1' }]) },
       companyMembership: { findFirst: vi.fn(async () => ({ userId: 'owner' })) },
     } as unknown as PrismaService;
     await new CollectionPropagateService(
       prisma,
-      { create, setProducts, publish } as unknown as CollectionService,
+      {
+        create,
+        setProducts,
+        publish,
+        syncRepostMembershipFromSource: syncStub(),
+      } as unknown as CollectionService,
       { enqueue: vi.fn() } as unknown as JobQueue,
+      { repostSyncDesignsAdded: vi.fn() } as never,
     ).propagate('POST-100');
     expect(create).toHaveBeenCalledTimes(2);
     expect(publish).toHaveBeenCalledWith(
@@ -151,6 +276,7 @@ describe('CollectionPropagateService', () => {
       create,
       setProducts: vi.fn(),
       publish: vi.fn(),
+      syncRepostMembershipFromSource: syncStub(),
     } as unknown as CollectionService;
     const prisma = {
       collection: {
@@ -167,6 +293,7 @@ describe('CollectionPropagateService', () => {
           updatedAt: new Date(),
           repostSourceCollectionId: null,
         })),
+        findMany: vi.fn(async () => []),
       },
       tradeLane: millLanes(),
     } as unknown as PrismaService;
@@ -174,17 +301,21 @@ describe('CollectionPropagateService', () => {
       prisma,
       collections,
       { enqueue: vi.fn() } as unknown as JobQueue,
+      { repostSyncDesignsAdded: vi.fn() } as never,
     ).propagate('POST-100');
     expect(create).not.toHaveBeenCalled();
   });
 
   it('Example C: existing manual pack gets source design adds, no second pack', async () => {
     const create = vi.fn(async () => ({ id: 'POST-302' }));
-    const setProducts = vi.fn(async () => ({}));
+    const syncRepostMembershipFromSource = syncStub({
+      membershipChanged: true, activeProductIds: ['d1', 'd2', 'd3', 'extra'], addedProductIds: [],
+    });
     const collections = {
       create,
-      setProducts,
+      setProducts: vi.fn(),
       publish: vi.fn(),
+      syncRepostMembershipFromSource,
     } as unknown as CollectionService;
     const source = {
       id: 'POST-100',
@@ -219,12 +350,13 @@ describe('CollectionPropagateService', () => {
             status: CollectionStatus.Published,
             createdAt: new Date('2026-10-01'),
             exploreActivityAt: new Date('2026-10-01'),
+            companyId: 't3',
           },
         ]),
         update: vi.fn(async () => ({})),
       },
       tradeLane: millLanes(),
-      follow: { findUnique: vi.fn(async () => ({ status: 'allowed' })) },
+      follow: { findUnique: vi.fn(async () => ({ status: 'allowed', accessKind: 'pack' })) },
       collectionProduct: {
         findMany: vi.fn(async ({ where }: { where: { collectionId: string } }) => {
           if (where.collectionId === 'POST-100') {
@@ -240,18 +372,174 @@ describe('CollectionPropagateService', () => {
       prisma,
       collections,
       { enqueue: vi.fn() } as unknown as JobQueue,
+      { repostSyncDesignsAdded: vi.fn() } as never,
     ).propagate('POST-100');
     expect(create).not.toHaveBeenCalled();
-    expect(setProducts).toHaveBeenCalledWith(
+    expect(syncRepostMembershipFromSource).toHaveBeenCalledWith(
       't3',
       'owner',
       'POST-301',
-      expect.arrayContaining(['d1', 'd2', 'd3', 'extra']),
+      expect.objectContaining({
+        sourceProductIds: expect.arrayContaining(['d1', 'd2', 'd3']),
+      }),
     );
   });
 
+  it('syncs a manual child that is not on a TradeLane', async () => {
+    const create = vi.fn(async () => ({ id: 'x' }));
+    const syncRepostMembershipFromSource = syncStub({
+      membershipChanged: true,
+      activeProductIds: ['d1', 'd2'],
+      addedProductIds: ['d2'],
+    });
+    const source = {
+      id: 'POST-100',
+      companyId: 's1',
+      name: 'Mill pack',
+      coverImage: null,
+      status: CollectionStatus.Published,
+      audience: 'followers',
+      audienceCompanyIds: [],
+      allowForward: true,
+      exploreActivityAt: new Date('2026-11-20'),
+      updatedAt: new Date('2026-11-20'),
+      repostSourceCollectionId: null,
+    };
+    const update = vi.fn(async () => ({}));
+    const prisma = {
+      collection: {
+        findUnique: vi.fn(async ({ where }: { where: { id: string } }) => {
+          if (where.id === 'POST-MANUAL') {
+            return {
+              id: 'POST-MANUAL',
+              name: 'Manual child',
+              status: CollectionStatus.Published,
+              companyId: 'manual-trader',
+              repostSyncedSourceAt: new Date('2026-11-01'),
+              repostSyncedProductIds: ['d1'],
+            };
+          }
+          return source;
+        }),
+        findMany: vi.fn(async (args: { where?: { repostSourceCollectionId?: string } }) => {
+          if (args?.where?.repostSourceCollectionId === 'POST-100') {
+            return [{ id: 'POST-MANUAL', companyId: 'manual-trader' }];
+          }
+          return [];
+        }),
+        update,
+      },
+      tradeLane: millLanes([], []),
+      follow: { findUnique: vi.fn(async () => ({ status: 'allowed', accessKind: 'pack' })) },
+      collectionProduct: {
+        findMany: vi.fn(async () => [{ productId: 'd1' }, { productId: 'd2' }]),
+      },
+      companyMembership: {
+        findFirst: vi.fn(async () => ({ userId: 'owner-manual' })),
+      },
+    } as unknown as PrismaService;
+
+    await new CollectionPropagateService(
+      prisma,
+      {
+        create,
+        setProducts: vi.fn(),
+        publish: vi.fn(),
+        syncRepostMembershipFromSource,
+      } as unknown as CollectionService,
+      { enqueue: vi.fn() } as unknown as JobQueue,
+      { repostSyncDesignsAdded: vi.fn() } as never,
+    ).propagate('POST-100');
+
+    expect(create).not.toHaveBeenCalled();
+    expect(syncRepostMembershipFromSource).toHaveBeenCalledWith(
+      'manual-trader',
+      'owner-manual',
+      'POST-MANUAL',
+      expect.objectContaining({
+        sourceProductIds: ['d1', 'd2'],
+      }),
+    );
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'POST-MANUAL' },
+        data: expect.objectContaining({
+          exploreActivityAt: expect.any(Date),
+          exploreNewDesignCount: 1,
+        }),
+      }),
+    );
+  });
+
+  it('Manual + Direct Link same immediate source reuses one pack', async () => {
+    const create = vi.fn(async () => ({ id: 'x' }));
+    const syncRepostMembershipFromSource = syncStub();
+    const source = {
+      id: 'POST-100',
+      companyId: 's1',
+      name: 'Mill pack',
+      coverImage: null,
+      status: CollectionStatus.Published,
+      audience: 'followers',
+      audienceCompanyIds: [],
+      allowForward: true,
+      exploreActivityAt: new Date('2026-11-20'),
+      updatedAt: new Date('2026-11-20'),
+      createdAt: new Date('2026-11-20'),
+      repostSourceCollectionId: null,
+    };
+    const prisma = {
+      collection: {
+        findUnique: vi.fn(async ({ where }: { where: { id: string } }) => {
+          if (where.id === 'POST-MANUAL') {
+            return {
+              id: 'POST-MANUAL',
+              status: CollectionStatus.Published,
+              companyId: 't3',
+              audience: PublishAudience.Followers,
+              audienceCompanyIds: [],
+              repostOrigin: RepostOrigin.Manual,
+              repostSyncedSourceAt: new Date('2026-11-20'),
+              repostSyncedProductIds: ['d1'],
+            };
+          }
+          return source;
+        }),
+        findMany: vi.fn(async () => [
+          {
+            id: 'POST-MANUAL',
+            status: CollectionStatus.Published,
+            createdAt: new Date('2026-11-01'),
+            exploreActivityAt: new Date('2026-11-01'),
+            companyId: 't3',
+          },
+        ]),
+        update: vi.fn(async () => ({})),
+      },
+      tradeLane: millLanes(),
+      follow: { findUnique: vi.fn(async () => ({ status: 'allowed', accessKind: 'pack' })) },
+      collectionProduct: { findMany: vi.fn(async () => [{ productId: 'd1' }]) },
+      companyMembership: { findFirst: vi.fn(async () => ({ userId: 'owner' })) },
+    } as unknown as PrismaService;
+
+    await new CollectionPropagateService(
+      prisma,
+      {
+        create,
+        setProducts: vi.fn(),
+        publish: vi.fn(),
+        syncRepostMembershipFromSource,
+      } as unknown as CollectionService,
+      { enqueue: vi.fn() } as unknown as JobQueue,
+      { repostSyncDesignsAdded: vi.fn() } as never,
+    ).propagate('POST-100');
+
+    expect(create).not.toHaveBeenCalled();
+    expect(syncRepostMembershipFromSource).toHaveBeenCalled();
+  });
+
   it('does not bump when the same revision arrives twice', async () => {
-    const setProducts = vi.fn(async () => ({}));
+    const syncRepostMembershipFromSource = syncStub({ membershipChanged: false });
     const update = vi.fn(async () => ({}));
     const token = new Date('2026-10-29');
     const source = {
@@ -287,12 +575,13 @@ describe('CollectionPropagateService', () => {
             status: CollectionStatus.Published,
             createdAt: new Date('2026-10-01'),
             exploreActivityAt: token,
+            companyId: 't3',
           },
         ]),
         update,
       },
       tradeLane: millLanes(),
-      follow: { findUnique: vi.fn(async () => ({ status: 'allowed' })) },
+      follow: { findUnique: vi.fn(async () => ({ status: 'allowed', accessKind: 'pack' })) },
       collectionProduct: {
         findMany: vi.fn(async () => [{ productId: 'd1' }]),
       },
@@ -300,10 +589,15 @@ describe('CollectionPropagateService', () => {
     } as unknown as PrismaService;
     await new CollectionPropagateService(
       prisma,
-      { create: vi.fn(), setProducts, publish: vi.fn() } as unknown as CollectionService,
+      {
+        create: vi.fn(),
+        setProducts: vi.fn(),
+        publish: vi.fn(),
+        syncRepostMembershipFromSource,
+      } as unknown as CollectionService,
       { enqueue: vi.fn() } as unknown as JobQueue,
+      { repostSyncDesignsAdded: vi.fn() } as never,
     ).propagate('POST-100');
-    expect(setProducts).not.toHaveBeenCalled();
     expect(update).not.toHaveBeenCalled();
   });
 
@@ -331,15 +625,22 @@ describe('CollectionPropagateService', () => {
           }
           return { id: 'POST-100', companyId: 's1', repostSourceCollectionId: null };
         }),
+        findMany: vi.fn(async () => []),
       },
       tradeLane: millLanes([{ traderCompanyId: 't1' }]),
-      follow: { findUnique: vi.fn(async () => ({ status: 'allowed' })) },
+      follow: { findUnique: vi.fn(async () => ({ status: 'allowed', accessKind: 'pack' })) },
       companyMembership: { findFirst: vi.fn(async () => ({ userId: 'owner' })) },
     } as unknown as PrismaService;
     await new CollectionPropagateService(
       prisma,
-      { create, setProducts: vi.fn(), publish: vi.fn() } as unknown as CollectionService,
+      {
+        create,
+        setProducts: vi.fn(),
+        publish: vi.fn(),
+        syncRepostMembershipFromSource: syncStub(),
+      } as unknown as CollectionService,
       { enqueue: vi.fn() } as unknown as JobQueue,
+      { repostSyncDesignsAdded: vi.fn() } as never,
     ).propagate('POST-301');
     expect(create).not.toHaveBeenCalled();
   });
@@ -349,7 +650,7 @@ describe('CollectionPropagateService', () => {
       const err = Object.assign(new Error('unique'), { code: 'P2002' });
       throw err;
     });
-    const setProducts = vi.fn(async () => ({}));
+    const syncRepostMembershipFromSource = syncStub({ membershipChanged: true });
     const source = {
       id: 'POST-100',
       companyId: 's1',
@@ -361,6 +662,7 @@ describe('CollectionPropagateService', () => {
       allowForward: true,
       exploreActivityAt: new Date('2026-10-29'),
       updatedAt: new Date('2026-10-29'),
+      createdAt: new Date('2026-10-29'),
       repostSourceCollectionId: null,
     };
     let findManyCalls = 0;
@@ -380,13 +682,15 @@ describe('CollectionPropagateService', () => {
         }),
         findMany: vi.fn(async () => {
           findManyCalls += 1;
-          if (findManyCalls === 1) return [];
+          // syncAllImmediateChildren + first deliver lookup empty; retry finds pack
+          if (findManyCalls <= 2) return [];
           return [
             {
               id: 'POST-301',
               status: CollectionStatus.Published,
               createdAt: new Date('2026-10-01'),
               exploreActivityAt: new Date('2026-10-01'),
+              companyId: 't3',
             },
           ];
         }),
@@ -394,26 +698,31 @@ describe('CollectionPropagateService', () => {
         update: vi.fn(async () => ({})),
       },
       tradeLane: millLanes(),
-      follow: { findUnique: vi.fn(async () => ({ status: 'allowed' })) },
+      follow: { findUnique: vi.fn(async () => ({ status: 'allowed', accessKind: 'pack' })) },
       collectionProduct: {
-        findMany: vi.fn(async ({ where }: { where: { collectionId: string } }) => {
-          if (where.collectionId === 'POST-100') return [{ productId: 'd1' }, { productId: 'd2' }];
-          return [{ productId: 'd1' }];
-        }),
+        findMany: vi.fn(async () => [{ productId: 'd1' }, { productId: 'd2' }]),
       },
       companyMembership: { findFirst: vi.fn(async () => ({ userId: 'owner' })) },
     } as unknown as PrismaService;
     await new CollectionPropagateService(
       prisma,
-      { create, setProducts, publish: vi.fn() } as unknown as CollectionService,
+      {
+        create,
+        setProducts: vi.fn(async () => ({})),
+        publish: vi.fn(),
+        syncRepostMembershipFromSource,
+      } as unknown as CollectionService,
       { enqueue: vi.fn() } as unknown as JobQueue,
+      { repostSyncDesignsAdded: vi.fn() } as never,
     ).propagate('POST-100');
     expect(create).toHaveBeenCalledTimes(1);
-    expect(setProducts).toHaveBeenCalledWith(
+    expect(syncRepostMembershipFromSource).toHaveBeenCalledWith(
       't3',
       'owner',
       'POST-301',
-      expect.arrayContaining(['d1', 'd2']),
+      expect.objectContaining({
+        sourceProductIds: expect.arrayContaining(['d1', 'd2']),
+      }),
     );
   });
 
@@ -446,14 +755,20 @@ describe('CollectionPropagateService', () => {
         update: vi.fn(async () => ({})),
       },
       tradeLane: millLanes(),
-      follow: { findUnique: vi.fn(async () => ({ status: 'allowed' })) },
+      follow: { findUnique: vi.fn(async () => ({ status: 'allowed', accessKind: 'pack' })) },
       collectionProduct: { findMany: vi.fn(async () => [{ productId: 'd1' }]) },
       companyMembership: { findFirst: vi.fn(async () => ({ userId: 'owner-t3' })) },
     } as unknown as PrismaService;
     await new CollectionPropagateService(
       prisma,
-      { create, setProducts, publish } as unknown as CollectionService,
+      {
+        create,
+        setProducts,
+        publish,
+        syncRepostMembershipFromSource: syncStub(),
+      } as unknown as CollectionService,
       { enqueue: vi.fn() } as unknown as JobQueue,
+      { repostSyncDesignsAdded: vi.fn() } as never,
     ).propagate('POST-200');
     expect(create).toHaveBeenCalledTimes(1);
     expect(publish).toHaveBeenCalledWith(
@@ -489,13 +804,19 @@ describe('CollectionPropagateService', () => {
       tradeLane: millLanes([{ traderCompanyId: 't3' }], [
         { buyerCompanyId: 'b1', createdAt: new Date('2026-10-01') },
       ]),
-      follow: { findUnique: vi.fn(async () => ({ status: 'allowed' })) },
+      follow: { findUnique: vi.fn(async () => ({ status: 'allowed', accessKind: 'pack' })) },
       companyMembership: { findFirst: vi.fn(async () => ({ userId: 'owner' })) },
     } as unknown as PrismaService;
     await new CollectionPropagateService(
       prisma,
-      { create, setProducts: vi.fn(), publish: vi.fn() } as unknown as CollectionService,
+      {
+        create,
+        setProducts: vi.fn(),
+        publish: vi.fn(),
+        syncRepostMembershipFromSource: syncStub(),
+      } as unknown as CollectionService,
       { enqueue: vi.fn() } as unknown as JobQueue,
+      { repostSyncDesignsAdded: vi.fn() } as never,
     ).propagate('POST-100');
     expect(create).not.toHaveBeenCalled();
   });
@@ -518,20 +839,26 @@ describe('CollectionPropagateService', () => {
     const prisma = {
       collection: { findUnique: vi.fn(async () => source), findMany: vi.fn(async () => []) },
       tradeLane: millLanes([{ traderCompanyId: 't3' }], []),
-      follow: { findUnique: vi.fn(async () => ({ status: 'allowed' })) },
+      follow: { findUnique: vi.fn(async () => ({ status: 'allowed', accessKind: 'pack' })) },
       companyMembership: { findFirst: vi.fn(async () => ({ userId: 'owner' })) },
     } as unknown as PrismaService;
     await new CollectionPropagateService(
       prisma,
-      { create, setProducts: vi.fn(), publish: vi.fn() } as unknown as CollectionService,
+      {
+        create,
+        setProducts: vi.fn(),
+        publish: vi.fn(),
+        syncRepostMembershipFromSource: syncStub(),
+      } as unknown as CollectionService,
       { enqueue: vi.fn() } as unknown as JobQueue,
+      { repostSyncDesignsAdded: vi.fn() } as never,
     ).propagate('POST-100');
     expect(create).not.toHaveBeenCalled();
   });
 
   it('unions a second Direct Link buyer on an automatic Selected pack without bumping Explore', async () => {
     const create = vi.fn(async () => ({ id: 'x' }));
-    const setProducts = vi.fn(async () => ({}));
+    const syncRepostMembershipFromSource = syncStub({ membershipChanged: false });
     const update = vi.fn(async () => ({}));
     const token = new Date('2026-10-29');
     const source = {
@@ -569,6 +896,7 @@ describe('CollectionPropagateService', () => {
             status: CollectionStatus.Published,
             createdAt: new Date('2026-10-01'),
             exploreActivityAt: token,
+            companyId: 't3',
           },
         ]),
         update,
@@ -577,17 +905,22 @@ describe('CollectionPropagateService', () => {
         { buyerCompanyId: 'b1' },
         { buyerCompanyId: 'b2' },
       ]),
-      follow: { findUnique: vi.fn(async () => ({ status: 'allowed' })) },
+      follow: { findUnique: vi.fn(async () => ({ status: 'allowed', accessKind: 'pack' })) },
       collectionProduct: { findMany: vi.fn(async () => [{ productId: 'd1' }]) },
       companyMembership: { findFirst: vi.fn(async () => ({ userId: 'owner' })) },
     } as unknown as PrismaService;
     await new CollectionPropagateService(
       prisma,
-      { create, setProducts, publish: vi.fn() } as unknown as CollectionService,
+      {
+        create,
+        setProducts: vi.fn(),
+        publish: vi.fn(),
+        syncRepostMembershipFromSource,
+      } as unknown as CollectionService,
       { enqueue: vi.fn() } as unknown as JobQueue,
+      { repostSyncDesignsAdded: vi.fn() } as never,
     ).propagate('POST-100');
     expect(create).not.toHaveBeenCalled();
-    expect(setProducts).not.toHaveBeenCalled();
     expect(update).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: 'POST-301' },
@@ -638,19 +971,26 @@ describe('CollectionPropagateService', () => {
             status: CollectionStatus.Published,
             createdAt: new Date('2026-10-01'),
             exploreActivityAt: token,
+            companyId: 't3',
           },
         ]),
         update,
       },
       tradeLane: millLanes(),
-      follow: { findUnique: vi.fn(async () => ({ status: 'allowed' })) },
+      follow: { findUnique: vi.fn(async () => ({ status: 'allowed', accessKind: 'pack' })) },
       collectionProduct: { findMany: vi.fn(async () => [{ productId: 'd1' }]) },
       companyMembership: { findFirst: vi.fn(async () => ({ userId: 'owner' })) },
     } as unknown as PrismaService;
     await new CollectionPropagateService(
       prisma,
-      { create: vi.fn(), setProducts: vi.fn(), publish: vi.fn() } as unknown as CollectionService,
+      {
+        create: vi.fn(),
+        setProducts: vi.fn(),
+        publish: vi.fn(),
+        syncRepostMembershipFromSource: syncStub({ membershipChanged: false }),
+      } as unknown as CollectionService,
       { enqueue: vi.fn() } as unknown as JobQueue,
+      { repostSyncDesignsAdded: vi.fn() } as never,
     ).propagate('POST-100');
     expect(update).not.toHaveBeenCalled();
   });

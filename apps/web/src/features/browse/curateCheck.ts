@@ -136,6 +136,7 @@ export function exploreRepostEligibleCount(card: {
   return card.allowForward === false ? 0 : 1;
 }
 
+/** Create a new Repost from Explore (not already stamped). */
 export function canExploreRepost(input: {
   isOwn: boolean;
   viewerReposted: boolean;
@@ -143,6 +144,32 @@ export function canExploreRepost(input: {
   eligibleCount: number;
 }): boolean {
   return !input.isOwn && !input.viewerReposted && input.trading && input.eligibleCount > 0;
+}
+
+/**
+ * Open RepostSheet Edit from Explore.
+ * Own live collection + Trading → Edit (card id). Peer already-reposted + Trading → Edit.
+ * Not allowed → gray Repost (never Edit label on disabled).
+ */
+export function canOpenExploreRepostEdit(input: {
+  isOwn: boolean;
+  viewerReposted: boolean;
+  trading: boolean;
+  /** Own Explore collection packs only — own solo designs stay gray. */
+  ownEditableCollection?: boolean;
+}): boolean {
+  if (!input.trading) return false;
+  if (input.isOwn) return input.ownEditableCollection === true;
+  return input.viewerReposted;
+}
+
+/** Sheet / aria title for Explore Edit — own original vs child / peer child. */
+export function exploreRepostEditLabel(input: {
+  isOwn: boolean;
+  isRepostChild: boolean;
+}): 'Edit post' | 'Edit repost' {
+  if (input.isOwn && !input.isRepostChild) return 'Edit post';
+  return 'Edit repost';
 }
 
 export function skippedDesignsLabel(count: number): string {
