@@ -99,6 +99,7 @@ describe('CatalogSerializer', () => {
       rateMax: { toNumber: () => 1400 },
       categories: [] as string[],
       status: 'published',
+      exploreActivityAt: new Date('2026-01-01T00:00:00.000Z'),
       audience: 'connections',
       rateVisibility: 'on_request',
       audienceCompanyIds: [],
@@ -113,6 +114,7 @@ describe('CatalogSerializer', () => {
       _count: { products: 3 },
     } as unknown as Collection & { _count: { products: number } };
     const view = serializer.toCollectionView(collection);
+    expect(view.exploreActivityAt).toBe('2026-01-01T00:00:00.000Z');
     expect(view.rate).toBe(1200);
     expect(view.rateMax).toBe(1400);
     expect(view.unit).toBeNull();

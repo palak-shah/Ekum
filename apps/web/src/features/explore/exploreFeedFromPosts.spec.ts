@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { ExplorePost } from '@ekum/domain-types';
 import {
+  exploreBuyingCanLoadMore,
+  exploreBuyingFeedExhausted,
+  exploreBuyingShouldProbeOlder,
   exploreFeedEndVisible,
   exploreFeedLoadMoreVisible,
   exploreLandingBlocked,
@@ -125,5 +128,108 @@ describe('exploreFeedFromPosts', () => {
   it('maps design mixed ids to feed product cursors', () => {
     expect(feedCursorFromMixedId('d:prod-1')).toBe('p:prod-1');
     expect(feedCursorFromMixedId('c:pack-1')).toBe('c:pack-1');
+  });
+
+  it('does not offer Load more from a seed cursor alone', () => {
+    expect(
+      exploreBuyingCanLoadMore({
+        homeTailOpen: false,
+        homeTailCount: 0,
+        feedSeedCursor: 'c:last',
+        olderHasNextPage: false,
+        olderHasUnrevealed: false,
+        olderIsFetching: false,
+        olderIsFetched: true,
+      }),
+    ).toBe(false);
+  });
+
+  it('offers Load more when home tail or older pages remain', () => {
+    expect(
+      exploreBuyingCanLoadMore({
+        homeTailOpen: false,
+        homeTailCount: 3,
+        feedSeedCursor: 'c:last',
+        olderHasNextPage: false,
+        olderHasUnrevealed: false,
+        olderIsFetching: false,
+        olderIsFetched: false,
+      }),
+    ).toBe(true);
+    expect(
+      exploreBuyingCanLoadMore({
+        homeTailOpen: false,
+        homeTailCount: 0,
+        feedSeedCursor: 'c:last',
+        olderHasNextPage: true,
+        olderHasUnrevealed: false,
+        olderIsFetching: false,
+        olderIsFetched: true,
+      }),
+    ).toBe(true);
+    expect(
+      exploreBuyingCanLoadMore({
+        homeTailOpen: false,
+        homeTailCount: 0,
+        feedSeedCursor: 'c:last',
+        olderHasNextPage: false,
+        olderHasUnrevealed: true,
+        olderIsFetching: false,
+        olderIsFetched: true,
+      }),
+    ).toBe(true);
+  });
+
+  it('marks Buying exhausted after probe finds nothing beyond home', () => {
+    expect(
+      exploreBuyingFeedExhausted({
+        homeReady: true,
+        storyFiltered: false,
+        homeTailOpen: false,
+        homeTailCount: 0,
+        feedSeedCursor: 'c:last',
+        olderIsFetched: true,
+        olderIsFetching: false,
+        olderHasNextPage: false,
+        olderHasUnrevealed: false,
+      }),
+    ).toBe(true);
+    expect(
+      exploreBuyingFeedExhausted({
+        homeReady: true,
+        storyFiltered: false,
+        homeTailOpen: false,
+        homeTailCount: 2,
+        feedSeedCursor: 'c:last',
+        olderIsFetched: false,
+        olderIsFetching: false,
+        olderHasNextPage: false,
+        olderHasUnrevealed: false,
+      }),
+    ).toBe(false);
+  });
+
+  it('probes older feed when home has no closed tail', () => {
+    expect(
+      exploreBuyingShouldProbeOlder({
+        homeTailOpen: false,
+        homeTailCount: 0,
+        feedSeedCursor: 'c:last',
+      }),
+    ).toBe(true);
+    expect(
+      exploreBuyingShouldProbeOlder({
+        homeTailOpen: false,
+        homeTailCount: 4,
+        feedSeedCursor: 'c:last',
+      }),
+    ).toBe(false);
+    expect(
+      exploreBuyingShouldProbeOlder({
+        homeTailOpen: true,
+        homeTailCount: 4,
+        feedSeedCursor: 'c:last',
+      }),
+    ).toBe(true);
   });
 });

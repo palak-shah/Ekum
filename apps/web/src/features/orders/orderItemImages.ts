@@ -10,7 +10,7 @@ export function urlsForOrderItem(item: OrderItemView): string[] {
 }
 
 export function orderLinePhotoInfo(
-  item: Pick<OrderItemView, 'name' | 'sku' | 'quantity' | 'rate' | 'unit'>,
+  item: Pick<OrderItemView, 'name' | 'sku' | 'quantity' | 'rate' | 'unit' | 'dispatchUnit'>,
 ): { caption: string; detail: string } {
   const bits = [
     orderLineQtyRateLine(item.quantity, item.rate, item.unit, item.dispatchUnit),

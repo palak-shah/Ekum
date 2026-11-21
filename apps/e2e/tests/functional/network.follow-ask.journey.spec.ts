@@ -1,29 +1,18 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 import { accessTokenFromPage } from '../../helpers/orders';
 import { API_URL } from '../../helpers/env';
 import { loginAsKavita, loginAsMeena } from '../../helpers/persona';
 
 const KAVITA_COMPANY = 'seed-company-kavita';
 
-async function resetFollow(
-  page: { request: { delete: typeof import('@playwright/test').APIRequestContext['delete'] } },
-  token: string,
-) {
+async function resetFollow(page: Page, token: string) {
   await page.request.delete(`${API_URL}/follows/${KAVITA_COMPANY}`, {
     headers: { authorization: `Bearer ${token}` },
   });
 }
 
 /** Restore seed Meena→Kavita look so later from-pack / shop journeys stay green. */
-async function restoreSeedFollow(
-  page: {
-    request: {
-      post: typeof import('@playwright/test').APIRequestContext['post'];
-    };
-  },
-  meenaToken: string,
-  kavitaToken: string,
-) {
+async function restoreSeedFollow(page: Page, meenaToken: string, kavitaToken: string) {
   await page.request.post(`${API_URL}/follows`, {
     headers: { authorization: `Bearer ${meenaToken}` },
     data: { companyId: KAVITA_COMPANY },

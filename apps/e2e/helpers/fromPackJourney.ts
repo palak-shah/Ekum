@@ -158,7 +158,6 @@ export async function placeCuratedABPack(
   const pack = (await packRes.json()) as {
     products: Array<{ id: string; companyId: string }>;
   };
-  const productIds = pack.products.map((product) => product.id);
   const owners = new Set(pack.products.map((product) => product.companyId));
   expect(owners.has('seed-company-ravi')).toBe(true);
   expect(owners.has('seed-company-kavita')).toBe(true);

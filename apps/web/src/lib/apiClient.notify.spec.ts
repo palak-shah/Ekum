@@ -1,5 +1,4 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { TOKEN_STORAGE_KEY } from './tokenRefresh';
 
 const listeners = new Set<(tokens: unknown) => void>();
 let memoryTokens: { accessToken: string; refreshToken: string } | null = null;

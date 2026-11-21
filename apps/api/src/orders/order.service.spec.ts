@@ -77,7 +77,6 @@ interface Options {
     sellerCompanyId: string;
     createdByCompanyId?: string;
     quotedAt?: Date | string | null;
-    tradeMode?: string;
     facilitatorCompanyId?: string | null;
     transporter?: string | null;
     lrNumber?: string | null;
@@ -97,6 +96,7 @@ interface Options {
       unit?: string | null;
     }[];
     shipments?: {
+      id?: string;
       items: { orderItemId: string; quantity: { toNumber: () => number } }[];
     }[];
     note?: string | null;

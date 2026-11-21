@@ -5,7 +5,7 @@ import { toAbsoluteMediaUrl } from '@/lib/mediaUrl';
 import { CatalogFeedPost } from '@/ui/cards';
 import { DesignPhotoCarousel } from '@/ui/DesignPhotoCarousel';
 import { cx } from '@/ui/kit';
-import { LONG_PRESS_SURFACE_CLASS, isLongPressActivateSuppressed } from '@/ui/useLongPress';
+import { isLongPressActivateSuppressed } from '@/ui/useLongPress';
 
 const CARD =
   'overflow-hidden rounded-2xl border border-line bg-surface text-left';

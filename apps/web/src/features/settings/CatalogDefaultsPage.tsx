@@ -35,12 +35,12 @@ export function CatalogDefaultsPage() {
     queryKey: ['company-settings'],
     queryFn: () => api.get<CompanySettingsView>('/settings'),
   });
-  const [rateVisibility, setRateVisibility] = useState(RateVisibility.OnRequest);
+  const [rateVisibility, setRateVisibility] = useState<RateVisibility>(RateVisibility.OnRequest);
   const [allowForward, setAllowForward] = useState(true);
   const [allowDownload, setAllowDownload] = useState(false);
   const [unit, setUnit] = useState(DEFAULT_SELL_AS_UNIT);
   const [dispatchUnit, setDispatchUnit] = useState(DEFAULT_DISPATCH_UNIT);
-  const [catalogRateUnit, setCatalogRateUnit] = useState(Unit.Piece);
+  const [catalogRateUnit, setCatalogRateUnit] = useState<string>(Unit.Piece);
   const [piecesPerPack, setPiecesPerPack] = useState('');
   const [moq, setMoq] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -52,7 +52,7 @@ export function CatalogDefaultsPage() {
     if (!settings.data) return;
     const pub = readCompanyPublishDefaults(settings.data.tradeDefaults);
     const sell = readCompanySellAsUsual(settings.data.tradeDefaults);
-    setRateVisibility(pub.rateVisibility as typeof RateVisibility.OnRequest);
+    setRateVisibility(pub.rateVisibility as RateVisibility);
     setAllowForward(pub.allowForward);
     setAllowDownload(pub.allowDownload);
     setUnit(sell.unit || DEFAULT_SELL_AS_UNIT);

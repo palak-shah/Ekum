@@ -68,6 +68,7 @@ const designOpportunity: ExploreDesignOpportunity = {
     categories: [],
     postedAt: '2026-09-01T00:00:00.000Z',
     allowForward: true,
+    viewerReposted: false,
     company,
   },
 };

@@ -8,7 +8,6 @@ import {
   peekExploreScrollRestore,
   shellMainScrollEl,
   writeExploreHomeTailOpen,
-  writeExploreScrollTop,
 } from './exploreScrollSession';
 
 afterEach(() => {

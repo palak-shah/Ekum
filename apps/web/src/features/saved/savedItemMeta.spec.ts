@@ -5,12 +5,17 @@ import { savedItemMeta } from './savedItemMeta';
 function item(partial: Partial<SavedItemView> & Pick<SavedItemView, 'kind'>): SavedItemView {
   return {
     id: 's1',
-    kind: partial.kind,
     refId: 'r1',
     name: 'Design',
     thumbUrl: null,
     images: [],
-    company: { id: 'c1', name: 'Jaipur Emporium', city: 'Jaipur', logoUrl: null },
+    company: {
+      id: 'c1',
+      name: 'Jaipur Emporium',
+      city: 'Jaipur',
+      logoUrl: null,
+      verification: 'unverified',
+    },
     savedAt: '2026-01-01T00:00:00.000Z',
     savedBy: { id: 'u1', name: 'Ravi bhai Shah' },
     sku: null,
@@ -40,7 +45,13 @@ describe('savedItemMeta', () => {
           kind: 'collection',
           name: 'Festive',
           productCount: 5,
-          company: { id: 'c2', name: 'Shreeji Textiles', city: 'Ahmedabad', logoUrl: null },
+          company: {
+            id: 'c2',
+            name: 'Shreeji Textiles',
+            city: 'Ahmedabad',
+            logoUrl: null,
+            verification: 'unverified',
+          },
         }),
       ),
     ).toBe('Shreeji Textiles · 5 designs');

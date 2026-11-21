@@ -82,7 +82,7 @@ export function watchFilterMenuPlace(place: () => void, panel: HTMLElement | nul
     return () => window.removeEventListener('resize', place);
   }
   const ro = panel ? new ResizeObserver(place) : null;
-  if (panel) ro.observe(panel);
+  if (panel && ro) ro.observe(panel);
   return () => {
     window.removeEventListener('resize', place);
     ro?.disconnect();

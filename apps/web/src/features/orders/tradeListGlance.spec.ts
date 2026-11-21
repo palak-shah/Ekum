@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { OrderView } from '@ekum/domain-types';
+import type { OrderItemView, OrderView } from '@ekum/domain-types';
 import {
   tradeListGlanceIcon,
   tradeListGlanceVerb,
@@ -14,8 +14,8 @@ function line(partial: {
   shippedQuantity?: number;
   remainingQuantity?: number;
   unit?: string;
-  lineStatus?: string;
-}) {
+  lineStatus?: OrderItemView['lineStatus'];
+}): OrderItemView {
   return {
     id: 'i1',
     productId: 'p1',
@@ -43,7 +43,7 @@ function orderItem(partial: {
   needsYou?: boolean;
   items?: ReturnType<typeof line>[];
   manualOrderNo?: string;
-}): TradeListItem {
+}): Extract<TradeListItem, { kind: 'order' }> {
   const direction = partial.direction ?? 'selling';
   const status = partial.status ?? 'requested';
   const items = partial.items ?? [
@@ -74,7 +74,7 @@ function orderItem(partial: {
       manualRef: partial.manualOrderNo
         ? { manualOrderNo: partial.manualOrderNo, note: null, images: [] }
         : undefined,
-    } as OrderView,
+    } as unknown as OrderView,
   };
 }
 

@@ -9,9 +9,9 @@ vi.mock('@/lib/apiClient', () => ({
   api: { post },
   ApiError: class ApiError extends Error {
     code: string;
-    constructor(code: string) {
-      super(code);
-      this.code = code;
+    constructor(envelope: { code: string; message: string }) {
+      super(envelope.message);
+      this.code = envelope.code;
     }
   },
 }));
@@ -48,7 +48,7 @@ describe('placeFromPackOrBatch', () => {
   });
 
   it('falls back to batch when the album is not curated', async () => {
-    post.mockRejectedValueOnce(new ApiError('NOT_CURATED'));
+    post.mockRejectedValueOnce(new ApiError({ statusCode: 400, code: 'NOT_CURATED', message: 'NOT_CURATED' }));
     post.mockResolvedValueOnce({ orders: [{ id: 'batch-1' }], failures: [] });
     await placeFromPackOrBatch({
       intent: OrderIntent.Order,

@@ -52,7 +52,7 @@ const product = {
   rate: null,
   rateMax: null,
   piecesPerPack: 4,
-} as ProductView;
+} as unknown as ProductView;
 
 describe('HowManyEachSheet attach busy gate', () => {
   it('disables Place while note attach reports busy', async () => {

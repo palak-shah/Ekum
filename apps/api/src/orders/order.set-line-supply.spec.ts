@@ -205,7 +205,7 @@ describe('OrderService.setLineSupply', () => {
     const order = { update: vi.fn(async () => ({})) };
     const prisma = txPrisma(orderItem, order);
     const trail = { append: vi.fn(async () => ({})) };
-    const postOrderCard = vi.fn(async () => undefined);
+    const postOrderCard = vi.fn(async (..._args: unknown[]) => undefined);
     const emitAndGet = vi.fn(async () => ({ id: 'ord-1', status: OrderStatus.Confirmed }));
 
     const service = Object.create(OrderService.prototype) as OrderService;

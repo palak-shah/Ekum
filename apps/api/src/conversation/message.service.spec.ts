@@ -23,7 +23,9 @@ function visibilityStub(opts?: {
   } as unknown as VisibilityService;
 }
 
-function threadStub(membership = activeMembership) {
+function threadStub(
+  membership: { id: string; state: string; thread?: Record<string, unknown> } = activeMembership,
+) {
   return {
     membershipOrThrow: async () => membership,
     nudgeArchivedRecipients: async () => [],
@@ -34,7 +36,7 @@ function threadStub(membership = activeMembership) {
 }
 
 function actor(companyId: string, role = 'owner'): AuthPrincipal {
-  return { userId: 'u1', companyId, phone: '+910000000000', role, permissions: null };
+  return { userId: 'u1', companyId, phone: '+910000000000', role, permissions: null, isPlatformAdmin: false };
 }
 
 describe('MessageService.send', () => {
@@ -98,7 +100,7 @@ describe('MessageService.send', () => {
     const dto = { type: MessageType.Text, body: 'hi' } as SendMessageDto;
     await expect(
       service.send(
-        { userId: 'u1', companyId: null, phone: '+910000000000', role: null, permissions: null },
+        { userId: 'u1', companyId: null, phone: '+910000000000', role: null, permissions: null, isPlatformAdmin: false },
         't',
         dto,
       ),

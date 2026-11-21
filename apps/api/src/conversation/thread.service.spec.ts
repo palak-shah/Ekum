@@ -250,9 +250,9 @@ describe('ThreadService.findDirectThread one 1:1', () => {
 
     const service = new ThreadService(
       prisma,
-      { isBlocked: async () => false, canViewCatalog: async () => true } as VisibilityService,
-      { toThreadSummary: () => ({ id: 'shared-1' }) } as ConversationSerializer,
-      { resolve: async () => new Map() } as ReferenceResolver,
+      { isBlocked: async () => false, canViewCatalog: async () => true } as unknown as VisibilityService,
+      { toThreadSummary: () => ({ id: 'shared-1' }) } as unknown as ConversationSerializer,
+      { resolve: async () => new Map() } as unknown as ReferenceResolver,
       accessStub(),
     );
 
@@ -297,9 +297,9 @@ describe('ThreadService.ensureTradeLaneGroup', () => {
 
     const service = new ThreadService(
       prisma,
-      { isBlocked: async () => false, canViewCatalog: async () => true } as VisibilityService,
-      { toThreadSummary: () => ({ id: 'x' }) } as ConversationSerializer,
-      { resolve: async () => new Map() } as ReferenceResolver,
+      { isBlocked: async () => false, canViewCatalog: async () => true } as unknown as VisibilityService,
+      { toThreadSummary: () => ({ id: 'x' }) } as unknown as ConversationSerializer,
+      { resolve: async () => new Map() } as unknown as ReferenceResolver,
       accessStub(),
     );
 
@@ -338,9 +338,9 @@ describe('ThreadService.ensureTradeLaneGroup', () => {
 
     const service = new ThreadService(
       prisma,
-      { isBlocked: async () => false, canViewCatalog: async () => true } as VisibilityService,
-      { toThreadSummary: () => ({ id: 'x' }) } as ConversationSerializer,
-      { resolve: async () => new Map() } as ReferenceResolver,
+      { isBlocked: async () => false, canViewCatalog: async () => true } as unknown as VisibilityService,
+      { toThreadSummary: () => ({ id: 'x' }) } as unknown as ConversationSerializer,
+      { resolve: async () => new Map() } as unknown as ReferenceResolver,
       accessStub(),
     );
 
@@ -372,9 +372,9 @@ describe('ThreadService.ensureTradeLaneGroup', () => {
 
     const service = new ThreadService(
       prisma,
-      { isBlocked: async () => false, canViewCatalog: async () => true } as VisibilityService,
-      { toThreadSummary: () => ({ id: 'x' }) } as ConversationSerializer,
-      { resolve: async () => new Map() } as ReferenceResolver,
+      { isBlocked: async () => false, canViewCatalog: async () => true } as unknown as VisibilityService,
+      { toThreadSummary: () => ({ id: 'x' }) } as unknown as ConversationSerializer,
+      { resolve: async () => new Map() } as unknown as ReferenceResolver,
       accessStub(),
     );
 
@@ -413,9 +413,9 @@ describe('ThreadService.ensureTradeLaneGroup', () => {
 
     const service = new ThreadService(
       prisma,
-      { isBlocked: async () => false, canViewCatalog: async () => true } as VisibilityService,
-      { toThreadSummary: () => ({ id: 'x' }) } as ConversationSerializer,
-      { resolve: async () => new Map() } as ReferenceResolver,
+      { isBlocked: async () => false, canViewCatalog: async () => true } as unknown as VisibilityService,
+      { toThreadSummary: () => ({ id: 'x' }) } as unknown as ConversationSerializer,
+      { resolve: async () => new Map() } as unknown as ReferenceResolver,
       accessStub(),
     );
 
@@ -492,9 +492,9 @@ describe('ThreadService.ensureTradeLaneGroup', () => {
 
     const service = new ThreadService(
       prisma,
-      { isBlocked: async () => false, canViewCatalog: async () => true } as VisibilityService,
-      { toThreadSummary: () => ({ id: 'x' }) } as ConversationSerializer,
-      { resolve: async () => new Map() } as ReferenceResolver,
+      { isBlocked: async () => false, canViewCatalog: async () => true } as unknown as VisibilityService,
+      { toThreadSummary: () => ({ id: 'x' }) } as unknown as ConversationSerializer,
+      { resolve: async () => new Map() } as unknown as ReferenceResolver,
       accessStub(),
     );
 
@@ -562,9 +562,9 @@ describe('ThreadService.ensureTradeLaneGroup', () => {
 
     const service = new ThreadService(
       prisma,
-      { isBlocked: async () => false, canViewCatalog: async () => true } as VisibilityService,
-      { toThreadSummary: () => ({ id: 'x' }) } as ConversationSerializer,
-      { resolve: async () => new Map() } as ReferenceResolver,
+      { isBlocked: async () => false, canViewCatalog: async () => true } as unknown as VisibilityService,
+      { toThreadSummary: () => ({ id: 'x' }) } as unknown as ConversationSerializer,
+      { resolve: async () => new Map() } as unknown as ReferenceResolver,
       accessStub(),
     );
 
@@ -606,9 +606,9 @@ describe('ThreadService.ensureTradeThread', () => {
 
     const service = new ThreadService(
       prisma,
-      { isBlocked: async () => false, canViewCatalog: async () => true } as VisibilityService,
-      { toThreadSummary: () => ({ id: 'x' }) } as ConversationSerializer,
-      { resolve: async () => new Map() } as ReferenceResolver,
+      { isBlocked: async () => false, canViewCatalog: async () => true } as unknown as VisibilityService,
+      { toThreadSummary: () => ({ id: 'x' }) } as unknown as ConversationSerializer,
+      { resolve: async () => new Map() } as unknown as ReferenceResolver,
       accessStub(),
     );
 

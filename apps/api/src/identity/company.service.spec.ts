@@ -12,6 +12,8 @@ function makeService(opts: {
   collections?: Array<{
     id: string;
     name: string;
+    kind?: string;
+    orderMode?: string | null;
     coverImage: string | null;
     status: string;
     updatedAt: Date;

@@ -26,19 +26,18 @@ describe('isChatSystemNotice', () => {
   });
 
   it('treats Repost-off as a centered notice', () => {
-    expect(
-      isChatSystemNotice({
-        type: 'system',
-        body: 'You turned off Repost for Trader 1',
-        metadata: {
-          kind: 'share_revoked',
-          millCompanyId: 'mill',
-          traderCompanyId: 'trader',
-          millName: 'Supplier 1',
-          traderName: 'Trader 1',
-        },
-      }),
-    ).toBe(true);
+    const message = {
+      type: 'system',
+      body: 'You turned off Repost for Trader 1',
+      metadata: {
+        kind: 'share_revoked',
+        millCompanyId: 'mill',
+        traderCompanyId: 'trader',
+        millName: 'Supplier 1',
+        traderName: 'Trader 1',
+      },
+    };
+    expect(isChatSystemNotice(message)).toBe(true);
   });
 });
 

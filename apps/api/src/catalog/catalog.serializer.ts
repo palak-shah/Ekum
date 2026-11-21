@@ -167,6 +167,9 @@ export class CatalogSerializer {
         (collection as { masterCategoryId?: string | null }).masterCategoryId ?? null,
       memberFind: collectionMemberFind(collection.products),
       status: collection.status,
+      exploreActivityAt: collection.exploreActivityAt
+        ? collection.exploreActivityAt.toISOString()
+        : null,
       audience: collection.audience,
       rateVisibility: collection.rateVisibility,
       audienceCompanyIds: collection.audienceCompanyIds ?? [],

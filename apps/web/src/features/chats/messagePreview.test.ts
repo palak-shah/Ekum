@@ -109,7 +109,7 @@ describe('inboxPreviewTypeKey', () => {
       inboxPreviewTypeKey(
         message({
           type: 'system',
-          reference: { id: 'ord-1', kind: 'order', name: 'Order #35RY' },
+          reference: { id: 'ord-1', kind: 'order', name: 'Order #35RY', image: null, available: true },
         }),
       ),
     ).toBe('order_card');
@@ -117,7 +117,7 @@ describe('inboxPreviewTypeKey', () => {
       inboxPreviewTypeKey(
         message({
           type: 'system',
-          reference: { id: 'ord-2', kind: 'other', name: 'Lines' },
+          reference: { id: 'ord-2', kind: 'designs', name: 'Lines', image: null, available: true },
           metadata: { kind: 'order_lines' },
         }),
       ),

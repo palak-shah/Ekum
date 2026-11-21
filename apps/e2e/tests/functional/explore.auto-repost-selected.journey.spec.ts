@@ -144,6 +144,7 @@ test.describe('Direct Link auto-repost Selected buyer @functional @explore', () 
     );
     expect(millPacks.length).toBeGreaterThan(0);
     const sourceTemplate = millPacks[0];
+    if (!sourceTemplate) throw new Error('Kavita has no published regular pack to repost');
     const sourceDetail = await page.request.get(`${API_URL}/collections/${sourceTemplate.id}`, {
       headers: { authorization: `Bearer ${kavitaToken}` },
     });

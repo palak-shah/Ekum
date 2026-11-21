@@ -12,6 +12,9 @@ function pack(
   partial: Pick<CollectionView, 'id' | 'name' | 'status'>,
 ): CollectionView {
   return {
+    kind: 'regular',
+    orderMode: null,
+    exploreActivityAt: null,
     companyId: 'co',
     memberShops: [],
     description: null,

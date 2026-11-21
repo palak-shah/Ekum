@@ -13,8 +13,9 @@ export function orderRef(
   };
 }
 
-export function textMessage(overrides: Partial<MessageView> & { id: string }): MessageView {
+export function textMessage(overrides: Partial<MessageView> = {}): MessageView {
   return {
+    id: 'msg-1',
     threadId: 'seed-thread-1',
     senderCompanyId: 'seed-company-meena',
     type: 'text',
@@ -23,14 +24,13 @@ export function textMessage(overrides: Partial<MessageView> & { id: string }): M
     metadata: null,
     createdAt: '2026-01-01T00:00:00.000Z',
     mine: true,
+    actor: null,
     replyTo: null,
     ...overrides,
   };
 }
 
-export function orderCardMessage(
-  overrides: Partial<MessageView> & { id: string },
-): MessageView {
+export function orderCardMessage(overrides: Partial<MessageView> = {}): MessageView {
   return textMessage({
     type: 'order_card',
     body: null,

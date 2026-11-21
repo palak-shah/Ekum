@@ -4,6 +4,7 @@ import type {
   CompanyCard,
   ConnectionView,
   CreateTradeLaneDto,
+  PublicCompanySummary,
   ShopFollowerView,
   TradeLaneView,
 } from '@ekum/domain-types';
@@ -23,7 +24,7 @@ function actionErrorMessage(err: unknown, fallback: string): string {
   return err instanceof ApiError ? err.message : fallback;
 }
 
-function asPickerConnection(company: CompanyCard): ConnectionView {
+function asPickerConnection(company: PublicCompanySummary): ConnectionView {
   return {
     id: company.id,
     company,

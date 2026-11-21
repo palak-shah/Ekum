@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { ReturnService } from './return.service';
 import type { PrismaService } from '../core/prisma/prisma.service';
 import type { OrderSerializer } from './order.serializer';
+import type { OrderService } from './order.service';
 import type { AuditService } from '../audit/audit.service';
 import type { DomainEvents } from '../events/events.module';
 
@@ -41,6 +42,7 @@ describe('ReturnService.list', () => {
       {
         append: async () => undefined,
       } as unknown as import('./order-trail.service').OrderTrailService,
+      {} as unknown as OrderService,
     );
 
     const page = await service.list('seller', { limit: 20 });

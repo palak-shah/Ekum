@@ -7,6 +7,8 @@ import {
   shouldDraftPackAfterDesignHide,
 } from './draft-packs-after-design-hide';
 
+type PackClient = Parameters<typeof draftPacksLeftWithoutPublishedDesign>[0];
+
 describe('shouldDraftPackAfterDesignHide', () => {
   it('does not auto-unpublish the pack when the last live design leaves', () => {
     expect(shouldDraftPackAfterDesignHide(0)).toBe(false);
@@ -27,7 +29,7 @@ describe('draftPacksLeftWithoutPublishedDesign', () => {
       },
       collection: { updateMany },
     };
-    await expect(draftPacksLeftWithoutPublishedDesign(prisma, 'p1')).resolves.toBe(0);
+    await expect(draftPacksLeftWithoutPublishedDesign(prisma as unknown as PackClient, 'p1')).resolves.toBe(0);
     expect(updateMany).not.toHaveBeenCalled();
   });
 
@@ -40,7 +42,7 @@ describe('draftPacksLeftWithoutPublishedDesign', () => {
       },
       collection: { updateMany },
     };
-    await expect(draftPacksLeftWithoutPublishedDesign(prisma, 'p1')).resolves.toBe(0);
+    await expect(draftPacksLeftWithoutPublishedDesign(prisma as unknown as PackClient, 'p1')).resolves.toBe(0);
     expect(updateMany).not.toHaveBeenCalled();
   });
 });
@@ -55,7 +57,7 @@ describe('publishedPackIdsWithoutLiveDesign', () => {
     ).toEqual(['empty']);
     const updateMany = vi.fn(async () => ({ count: 1 }));
     await draftPublishedPacksWithoutLiveDesign(
-      { collection: { updateMany } },
+      { collection: { updateMany } } as unknown as Parameters<typeof draftPublishedPacksWithoutLiveDesign>[0],
       [{ id: 'empty', status: CollectionStatus.Published, products: [] }],
     );
     expect(updateMany).not.toHaveBeenCalled();

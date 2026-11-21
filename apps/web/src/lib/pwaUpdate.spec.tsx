@@ -143,7 +143,7 @@ describe('bindUpdateRechecks', () => {
     const addWin = vi.spyOn(window, 'addEventListener');
     const removeWin = vi.spyOn(window, 'removeEventListener');
     const interval = window.setInterval(() => {}, 60_000);
-    const setIntervalSpy = vi.spyOn(window, 'setInterval').mockReturnValue(interval);
+    const setIntervalSpy = vi.spyOn(window, 'setInterval').mockReturnValue(interval as unknown as ReturnType<typeof setInterval>);
     const clearIntervalSpy = vi.spyOn(window, 'clearInterval');
 
     const unbind = bindUpdateRechecks(check);

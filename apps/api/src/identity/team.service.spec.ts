@@ -30,7 +30,7 @@ describe('TeamService', () => {
     } as unknown as PrismaService;
     const svc = new TeamService(prisma, {} as TokenService, serializer());
     const result = await svc.createInvite(
-      { userId: 'u1', phone: '+919800000001', companyId: 'c1', role: 'owner', permissions: null },
+      { userId: 'u1', phone: '+919800000001', companyId: 'c1', role: 'owner', permissions: null, isPlatformAdmin: false },
       'c1',
       { name: 'Ramesh', phone: '9876543210' },
     );
@@ -74,7 +74,7 @@ describe('TeamService', () => {
     } as unknown as TokenService;
     const svc = new TeamService(prisma, tokens, serializer());
     const result = await svc.joinInvite(
-      { userId: 'u2', phone: '+919876543210', companyId: null, role: null, permissions: null },
+      { userId: 'u2', phone: '+919876543210', companyId: null, role: null, permissions: null, isPlatformAdmin: false },
       'tok',
     );
     expect(result.companyId).toBe('c1');
@@ -98,7 +98,7 @@ describe('TeamService', () => {
     const svc = new TeamService(prisma, {} as TokenService, serializer());
     await expect(
       svc.joinInvite(
-        { userId: 'u2', phone: '+919800000099', companyId: null, role: null, permissions: null },
+        { userId: 'u2', phone: '+919800000099', companyId: null, role: null, permissions: null, isPlatformAdmin: false },
         'tok',
       ),
     ).rejects.toBeInstanceOf(ForbiddenException);
@@ -125,7 +125,7 @@ describe('TeamService', () => {
     const svc = new TeamService(prisma, {} as TokenService, serializer());
     await expect(
       svc.joinInvite(
-        { userId: 'u2', phone: '+919876543210', companyId: null, role: null, permissions: null },
+        { userId: 'u2', phone: '+919876543210', companyId: null, role: null, permissions: null, isPlatformAdmin: false },
         'tok',
       ),
     ).rejects.toBeInstanceOf(ConflictException);
@@ -163,7 +163,7 @@ describe('TeamService', () => {
     } as unknown as TokenService;
     const svc = new TeamService(prisma, tokens, serializer());
     const result = await svc.joinInvite(
-      { userId: 'u2', phone: '+919876543210', companyId: null, role: null, permissions: null },
+      { userId: 'u2', phone: '+919876543210', companyId: null, role: null, permissions: null, isPlatformAdmin: false },
       'tok',
     );
     expect(result.companyId).toBe('c-b');
@@ -204,7 +204,7 @@ describe('TeamService', () => {
     } as unknown as TokenService;
     const svc = new TeamService(prisma, tokens, serializer());
     const result = await svc.joinInvite(
-      { userId: 'u2', phone: '+919876543210', companyId: null, role: null, permissions: null },
+      { userId: 'u2', phone: '+919876543210', companyId: null, role: null, permissions: null, isPlatformAdmin: false },
       'tok',
     );
     expect(result.companyId).toBe('c-a');
@@ -232,6 +232,7 @@ describe('TeamService', () => {
           companyId: 'c1',
           role: MembershipRole.Owner,
           permissions: null,
+          isPlatformAdmin: false,
         },
         'c1',
         'owner',

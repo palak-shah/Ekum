@@ -456,7 +456,7 @@ describe('orderLineBalance', () => {
           rate: 91,
           unit: 'set',
           catalogRateUnit: 'mtr',
-          lineStatus: 'requested',
+          lineStatus: 'open',
         }}
       />,
     );
@@ -466,16 +466,17 @@ describe('orderLineBalance', () => {
     expect(qty).toHaveClass('text-muted');
     expect(qty).toHaveClass('text-meta');
     expect(qty).not.toHaveClass('font-emphasis');
-    expect(
-      orderTicketLineQtyCopy({
-        quantity: 45,
-        requestedQuantity: 50,
-        shippedQuantity: 30,
-        remainingQuantity: 15,
-        unit: 'pc',
-        lineStatus: 'confirmed',
-      }),
-    ).toBe('30 of 45 pcs sent');
+    // Originally requested 50; ItemFacts only reads the live quantity.
+    const editedLine = {
+      quantity: 45,
+      requestedQuantity: 50,
+      shippedQuantity: 30,
+      remainingQuantity: 15,
+      unit: 'pc',
+      lineStatus: 'confirmed',
+      rate: null,
+    };
+    expect(orderTicketLineQtyCopy(editedLine)).toBe('30 of 45 pcs sent');
     expect(screen.queryByTestId('order-line-fact-price')).toBeNull();
     expect(screen.queryByTestId('order-line-fact-bill')).toBeNull();
     expect(orderTicketLineRateCopy({

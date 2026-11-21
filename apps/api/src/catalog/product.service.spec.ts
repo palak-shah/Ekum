@@ -97,6 +97,7 @@ describe('ProductService.publish consent', () => {
       audience: 'connections',
       rateVisibility: 'on_request',
       allowForward: true,
+      allowDownload: false,
     })).rejects.toThrow();
     expect(productUpdate).not.toHaveBeenCalled();
     expect(companyUpdate).not.toHaveBeenCalled();
@@ -108,6 +109,7 @@ describe('ProductService.publish consent', () => {
       audience: 'connections',
       rateVisibility: 'on_request',
       allowForward: true,
+      allowDownload: false,
       consentToSell: true,
     });
     expect(companyUpdate).toHaveBeenCalled();
@@ -120,6 +122,7 @@ describe('ProductService.publish consent', () => {
       audience: 'connections',
       rateVisibility: 'on_request',
       allowForward: true,
+      allowDownload: false,
     });
     expect(companyUpdate).not.toHaveBeenCalled();
     expect(productUpdate).toHaveBeenCalled();
@@ -133,6 +136,7 @@ describe('ProductService.postToMarket / unpost / unpublish', () => {
       audience: 'everyone',
       rateVisibility: 'visible',
       allowForward: true,
+      allowDownload: false,
     });
     expect(productUpdate).toHaveBeenCalledWith(
       expect.objectContaining({

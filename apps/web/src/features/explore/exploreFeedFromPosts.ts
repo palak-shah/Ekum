@@ -51,7 +51,7 @@ export function exploreLandingBlocked(input: {
 
 /**
  * Quiet end footer when posts exist and Load more has no further pages.
- * `feedExhausted` is true only after the home tail is open and the feed cursor is done.
+ * `feedExhausted` means nothing left to reveal (home tail + older cursor).
  */
 export function exploreFeedEndVisible(input: {
   postCount: number;
@@ -73,6 +73,73 @@ export function exploreFeedLoadMoreVisible(input: {
     !input.storyFiltered &&
     !input.feedExhausted &&
     input.canLoadMore
+  );
+}
+
+/**
+ * Buying Load more — only when there is a closed home tail or a confirmed
+ * older-feed page. A seed cursor alone is not enough (avoids a dead button).
+ */
+export function exploreBuyingCanLoadMore(input: {
+  homeTailOpen: boolean;
+  homeTailCount: number;
+  feedSeedCursor: string | null;
+  olderHasNextPage: boolean;
+  olderHasUnrevealed: boolean;
+  olderIsFetching: boolean;
+  olderIsFetched: boolean;
+}): boolean {
+  if (!input.homeTailOpen) {
+    return (
+      input.homeTailCount > 0 ||
+      input.olderHasNextPage ||
+      input.olderHasUnrevealed
+    );
+  }
+  if (!input.feedSeedCursor) return false;
+  return (
+    input.olderIsFetching ||
+    input.olderHasNextPage ||
+    !input.olderIsFetched
+  );
+}
+
+/**
+ * Feed is done when the closed home tail is empty and the older cursor has
+ * settled with nothing unrevealed left. Story filter always ends the lane.
+ */
+export function exploreBuyingFeedExhausted(input: {
+  homeReady: boolean;
+  storyFiltered: boolean;
+  homeTailOpen: boolean;
+  homeTailCount: number;
+  feedSeedCursor: string | null;
+  olderIsFetched: boolean;
+  olderIsFetching: boolean;
+  olderHasNextPage: boolean;
+  olderHasUnrevealed: boolean;
+}): boolean {
+  if (!input.homeReady) return false;
+  if (input.storyFiltered) return true;
+  if (input.homeTailCount > 0 && !input.homeTailOpen) return false;
+  if (!input.feedSeedCursor) return true;
+  const olderSettled =
+    input.olderIsFetched &&
+    !input.olderIsFetching &&
+    !input.olderHasNextPage;
+  if (input.homeTailCount > 0) return olderSettled;
+  return olderSettled && !input.olderHasUnrevealed;
+}
+
+/** Probe `/explore/feed` before the first Load more when home has no tail. */
+export function exploreBuyingShouldProbeOlder(input: {
+  homeTailOpen: boolean;
+  homeTailCount: number;
+  feedSeedCursor: string | null;
+}): boolean {
+  return (
+    Boolean(input.feedSeedCursor) &&
+    (input.homeTailOpen || input.homeTailCount === 0)
   );
 }
 

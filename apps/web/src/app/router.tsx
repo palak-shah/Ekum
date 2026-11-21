@@ -16,9 +16,10 @@ import { ToastRoot } from '@/ui/Toast';
  * ships a small bundle — important for the "old Android on 3G" target. Each route
  * suspends inside the shell's Suspense boundary while its chunk loads.
  */
-function page<T extends Record<string, ComponentType<unknown>>>(
+// ComponentType<any> mirrors React.lazy's own bound; keyed so modules may also export helpers.
+function page<K extends string, T extends Record<K, ComponentType<any>>>(
   loader: () => Promise<T>,
-  name: keyof T,
+  name: K,
 ) {
   return lazy(async () => ({ default: (await loader())[name] }));
 }

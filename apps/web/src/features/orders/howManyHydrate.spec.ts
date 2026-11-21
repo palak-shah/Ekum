@@ -12,7 +12,7 @@ const stub = {
   moq: null,
   rate: null,
   rateMax: null,
-} as ProductView;
+} as unknown as ProductView;
 
 const detail = {
   id: 'p1',

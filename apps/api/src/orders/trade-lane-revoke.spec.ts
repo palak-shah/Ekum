@@ -49,8 +49,8 @@ describe('trade-lane-revoke', () => {
       tradeLane: { findMany: vi.fn(async () => []), deleteMany: vi.fn() },
       thread: { updateMany: vi.fn() },
       order: { updateMany: vi.fn() },
-    } as never;
-    const result = await revokeAffectedDirectLinks(prisma, 'trader', 'mill');
+    };
+    const result = await revokeAffectedDirectLinks(prisma as never, 'trader', 'mill');
     expect(result).toEqual([]);
     expect(prisma.tradeLane.deleteMany).not.toHaveBeenCalled();
     expect(prisma.thread.updateMany).not.toHaveBeenCalled();

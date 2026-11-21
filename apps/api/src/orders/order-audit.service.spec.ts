@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 import { OrderAuditKind } from '@ekum/domain-types';
-import { OrderAuditService } from './order-audit.service';
+import { OrderAuditService, type OrderAuditClient } from './order-audit.service';
 
 describe('OrderAuditService.appendQty', () => {
   it('inserts one report row per line and skips no-op edits', async () => {
-    const executeRaw = vi.fn(async () => 1);
+    const executeRaw = vi.fn(async (_sql: unknown) => 1);
     const service = new OrderAuditService({
       $transaction: async (ops: Array<Promise<number>>) => Promise.all(ops),
       $executeRaw: executeRaw,
@@ -44,7 +44,7 @@ describe('OrderAuditService.appendQty', () => {
   });
 
   it('keeps same-qty confirm snapshots', async () => {
-    const executeRaw = vi.fn(async () => 1);
+    const executeRaw = vi.fn(async (_sql: unknown) => 1);
     const service = new OrderAuditService({
       $transaction: async (ops: Array<Promise<number>>) => Promise.all(ops),
       $executeRaw: executeRaw,
@@ -66,8 +66,8 @@ describe('OrderAuditService.appendQty', () => {
 
   it('inserts on the passed tx and does not start a nested transaction', async () => {
     const nestedTx = vi.fn();
-    const prismaExecute = vi.fn(async () => 1);
-    const txExecute = vi.fn(async () => 1);
+    const prismaExecute = vi.fn(async (_sql: unknown) => 1);
+    const txExecute = vi.fn(async (_sql: unknown) => 1);
     const service = new OrderAuditService({
       $transaction: nestedTx,
       $executeRaw: prismaExecute,
@@ -90,7 +90,7 @@ describe('OrderAuditService.appendQty', () => {
           qtyAfter: 0,
         },
       ],
-      tx: { $executeRaw: txExecute },
+      tx: { $executeRaw: txExecute } as unknown as OrderAuditClient,
     });
 
     expect(nestedTx).not.toHaveBeenCalled();
@@ -121,7 +121,7 @@ describe('OrderAuditService.appendQty', () => {
           $executeRaw: vi.fn(async () => {
             throw new Error('insert failed');
           }),
-        },
+        } as unknown as OrderAuditClient,
       }),
     ).rejects.toThrow('insert failed');
     expect(nestedTx).not.toHaveBeenCalled();

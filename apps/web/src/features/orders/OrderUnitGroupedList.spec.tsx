@@ -190,15 +190,13 @@ describe('OrderTicketQtySummary', () => {
   });
 
   it('sums billed ₹, All, and Missing rates toggle lights uncounted lines', () => {
+    const billed = [
+      { quantity: 50, unit: 'set', piecesPerPack: 1, rate: 1290, name: 'Georgette' },
+      { quantity: 50, unit: 'set', piecesPerPack: 1, rate: null, name: 'Banarasi' },
+      { quantity: 50, unit: 'pc', rate: 100, name: 'Swatch' },
+    ];
     render(
-      <OrderTicketBillBlock
-        showBill
-        items={[
-          { quantity: 50, unit: 'set', piecesPerPack: 1, rate: 1290, name: 'Georgette' },
-          { quantity: 50, unit: 'set', piecesPerPack: 1, name: 'Banarasi' },
-          { quantity: 50, unit: 'pc', rate: 100, name: 'Swatch' },
-        ]}
-      >
+      <OrderTicketBillBlock showBill items={billed}>
         <TicketLineWash
           item={{ quantity: 50, unit: 'set', piecesPerPack: 1 }}
           data-testid="uncounted-line"
@@ -221,28 +219,25 @@ describe('OrderTicketQtySummary', () => {
   });
 
   it('keeps mill-bill Total on Qty and Bill when lines show Ship / Balance', () => {
-    render(
-      <OrderTicketQtySummary
-        items={[
-          {
-            quantity: 10,
-            unit: 'mtr',
-            rate: 128,
-            lineStatus: 'confirmed',
-            remainingQuantity: 10,
-            shippedQuantity: 0,
-          },
-          {
-            quantity: 10,
-            unit: 'mtr',
-            rate: 160,
-            lineStatus: 'confirmed',
-            remainingQuantity: 10,
-            shippedQuantity: 0,
-          },
-        ]}
-      />,
-    );
+    const shipLines = [
+      {
+        quantity: 10,
+        unit: 'mtr',
+        rate: 128,
+        lineStatus: 'confirmed',
+        remainingQuantity: 10,
+        shippedQuantity: 0,
+      },
+      {
+        quantity: 10,
+        unit: 'mtr',
+        rate: 160,
+        lineStatus: 'confirmed',
+        remainingQuantity: 10,
+        shippedQuantity: 0,
+      },
+    ];
+    render(<OrderTicketQtySummary items={shipLines} />);
     const qty = screen.getByTestId('order-ticket-qty-total');
     expect(qty).toHaveTextContent('20 mtrs');
     expect(qty.className).toContain('whitespace-nowrap');

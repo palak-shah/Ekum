@@ -33,7 +33,7 @@ function orderItem(images: Array<{ name: string; image?: string | null; images?:
       })),
       counterpart: { id: 'c1', name: 'Shop', city: null, verification: 'none', logoUrl: null },
     },
-  } as TradeListItem;
+  } as unknown as TradeListItem;
 }
 
 describe('tradeListGallery', () => {

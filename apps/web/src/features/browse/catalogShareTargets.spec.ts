@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import {
   catalogShareToastLabel,
   catalogShareRecipientIds,
-  dedupeCompanyIds,
   shouldOpenChatAfterCatalogShare,
 } from './catalogShareTargets';
 

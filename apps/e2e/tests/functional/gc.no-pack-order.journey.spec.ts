@@ -68,7 +68,7 @@ test.describe('General Collection is leftover bouquet @functional @collections',
     await page.getByTestId('collection-editor-update').click();
     await expect(page.getByText('Updated').first()).toBeVisible({ timeout: 15_000 });
     await page.goto(`/collections/${general!.id}`);
-    await expect(page.getByTestId('collection-pack-details-description')).toHaveTextContent(note, {
+    await expect(page.getByTestId('collection-pack-details-description')).toContainText(note, {
       timeout: 15_000,
     });
     await expect(page.getByTestId('collection-pack-facts')).toHaveCount(0);

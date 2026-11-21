@@ -576,7 +576,7 @@ describe('CollectionService general + catalog', () => {
   });
 
   it('persists orderMode on catalog PATCH and freezes kind', async () => {
-    const update = vi.fn(async () => ({
+    const update = vi.fn(async (_args: { data?: Record<string, unknown> }) => ({
       id: 'cat-1',
       kind: CollectionKind.Catalog,
       orderMode: CatalogOrderMode.Pick,
@@ -614,7 +614,7 @@ describe('CollectionService general + catalog', () => {
   });
 
   it('ignores orderMode on a regular collection PATCH', async () => {
-    const update = vi.fn(async () => ({
+    const update = vi.fn(async (_args: { data?: Record<string, unknown> }) => ({
       id: 'col-1',
       kind: CollectionKind.Regular,
       products: [],

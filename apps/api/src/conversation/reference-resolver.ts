@@ -98,7 +98,7 @@ export class ReferenceResolver {
               products: {
                 where: { excluded: false },
                 orderBy: { position: 'asc' },
-                select: { product: { select: { images: true, status: true } } },
+                select: { product: { select: { id: true, images: true, status: true } } },
               },
             },
           })

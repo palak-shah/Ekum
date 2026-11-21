@@ -46,7 +46,7 @@ const product = {
   rate: null,
   rateMax: null,
   piecesPerPack: 4,
-} as ProductView;
+} as unknown as ProductView;
 
 function renderSheet(props?: {
   sheetJob?: 'order' | 'ask';

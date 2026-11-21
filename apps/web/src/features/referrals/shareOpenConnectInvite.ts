@@ -1,12 +1,12 @@
 import type { ReferralView } from '@ekum/domain-types';
-import { inviteShareCopy, shareOrCopyInvite } from '@/lib/shareInvite';
+import { inviteShareCopy, shareOrCopyInvite, type ShareHandoffResult } from '@/lib/shareInvite';
 
 /** Create an open connect-with-me invite and open the system share sheet. */
 export async function shareOpenConnectInvite(options: {
   postReferral: () => Promise<ReferralView>;
   origin: string;
   companyName: string;
-}): Promise<'shared' | 'copied'> {
+}): Promise<ShareHandoffResult> {
   const referral = await options.postReferral();
   const url = `${options.origin}/r/${referral.token}`;
   const copy = inviteShareCopy({

@@ -80,6 +80,7 @@ describe('rememberPublishDefaults', () => {
     await rememberPublishDefaults(prisma as never, 'c1', {
       rateVisibility: RateVisibility.Visible,
       allowForward: false,
+      allowDownload: false,
     });
     expect(upsert).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -90,6 +91,7 @@ describe('rememberPublishDefaults', () => {
             publishDefaults: {
               rateVisibility: RateVisibility.Visible,
               allowForward: false,
+              allowDownload: false,
             },
           },
         },

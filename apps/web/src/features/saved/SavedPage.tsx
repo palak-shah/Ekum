@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import type { SavedItemView } from '@ekum/domain-types';
+import { ProductStatus, type SavedItemView } from '@ekum/domain-types';
 import { useCompanyId } from '@/lib/auth';
 import { api, ApiError } from '@/lib/apiClient';
 import {
@@ -96,6 +96,8 @@ function savedItemToSheetProduct(item: SavedItemView): DesignSheetProduct | null
     moq: null,
     rate: item.rate ?? null,
     rateMax: null,
+    // Saved designs open the sheet as live posts (same as shop/Explore cards).
+    status: ProductStatus.Published,
   };
 }
 

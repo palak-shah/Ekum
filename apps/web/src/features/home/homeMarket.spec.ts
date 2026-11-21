@@ -34,7 +34,7 @@ function collectionPost(id: string, companyId: string, postedAt: string): Explor
         verification: 'unverified',
       },
     },
-  } as ExplorePost;
+  } as unknown as ExplorePost;
 }
 
 function productPost(id: string, companyId: string, postedAt: string): ExplorePost {
@@ -54,7 +54,7 @@ function productPost(id: string, companyId: string, postedAt: string): ExplorePo
         verification: 'unverified',
       },
     },
-  } as ExplorePost;
+  } as unknown as ExplorePost;
 }
 
 describe('groupPostsByCompany', () => {

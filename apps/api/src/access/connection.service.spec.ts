@@ -10,6 +10,8 @@ const actor: AuthPrincipal = {
   phone: '+910000000000',
   companyId: 'co-a',
   role: 'owner',
+  permissions: null,
+  isPlatformAdmin: false,
 };
 
 const summary = (id: string) => ({

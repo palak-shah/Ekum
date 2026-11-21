@@ -120,7 +120,7 @@ describe('CollectionPropagateService', () => {
         exploreActivityAt: new Date('2026-10-28'),
         companyId: 't3',
       },
-    ]);
+    ]) as unknown as typeof prisma.collection.findMany;
     await service.propagate('POST-100');
     expect(create).toHaveBeenCalledTimes(1);
   });
@@ -189,7 +189,7 @@ describe('CollectionPropagateService', () => {
         if (args?.where?.OR) return [viaB];
         return [];
       },
-    );
+    ) as unknown as typeof prisma.collection.findMany;
 
     await new CollectionPropagateService(
       prisma,
@@ -859,7 +859,7 @@ describe('CollectionPropagateService', () => {
   it('unions a second Direct Link buyer on an automatic Selected pack without bumping Explore', async () => {
     const create = vi.fn(async () => ({ id: 'x' }));
     const syncRepostMembershipFromSource = syncStub({ membershipChanged: false });
-    const update = vi.fn(async () => ({}));
+    const update = vi.fn(async (_args: { data?: Record<string, unknown> }) => ({}));
     const token = new Date('2026-10-29');
     const source = {
       id: 'POST-100',

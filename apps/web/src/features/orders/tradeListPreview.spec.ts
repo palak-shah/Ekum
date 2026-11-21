@@ -9,6 +9,8 @@ import {
 } from './tradeListPreview';
 import type { TradeListItem } from './tradeList';
 
+type OrderTradeItem = Extract<TradeListItem, { kind: 'order' }>;
+
 function orderItem(partial: {
   status?: string;
   direction?: string;
@@ -41,7 +43,7 @@ function orderItem(partial: {
       createdAt: '2026-09-07T00:00:00.000Z',
       updatedAt: partial.updatedAt ?? '2026-09-07T00:00:00.000Z',
     },
-  } as TradeListItem;
+  } as unknown as TradeListItem;
 }
 
 describe('tradeListPreview', () => {
@@ -119,7 +121,7 @@ describe('tradeListPreview', () => {
         createdAt: '2026-09-07T00:00:00.000Z',
         updatedAt: '2026-09-07T00:00:00.000Z',
       },
-    } as TradeListItem;
+    } as unknown as OrderTradeItem;
     const { preview, accent } = tradeListPreview(item, 'seller-co');
     expect(accent).toBe(true);
     expect(preview).toBe('Confirm');
@@ -147,7 +149,7 @@ describe('tradeListPreview', () => {
         createdAt: '2026-09-07T00:00:00.000Z',
         updatedAt: '2026-09-07T00:00:00.000Z',
       },
-    } as TradeListItem;
+    } as unknown as OrderTradeItem;
     expect(tradeListFacts(item)).toBe('#VONR · 2 designs 12 sets');
     expect(tradeListFacts(item)).toContain('·');
     const mixed = {
@@ -159,7 +161,7 @@ describe('tradeListPreview', () => {
           { name: 'B', quantity: 8, unit: 'mtr', lineStatus: 'open' },
         ],
       },
-    } as TradeListItem;
+    } as unknown as OrderTradeItem;
     expect(tradeListFacts(mixed)).toBe('#VONR · 2 designs');
     expect(
       tradeListQtyFact([
@@ -197,7 +199,7 @@ describe('tradeListPreview', () => {
           { name: 'C', image: 'https://cdn.example/c.jpg', images: [] },
         ],
       },
-    } as TradeListItem;
+    } as unknown as OrderTradeItem;
     expect(tradeListThumbs(item)).toEqual({
       urls: ['https://cdn.example/b.jpg', 'https://cdn.example/c.jpg'],
       overflow: 1,

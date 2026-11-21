@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ConflictException, ForbiddenException } from '@nestjs/common';
+import { ForbiddenException } from '@nestjs/common';
 import { OrderLineStatus, OrderStatus } from '@ekum/domain-types';
 import { OrderService } from './order.service';
 
@@ -166,7 +166,7 @@ describe('OrderService.setLineQuantity', () => {
       items: [item],
       shipments: [],
     };
-    const orderItem = { update: vi.fn(async () => ({})) };
+    const orderItem = { update: vi.fn(async (_args: { data?: Record<string, unknown> }) => ({})) };
     const order = { update: vi.fn(async () => ({})), create: vi.fn() };
     const prisma = { orderItem, order, $transaction: vi.fn() };
     prisma.$transaction.mockImplementation(async (fn: (tx: typeof prisma) => Promise<unknown>) =>

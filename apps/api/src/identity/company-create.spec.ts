@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ConflictException } from '@nestjs/common';
-import { SuperCategory } from '@ekum/domain-types';
+import { MasterCategorySlug, SuperCategory } from '@ekum/domain-types';
 import { CompanyService } from './company.service';
 import type { PrismaService } from '../core/prisma/prisma.service';
 import type { TokenService } from '../auth/token.service';
@@ -14,6 +14,7 @@ const principal: AuthPrincipal = {
   companyId: null,
   role: null,
   permissions: null,
+  isPlatformAdmin: false,
 };
 
 describe('CompanyService.create onboarding', () => {
@@ -71,6 +72,7 @@ describe('CompanyService.create onboarding', () => {
       sellCategories: [],
       buyCategories: [],
       superCategories: [SuperCategory.WomensApparel],
+      masterCategories: [MasterCategorySlug.WomensReadymadeEthnic],
     });
 
     const createArg = companyCreate.mock.calls[0]?.[0] as {
@@ -136,6 +138,7 @@ describe('CompanyService.create onboarding', () => {
         sellCategories: [],
         buyCategories: [],
         superCategories: [SuperCategory.Others],
+        masterCategories: [MasterCategorySlug.AccessoriesReadymade],
       }),
     ).rejects.toBeInstanceOf(ConflictException);
   });
@@ -196,6 +199,7 @@ describe('CompanyService.create onboarding', () => {
       sellCategories: [],
       buyCategories: [],
       superCategories: [SuperCategory.Others],
+      masterCategories: [MasterCategorySlug.AccessoriesReadymade],
     });
 
     expect(result.company.id).toBe('co-2');

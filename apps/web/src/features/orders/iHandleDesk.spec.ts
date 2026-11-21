@@ -11,7 +11,6 @@ import {
   millDeskCardClass,
   millDeskDropped,
   millFromToCells,
-  millLineForParent,
   millRevealLabel,
   orderDetailBehindTakeOver,
   orderDetailNextCue,

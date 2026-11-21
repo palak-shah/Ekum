@@ -223,11 +223,13 @@ export function ConnectionPicker(props: ConnectionPickerProps) {
   const chooseLabel =
     props.chooseLabel ?? (props.mode === 'single' ? 'Choose supplier' : 'Choose recipients');
 
+  const firstSelected = selectedConnections[0];
+
   return (
     <div className="flex flex-col gap-2">
       {label ? <p className="text-sm font-emphasis text-ink">{label}</p> : null}
 
-      {selectedConnections.length > 0 ? (
+      {firstSelected ? (
         props.mode === 'single' ? (
           <button
             type="button"
@@ -235,15 +237,15 @@ export function ConnectionPicker(props: ConnectionPickerProps) {
             className="flex w-full items-center gap-3 rounded-2xl border border-line bg-surface px-3 py-3 text-left hover:bg-foam"
           >
             <Avatar
-              name={selectedConnections[0].company.name}
-              imageUrl={selectedConnections[0].company.logoUrl}
+              name={firstSelected.company.name}
+              imageUrl={firstSelected.company.logoUrl}
               size={40}
             />
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-emphasis text-ink">
-                {selectedConnections[0].company.name}
+                {firstSelected.company.name}
               </p>
-              <p className="truncate text-xs text-muted">{selectedConnections[0].company.city}</p>
+              <p className="truncate text-xs text-muted">{firstSelected.company.city}</p>
             </div>
             <ChevronRightIcon className="shrink-0 text-muted" width={20} height={20} />
           </button>

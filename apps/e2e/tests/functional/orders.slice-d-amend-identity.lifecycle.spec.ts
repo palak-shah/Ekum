@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
-import { createOrder } from '../../helpers/orders';
+import { accessTokenFromPage, createOrder } from '../../helpers/orders';
 import { API_URL } from '../../helpers/env';
-import { accessTokenFromPage, loginAsMeena, loginAsRavi } from '../../helpers/persona';
+import { loginAsMeena, loginAsRavi } from '../../helpers/persona';
 import { resetTradeLanesToMe } from '../../helpers/tradeLanes';
 
 type OrderDetail = {

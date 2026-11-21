@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import type { CollectionViewGrantView } from '@ekum/domain-types';
 import { api } from '@/lib/apiClient';
@@ -7,6 +7,7 @@ import { LoadingBlock, EmptyState } from '@/ui/kit';
 
 /** Expanded list behind the single Home “You can view N collections” need. */
 export function CollectionGrantsPage() {
+  const navigate = useNavigate();
   const grants = useQuery({
     queryKey: ['collection-view-grants', 'mine'],
     queryFn: () =>
@@ -15,7 +16,7 @@ export function CollectionGrantsPage() {
 
   return (
     <div className="flex flex-col gap-3 pb-24">
-      <PageHeader title="Collections you can view" backTo="/" />
+      <PageHeader title="Collections you can view" onBack={() => navigate('/')} />
       {grants.isLoading ? <LoadingBlock /> : null}
       {grants.isError ? (
         <p className="text-sm text-danger">Could not load grants.</p>

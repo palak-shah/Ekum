@@ -29,8 +29,8 @@ describe('complaintOrderCue', () => {
     expect(
       complaintOrderThumb(
         order([
-          { name: 'A', image: null, images: [] } as OrderView['items'][number],
-          { name: 'B', image: '/media/b.jpg', images: [] } as OrderView['items'][number],
+          { name: 'A', image: null, images: [] } as unknown as OrderView['items'][number],
+          { name: 'B', image: '/media/b.jpg', images: [] } as unknown as OrderView['items'][number],
         ]),
       ),
     ).toBe('/media/b.jpg');

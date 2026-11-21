@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { accessTokenFromPage } from '../../helpers/orders';
 import { createOpenReferral } from '../../helpers/referrals';
-import { PHONES, loginAsKavita, loginAsMeena, loginAsRavi } from '../../helpers/persona';
+import { PHONES, loginAsMeena, loginAsRavi } from '../../helpers/persona';
 
 test.describe('network hub @functional @network', () => {
   test('connections list loads from You → Network', async ({ page }) => {

@@ -14,7 +14,7 @@ describe('tradeListThumbs', () => {
           { image: 'https://a/4.jpg', images: [] },
         ],
       },
-    } as TradeListItem;
+    } as unknown as TradeListItem;
     expect(tradeListThumbs(item)).toEqual({
       urls: ['https://a/1.jpg', 'https://a/2.jpg', 'https://a/3.jpg'],
       overflow: 1,
@@ -30,7 +30,7 @@ describe('tradeListThumbs', () => {
           { image: 'https://a/2.jpg', images: [] },
         ],
       },
-    } as TradeListItem;
+    } as unknown as TradeListItem;
     expect(tradeListThumbs(item)).toEqual({
       urls: ['https://a/1.jpg', 'https://a/2.jpg'],
       overflow: 0,
@@ -41,7 +41,7 @@ describe('tradeListThumbs', () => {
     const item = {
       kind: 'order',
       order: { items: [{ image: null, images: [] }] },
-    } as TradeListItem;
+    } as unknown as TradeListItem;
     expect(tradeListThumbs(item)).toEqual({ urls: [], overflow: 0 });
   });
 });

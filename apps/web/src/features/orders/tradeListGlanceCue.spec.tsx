@@ -45,7 +45,7 @@ function item(partial: {
       counterpart: { id: 'c1', name: 'Jaipur Emporium', city: 'Jaipur', verification: 'none', logoUrl: null },
       createdAt: '2026-09-07T00:00:00.000Z',
       updatedAt: '2026-09-07T00:00:00.000Z',
-    } as OrderView,
+    } as unknown as OrderView,
   };
 }
 
@@ -92,15 +92,6 @@ describe('TradeListGlanceCue', () => {
         item={item({
           status: 'confirmed',
           direction: 'buying',
-          items: [
-            {
-              id: 'i1',
-              quantity: 4,
-              shippedQuantity: 0,
-              remainingQuantity: 4,
-              unit: 'set',
-            } as never,
-          ],
         })}
       />,
     );

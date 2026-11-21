@@ -72,7 +72,7 @@ describe('collectionPreviewFromRow', () => {
 
 describe('collectionCardInclude', () => {
   it('loads Rate per so Explore can reuse the album design min–max', () => {
-    expect(collectionCardInclude.products.take).toBeUndefined();
+    expect(collectionCardInclude.products).not.toHaveProperty('take');
     expect(collectionCardInclude.products.include.product.select).toEqual(
       expect.objectContaining({
         rate: true,

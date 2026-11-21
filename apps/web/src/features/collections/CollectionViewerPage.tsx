@@ -865,10 +865,11 @@ export function CollectionViewerPage() {
           unit: seed?.unit || Unit.Set,
           dispatchUnit: seed?.dispatchUnit || Unit.Piece,
           catalogRateUnit: storedCatalogRateUnit({
-            unit: seed?.unit ?? collection.data?.unit,
-            dispatchUnit: seed?.dispatchUnit ?? collection.data?.dispatchUnit,
-            catalogRateUnit:
-              collection.data?.catalogRateUnit ?? seed?.catalogRateUnit,
+            // Collection preview carries no order/dispatch/Rate-per fields (only the
+            // rate band's `rateUnit`), so units come from the first member design.
+            unit: seed?.unit,
+            dispatchUnit: seed?.dispatchUnit,
+            catalogRateUnit: seed?.catalogRateUnit,
           }),
           piecesPerPack: seed?.piecesPerPack != null ? String(seed.piecesPerPack) : '',
           moq: seed?.moq != null ? String(seed.moq) : '',

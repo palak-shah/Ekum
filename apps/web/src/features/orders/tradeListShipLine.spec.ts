@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { OrderView } from '@ekum/domain-types';
+import type { OrderItemView, OrderView } from '@ekum/domain-types';
 import { howManyOrderFooterSummary, howManySetsBanner, qtyCountNoun } from './howManyLineMeta';
 import {
   tradeListShipFact,
@@ -17,8 +17,8 @@ function line(partial: {
   quantity?: number;
   shippedQuantity?: number;
   remainingQuantity?: number;
-  lineStatus?: string;
-}) {
+  lineStatus?: OrderItemView['lineStatus'];
+}): OrderItemView {
   return {
     id: partial.id ?? 'i1',
     productId: null,
@@ -39,7 +39,7 @@ function line(partial: {
   };
 }
 
-function order(partial: Partial<OrderView> & { items?: ReturnType<typeof line>[] }): OrderView {
+function order(partial: Partial<OrderView> & { items?: OrderItemView[] }): OrderView {
   return {
     id: 'o1',
     direction: 'selling',

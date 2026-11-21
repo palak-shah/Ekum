@@ -7,13 +7,24 @@ import {
 
 describe('shouldShowExploreFollow', () => {
   const following = buildFollowingSet([
-    { id: 'c-follow', name: 'A', city: 'Surat', logoUrl: null },
+    { id: 'c-follow', name: 'A', city: 'Surat', logoUrl: null, verification: 'unverified' },
   ]);
   const connected = buildConnectedSet([
     {
       id: 'conn-1',
       status: 'active',
-      company: { id: 'c-conn', name: 'B', city: 'Mumbai', logoUrl: null },
+      createdAt: '2026-01-01',
+      canPause: true,
+      canResume: false,
+      canBlock: true,
+      canUnblock: false,
+      company: {
+        id: 'c-conn',
+        name: 'B',
+        city: 'Mumbai',
+        logoUrl: null,
+        verification: 'unverified',
+      },
     },
   ]);
 

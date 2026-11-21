@@ -15,8 +15,37 @@ import {
 import type { PrismaService } from '../core/prisma/prisma.service';
 import type { CatalogSerializer } from './catalog.serializer';
 import type { JobQueue } from '../jobs/job-queue.service';
+import type { MasterDataService } from './master-data/master-data.service';
 
 const jobs = { enqueue: vi.fn(async () => 'job-1') } as unknown as JobQueue;
+const masterData = {
+  resolveCategoryIdForCompany: vi.fn(async () => null),
+} as unknown as MasterDataService;
+
+const emptyCompanyBlock = {
+  findMany: async () => [] as Array<{ blockerCompanyId: string; blockedCompanyId: string }>,
+  count: async () => 0,
+};
+
+/** Interactive $transaction mock — service passes async (tx) => {...}. */
+function interactiveTransaction(bag: {
+  collectionProduct?: unknown;
+  collection?: unknown;
+  product?: unknown;
+}) {
+  return vi.fn(async (arg: unknown) => {
+    if (typeof arg === 'function') {
+      return (arg as (tx: unknown) => Promise<unknown>)({
+        $queryRawUnsafe: vi.fn(async () => []),
+        $executeRawUnsafe: vi.fn(async () => 0),
+        collectionProduct: bag.collectionProduct,
+        collection: bag.collection,
+        product: bag.product,
+      });
+    }
+    return arg;
+  });
+}
 
 function expectBadRequestCode(error: unknown, code: string): void {
   expect(error).toBeInstanceOf(BadRequestException);
@@ -64,7 +93,7 @@ describe('CollectionService.setProducts', () => {
       $transaction: transaction,
     } as unknown as PrismaService;
 
-    const service = new CollectionService(prisma, {} as CatalogSerializer, jobs);
+    const service = new CollectionService(prisma, {} as CatalogSerializer, jobs, masterData);
     await expect(service.setProducts('company-1', 'u1', 'col-1', ['p1', 'p2'])).rejects.toThrow();
     expect(transaction).not.toHaveBeenCalled();
   });
@@ -73,13 +102,18 @@ describe('CollectionService.setProducts', () => {
     const prisma = {
       collection: { findFirst: async () => null },
     } as unknown as PrismaService;
-    const service = new CollectionService(prisma, {} as CatalogSerializer, jobs);
+    const service = new CollectionService(prisma, {} as CatalogSerializer, jobs, masterData);
     await expect(service.setProducts('company-1', 'u1', 'col-1', ['p1'])).rejects.toThrow();
   });
 
   it('bumps exploreActivityAt when a published design is newly added to a live collection', async () => {
     const collectionUpdate = vi.fn(async () => ({}));
-    const transaction = vi.fn(async (ops: unknown[]) => ops);
+    const txBag: {
+      collectionProduct?: unknown;
+      collection?: unknown;
+      product?: unknown;
+    } = {};
+    const transaction = interactiveTransaction(txBag);
     const getSpy = vi.fn(async () => ({ id: 'col-1', products: [] }));
     const prisma = {
       collection: {
@@ -124,18 +158,19 @@ describe('CollectionService.setProducts', () => {
       },
       $transaction: transaction,
     } as unknown as PrismaService;
+    txBag.collectionProduct = (prisma as { collectionProduct?: unknown }).collectionProduct;
+    txBag.collection = (prisma as { collection?: unknown }).collection;
+    txBag.product = (prisma as { product?: unknown }).product;
 
     const serializer = {
       toCollectionDetail: () => ({ id: 'col-1' }),
     } as unknown as CatalogSerializer;
-    const service = new CollectionService(prisma, serializer, jobs);
+    const service = new CollectionService(prisma, serializer, jobs, masterData);
     vi.spyOn(service, 'get').mockImplementation(getSpy as never);
 
     await service.setProducts('company-1', 'u1', 'col-1', ['old', 'new-published']);
 
-    expect(transaction).toHaveBeenCalled();
-    const ops = transaction.mock.calls[0][0] as unknown[];
-    expect(ops.length).toBe(3);
+    expect(transaction).toHaveBeenCalledWith(expect.any(Function));
     expect(collectionUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: 'col-1' },
@@ -146,7 +181,12 @@ describe('CollectionService.setProducts', () => {
 
   it('does not bump exploreActivityAt on remove-only membership changes', async () => {
     const collectionUpdate = vi.fn(async () => ({}));
-    const transaction = vi.fn(async (ops: unknown[]) => ops);
+    const txBag: {
+      collectionProduct?: unknown;
+      collection?: unknown;
+      product?: unknown;
+    } = {};
+    const transaction = interactiveTransaction(txBag);
     const prisma = {
       collection: {
         findFirst: async () => ({
@@ -178,17 +218,23 @@ describe('CollectionService.setProducts', () => {
       $transaction: transaction,
     } as unknown as PrismaService;
 
+    txBag.collectionProduct = (prisma as { collectionProduct?: unknown }).collectionProduct;
+
+    txBag.collection = (prisma as { collection?: unknown }).collection;
+
+    txBag.product = (prisma as { product?: unknown }).product;
+
     const service = new CollectionService(
       prisma,
       { toCollectionDetail: () => ({ id: 'col-1' }) } as unknown as CatalogSerializer,
       jobs,
+      masterData,
     );
     vi.spyOn(service, 'get').mockResolvedValue({ id: 'col-1' } as never);
 
     await service.setProducts('company-1', 'u1', 'col-1', ['a']);
 
-    const ops = transaction.mock.calls[0][0] as unknown[];
-    expect(ops.length).toBe(3);
+    expect(transaction).toHaveBeenCalledWith(expect.any(Function));
     expect(collectionUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ updatedByUserId: 'u1' }),
@@ -204,7 +250,12 @@ describe('CollectionService.setProducts', () => {
   it('does not promote own drafts on a live pack (status stays independent)', async () => {
     const collectionUpdate = vi.fn(async () => ({}));
     const productUpdateMany = vi.fn(async () => ({ count: 1 }));
-    const transaction = vi.fn(async (ops: unknown[]) => ops);
+    const txBag: {
+      collectionProduct?: unknown;
+      collection?: unknown;
+      product?: unknown;
+    } = {};
+    const transaction = interactiveTransaction(txBag);
     const prisma = {
       collection: {
         findFirst: async () => ({
@@ -243,17 +294,23 @@ describe('CollectionService.setProducts', () => {
       $transaction: transaction,
     } as unknown as PrismaService;
 
+    txBag.collectionProduct = (prisma as { collectionProduct?: unknown }).collectionProduct;
+
+    txBag.collection = (prisma as { collection?: unknown }).collection;
+
+    txBag.product = (prisma as { product?: unknown }).product;
+
     const service = new CollectionService(
       prisma,
       { toCollectionDetail: () => ({ id: 'col-1' }) } as unknown as CatalogSerializer,
       jobs,
+      masterData,
     );
     vi.spyOn(service, 'get').mockResolvedValue({ id: 'col-1' } as never);
 
     await service.setProducts('company-1', 'u1', 'col-1', ['draft-1']);
 
-    const ops = transaction.mock.calls[0][0] as unknown[];
-    expect(ops.length).toBe(3);
+    expect(transaction).toHaveBeenCalledWith(expect.any(Function));
     expect(productUpdateMany).not.toHaveBeenCalled();
     expect(collectionUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -267,7 +324,12 @@ describe('CollectionService.setProducts', () => {
   it('does not bump exploreActivityAt when re-saving a live pack that already has own drafts', async () => {
     const collectionUpdate = vi.fn(async () => ({}));
     const productUpdateMany = vi.fn(async () => ({ count: 1 }));
-    const transaction = vi.fn(async (ops: unknown[]) => ops);
+    const txBag: {
+      collectionProduct?: unknown;
+      collection?: unknown;
+      product?: unknown;
+    } = {};
+    const transaction = interactiveTransaction(txBag);
     const prisma = {
       collection: {
         findFirst: async () => ({
@@ -306,10 +368,17 @@ describe('CollectionService.setProducts', () => {
       $transaction: transaction,
     } as unknown as PrismaService;
 
+    txBag.collectionProduct = (prisma as { collectionProduct?: unknown }).collectionProduct;
+
+    txBag.collection = (prisma as { collection?: unknown }).collection;
+
+    txBag.product = (prisma as { product?: unknown }).product;
+
     const service = new CollectionService(
       prisma,
       { toCollectionDetail: () => ({ id: 'col-1' }) } as unknown as CatalogSerializer,
       jobs,
+      masterData,
     );
     vi.spyOn(service, 'get').mockResolvedValue({ id: 'col-1' } as never);
 
@@ -325,7 +394,12 @@ describe('CollectionService.setProducts', () => {
 
   it('does not promote own drafts on a draft pack', async () => {
     const productUpdateMany = vi.fn(async () => ({ count: 1 }));
-    const transaction = vi.fn(async (ops: unknown[]) => ops);
+    const txBag: {
+      collectionProduct?: unknown;
+      collection?: unknown;
+      product?: unknown;
+    } = {};
+    const transaction = interactiveTransaction(txBag);
     const prisma = {
       collection: {
         findFirst: async () => ({
@@ -364,22 +438,33 @@ describe('CollectionService.setProducts', () => {
       $transaction: transaction,
     } as unknown as PrismaService;
 
+    txBag.collectionProduct = (prisma as { collectionProduct?: unknown }).collectionProduct;
+
+    txBag.collection = (prisma as { collection?: unknown }).collection;
+
+    txBag.product = (prisma as { product?: unknown }).product;
+
     const service = new CollectionService(
       prisma,
       { toCollectionDetail: () => ({ id: 'col-1' }) } as unknown as CatalogSerializer,
       jobs,
+      masterData,
     );
     vi.spyOn(service, 'get').mockResolvedValue({ id: 'col-1' } as never);
 
     await service.setProducts('company-1', 'u1', 'col-1', ['draft-1']);
 
-    const ops = transaction.mock.calls[0][0] as unknown[];
-    expect(ops.length).toBe(3);
+    expect(transaction).toHaveBeenCalledWith(expect.any(Function));
     expect(productUpdateMany).not.toHaveBeenCalled();
   });
 
   it('does not reject a new own photo when an existing member is no longer discoverable', async () => {
-    const transaction = vi.fn(async (ops: unknown[]) => ops);
+    const txBag: {
+      collectionProduct?: unknown;
+      collection?: unknown;
+      product?: unknown;
+    } = {};
+    const transaction = interactiveTransaction(txBag);
     const prisma = {
       collection: {
         findFirst: async () => ({
@@ -415,7 +500,8 @@ describe('CollectionService.setProducts', () => {
         count: vi.fn().mockResolvedValue(0),
         updateMany: vi.fn(async () => ({ count: 1 })),
       },
-      connection: { findMany: async () => [] },
+      connection: { findMany: async () => [], findUnique: async () => null },
+      companyBlock: emptyCompanyBlock,
       follow: { findMany: async () => [] },
       collectionProduct: {
         findMany: async () => [{ productId: 'foreign-1' }],
@@ -424,11 +510,15 @@ describe('CollectionService.setProducts', () => {
       },
       $transaction: transaction,
     } as unknown as PrismaService;
+    txBag.collectionProduct = (prisma as { collectionProduct?: unknown }).collectionProduct;
+    txBag.collection = (prisma as { collection?: unknown }).collection;
+    txBag.product = (prisma as { product?: unknown }).product;
 
     const service = new CollectionService(
       prisma,
       { toCollectionDetail: () => ({ id: 'col-1' }) } as unknown as CatalogSerializer,
       jobs,
+      masterData,
     );
     vi.spyOn(service, 'get').mockResolvedValue({ id: 'col-1' } as never);
 
@@ -439,7 +529,12 @@ describe('CollectionService.setProducts', () => {
   });
 
   it('allows adding another company published forwardable product', async () => {
-    const transaction = vi.fn(async (ops: unknown[]) => ops);
+    const txBag: {
+      collectionProduct?: unknown;
+      collection?: unknown;
+      product?: unknown;
+    } = {};
+    const transaction = interactiveTransaction(txBag);
     const prisma = {
       collection: {
         findFirst: async () => ({
@@ -453,7 +548,8 @@ describe('CollectionService.setProducts', () => {
         findMany: async () => [foreignPublishedProduct],
         count: async () => 0,
       },
-      connection: { findMany: async () => [] },
+      connection: { findMany: async () => [], findUnique: async () => null },
+      companyBlock: emptyCompanyBlock,
       follow: followSourceShop(),
       collectionProduct: {
         findMany: async () => [],
@@ -463,11 +559,17 @@ describe('CollectionService.setProducts', () => {
       productRelistGrant: { findMany: async () => [] },
       $transaction: transaction,
     } as unknown as PrismaService;
+   txBag.collectionProduct = (prisma as { collectionProduct?: unknown }).collectionProduct;
+   txBag.collection = (prisma as { collection?: unknown }).collection;
+   txBag.product = (prisma as { product?: unknown }).product; txBag.collectionProduct = (prisma as { collectionProduct?: unknown }).collectionProduct;
+    txBag.collection = (prisma as { collection?: unknown }).collection;
+    txBag.product = (prisma as { product?: unknown }).product;
 
     const service = new CollectionService(
       prisma,
       { toCollectionDetail: () => ({ id: 'col-1' }) } as unknown as CatalogSerializer,
       jobs,
+      masterData,
     );
     vi.spyOn(service, 'get').mockResolvedValue({ id: 'col-1' } as never);
 
@@ -478,8 +580,13 @@ describe('CollectionService.setProducts', () => {
   });
 
   it('stamps unique shared identity after mixed PUT and omits when they differ', async () => {
-    const collectionUpdate = vi.fn(async () => ({}));
-    const transaction = vi.fn(async (ops: unknown[]) => ops);
+    const collectionUpdate = vi.fn(async (_args: { data?: Record<string, unknown> }) => ({}));
+    const txBag: {
+      collectionProduct?: unknown;
+      collection?: unknown;
+      product?: unknown;
+    } = {};
+    const transaction = interactiveTransaction(txBag);
     const prisma = {
       collection: {
         findFirst: async () => ({
@@ -506,7 +613,8 @@ describe('CollectionService.setProducts', () => {
         ],
         count: async () => 0,
       },
-      connection: { findMany: async () => [] },
+      connection: { findMany: async () => [], findUnique: async () => null },
+      companyBlock: emptyCompanyBlock,
       follow: followSourceShop(),
       collectionProduct: {
         findMany: async () => [],
@@ -516,10 +624,15 @@ describe('CollectionService.setProducts', () => {
       productRelistGrant: { findMany: async () => [] },
       $transaction: transaction,
     } as unknown as PrismaService;
+    txBag.collectionProduct = (prisma as { collectionProduct?: unknown }).collectionProduct;
+    txBag.collection = (prisma as { collection?: unknown }).collection;
+    txBag.product = (prisma as { product?: unknown }).product;
+
     const service = new CollectionService(
       prisma,
       { toCollectionDetail: () => ({ id: 'col-1' }) } as unknown as CatalogSerializer,
       jobs,
+      masterData,
     );
     vi.spyOn(service, 'get').mockResolvedValue({ id: 'col-1' } as never);
     await service.setProducts('company-1', 'u1', 'col-1', ['a', 'b']);
@@ -533,10 +646,10 @@ describe('CollectionService.setProducts', () => {
     );
 
     collectionUpdate.mockClear();
-    prisma.product.findMany = async () => [
+    prisma.product.findMany = (async () => [
       { ...foreignPublishedProduct, id: 'a', masterCategoryId: 'silk', categories: ['Sarees'] },
       { ...foreignPublishedProduct, id: 'b', masterCategoryId: 'cotton', categories: ['Fabric'] },
-    ];
+    ]) as unknown as typeof prisma.product.findMany;
     await service.setProducts('company-1', 'u1', 'col-1', ['a', 'b']);
     expect(collectionUpdate.mock.calls.some((call) => {
       const data = (call[0] as { data?: Record<string, unknown> }).data;
@@ -558,14 +671,15 @@ describe('CollectionService.setProducts', () => {
         findMany: async () => [{ ...foreignPublishedProduct, allowForward: false }],
         count: async () => 0,
       },
-      connection: { findMany: async () => [] },
+      connection: { findMany: async () => [], findUnique: async () => null },
+      companyBlock: emptyCompanyBlock,
       follow: { findMany: async () => [] },
       productRelistGrant: { findMany: async () => [] },
       collectionProduct: { findMany: async () => [] },
       $transaction: transaction,
     } as unknown as PrismaService;
 
-    const service = new CollectionService(prisma, {} as CatalogSerializer, jobs);
+    const service = new CollectionService(prisma, {} as CatalogSerializer, jobs, masterData);
     await expect(
       service.setProducts('company-1', 'u1', 'col-1', ['foreign-1']),
     ).rejects.toSatisfy((error: unknown) => {
@@ -577,7 +691,12 @@ describe('CollectionService.setProducts', () => {
 
   it('allows pack-on-Explore members without solo stamp when sourceCollectionId is viewable', async () => {
     const packOnly = { ...foreignPublishedProduct, postedToMarketAt: null };
-    const transaction = vi.fn(async (ops: unknown[]) => ops);
+    const txBag: {
+      collectionProduct?: unknown;
+      collection?: unknown;
+      product?: unknown;
+    } = {};
+    const transaction = interactiveTransaction(txBag);
     const prisma = {
       collection: {
         findFirst: async () => ({
@@ -609,7 +728,9 @@ describe('CollectionService.setProducts', () => {
       connection: {
         findMany: async () => [],
         findFirst: async () => null,
+      findUnique: async () => null,
       },
+      companyBlock: emptyCompanyBlock,
       follow: {
         ...followSourceShop(),
         findUnique: async () => ({ status: 'allowed' }),
@@ -623,11 +744,15 @@ describe('CollectionService.setProducts', () => {
       productRelistGrant: { findMany: async () => [] },
       $transaction: transaction,
     } as unknown as PrismaService;
+    txBag.collectionProduct = (prisma as { collectionProduct?: unknown }).collectionProduct;
+    txBag.collection = (prisma as { collection?: unknown }).collection;
+    txBag.product = (prisma as { product?: unknown }).product;
 
     const service = new CollectionService(
       prisma,
       { toCollectionDetail: () => ({ id: 'col-1' }) } as unknown as CatalogSerializer,
       jobs,
+      masterData,
     );
     vi.spyOn(service, 'get').mockResolvedValue({ id: 'col-1' } as never);
 
@@ -660,11 +785,12 @@ describe('CollectionService.checkCurateProducts', () => {
           },
         ],
       },
-      connection: { findMany: async () => [] },
+      connection: { findMany: async () => [], findUnique: async () => null },
+      companyBlock: emptyCompanyBlock,
       follow: { findMany: async () => [] },
       productRelistGrant: { findMany: async () => [] },
     } as unknown as PrismaService;
-    const service = new CollectionService(prisma, {} as CatalogSerializer, jobs);
+    const service = new CollectionService(prisma, {} as CatalogSerializer, jobs, masterData);
     const result = await service.checkCurateProducts('company-1', ['foreign-1']);
     expect(result.allowedProductIds).toEqual([]);
     expect(result.blocked).toEqual([{ productId: 'foreign-1', code: 'NOT_DISCOVERABLE' }]);
@@ -681,11 +807,12 @@ describe('CollectionService.checkCurateProducts', () => {
           },
         ],
       },
-      connection: { findMany: async () => [] },
+      connection: { findMany: async () => [], findUnique: async () => null },
+      companyBlock: emptyCompanyBlock,
       follow: { findMany: async () => [] },
       productRelistGrant: { findMany: async () => [] },
     } as unknown as PrismaService;
-    const service = new CollectionService(prisma, {} as CatalogSerializer, jobs);
+    const service = new CollectionService(prisma, {} as CatalogSerializer, jobs, masterData);
     const result = await service.checkCurateProducts('company-1', ['own-1']);
     expect(result.allowedProductIds).toEqual(['own-1']);
     expect(result.blocked).toEqual([]);
@@ -701,7 +828,9 @@ describe('CollectionService.checkCurateProducts', () => {
       connection: {
         findMany: async () => [],
         findFirst: async () => null,
+      findUnique: async () => null,
       },
+      companyBlock: emptyCompanyBlock,
       follow: {
         ...followSourceShop(),
         findUnique: async () => ({ status: 'allowed' }),
@@ -726,7 +855,7 @@ describe('CollectionService.checkCurateProducts', () => {
         }),
       },
     } as unknown as PrismaService;
-    const service = new CollectionService(prisma, {} as CatalogSerializer, jobs);
+    const service = new CollectionService(prisma, {} as CatalogSerializer, jobs, masterData);
     const blocked = await service.checkCurateProducts('company-1', ['foreign-1']);
     expect(blocked.blocked).toEqual([{ productId: 'foreign-1', code: 'NOT_DISCOVERABLE' }]);
     const allowed = await service.checkCurateProducts('company-1', ['foreign-1'], {
@@ -757,7 +886,7 @@ describe('CollectionService.remove', () => {
     const serializer = {
       toCollectionView: (c: unknown) => c,
     } as unknown as CatalogSerializer;
-    const service = new CollectionService(prisma, serializer, jobs);
+    const service = new CollectionService(prisma, serializer, jobs, masterData);
 
     await service.remove('company-1', 'u1', 'col-1');
 
@@ -776,7 +905,7 @@ describe('CollectionService.remove', () => {
 describe('CollectionService.removeRepost', () => {
   it('drafts a child pack without clearing exploreActivityAt', async () => {
     const stamped = new Date('2026-08-01T00:00:00.000Z');
-    const collectionUpdate = vi.fn(async () => ({
+    const collectionUpdate = vi.fn(async (_args: { data?: Record<string, unknown> }) => ({
       id: 'child-1',
       status: CollectionStatus.Draft,
       exploreActivityAt: stamped,
@@ -797,7 +926,7 @@ describe('CollectionService.removeRepost', () => {
     const serializer = {
       toCollectionView: (c: unknown) => c,
     } as unknown as CatalogSerializer;
-    const service = new CollectionService(prisma, serializer, jobs);
+    const service = new CollectionService(prisma, serializer, jobs, masterData);
 
     await service.removeRepost('company-1', 'u1', 'child-1');
 
@@ -809,7 +938,7 @@ describe('CollectionService.removeRepost', () => {
         }),
       }),
     );
-    const data = collectionUpdate.mock.calls[0][0].data as Record<string, unknown>;
+    const data = collectionUpdate.mock.calls[0]![0].data as Record<string, unknown>;
     expect(data).not.toHaveProperty('exploreActivityAt');
   });
 
@@ -829,7 +958,7 @@ describe('CollectionService.removeRepost', () => {
     const serializer = {
       toCollectionView: (c: unknown) => c,
     } as unknown as CatalogSerializer;
-    const service = new CollectionService(prisma, serializer, jobs);
+    const service = new CollectionService(prisma, serializer, jobs, masterData);
     await expect(service.removeRepost('company-1', 'u1', 'orig-1')).rejects.toMatchObject({
       response: expect.objectContaining({ code: 'NOT_ALLOWED' }),
     });
@@ -856,7 +985,7 @@ describe('CollectionService.setStatus hide', () => {
     const serializer = {
       toCollectionView: (c: unknown) => c,
     } as unknown as CatalogSerializer;
-    const service = new CollectionService(prisma, serializer, jobs);
+    const service = new CollectionService(prisma, serializer, jobs, masterData);
 
     await service.setStatus('company-1', 'u1', 'col-1', CollectionStatus.Draft);
 
@@ -901,7 +1030,7 @@ describe('CollectionService.unarchive', () => {
     const serializer = {
       toCollectionView: (c: unknown) => c,
     } as unknown as CatalogSerializer;
-    const service = new CollectionService(prisma, serializer, jobs);
+    const service = new CollectionService(prisma, serializer, jobs, masterData);
 
     await expect(service.unarchive('company-1', 'u1', 'col-1')).rejects.toMatchObject({
       response: { code: 'NOT_ALLOWED' },
@@ -923,7 +1052,7 @@ describe('CollectionService.unarchive', () => {
     const serializer = {
       toCollectionView: (c: unknown) => c,
     } as unknown as CatalogSerializer;
-    const service = new CollectionService(prisma, serializer, jobs);
+    const service = new CollectionService(prisma, serializer, jobs, masterData);
     await expect(service.unarchive('company-1', 'u1', 'col-1')).rejects.toThrow();
   });
 
@@ -944,7 +1073,7 @@ describe('CollectionService.unarchive', () => {
     const serializer = {
       toCollectionView: (c: unknown) => c,
     } as unknown as CatalogSerializer;
-    const service = new CollectionService(prisma, serializer, jobs);
+    const service = new CollectionService(prisma, serializer, jobs, masterData);
     await expect(service.unarchive('company-1', 'u1', 'col-archived')).rejects.toMatchObject({
       response: { code: 'NOT_ALLOWED' },
     });
@@ -962,7 +1091,7 @@ describe('CollectionService name uniqueness', () => {
         }),
       },
     } as unknown as PrismaService;
-    const service = new CollectionService(prisma, {} as CatalogSerializer, jobs);
+    const service = new CollectionService(prisma, {} as CatalogSerializer, jobs, masterData);
     try {
       await service.create('company-1', 'u1', { name: 'wedding edit', categories: [] });
       throw new Error('expected conflict');
@@ -989,7 +1118,7 @@ describe('CollectionService name uniqueness', () => {
         }),
       },
     } as unknown as PrismaService;
-    const service = new CollectionService(prisma, {} as CatalogSerializer, jobs);
+    const service = new CollectionService(prisma, {} as CatalogSerializer, jobs, masterData);
     try {
       await service.create('company-1', 'u1', { name: 'season book', categories: [] });
       throw new Error('expected conflict');
@@ -1022,7 +1151,7 @@ describe('CollectionService.ready', () => {
     const serializer = {
       toCollectionView: (c: unknown) => c,
     } as unknown as CatalogSerializer;
-    const service = new CollectionService(prisma, serializer, jobs);
+    const service = new CollectionService(prisma, serializer, jobs, masterData);
 
     await expect(service.markReady('company-1', 'u1', 'col-1')).rejects.toMatchObject({
       response: { code: 'NOT_ALLOWED' },
@@ -1033,7 +1162,7 @@ describe('CollectionService.ready', () => {
 
 describe('CollectionService.publish', () => {
   it('publishes own draft members for trade without Explore-posting them', async () => {
-    const productUpdateMany = vi.fn(async () => ({ count: 1 }));
+    const productUpdateMany = vi.fn(async (_args: { data?: Record<string, unknown> }) => ({ count: 1 }));
     const collectionUpdate = vi.fn(async () => ({
       id: 'col-1',
       status: CollectionStatus.Published,
@@ -1088,12 +1217,13 @@ describe('CollectionService.publish', () => {
     const serializer = {
       toCollectionView: (c: unknown) => c,
     } as unknown as CatalogSerializer;
-    const service = new CollectionService(prisma, serializer, jobs);
+    const service = new CollectionService(prisma, serializer, jobs, masterData);
 
     await service.publish('company-1', 'u1', 'col-1', {
       audience: 'connections',
       rateVisibility: 'on_request',
       allowForward: true,
+      allowDownload: false,
     });
 
     expect(productUpdateMany).toHaveBeenCalledWith({
@@ -1178,12 +1308,13 @@ describe('CollectionService.publish', () => {
     const serializer = {
       toCollectionView: (c: unknown) => c,
     } as unknown as CatalogSerializer;
-    const service = new CollectionService(prisma, serializer, jobs);
+    const service = new CollectionService(prisma, serializer, jobs, masterData);
 
     const view = await service.publish('company-1', 'u1', 'col-1', {
       audience: 'connections',
       rateVisibility: 'on_request',
       allowForward: true,
+      allowDownload: false,
       endsAt: pastEnds.toISOString(),
     });
 
@@ -1213,12 +1344,13 @@ describe('CollectionService.publish', () => {
       },
     } as unknown as PrismaService;
 
-    const service = new CollectionService(prisma, {} as CatalogSerializer, jobs);
+    const service = new CollectionService(prisma, {} as CatalogSerializer, jobs, masterData);
     await expect(
       service.publish('company-1', 'u1', 'col-1', {
         audience: 'connections',
         rateVisibility: 'on_request',
         allowForward: true,
+        allowDownload: false,
       }),
     ).rejects.toThrow(/at least one design/i);
   });
@@ -1263,15 +1395,17 @@ describe('CollectionService.publish', () => {
           },
         ],
       },
+      companyBlock: emptyCompanyBlock,
       follow: followSourceShop(),
     } as unknown as PrismaService;
 
-    const service = new CollectionService(prisma, {} as CatalogSerializer, jobs);
+    const service = new CollectionService(prisma, {} as CatalogSerializer, jobs, masterData);
     await expect(
       service.publish('company-1', 'u1', 'col-1', {
         audience: 'everyone',
         rateVisibility: 'on_request',
         allowForward: true,
+        allowDownload: false,
       }),
     ).rejects.toSatisfy((error: unknown) => {
       expectBadRequestCode(error, 'CURATED_AUDIENCE_TOO_WIDE');
@@ -1339,7 +1473,7 @@ describe('CollectionService.publish', () => {
         ],
         updateMany: vi.fn(async () => ({ count: 0 })),
       },
-      connection: { findMany: async () => [] },
+      connection: { findMany: async () => [], findUnique: async () => null },
       companyBlock: { findMany: async () => [] },
       follow: {
         findMany: async (args?: { where?: { accessKind?: string } }) =>
@@ -1357,13 +1491,14 @@ describe('CollectionService.publish', () => {
     const serializer = {
       toCollectionView: (c: unknown) => c,
     } as unknown as CatalogSerializer;
-    const service = new CollectionService(prisma, serializer, jobs);
+    const service = new CollectionService(prisma, serializer, jobs, masterData);
 
     await expect(
       service.publish('company-1', 'u1', 'col-1', {
         audience: 'followers',
         rateVisibility: 'on_request',
         allowForward: true,
+        allowDownload: false,
       }),
     ).resolves.toMatchObject({ status: CollectionStatus.Published });
     expect(collectionUpdate).toHaveBeenCalled();
@@ -1411,7 +1546,8 @@ describe('CollectionService.publish', () => {
         findMany: async () => [foreignPublishedProduct],
         updateMany: vi.fn(async () => ({ count: 0 })),
       },
-      connection: { findMany: async () => [] },
+      connection: { findMany: async () => [], findUnique: async () => null },
+      companyBlock: emptyCompanyBlock,
       follow: followSourceShop(),
       companySettings: {
         findUnique: async () => null,
@@ -1422,12 +1558,13 @@ describe('CollectionService.publish', () => {
     const serializer = {
       toCollectionView: (c: unknown) => c,
     } as unknown as CatalogSerializer;
-    const service = new CollectionService(prisma, serializer, jobs);
+    const service = new CollectionService(prisma, serializer, jobs, masterData);
 
     await service.publish('company-1', 'u1', 'col-1', {
       audience: 'connections',
       rateVisibility: 'on_request',
       allowForward: true,
+      allowDownload: false,
       consentToSell: true,
     });
 
@@ -1491,7 +1628,8 @@ describe('CollectionService.publish', () => {
         ],
         updateMany: vi.fn(async () => ({ count: 0 })),
       },
-      connection: { findMany: async () => [] },
+      connection: { findMany: async () => [], findUnique: async () => null },
+      companyBlock: emptyCompanyBlock,
       follow: followSourceShop(),
       companySettings: {
         findUnique: async () => null,
@@ -1502,12 +1640,13 @@ describe('CollectionService.publish', () => {
     const serializer = {
       toCollectionView: (c: unknown) => c,
     } as unknown as CatalogSerializer;
-    const service = new CollectionService(prisma, serializer, jobs);
+    const service = new CollectionService(prisma, serializer, jobs, masterData);
 
     await service.publish('company-1', 'u1', 'col-1', {
       audience: 'connections',
       rateVisibility: 'visible',
       allowForward: true,
+      allowDownload: false,
     });
 
     expect(collectionUpdate).toHaveBeenCalledWith(
@@ -1574,12 +1713,13 @@ describe('CollectionService.publish', () => {
     const serializer = {
       toCollectionView: (c: unknown) => c,
     } as unknown as CatalogSerializer;
-    const service = new CollectionService(prisma, serializer, jobs);
+    const service = new CollectionService(prisma, serializer, jobs, masterData);
 
     await service.publish('company-1', 'u1', 'col-1', {
       audience: 'followers',
       rateVisibility: 'on_request',
       allowForward: true,
+      allowDownload: false,
     });
 
     expect(collectionUpdate).toHaveBeenCalledWith(
@@ -1648,12 +1788,13 @@ describe('CollectionService.publish', () => {
     const serializer = {
       toCollectionView: (c: unknown) => c,
     } as unknown as CatalogSerializer;
-    const service = new CollectionService(prisma, serializer, jobs);
+    const service = new CollectionService(prisma, serializer, jobs, masterData);
 
     await service.publish('company-1', 'u1', 'col-1', {
       audience: 'followers',
       rateVisibility: 'on_request',
       allowForward: true,
+      allowDownload: false,
     });
 
     expect(collectionUpdate).toHaveBeenCalledWith(
@@ -1701,7 +1842,7 @@ describe('CollectionService.update', () => {
     const serializer = {
       toCollectionView: (c: unknown) => c,
     } as unknown as CatalogSerializer;
-    const service = new CollectionService(prisma, serializer, jobs);
+    const service = new CollectionService(prisma, serializer, jobs, masterData);
 
     const view = await service.update('company-1', 'u1', 'col-1', {
       endsAt: pastEnds.toISOString(),
@@ -1742,7 +1883,7 @@ describe('CollectionService.update', () => {
     const serializer = {
       toCollectionView: (c: unknown) => c,
     } as unknown as CatalogSerializer;
-    const service = new CollectionService(prisma, serializer, jobs);
+    const service = new CollectionService(prisma, serializer, jobs, masterData);
 
     await service.update('company-1', 'u1', 'gc-1', {
       name: 'Shop leftovers',
@@ -1786,11 +1927,11 @@ describe('CollectionService.update', () => {
     const serializer = {
       toCollectionView: (c: unknown) => c,
     } as unknown as CatalogSerializer;
-    const service = new CollectionService(prisma, serializer, jobs);
+    const service = new CollectionService(prisma, serializer, jobs, masterData);
 
     await service.update('company-1', 'u1', 'gc-1', {
       description: null,
-    } as { description: null });
+    } as unknown as Parameters<CollectionService['update']>[3]);
 
     expect(update).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -1815,7 +1956,7 @@ describe('CollectionService.update', () => {
         }),
       },
     } as unknown as PrismaService;
-    const service = new CollectionService(prisma, {} as CatalogSerializer, jobs);
+    const service = new CollectionService(prisma, {} as CatalogSerializer, jobs, masterData);
     await expect(
       service.update('company-1', 'u1', 'gc-1', { rate: 91 }),
     ).rejects.toBeInstanceOf(BadRequestException);
@@ -1843,7 +1984,7 @@ describe('CollectionService categories', () => {
     const serializer = {
       toCollectionView: (c: unknown) => c,
     } as unknown as CatalogSerializer;
-    const service = new CollectionService(prisma, serializer, jobs);
+    const service = new CollectionService(prisma, serializer, jobs, masterData);
 
     await service.create('company-1', 'u1', {
       name: 'Wedding Edit',
@@ -1882,7 +2023,7 @@ describe('CollectionService categories', () => {
     const serializer = {
       toCollectionView: (c: unknown) => c,
     } as unknown as CatalogSerializer;
-    const service = new CollectionService(prisma, serializer, jobs);
+    const service = new CollectionService(prisma, serializer, jobs, masterData);
 
     await service.update('company-1', 'u1', 'col-1', { categories: ['Towels'] });
 
@@ -1926,7 +2067,7 @@ describe('CollectionService.create repost source', () => {
     const serializer = {
       toCollectionView: (row: { id: string }) => ({ id: row.id }),
     } as unknown as CatalogSerializer;
-    const service = new CollectionService(prisma, serializer, jobs);
+    const service = new CollectionService(prisma, serializer, jobs, masterData);
     await service.create('me', 'u1', {
       name: 'My Repost',
       categories: [],
@@ -1959,7 +2100,7 @@ describe('CollectionService.create repost source', () => {
         }),
       },
     } as unknown as PrismaService;
-    const service = new CollectionService(prisma, {} as CatalogSerializer, jobs);
+    const service = new CollectionService(prisma, {} as CatalogSerializer, jobs, masterData);
     try {
       await service.create('me', 'u1', {
         name: 'Again',
@@ -1987,7 +2128,7 @@ describe('CollectionService.create repost source', () => {
         }),
       },
     } as unknown as PrismaService;
-    const service = new CollectionService(prisma, {} as CatalogSerializer, jobs);
+    const service = new CollectionService(prisma, {} as CatalogSerializer, jobs, masterData);
     await expect(
       service.findRepostOf('me', { sourceCollectionId: 'src-col' }),
     ).resolves.toEqual({ collectionId: 'already' });
@@ -2012,7 +2153,7 @@ describe('CollectionService.create repost source', () => {
         }),
       },
     } as unknown as PrismaService;
-    const service = new CollectionService(prisma, {} as CatalogSerializer, jobs);
+    const service = new CollectionService(prisma, {} as CatalogSerializer, jobs, masterData);
     await expect(
       service.findRepostOf('me', { sourceProductId: 'p1' }),
     ).rejects.toMatchObject({ response: expect.objectContaining({ code: 'NOT_FOUND' }) });
@@ -2048,7 +2189,7 @@ describe('CollectionService.create repost source', () => {
     const serializer = {
       toCollectionView: (row: { id: string }) => ({ id: row.id }),
     } as unknown as CatalogSerializer;
-    const service = new CollectionService(prisma, serializer, jobs);
+    const service = new CollectionService(prisma, serializer, jobs, masterData);
     const view = await service.create('me', 'u1', {
       name: 'Mill pack',
       categories: [],
@@ -2071,7 +2212,7 @@ describe('CollectionService.create repost source', () => {
         }),
       },
     } as unknown as PrismaService;
-    const service = new CollectionService(prisma, {} as CatalogSerializer, jobs);
+    const service = new CollectionService(prisma, {} as CatalogSerializer, jobs, masterData);
     await expect(
       service.create('me', 'u1', {
         name: 'Own',
@@ -2164,7 +2305,7 @@ describe('CollectionService.otherPackCounts', () => {
         ],
       },
     } as unknown as PrismaService;
-    const service = new CollectionService(prisma, {} as CatalogSerializer, jobs);
+    const service = new CollectionService(prisma, {} as CatalogSerializer, jobs, masterData);
     const result = await service.otherPackCounts('company-1', 'col-a', ['p1', 'p2', 'p3']);
     expect(result.counts).toEqual([
       { productId: 'p1', otherPackCount: 2 },
@@ -2176,7 +2317,7 @@ describe('CollectionService.otherPackCounts', () => {
 
 describe('CollectionService.publishMembers', () => {
   it('publishes own draft members without postedToMarketAt and stamps pack Who', async () => {
-    const productUpdateMany = vi.fn(async () => ({ count: 1 }));
+    const productUpdateMany = vi.fn(async (_args: { data?: Record<string, unknown> }) => ({ count: 1 }));
     const prisma = {
       collection: {
         findFirst: async () => ({
@@ -2197,7 +2338,7 @@ describe('CollectionService.publishMembers', () => {
       },
       product: { updateMany: productUpdateMany },
     } as unknown as PrismaService;
-    const service = new CollectionService(prisma, {} as CatalogSerializer, jobs);
+    const service = new CollectionService(prisma, {} as CatalogSerializer, jobs, masterData);
     await expect(service.publishMembers('company-1', 'u1', 'col-1', ['p1'])).resolves.toEqual({
       published: 1,
     });
@@ -2222,7 +2363,7 @@ describe('CollectionService.publishMembers', () => {
       company: { findUnique: async () => ({ canPublish: false }) },
       product: { updateMany: productUpdateMany },
     } as unknown as PrismaService;
-    const service = new CollectionService(prisma, {} as CatalogSerializer, jobs);
+    const service = new CollectionService(prisma, {} as CatalogSerializer, jobs, masterData);
     await expect(service.publishMembers('company-1', 'u1', 'col-1', ['p1'])).rejects.toThrow();
     expect(productUpdateMany).not.toHaveBeenCalled();
   });
@@ -2280,7 +2421,8 @@ describe('CollectionService.publish category inherit', () => {
         findMany: async () => [foreignPublishedProduct],
         updateMany: vi.fn(async () => ({ count: 0 })),
       },
-      connection: { findMany: async () => [] },
+      connection: { findMany: async () => [], findUnique: async () => null },
+      companyBlock: emptyCompanyBlock,
       follow: followSourceShop(),
       companySettings: {
         findUnique: async () => null,
@@ -2297,6 +2439,7 @@ describe('CollectionService.publish category inherit', () => {
       audience: 'followers',
       rateVisibility: 'on_request',
       allowForward: true,
+      allowDownload: false,
     });
     expect(resolve).toHaveBeenCalledWith('company-1', null, { required: false });
     expect(collectionUpdate).toHaveBeenCalled();
@@ -2346,6 +2489,7 @@ describe('CollectionService.publish category inherit', () => {
         audience: 'followers',
         rateVisibility: 'on_request',
         allowForward: true,
+        allowDownload: false,
       }),
     ).rejects.toSatisfy((error: unknown) => {
       expectBadRequestCode(error, 'CATEGORY_REQUIRED');

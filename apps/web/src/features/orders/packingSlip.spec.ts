@@ -14,7 +14,7 @@ const shipment = {
   parcelCount: 2,
   dispatchedAt: '2026-09-21T10:00:00.000Z',
   items: [{ orderItemId: 'i1', name: 'Cotton Grey', quantity: 20 }],
-  legs: [{ id: 'leg1', lrNumber: 'LR-1', billNumber: null as string | null, sortOrder: 0 }],
+  legs: [{ id: 'leg1', lrNumber: 'LR-1', billNumber: null as string | null, sortOrder: 0, imageUrls: [] }],
 };
 
 describe('packingSlip', () => {
@@ -51,8 +51,8 @@ describe('packingSlip', () => {
       shipment: {
         ...shipment,
         legs: [
-          { id: 'a', lrNumber: 'LR-1', billNumber: 'B-1', sortOrder: 0 },
-          { id: 'b', lrNumber: 'LR-2', billNumber: null, sortOrder: 1 },
+          { id: 'a', lrNumber: 'LR-1', billNumber: 'B-1', sortOrder: 0, imageUrls: [] },
+          { id: 'b', lrNumber: 'LR-2', billNumber: null, sortOrder: 1, imageUrls: [] },
         ],
       },
     });
@@ -237,7 +237,7 @@ describe('packingSlip', () => {
   it('opens in a new tab for the phone PDF viewer; downloads when blocked', () => {
     const create = vi.fn(() => 'blob:slip');
     const revoke = vi.fn();
-    const open = vi.fn(() => ({ focus: vi.fn() }));
+    const open = vi.fn((): { focus: () => void } | null => ({ focus: vi.fn() }));
     vi.stubGlobal('URL', { ...URL, createObjectURL: create, revokeObjectURL: revoke });
     vi.stubGlobal('open', open);
     const file = new File([new Uint8Array([1, 2, 3])], 'slip.pdf', { type: 'application/pdf' });

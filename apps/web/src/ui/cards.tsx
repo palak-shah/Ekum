@@ -1175,7 +1175,7 @@ export function ProductTile({
         <p className="text-xs font-body text-muted">
           {formatCatalogRate({
             rate: product.rate,
-            rateMax: product.rateMax,
+            rateMax: 'rateMax' in product ? product.rateMax : null,
             unit: product.unit,
             dispatchUnit:
               'dispatchUnit' in product

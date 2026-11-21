@@ -101,7 +101,8 @@ export function RepostSkipSection({
   allowRelistAsk: boolean;
   trading: boolean;
   myCompanyId?: string;
-  pendingByProductId: Record<string, boolean>;
+  /** productId → pending relist request id. */
+  pendingByProductId: Record<string, string>;
   askingKey: string | null;
   onAsk: (row: RepostSkipRow & { code: string }) => void;
   onAskAll: (rows: Array<RepostSkipRow & { code: string }>) => void;

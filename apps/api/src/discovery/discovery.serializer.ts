@@ -34,6 +34,8 @@ type CollectionCardRow = Collection & {
   products?: Array<{
     product: {
       images: string[];
+      /** Set by collectionCardInclude; preview/count only count published members. */
+      status?: string | null;
       companyId?: string;
       name?: string | null;
       sku?: string | null;

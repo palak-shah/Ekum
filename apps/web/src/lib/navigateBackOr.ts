@@ -4,7 +4,7 @@
  * leaves the SPA or goes nowhere — send them to a known list instead.
  */
 export function navigateBackOr(
-  navigate: (to: string | number) => void,
+  navigate: { (to: string): void; (delta: number): void },
   locationKey: string,
   fallbackPath: string,
 ): void {

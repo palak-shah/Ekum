@@ -223,7 +223,7 @@ export function HowManyEachSheet({
       activeProducts.map((product) => ({
         product,
         quantity: Object.prototype.hasOwnProperty.call(overrides, product.id)
-          ? overrides[product.id]
+          ? (overrides[product.id] ?? null)
           : sharedQty,
         note: notes[product.id]?.trim() || undefined,
       })),

@@ -59,6 +59,7 @@ describe('sameForAllSummary', () => {
     rate: '',
     unit: '',
     dispatchUnit: '',
+    catalogRateUnit: '',
     piecesPerPack: '',
     moq: '',
     notes: '',

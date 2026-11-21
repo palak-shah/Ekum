@@ -1,4 +1,4 @@
-import type { ExploreProductPreviewView } from '@ekum/domain-types';
+import { ProductStatus, type ExploreProductPreviewView } from '@ekum/domain-types';
 import type { DesignSheetProduct } from '@/features/browse/DesignSheet';
 
 /** Sticky Curate · Ask for rates · Order — visitors only, same as pack `visitor`. */
@@ -27,6 +27,8 @@ export function exploreProductToSheet(
     moq: data.moq ?? null,
     rate: data.rate ?? null,
     rateMax: data.rateMax ?? null,
+    // Explore only serves live (published) design posts.
+    status: ProductStatus.Published,
     ...(data.catalogCollectionId
       ? { catalogCollectionId: data.catalogCollectionId }
       : {}),

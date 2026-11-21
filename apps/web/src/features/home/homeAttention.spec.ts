@@ -1,6 +1,21 @@
 import { describe, expect, it } from 'vitest';
-import type { OrderView, ThreadSummary } from '@ekum/domain-types';
+import type { OrderItemView, OrderView, ThreadSummary } from '@ekum/domain-types';
 import { buildHomeNeeds, needTitle } from './homeAttention';
+
+function orderLine(partial: Pick<OrderItemView, 'id' | 'quantity' | 'remainingQuantity' | 'rate' | 'lineStatus'>): OrderItemView {
+  return {
+    productId: null,
+    name: 'Design',
+    sku: null,
+    unit: 'pc',
+    image: null,
+    images: [],
+    requestedQuantity: partial.quantity,
+    shippedQuantity: 0,
+    note: null,
+    ...partial,
+  };
+}
 
 function order(
   id: string,
@@ -10,12 +25,10 @@ function order(
     id,
     kind: 'order',
     intent: 'order',
-    status: overrides.status,
     tradeMode: 'bilateral',
     facilitatorCompanyId: null,
     downstreamOrderId: null,
     relatedOrders: [],
-    direction: overrides.direction,
     amendCount: 0,
     counterpart: overrides.counterpart ?? {
       id: 'jaipur',
@@ -25,13 +38,13 @@ function order(
       verification: 'gst',
     },
     items: overrides.items ?? [
-      {
+      orderLine({
         id: 'i1',
         quantity: 100,
         remainingQuantity: 100,
         rate: 120,
         lineStatus: 'open',
-      },
+      }),
     ],
     createdAt: '2026-08-20T08:00:00.000Z',
     updatedAt: overrides.updatedAt ?? '2026-08-22T08:00:00.000Z',
@@ -60,7 +73,7 @@ describe('buildHomeNeeds', () => {
       order('confirm-1', {
         status: 'requested',
         direction: 'selling',
-        items: [{ id: 'i1', quantity: 50, remainingQuantity: 50, rate: 100, lineStatus: 'open' }],
+        items: [orderLine({ id: 'i1', quantity: 50, remainingQuantity: 50, rate: 100, lineStatus: 'open' })],
       }),
       order('dispatch-1', { status: 'confirmed', direction: 'selling' }),
       order('dispatch-2', { status: 'confirmed', direction: 'selling' }),

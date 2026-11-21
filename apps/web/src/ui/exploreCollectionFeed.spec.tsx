@@ -62,7 +62,6 @@ function opportunity(overrides: Partial<ExploreOpportunity['collection']> = {}):
         logoUrl: null,
         verification: 'unverified',
         sellCategories: [],
-        buyCategories: [],
       },
       ...overrides,
     },

@@ -80,7 +80,7 @@ describe('SearchService.designs', () => {
 
 describe('SearchService.collections', () => {
   it('matches collection tags case-insensitively via category id lookup', async () => {
-    const findMany = vi.fn(async () => []);
+    const findMany = vi.fn(async (_args: { where?: unknown }) => []);
     const $queryRaw = vi.fn(async () => [{ id: 'c-bedsheet' }]);
     const prisma = {
       collection: { findMany },

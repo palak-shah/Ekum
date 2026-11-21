@@ -197,6 +197,7 @@ describe('collectSameForAllDiffIds', () => {
             rate: '900',
             unit: 'pc',
             dispatchUnit: '',
+            catalogRateUnit: '',
             piecesPerPack: '',
             moq: '',
             notes: '',
@@ -478,7 +479,7 @@ describe('productFieldsFromMember', () => {
         moq: '',
         notes: '',
         categories: [],
-      } as Parameters<typeof productFieldsFromMember>[0]).catalogRateUnit,
+      } as unknown as Parameters<typeof productFieldsFromMember>[0]).catalogRateUnit,
     ).toBeUndefined();
   });
 

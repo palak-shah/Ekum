@@ -37,7 +37,6 @@ function collectionOpportunity(
         logoUrl: null,
         verification: 'unverified',
         sellCategories: [],
-        buyCategories: [],
       },
     },
   };
@@ -68,7 +67,6 @@ function designOpportunity(
         logoUrl: null,
         verification: 'unverified',
         sellCategories: [],
-        buyCategories: [],
       },
     },
   };

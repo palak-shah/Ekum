@@ -1,6 +1,5 @@
 import {
   ConflictException,
-  ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
@@ -94,7 +93,7 @@ describe('share-link access locks (claim ≠ grant)', () => {
   });
 
   it('Allow writes a 48h expiresAt on the grant', async () => {
-    const upsert = vi.fn(async () => ({}));
+    const upsert = vi.fn(async (_args: { create: { expiresAt: Date; grantedAt: Date } }) => ({}));
     const now = Date.now();
     const requestRow = {
       id: 'req-1',
@@ -146,7 +145,7 @@ describe('share-link access locks (claim ≠ grant)', () => {
         }),
       }),
     );
-    const created = upsert.mock.calls[0][0].create;
+    const created = upsert.mock.calls[0]![0].create;
     expect(created.expiresAt.getTime() - created.grantedAt.getTime()).toBe(
       COLLECTION_VIEW_GRANT_TTL_MS,
     );

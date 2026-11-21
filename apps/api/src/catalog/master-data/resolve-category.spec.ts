@@ -11,7 +11,7 @@ describe('MasterDataService.resolveCategoryIdForCompany', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    service = new MasterDataService(prisma as never);
+    service = new MasterDataService(prisma as never, {} as never);
     prisma.company.findUnique.mockResolvedValue({
       masterCategories: ['womens_readymade_ethnic', 'mens_readymade_ethnic'],
     });

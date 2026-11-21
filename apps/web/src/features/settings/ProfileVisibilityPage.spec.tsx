@@ -43,6 +43,10 @@ const baseCompany: OwnCompanyProfile = {
   contactPerson: null,
   contactPhone: null,
   showContactPhone: false,
+  capabilities: { publish: true, relist: true, refer: true },
+  tradePresence: { buying: true, selling: true, trading: false },
+  role: 'Owner',
+  permissions: { uploads: true, chats: true, orders: true, payments: true, team: true },
 };
 
 function renderPage(company: OwnCompanyProfile = baseCompany) {

@@ -400,7 +400,9 @@ export function buildTradeSuggestions(
         });
       }
     } else {
-      const name = item.ret.counterpart.name.trim();
+      const name = (
+        item.kind === 'return' ? item.ret.counterpart.name : (item.complaint.counterpartName ?? '')
+      ).trim();
       if (name && name.toLowerCase().includes(lower)) {
         push(`text:co:${name.toLowerCase()}`, {
           type: 'text',

@@ -24,7 +24,7 @@ const noBlocks = {
 function setup(options: {
   target: { id: string } | null;
   blocked: boolean;
-  existing?: { status: string } | null;
+  existing?: { status: string; packAskPending?: boolean } | null;
 }) {
   const create = vi.fn(async () => ({}));
   const findUnique = vi.fn(async (args: { where?: { id?: string } }) => {
@@ -170,6 +170,7 @@ describe('FollowService.unfollow', () => {
       {} as VisibilityService,
       {} as DiscoverySerializer,
       threads as unknown as ThreadService,
+      noopEvents,
     );
     await service.unfollow('trader', 'mill');
     expect(create).not.toHaveBeenCalled();
@@ -519,6 +520,7 @@ describe('FollowService.decide', () => {
       {} as VisibilityService,
       {} as DiscoverySerializer,
       threads as unknown as ThreadService,
+      noopEvents,
     );
     await expect(service.decide('mill', 'trader', 'deny')).resolves.toEqual({ ok: true });
     expect(update).toHaveBeenCalledWith({
@@ -793,6 +795,7 @@ describe('FollowService.setAccess', () => {
       {} as VisibilityService,
       { toCompanyCard } as unknown as DiscoverySerializer,
       threads as unknown as ThreadService,
+      noopEvents,
     );
     await service.setAccess('mill', 'trader', 'look');
     expect(threads.findExactPairDirectThreadId).toHaveBeenCalledWith('mill', 'trader');
@@ -852,6 +855,7 @@ describe('FollowService.setAccess', () => {
       {} as VisibilityService,
       { toCompanyCard } as unknown as DiscoverySerializer,
       threads as unknown as ThreadService,
+      noopEvents,
     );
     await service.setAccess('mill', 'trader', 'look');
     expect(create).not.toHaveBeenCalled();

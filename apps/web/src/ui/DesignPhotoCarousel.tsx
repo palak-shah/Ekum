@@ -163,7 +163,7 @@ export function DesignPhotoCarousel({
           checkClassName="right-2 top-2"
         >
           <ManagedImage
-            src={urls[0]}
+            src={urls[0] ?? ''}
             alt={name}
             variant={MEDIA_VARIANT.Thumbnail2}
             draggable={false}

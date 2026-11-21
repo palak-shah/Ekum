@@ -187,7 +187,7 @@ describe('Mill→A→B→Buyer order pricing journey (Batch 3.2)', () => {
     expect(hopRate.toNumber()).not.toBe(110);
 
     // --- passMill: must not overwrite parent 110 with mill 100 ---
-    const orderItemUpdate = vi.fn(async () => ({}));
+    const orderItemUpdate = vi.fn(async (_args: { data?: Record<string, unknown> }) => ({}));
     const passPrisma = {
       order: {
         findUnique: vi

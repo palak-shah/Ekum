@@ -104,7 +104,7 @@ describe('lineage credit — Trader hide, Buyer show', () => {
           verification: 'unverified',
           logoUrl: null,
           sellCategories: [],
-        } as Company,
+        } as unknown as Company,
         _count: { products: 1 },
         products: [millProduct],
       } as never,

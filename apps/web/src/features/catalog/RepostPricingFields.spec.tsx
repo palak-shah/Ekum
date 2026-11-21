@@ -82,7 +82,7 @@ describe('RepostPricingFields prototype', () => {
   it('Margin shows ₹/% subcontrol and keeps draft value across toggle', async () => {
     const user = userEvent.setup();
     let form = {
-      mode: RepostPricingMode.MarginFixed as const,
+      mode: RepostPricingMode.MarginFixed,
       marginValue: '10',
       editedRate: '',
     };

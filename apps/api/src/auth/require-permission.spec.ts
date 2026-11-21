@@ -18,6 +18,7 @@ function staff(over: Partial<AuthPrincipal['permissions']> = {}): AuthPrincipal 
       team: false,
       ...over,
     },
+    isPlatformAdmin: false,
   };
 }
 
@@ -43,6 +44,7 @@ describe('assertPermission', () => {
         payments: true,
         team: true,
       },
+      isPlatformAdmin: false,
     };
     expect(() => assertPermission(owner, 'team')).not.toThrow();
   });
@@ -50,7 +52,7 @@ describe('assertPermission', () => {
   it('rejects when there is no company', () => {
     expect(() =>
       assertPermission(
-        { userId: 'u', phone: '+91', companyId: null, role: null, permissions: null },
+        { userId: 'u', phone: '+91', companyId: null, role: null, permissions: null, isPlatformAdmin: false },
         'orders',
       ),
     ).toThrow(ForbiddenException);
@@ -70,6 +72,7 @@ describe('assertActiveCompany', () => {
         companyId: null,
         role: null,
         permissions: null,
+        isPlatformAdmin: false,
       }),
     ).toThrow(ForbiddenException);
   });

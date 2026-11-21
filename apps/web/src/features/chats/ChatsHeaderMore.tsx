@@ -9,7 +9,6 @@ import { useToast } from '@/ui/Toast';
 import { cx } from '@/ui/kit';
 import { MoreActionsSheet } from '@/ui/MoreActionsSheet';
 import {
-  BellIcon,
   BookmarkIcon,
   CheckIcon,
   CollectionIcon,

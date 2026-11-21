@@ -14,6 +14,7 @@ const actor: AuthPrincipal = {
   companyId: 'owner',
   role: 'owner',
   permissions: null,
+  isPlatformAdmin: false,
 };
 
 const events = { accessApproved: vi.fn() } as unknown as DomainEvents;
@@ -101,6 +102,7 @@ describe('AccessService.approve', () => {
       companyId: 'other-co',
       role: 'owner',
       permissions: null,
+      isPlatformAdmin: false,
     };
     await expect(
       service.approveIncomingFromCounterpartIfPending('owner', 'viewer', wrongActor),

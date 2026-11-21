@@ -21,7 +21,7 @@ export function ThreadPeopleSheet({
   open: boolean;
   onClose: () => void;
   people: ThreadPersonView[];
-  team: TeamMemberView[];
+  team: Pick<TeamMemberView, 'userId' | 'name' | 'role'>[];
   busy: boolean;
   onAdd: (userId: string) => void;
   onRemove: (userId: string) => void;

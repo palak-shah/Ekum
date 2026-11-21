@@ -540,13 +540,14 @@ export function buildChatTradeCard(
       const hit = ref?.designItems?.find((item) => item.image === url);
       return hit?.name?.trim() || null;
     });
+    const complaintId = ref?.id;
     const escalate =
       !message.mine &&
-      message.referenceId &&
+      complaintId &&
       options.actions?.onEscalateComplaint
         ? () =>
             options.actions?.onEscalateComplaint?.(
-              message.referenceId!,
+              complaintId,
               card.orderId ?? null,
               card.productIds?.length ? card.productIds : null,
             )
@@ -555,9 +556,9 @@ export function buildChatTradeCard(
     const openish = status === 'open' || status === 'responded' || (!status && Boolean(ref?.available));
     const resolve =
       openish &&
-      message.referenceId &&
+      complaintId &&
       options.actions?.onResolveComplaint
-        ? () => options.actions?.onResolveComplaint?.(message.referenceId!)
+        ? () => options.actions?.onResolveComplaint?.(complaintId)
         : undefined;
     const footerActions: ChatTradeCardAction[] = [];
     if (resolve) {

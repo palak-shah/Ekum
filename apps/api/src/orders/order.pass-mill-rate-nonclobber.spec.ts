@@ -51,7 +51,7 @@ describe('passMillLinesToParent rate non-clobber (Batch 3)', () => {
       ],
     };
 
-    const orderItemUpdate = vi.fn(async () => ({}));
+    const orderItemUpdate = vi.fn(async (_args: { data?: Record<string, unknown> }) => ({}));
     const prisma = {
       order: {
         findUnique: vi

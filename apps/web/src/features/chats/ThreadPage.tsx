@@ -83,7 +83,7 @@ import { formatVoiceDuration, isUsableVoiceClip } from '@/features/voice/voiceCa
 import { useVoiceRecorder } from '@/features/voice/useVoiceRecorder';
 import type { VoiceRecording } from '@/features/voice/useVoiceRecorder';
 import { stopAllVoicePlayback } from '@/features/voice/voicePlayback';
-import { Avatar, Button, ErrorState, InlineNotice, LoadingBlock, SearchInput, Sheet, TextArea, TextInput, cx } from '@/ui/kit';
+import { Avatar, Button, ErrorState, InlineNotice, LoadingBlock, SearchInput, Sheet, TextArea, cx } from '@/ui/kit';
 import { THREAD_COMPOSER_CONTROL_CLASS, THREAD_COMPOSER_SHELL_CLASS } from '@/ui/fieldFill';
 import { ListSearchRow, ListSquareButton } from '@/ui/ListSearchRow';
 import { MoreActionsSheet, type MoreActionItem } from '@/ui/MoreActionsSheet';
@@ -1050,7 +1050,7 @@ export function ThreadPage() {
     mutationFn: (payload: { alertLevel: 'all' | 'muted'; muteFor?: MuteFor }) =>
       api.patch<ThreadDetail>(`/threads/${id}/alert`, payload),
     onSuccess: () => {
-      setMutePick(false);
+      setMoreStep('root');
       setMoreOpen(false);
       void queryClient.invalidateQueries({ queryKey: ['thread', id] });
       setError(null);
@@ -2465,7 +2465,7 @@ export function ThreadPage() {
                       detail.participants?.find(
                         (row) => row.companyId === message.replyTo?.senderCompanyId,
                       )?.company.name ??
-                      (detail.counterpart?.id === message.replyTo.senderCompanyId
+                      (detail.counterpart && detail.counterpart.id === message.replyTo.senderCompanyId
                         ? detail.counterpart.name
                         : (detail.type === 'direct' ? detail.counterpart?.name : null) ?? null),
                   })

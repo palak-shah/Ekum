@@ -83,7 +83,7 @@ describe('repost pricing resolver (Batch 3)', () => {
 
   it('dependent Edit invalidates only when recorded ownBase changes', () => {
     const base = {
-      mode: RepostPricingMode.Edit as const,
+      mode: RepostPricingMode.Edit,
       marginValue: null,
       editedRate: 150,
       editOwnBase: 100,
@@ -113,7 +113,7 @@ describe('repost pricing resolver (Batch 3)', () => {
 
   it('independent Edit (ownBase null) survives source appear/restrict/revoke', () => {
     const independent = {
-      mode: RepostPricingMode.Edit as const,
+      mode: RepostPricingMode.Edit,
       marginValue: null,
       editedRate: 175,
       editOwnBase: null,
@@ -143,7 +143,7 @@ describe('repost pricing resolver (Batch 3)', () => {
 
   it('design override takes precedence; null mode inherits pack', () => {
     const pack = {
-      mode: RepostPricingMode.Same as const,
+      mode: RepostPricingMode.Same,
       marginValue: null,
       editedRate: null,
       editOwnBase: null,

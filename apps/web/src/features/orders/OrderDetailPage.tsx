@@ -26,7 +26,7 @@ import {
   urlsForOrderItem,
 } from '@/features/orders/orderItemImages';
 import { useCompanyId } from '@/lib/auth';
-import { formatDate, formatRate, formatUnit } from '@/lib/format';
+import { formatDate, formatUnit } from '@/lib/format';
 import { toAbsoluteMediaUrl } from '@/lib/mediaUrl';
 import { ManagedImage } from '@/ui/ManagedImage';
 import { navigateBackOr } from '@/lib/navigateBackOr';
@@ -149,7 +149,6 @@ import {
   OrderLineFacts,
   OrderLineMoneyLine,
   OrderLineShipProgressBar,
-  formatOrderLinePriceAmount,
   orderLineBalance,
   orderLineBalanceRowClass,
   orderLineFactsWithThisLr,
@@ -172,7 +171,6 @@ import {
   OrderUnitGroupedList,
   TicketLineWash,
 } from '@/features/orders/OrderUnitGroupedList';
-import { orderBillTotal } from '@/features/orders/orderLineBilling';
 import { catalogRateDisplayUnit } from '@/lib/catalogRate';
 import { AmendOrderSheet } from '@/features/orders/AmendOrderSheet';
 import {
@@ -182,7 +180,6 @@ import {
   ticketDisplayItems,
   ticketSupplyableItems,
 } from '@/features/orders/orderCatalogDisplay';
-import { CantSupplySwitch } from '@/features/orders/CantSupplySwitch';
 import { TransporterField } from '@/features/orders/TransporterField';
 import { rememberTransporter } from '@/features/orders/transporterMemory';
 import { dispatchTransporterPrefill } from '@/features/orders/dispatchTransporterPrefill';
@@ -198,7 +195,6 @@ import {
   actorSellsThisOrder,
   orderActionDock,
   requestedDockPrimary,
-  showMillSendAll,
   showOrderParentItemsList,
   showSellerConfirmOnDesk,
   showYouFulfilmentCard,
@@ -238,7 +234,6 @@ import {
   LoadingBlock,
   Sheet,
   StatusPill,
-  TextArea,
   TextInput,
   cx,
   listRowClass,
@@ -316,35 +311,6 @@ function SellingDockChat({
 }
 /** Mill card Send / Decline — chip-sized, not a full-bleed bar. */
 const MILL_CARD_ACTION_CLASS = '!min-h-8 h-8 w-auto px-3 text-meta';
-
-function RateFigure({
-  amount,
-  unit,
-  qtyPrefix,
-  muted,
-}: {
-  amount: string;
-  unit: string;
-  qtyPrefix?: string;
-  muted?: boolean;
-}) {
-  return (
-    <p
-      className={cx(
-        'text-center tabular-nums leading-tight',
-        muted ? 'text-muted' : 'text-ink',
-      )}
-    >
-      {qtyPrefix ? (
-        <span className="text-[10px] font-body text-muted">{qtyPrefix}</span>
-      ) : null}
-      <span className="text-sm font-emphasis">{amount}</span>
-      {unit ? (
-        <span className="text-[10px] font-body text-muted">{unit}</span>
-      ) : null}
-    </p>
-  );
-}
 
 function rateAmount(rate: number | null): string {
   if (rate == null) return '';
@@ -1695,38 +1661,6 @@ export function OrderDetailPage() {
   }, [openItems]);
 
 
-  const actionDockKind = useMemo(() => {
-    const data = order.data;
-    if (!data) return 'none';
-    const isSeller = actorSellsThisOrder(data.sellerCompanyId, companyId);
-    const isDirectFacilitator =
-      data.tradeMode === 'direct' &&
-      Boolean(data.facilitatorCompanyId) &&
-      companyId === data.facilitatorCompanyId &&
-      !isSeller;
-    const hasRemaining = leftoverYouHasRemaining(data.items, data.millDesks);
-    const hasDeclinedToRestore = leftoverYouHasDeclined(data.items, data.millDesks);
-    const openForDispatch =
-      data.status === 'confirmed' || data.status === 'part_shipped';
-    return orderActionDock({
-      isSeller,
-      status: data.status,
-      millDesks: data.millDesks,
-      sendQuote: false,
-      hasSellerQuote: data.hasSellerQuote === true,
-      canAmend: data.canAmend === true,
-      canAcceptQuote: data.canAcceptQuote === true,
-      createdBySeller: data.createdBySeller === true,
-      isTraderMillHop: isTraderMillHop(data),
-      isDirectFacilitator,
-      openForDispatch,
-      hasRemaining,
-      hasDeclinedToRestore,
-      canSettle: data.canSettle === true,
-      partiallyShipped: data.partiallyShipped,
-    }).kind;
-  }, [order.data, companyId]);
-
   if (order.isLoading) {
     return <LoadingBlock label="Loading order…" />;
   }
@@ -1789,7 +1723,7 @@ export function OrderDetailPage() {
         millDesks: data.millDesks,
       })
     : [];
-  const millSendPatches = (desk: (typeof data.millDesks)[number]) =>
+  const millSendPatches = (desk: NonNullable<typeof data.millDesks>[number]) =>
     itemsForMill(data.items, desk)
       .map((item) => ({
         productId: item.productId ?? undefined,
@@ -2053,9 +1987,7 @@ export function OrderDetailPage() {
                 </span>
               ) : null}
               {/* Part shipped is only a mid-fulfillment pill/timeline cue — never after Settled. */}
-              {data.partiallyShipped &&
-              data.status === 'confirmed' &&
-              data.status !== 'settled' ? (
+              {data.partiallyShipped && data.status === 'confirmed' ? (
                 <span className="text-[10px] font-emphasis uppercase tracking-wide text-accent">
                   Part shipped
                 </span>

@@ -8,7 +8,7 @@
     "verbatimModuleSyntax": true,
     "noEmit": true,
     "useDefineForClassFields": true,
-    "types": ["vite/client", "vite-plugin-pwa/client"],
+    "types": ["vite/client", "vite-plugin-pwa/client", "vitest/globals"],
     "paths": {
       "@/*": ["./src/*"]
     }

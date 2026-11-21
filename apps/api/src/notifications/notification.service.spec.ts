@@ -6,7 +6,7 @@ import type { WebPushService } from './web-push.service';
 
 function makeService(overrides: Partial<PrismaService> = {}) {
   const capturedPushUserIds: string[] = [];
-  const sendMany = vi.fn(async () => undefined);
+  const sendMany = vi.fn(async (_subs: unknown[], _payload: Record<string, unknown>) => undefined);
   const prisma = {
     notification: {
       create: vi.fn(async () => ({ id: 'n1' })),
@@ -68,7 +68,7 @@ describe('NotificationService.unreadCount scope', () => {
     const count = vi.fn(async () => 2);
     const { service } = makeService({
       notification: { count },
-    } as Partial<PrismaService>);
+    } as unknown as Partial<PrismaService>);
     const result = await service.unreadCount('co-a', 'user-me');
     expect(count).toHaveBeenCalledWith({
       where: {
@@ -86,7 +86,7 @@ describe('NotificationService.delete', () => {
     const deleteMany = vi.fn(async () => ({ count: 1 }));
     const { service } = makeService({
       notification: { deleteMany },
-    } as Partial<PrismaService>);
+    } as unknown as Partial<PrismaService>);
     await service.deleteOne('co-a', 'n-1');
     expect(deleteMany).toHaveBeenCalledWith({
       where: { id: 'n-1', recipientCompanyId: 'co-a' },
@@ -97,7 +97,7 @@ describe('NotificationService.delete', () => {
     const deleteMany = vi.fn(async () => ({ count: 3 }));
     const { service } = makeService({
       notification: { deleteMany },
-    } as Partial<PrismaService>);
+    } as unknown as Partial<PrismaService>);
     const result = await service.deleteRead('co-a');
     expect(deleteMany).toHaveBeenCalledWith({
       where: { recipientCompanyId: 'co-a', readAt: { not: null } },
@@ -109,7 +109,7 @@ describe('NotificationService.delete', () => {
     const deleteMany = vi.fn(async () => ({ count: 5 }));
     const { service } = makeService({
       notification: { deleteMany },
-    } as Partial<PrismaService>);
+    } as unknown as Partial<PrismaService>);
     const result = await service.deleteAll('co-a');
     expect(deleteMany).toHaveBeenCalledWith({
       where: { recipientCompanyId: 'co-a' },

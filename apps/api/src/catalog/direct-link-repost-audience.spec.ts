@@ -7,6 +7,8 @@ import {
   unionDirectLinkBuyer,
 } from './direct-link-repost-audience';
 
+type AudienceClient = Parameters<typeof unionDirectLinkBuyer>[0];
+
 describe('direct-link-repost-audience', () => {
   it('merges buyer ids without duplicates', () => {
     expect(mergeSelectedBuyers(['b1'], ['b1', 'b2'])).toEqual(['b1', 'b2']);
@@ -38,7 +40,7 @@ describe('direct-link-repost-audience', () => {
         update,
       },
     };
-    await unionDirectLinkBuyer(prisma, {
+    await unionDirectLinkBuyer(prisma as unknown as AudienceClient, {
       traderCompanyId: 't1',
       millCompanyId: 'mill',
       buyerCompanyId: 'b2',
@@ -66,7 +68,7 @@ describe('direct-link-repost-audience', () => {
         update,
       },
     };
-    await unionDirectLinkBuyer(prisma, {
+    await unionDirectLinkBuyer(prisma as unknown as AudienceClient, {
       traderCompanyId: 't1',
       millCompanyId: 'mill',
       buyerCompanyId: 'b1',
@@ -92,7 +94,7 @@ describe('direct-link-repost-audience', () => {
         update,
       },
     };
-    await removeDirectLinkBuyer(prisma, {
+    await removeDirectLinkBuyer(prisma as unknown as AudienceClient, {
       traderCompanyId: 't1',
       millCompanyId: 'mill',
       buyerCompanyId: 'b1',

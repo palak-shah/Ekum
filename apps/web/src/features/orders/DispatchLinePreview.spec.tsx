@@ -44,15 +44,17 @@ describe('DispatchLinePreview', () => {
   });
 
   it('Ordered is live quantity after seller edit 50→45', () => {
+    // Originally requested 50; ItemFacts only reads the live quantity.
+    const edited = {
+      ...base,
+      quantity: 45,
+      requestedQuantity: 50,
+      remainingQuantity: 15,
+      shippedQuantity: 30,
+    };
     render(
       <DispatchLinePreview
-        item={{
-          ...base,
-          quantity: 45,
-          requestedQuantity: 50,
-          remainingQuantity: 15,
-          shippedQuantity: 30,
-        }}
+        item={edited}
         thisLrControl={stepper(15)}
       />,
     );

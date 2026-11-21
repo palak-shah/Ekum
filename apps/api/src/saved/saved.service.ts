@@ -63,7 +63,7 @@ type CollectionRow = AudienceTarget & {
     verification: string;
     logoUrl: string | null;
   };
-  products: Array<{ product: { images: string[]; status?: string } }>;
+  products: Array<{ product: { id: string; images: string[]; status?: string } }>;
   _count?: { products: number };
 };
 
@@ -85,7 +85,7 @@ const listInclude = {
         where: { excluded: false },
         orderBy: { position: 'asc' as const },
         take: 4,
-        include: { product: { select: { images: true, status: true } } },
+        include: { product: { select: { id: true, images: true, status: true } } },
       },
       _count: { select: { products: { where: { excluded: false } } } },
     },
@@ -196,7 +196,7 @@ export class SavedService {
           orderBy: { position: 'asc' },
           take: 4,
           // status required — live check skips packs with no published members
-          include: { product: { select: { images: true, status: true } } },
+          include: { product: { select: { id: true, images: true, status: true } } },
         },
         _count: { select: { products: { where: { excluded: false } } } },
       },

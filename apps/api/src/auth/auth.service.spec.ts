@@ -123,6 +123,7 @@ describe('AuthService.me', () => {
       companyId: null,
       role: null,
       permissions: null,
+      isPlatformAdmin: false,
     });
     expect(result.needsOnboarding).toBe(true);
   });
@@ -145,6 +146,7 @@ describe('AuthService.me', () => {
       companyId: null,
       role: null,
       permissions: null,
+      isPlatformAdmin: false,
     });
     expect(result.needsOnboarding).toBe(false);
     expect(result.user.companyId).toBe('seed-company-ravi');
@@ -167,6 +169,7 @@ describe('AuthService.me', () => {
       companyId: 'textile-hub',
       role: 'owner',
       permissions: null,
+      isPlatformAdmin: false,
     });
     expect(result.user.userId).toBe('seed-user-ravi');
     expect(result.user.companyId).toBe('seed-company-ravi');

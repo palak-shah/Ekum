@@ -5,6 +5,7 @@ import {
   type OrderItemView,
 } from '@ekum/domain-types';
 import type { HowManyQtyLine } from '@/features/orders/howManyLineMeta';
+import type { ItemFacts } from '@/features/orders/OrderLineFacts';
 
 /** Buyer / catalog-owner lists: one row per whole catalog. Mill hops stay per design. */
 export function ticketDisplayItems(items: OrderItemView[]): OrderItemView[] {
@@ -47,7 +48,7 @@ export function catalogPeerOrderItemIds(
 }
 
 /** One bill line per catalog group so Total qty is 1 set not 9 pcs. */
-export function ticketBillItems(items: OrderItemView[]): HowManyQtyLine[] {
+export function ticketBillItems(items: OrderItemView[]): Array<HowManyQtyLine & ItemFacts> {
   return collapseCatalogWholeLines(items).map((row) => {
     if (row.kind === 'line') return row.item;
     const lead = row.items[0]!;

@@ -100,7 +100,7 @@ function order(partial: {
     linkedMills: partial.linkedMills,
     millDesks: partial.millDesks,
     youFulfilment: partial.youFulfilment,
-  } as OrderView;
+  } as unknown as OrderView;
 }
 
 describe('orderTicketChrome', () => {
@@ -437,12 +437,12 @@ describe('orderTicketChrome', () => {
     const ticket = order({
       direction: 'buying',
       status: 'requested',
-      note: null,
     });
     ticket.buyerCompanyId = 'buyer';
     ticket.sellerCompanyId = 'seller';
     ticket.personalNote = {
       note: 'Pack later — only me',
+      noteVoiceMediaId: null,
       noteVoiceUrl: null,
       noteVoiceDurationMs: null,
       images: [],

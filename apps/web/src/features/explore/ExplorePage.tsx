@@ -67,6 +67,9 @@ import {
   exploreFeedEndVisible,
   exploreFeedLoadMoreVisible,
   exploreLandingBlocked,
+  exploreBuyingCanLoadMore,
+  exploreBuyingFeedExhausted,
+  exploreBuyingShouldProbeOlder,
   feedCursorFromMixedId,
   mixedOpportunitiesFromExplorePosts,
 } from './exploreFeedFromPosts';
@@ -749,6 +752,11 @@ export function ExplorePage() {
     return last ? feedCursorFromMixedId(last.id) : null;
   }, [homeHead]);
 
+  const shouldProbeOlder = exploreBuyingShouldProbeOlder({
+    homeTailOpen,
+    homeTailCount: homeTail.length,
+    feedSeedCursor,
+  });
   const olderFeed = useInfiniteQuery({
     queryKey: ['explore', 'feed', 'older', filters, tradeSide, feedSeedCursor],
     initialPageParam: feedSeedCursor as string,
@@ -764,8 +772,7 @@ export function ExplorePage() {
       contentMode === 'all' &&
       home.isSuccess &&
       !storyCompanyId &&
-      homeTailOpen &&
-      Boolean(feedSeedCursor),
+      shouldProbeOlder,
   });
 
   const olderPosts = useMemo(
@@ -776,28 +783,41 @@ export function ExplorePage() {
     [olderFeed.data?.pages],
   );
   const homeIds = useMemo(() => new Set(filteredPosts.map((row) => row.id)), [filteredPosts]);
+  const olderHasUnrevealed = olderPosts.some((row) => !homeIds.has(row.id));
+  const olderBusy = olderFeed.isFetching || olderFeed.isFetchingNextPage;
   const visiblePosts = useMemo(() => {
     const mid = homeTailOpen ? homeTail : [];
-    const extra = olderPosts.filter((row) => !homeIds.has(row.id));
+    // Keep probed older rows off-screen until Load more opens the tail.
+    const extra = homeTailOpen
+      ? olderPosts.filter((row) => !homeIds.has(row.id))
+      : [];
     return [...homeHead, ...mid, ...extra];
   }, [homeHead, homeTail, homeTailOpen, olderPosts, homeIds]);
-  const feedExhausted =
-    home.isSuccess &&
-    (storyCompanyId
-      ? true
-      : homeTailOpen &&
-        !olderFeed.isFetching &&
-        !olderFeed.isFetchingNextPage &&
-        (feedSeedCursor ? olderFeed.isFetched && !olderFeed.hasNextPage : true));
+  const feedExhausted = exploreBuyingFeedExhausted({
+    homeReady: home.isSuccess,
+    storyFiltered: Boolean(storyCompanyId),
+    homeTailOpen,
+    homeTailCount: homeTail.length,
+    feedSeedCursor,
+    olderIsFetched: olderFeed.isFetched,
+    olderIsFetching: olderBusy,
+    olderHasNextPage: Boolean(olderFeed.hasNextPage),
+    olderHasUnrevealed,
+  });
   const showFeedEnd = exploreFeedEndVisible({
     postCount: visiblePosts.length,
     homeReady: home.isSuccess,
     feedExhausted,
   });
-  const canLoadMore = !homeTailOpen
-    ? homeTail.length > 0 || Boolean(feedSeedCursor)
-    : Boolean(feedSeedCursor) &&
-      (olderFeed.isFetching || olderFeed.hasNextPage || !olderFeed.isFetched);
+  const canLoadMore = exploreBuyingCanLoadMore({
+    homeTailOpen,
+    homeTailCount: homeTail.length,
+    feedSeedCursor,
+    olderHasNextPage: Boolean(olderFeed.hasNextPage),
+    olderHasUnrevealed,
+    olderIsFetching: olderBusy,
+    olderIsFetched: olderFeed.isFetched,
+  });
   const showLoadMore = exploreFeedLoadMoreVisible({
     homeReady: home.isSuccess,
     feedExhausted,
@@ -810,7 +830,7 @@ export function ExplorePage() {
       setHomeTailOpen(true);
       return;
     }
-    if (olderFeed.hasNextPage && !olderFeed.isFetching) {
+    if (olderFeed.hasNextPage && !olderBusy) {
       void olderFeed.fetchNextPage();
     }
   };

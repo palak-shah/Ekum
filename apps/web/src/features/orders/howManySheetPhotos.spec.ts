@@ -23,6 +23,7 @@ const p = (
     categories: extra.categories ?? [],
     rate: extra.rate ?? 100,
     rateMax: null,
+    moq: null,
     unit: extra.unit ?? 'pc',
   }) as const;
 
@@ -40,6 +41,7 @@ describe('howManySheetPhotos', () => {
         sku: 'S1',
         rate: 1200,
         rateMax: null,
+        moq: null,
         unit: 'pc',
       }),
     ).toEqual({

@@ -512,7 +512,6 @@ describe('buildChatTradeCard dispatcher', () => {
         type: 'complaint',
         body: 'Short qty',
         mine: false,
-        referenceId: 'cmp-esc',
       }),
       {
         kind: 'complaint',
@@ -541,7 +540,6 @@ describe('buildChatTradeCard dispatcher', () => {
         type: 'complaint',
         body: 'Done',
         mine: true,
-        referenceId: 'cmp-done',
       }),
       {
         kind: 'complaint',

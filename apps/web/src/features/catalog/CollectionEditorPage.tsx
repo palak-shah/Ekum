@@ -158,7 +158,7 @@ import {
 } from './collectionSameForAll';
 import { formatRateInput, parseRateInput } from './rateInput';
 import { combineRateInput, splitRateInput } from './rateRange';
-import { catalogRateDisplayUnit } from '@/lib/catalogRate';
+import { asUnit, catalogRateDisplayUnit } from '@/lib/catalogRate';
 import { applyDesignRateUnit } from './designEditorDefaults';
 import { piecesPerPackFieldValue } from './orderDispatchPreview';
 import { GrowingDescriptionField } from './GrowingDescriptionField';
@@ -190,10 +190,7 @@ import {
 } from '@/ui/icons';
 import { useToast } from '@/ui/Toast';
 import { collectionOwnerSourceLine } from './collectionOwnerSourceLine';
-import {
-  canSetMemberLiveInPack,
-  curatedMemberUnavailableReason,
-} from '@/features/collections/curatedMemberAvailability';
+import { canSetMemberLiveInPack } from '@/features/collections/curatedMemberAvailability';
 import {
   maxPublishAudienceForCuratedPack,
 } from './curationAudienceCeiling';
@@ -390,7 +387,8 @@ export function CollectionEditorPage() {
   const ratePerTouchedRef = useRef(false);
   const [rateConflicts, setRateConflicts] = useState<RateConflict[] | null>(null);
   const [rateConflictKeepIds, setRateConflictKeepIds] = useState<Set<string>>(new Set());
-  const [pendingPublish, setPendingPublish] = useState(false);
+  // Rate-conflict sheet is not opened by any path today; publish stays false until it is wired.
+  const [pendingPublish] = useState(false);
   const [whoExpanded, setWhoExpanded] = useState(false);
   const [orderDispatchExpanded, setOrderDispatchExpanded] = useState(false);
   const [memberOrderDispatchOpen, setMemberOrderDispatchOpen] = useState(false);
@@ -968,9 +966,9 @@ export function CollectionEditorPage() {
         masterCategoryId: form.masterCategoryId,
         rate: packParsed.rate,
         rateMax: packParsed.rateMax,
-        unit: sellAs.unit ?? null,
-        dispatchUnit: sellAs.dispatchUnit ?? null,
-        catalogRateUnit: sellAs.catalogRateUnit ?? null,
+        unit: asUnit(sellAs.unit),
+        dispatchUnit: asUnit(sellAs.dispatchUnit),
+        catalogRateUnit: asUnit(sellAs.catalogRateUnit),
         piecesPerPack: sellAs.piecesPerPack ?? null,
         ...(isCatalog ? { orderMode: orderMode as 'whole' | 'pick' } : {}),
       };
@@ -1195,11 +1193,6 @@ export function CollectionEditorPage() {
       setCameraAppend(_append);
     }
     clickCollectionGallery();
-  };
-
-  const openAddDesignsMenu = () => {
-    setError(null);
-    setAddDesignsOpen(true);
   };
 
   const setReplacePendingFlag = (next: boolean) => {
@@ -1605,9 +1598,9 @@ export function CollectionEditorPage() {
           masterCategoryId: form.masterCategoryId,
           rate: packParsed.rate,
           rateMax: packParsed.rateMax,
-          unit: packShared.unit || null,
-          dispatchUnit: packShared.dispatchUnit || null,
-          catalogRateUnit: packShared.catalogRateUnit || null,
+          unit: asUnit(packShared.unit),
+          dispatchUnit: asUnit(packShared.dispatchUnit),
+          catalogRateUnit: asUnit(packShared.catalogRateUnit),
           piecesPerPack: productFieldsFromMember({
             name: opts.name,
             rate: packShared.rate,

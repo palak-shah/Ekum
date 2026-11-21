@@ -27,5 +27,5 @@ export function defaultProfileMasterCategoryId(
   superCategories: string[] | undefined,
 ): string | null {
   const profile = resolveCompanyMasterOptions(catalog, masterCategories, superCategories);
-  return profile.length === 1 ? profile[0].id : null;
+  return profile.length === 1 ? (profile[0]?.id ?? null) : null;
 }

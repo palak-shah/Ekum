@@ -265,7 +265,8 @@ export function homeMetrics(input: {
   followAskCount?: number;
 }) {
   return {
-    orders: input.orders.filter(matchesNeeds).length,
+    // Wrapped: bare `filter(matchesNeeds)` would pass the array index as viewerCompanyId.
+    orders: input.orders.filter((order) => matchesNeeds(order)).length,
     requests: input.chatCount + (input.followAskCount ?? 0),
     returns: input.returns.filter(sellerNeedsReturnReview).length,
   };

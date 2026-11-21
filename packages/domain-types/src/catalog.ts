@@ -449,6 +449,11 @@ export interface CollectionView {
   /** Member name / SKU / notes / tags for in-list find. */
   memberFind: string[];
   status: string;
+  /**
+   * Explore feed rank stamp. Null when never live / cleared by Hide Draft.
+   * Remove-repost preserves this through Draft so republish does not climb rank.
+   */
+  exploreActivityAt: string | null;
   audience: string;
   rateVisibility: string;
   audienceCompanyIds: string[];

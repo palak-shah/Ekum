@@ -282,8 +282,7 @@ export function MyCatalogPage({
       ? navCollectionFilter
       : DEFAULT_CATALOG_LIST_FILTER;
 
-  const [collectionFilter, setCollectionFilter] =
-    useState<CollectionFilter>(initialCollectionFilter);
+  const [, setCollectionFilter] = useState<CollectionFilter>(initialCollectionFilter);
   const [productFilter, setProductFilter] = useState<ProductFilter>(initialProductFilter);
   const [selecting, setSelecting] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
@@ -1102,7 +1101,7 @@ export function MyCatalogPage({
                       rowMenu?.id === collection.id ||
                       (shareOpen &&
                         rowShare?.length === 1 &&
-                        rowShare[0].collectionId === collection.id)
+                        rowShare[0]?.collectionId === collection.id)
                     }
                     swipeOpen={openSwipeId === collection.id}
                     onSwipeOpen={() => setOpenSwipeId(collection.id)}

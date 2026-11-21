@@ -5,6 +5,7 @@ import { CollectionService } from './collection.service';
 import type { PrismaService } from '../core/prisma/prisma.service';
 import type { CatalogSerializer } from './catalog.serializer';
 import type { JobQueue } from '../jobs/job-queue.service';
+import type { MasterDataService } from './master-data/master-data.service';
 
 /**
  * Locked rule: repost permission is relationship-specific and never auto-inherited
@@ -148,7 +149,7 @@ describe('repost permission hops (no automatic inheritance)', () => {
       },
     });
 
-    const service = new CollectionService(prisma, {} as CatalogSerializer, jobs);
+    const service = new CollectionService(prisma, {} as CatalogSerializer, jobs, {} as unknown as MasterDataService);
     const result = await service.checkCurateProducts('buyer-c', ['design-x'], {
       sourceCollectionId: 'trader-b-repost-of-x',
     });
@@ -170,7 +171,7 @@ describe('repost permission hops (no automatic inheritance)', () => {
       },
     });
 
-    const service = new CollectionService(prisma, {} as CatalogSerializer, jobs);
+    const service = new CollectionService(prisma, {} as CatalogSerializer, jobs, {} as unknown as MasterDataService);
     const result = await service.checkCurateProducts('buyer-c', ['design-x']);
     expect(result.allowedProductIds).toEqual(['design-x']);
     expect(result.blocked).toEqual([]);
@@ -186,7 +187,7 @@ describe('repost permission hops (no automatic inheritance)', () => {
       },
     });
 
-    const forC = new CollectionService(prisma, {} as CatalogSerializer, jobs);
+    const forC = new CollectionService(prisma, {} as CatalogSerializer, jobs, {} as unknown as MasterDataService);
     expect((await forC.checkCurateProducts('buyer-c', ['design-x'])).allowedProductIds).toEqual([
       'design-x',
     ]);
@@ -199,7 +200,7 @@ describe('repost permission hops (no automatic inheritance)', () => {
         },
       },
     });
-    const forCWithoutOwnGrant = new CollectionService(prismaBOnly, {} as CatalogSerializer, jobs);
+    const forCWithoutOwnGrant = new CollectionService(prismaBOnly, {} as CatalogSerializer, jobs, {} as unknown as MasterDataService);
     expectBlocked(
       await forCWithoutOwnGrant.checkCurateProducts('buyer-c', ['design-x']),
       'RELIST_NOT_ALLOWED',
@@ -259,7 +260,7 @@ describe('repost permission hops (no automatic inheritance)', () => {
       },
     });
 
-    const service = new CollectionService(prisma, {} as CatalogSerializer, jobs);
+    const service = new CollectionService(prisma, {} as CatalogSerializer, jobs, {} as unknown as MasterDataService);
     expectBlocked(
       await service.checkCurateProducts('buyer-c', ['design-x'], {
         sourceCollectionId: 'trader-b-repost',

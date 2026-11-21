@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Company } from '@prisma/client';
+import { Prisma, type Company } from '@prisma/client';
 import { CompanySerializer } from '../access/company.serializer';
 import { DiscoverySerializer } from './discovery.serializer';
 
@@ -90,7 +90,7 @@ describe('toCollectionCard', () => {
         name: 'General Collection',
         categories: ['Kurti'],
         rateVisibility: 'visible',
-        rate: 91,
+        rate: new Prisma.Decimal(91),
       }),
       { viewerCompanyId: 'me' },
     );

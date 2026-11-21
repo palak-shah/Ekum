@@ -123,7 +123,7 @@ describe('OrderTrailService heal Updated copy', () => {
         actorCompanyId: 'buyer',
         actorUserId: 'u1',
         summary: null,
-        detail: '6 designs',
+        detail: '6 designs' as string | null,
         note: null,
         noteVoiceUrl: null,
         noteVoiceDurationMs: null,

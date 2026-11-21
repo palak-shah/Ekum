@@ -101,7 +101,7 @@ describe('addToPackAlreadyInIds', () => {
       catalogCollectionId: null,
     });
     expect(addToPackIsDraft(CollectionStatus.Draft)).toBe(true);
-    expect(addToPackToggle(emptyAddToPackPick, packs[0], new Set(['col']))).toEqual(
+    expect(addToPackToggle(emptyAddToPackPick, packs[0]!, new Set(['col']))).toEqual(
       emptyAddToPackPick,
     );
     expect(
@@ -127,17 +127,17 @@ describe('addToPackGrouped', () => {
 
 describe('addToPackToggle', () => {
   it('multi-selects collections and clears a catalog', () => {
-    const one = addToPackToggle(emptyAddToPackPick, packs[0]);
+    const one = addToPackToggle(emptyAddToPackPick, packs[0]!);
     const two = addToPackToggle(one, { id: 'col-2', kind: CollectionKind.Regular });
     expect(two.collectionIds).toEqual(['col', 'col-2']);
     expect(two.catalogId).toBeNull();
   });
 
   it('selects one catalog and drops collections', () => {
-    const withCols = addToPackToggle(emptyAddToPackPick, packs[0]);
-    const withCat = addToPackToggle(withCols, packs[1]);
+    const withCols = addToPackToggle(emptyAddToPackPick, packs[0]!);
+    const withCat = addToPackToggle(withCols, packs[1]!);
     expect(withCat).toEqual({ collectionIds: [], catalogId: 'cat' });
-    expect(addToPackToggle(withCat, packs[1]).catalogId).toBeNull();
+    expect(addToPackToggle(withCat, packs[1]!).catalogId).toBeNull();
   });
 });
 

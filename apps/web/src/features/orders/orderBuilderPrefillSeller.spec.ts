@@ -11,6 +11,10 @@ const shop: PublicCompanyProfile = {
   verification: 'gst_verified',
   categories: [],
   superCategories: [],
+  coverUrl: null,
+  showcaseUrls: [],
+  profileVisibility: 'public',
+  profileAccess: true,
 };
 
 const connected: ConnectionView = {
@@ -42,7 +46,7 @@ describe('withPrefillSeller', () => {
   it('injects a stub so the thread shop name still shows', () => {
     const next = withPrefillSeller([], shop);
     expect(next).toHaveLength(1);
-    expect(next[0].company.id).toBe('s1');
-    expect(next[0].company.name).toBe('Surat Silk House');
+    expect(next[0]?.company.id).toBe('s1');
+    expect(next[0]?.company.name).toBe('Surat Silk House');
   });
 });

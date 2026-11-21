@@ -43,7 +43,7 @@ function withAuditPrisma(prisma: PrismaService): PrismaService {
   const merged: Record<string, unknown> = {
     follow: { findUnique: vi.fn(async () => ({ status: 'allowed', accessKind: 'pack' })) },
     companySettings: { findUnique: vi.fn(async () => null) },
-    ...prisma,
+    ...(prisma as unknown as Record<string, unknown>),
   };
   if (typeof merged.$transaction !== 'function') {
     merged.$transaction = async (ops: unknown) => {
@@ -53,7 +53,7 @@ function withAuditPrisma(prisma: PrismaService): PrismaService {
       return Promise.all(ops as Promise<unknown>[]);
     };
   }
-  return merged as PrismaService;
+  return merged as unknown as PrismaService;
 }
 
 function makeSvc(

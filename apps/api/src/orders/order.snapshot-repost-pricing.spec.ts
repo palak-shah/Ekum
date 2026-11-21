@@ -177,7 +177,7 @@ describe('snapshotItems repost pricing (Batch 3.2)', () => {
 
   it('changing pack margin after place does not rewrite an existing OrderItem snapshot', async () => {
     // Place stamps 120 once; later config change is a new resolve only — no OrderItem.update.
-    const orderItemUpdate = vi.fn(async () => ({}));
+    const orderItemUpdate = vi.fn(async (_args: { data?: Record<string, unknown> }) => ({}));
     const placedParentRate = 120;
     const millRate = 100;
 

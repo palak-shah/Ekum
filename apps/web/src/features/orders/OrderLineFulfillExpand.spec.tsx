@@ -187,7 +187,7 @@ describe('OrderLineFulfillExpand', () => {
           requestedQuantity: 10,
           remainingQuantity: 10,
           rate: 128,
-          lineStatus: 'requested',
+          lineStatus: 'open',
         })}
         expanded={false}
       />,

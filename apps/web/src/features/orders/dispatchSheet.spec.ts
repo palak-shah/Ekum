@@ -185,13 +185,13 @@ describe('dispatchSheet', () => {
     expect(resizeDispatchLegs([], 1)).toEqual([emptyDispatchLeg()]);
     expect(resizeDispatchLegs([emptyDispatchLeg()], 3)).toHaveLength(3);
     const filled = [
-      { lrNumber: 'A', billNumber: '1' },
-      { lrNumber: '', billNumber: '' },
-      { lrNumber: 'C', billNumber: '' },
+      { lrNumber: 'A', billNumber: '1', imageUrls: [] },
+      { lrNumber: '', billNumber: '', imageUrls: [] },
+      { lrNumber: 'C', billNumber: '', imageUrls: [] },
     ];
     expect(resizeDispatchLegs(filled, 2)).toEqual([
-      { lrNumber: 'A', billNumber: '1' },
-      { lrNumber: 'C', billNumber: '' },
+      { lrNumber: 'A', billNumber: '1', imageUrls: [] },
+      { lrNumber: 'C', billNumber: '', imageUrls: [] },
     ]);
   });
 
@@ -206,8 +206,8 @@ describe('dispatchSheet', () => {
     expect(
       seedDispatchLegsFromShipment({
         legs: [
-          { id: '1', lrNumber: 'L1', billNumber: 'B1', sortOrder: 0 },
-          { id: '2', lrNumber: 'L2', billNumber: null, sortOrder: 1 },
+          { id: '1', lrNumber: 'L1', billNumber: 'B1', sortOrder: 0, imageUrls: [] },
+          { id: '2', lrNumber: 'L2', billNumber: null, sortOrder: 1, imageUrls: [] },
         ],
         lrNumber: 'L1',
         parcelCount: 2,

@@ -10,6 +10,7 @@ import { isPackMembershipLeftover } from './pack-membership-leftover';
 import type { PrismaService } from '../core/prisma/prisma.service';
 import type { CatalogSerializer } from './catalog.serializer';
 import type { JobQueue } from '../jobs/job-queue.service';
+import type { MasterDataService } from './master-data/master-data.service';
 
 const jobs = { enqueue: vi.fn(async () => 'job-1') } as unknown as JobQueue;
 
@@ -129,6 +130,7 @@ describe('pack membership leftover (regression)', () => {
       prisma,
       { toCollectionDetail: () => ({ id: 'c1', products: [] }) } as unknown as CatalogSerializer,
       jobs,
+      {} as unknown as MasterDataService,
     );
     vi.spyOn(service, 'get').mockResolvedValue({ id: 'c1', products: [] } as never);
     await service.setProducts('company-1', 'u1', 'c1', []);
@@ -169,6 +171,7 @@ describe('pack membership leftover (regression)', () => {
       prisma,
       { toCollectionDetail } as unknown as CatalogSerializer,
       jobs,
+      {} as unknown as MasterDataService,
     );
     const detail = await service.get('company-1', 'gc-1');
     expect(findMany).toHaveBeenCalledWith(

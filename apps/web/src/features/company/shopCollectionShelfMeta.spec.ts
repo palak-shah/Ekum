@@ -21,7 +21,7 @@ function card(partial: Partial<CollectionCard> & Pick<CollectionCard, 'id' | 'na
     showSourceShops: false,
     sourceShopNames: [],
     viewerReposted: false,
-    company: { id: 'buyer', name: 'Buyer 1', city: null, verification: 'unverified', logoUrl: null, sellCategories: [] },
+    company: { id: 'buyer', name: 'Buyer 1', city: '', verification: 'unverified', logoUrl: null, sellCategories: [] },
     ...partial,
   };
 }

@@ -73,7 +73,7 @@ export async function sniffAudioContentType(blob: Blob): Promise<AudioContentTyp
   }
   // ID3 tag or MPEG frame sync
   if (head[0] === 0x49 && head[1] === 0x44 && head[2] === 0x33) return 'audio/mpeg';
-  if (head[0] === 0xff && head.length > 1 && (head[1] & 0xe0) === 0xe0) return 'audio/mpeg';
+  if (head[0] === 0xff && head.length > 1 && ((head[1] ?? 0) & 0xe0) === 0xe0) return 'audio/mpeg';
   return normalizeAudioContentType(blob.type || '');
 }
 
