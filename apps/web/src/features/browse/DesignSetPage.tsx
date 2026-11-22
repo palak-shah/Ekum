@@ -207,7 +207,7 @@ export function DesignSetPage() {
         shortlist: tradeable,
         quiet: true,
       });
-      if (prepared.kind === 'error' || prepared.kind === 'resolve') return;
+      if (prepared.kind === 'error') return;
       writeBrowseShortlist(overlayShortlistEntries(shortlist.entries, prepared.shortlist));
       setQtyEntries(prepared.shortlist);
       setLockedProductIds(prepared.lockedProductIds);

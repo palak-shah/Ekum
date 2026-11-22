@@ -35,7 +35,6 @@ import { writeBrowseShortlist, type BrowseShortlistEntry } from '@/features/brow
 import { CatalogShareSheet } from '@/features/browse/CatalogShareSheet';
 import { clearSelection } from '@/features/browse/clearSelection';
 import { addStagingToCart } from '@/features/browse/addStagingToCart';
-import { OrderCollectionResolveSheet } from '@/features/browse/OrderCollectionResolveSheet';
 import {
   collectionIdForPackOrder,
 } from '@/features/browse/packOrderSource';
@@ -80,7 +79,6 @@ export function SelectionWorkspaceBar() {
   const me = useMyCompany();
   const [shareOpen, setShareOpen] = useState(false);
   const [messageOpen, setMessageOpen] = useState(false);
-  const [orderResolveOpen, setOrderResolveOpen] = useState(false);
   const [qtyEntries, setQtyEntries] = useState<BrowseShortlistEntry[] | null>(null);
   const [lockedProductIds, setLockedProductIds] = useState<string[]>([]);
   const { prepare: prepareCatalogOrder } = usePrepareCatalogOrder();
@@ -125,7 +123,7 @@ export function SelectionWorkspaceBar() {
   });
 
   const nothingSelected = total < 1;
-  const orderSheetsOpen = orderResolveOpen || orderFlow.qtyOpen;
+  const orderSheetsOpen = orderFlow.qtyOpen;
   const showDock =
     typeof document !== 'undefined' &&
     !readResumeAfterAlbumPick() &&
@@ -160,12 +158,6 @@ export function SelectionWorkspaceBar() {
         shortlist: tradeable,
       });
       if (prepared.kind === 'error') return;
-      if (prepared.kind === 'resolve') {
-        writeBrowseShortlist(prepared.shortlist);
-        setLockedProductIds(prepared.lockedProductIds);
-        setOrderResolveOpen(true);
-        return;
-      }
       writeBrowseShortlist(prepared.shortlist);
       writeBrowseAlbumPick(prepared.remainingAlbums);
       setLockedProductIds(prepared.lockedProductIds);
@@ -286,30 +278,6 @@ export function SelectionWorkspaceBar() {
         products={shareCatalog.products}
         onShared={() => clearSelection()}
       />
-      <OrderCollectionResolveSheet
-        intent="order"
-        open={orderResolveOpen}
-        onClose={() => setOrderResolveOpen(false)}
-        albums={albumPick.entries}
-        designCount={shortlist.count}
-        existingShortlist={shortlist.entries}
-        onResolved={({ shortlist: nextShortlist, remainingAlbums, navigateToCollectionId, lockedProductIds: locked }) => {
-          writeBrowseShortlist(nextShortlist);
-          writeBrowseAlbumPick(remainingAlbums);
-          setOrderResolveOpen(false);
-          setLockedProductIds(locked ?? []);
-          if (navigateToCollectionId) {
-            writeResumeAfterAlbumPick('order');
-            navigate(`/collections/${navigateToCollectionId}`, {
-              state: { enterSelect: true },
-            });
-            return;
-          }
-          clearResumeAfterAlbumPick();
-          setQtyEntries(nextShortlist);
-          orderFlow.setQtyOpen(true);
-        }}
-      />
       <HowManyEachSheet
         open={orderFlow.qtyOpen}
         onClose={() => {
@@ -327,6 +295,12 @@ export function SelectionWorkspaceBar() {
         orderGoesToName={packPlaceGoesToName(orderFlow.waveEntries(qtySource))}
         collectionId={collectionIdForPackOrder(qtySource)}
         sheetJob="order"
+        onRemoveProduct={(productId) => {
+          shortlist.removeIds([productId]);
+          setQtyEntries((prev) =>
+            prev ? prev.filter((entry) => entry.productId !== productId) : prev,
+          );
+        }}
         onSendOrder={(lines, place) => {
           orderFlow.sendOrder(lines, {
             ...place,

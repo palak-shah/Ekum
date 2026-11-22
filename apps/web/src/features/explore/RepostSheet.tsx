@@ -703,15 +703,22 @@ export function RepostSheet({
   const buildPublishDto = (): PublishCollectionDto => {
     const ratesOn = exploreShowRatesOn(publishAudience.rateVisibility);
     const memberIds = editing ? productIds : allowedIds;
-    const publishForm =
-      ratesOn && pricingForm.mode === RepostPricingMode.Edit && memberIds.length === 1
-        ? {
-            ...pricingForm,
-            editedRate: editRatesByProductId[memberIds[0]!] ?? pricingForm.editedRate,
-          }
-        : ratesOn
-          ? pricingForm
-          : defaultPackRepostPricingForm();
+    // Rates off: omit calc fields so publish does not wipe Edit/Margin → Same
+    // (match CollectionEditor). Visibility still updates.
+    const pricingFields = ratesOn
+      ? publishPricingFieldsFromForm(
+          pricingForm.mode === RepostPricingMode.Edit && memberIds.length === 1
+            ? {
+                ...pricingForm,
+                editedRate: editRatesByProductId[memberIds[0]!] ?? pricingForm.editedRate,
+              }
+            : pricingForm,
+          {
+            rateMin: packPreview.data?.rateMin ?? editDetail.data?.rate ?? null,
+            rateMax: packPreview.data?.rateMax ?? editDetail.data?.rateMax ?? null,
+          },
+        )
+      : {};
     return {
       audience: publishAudience.audience as PublishCollectionDto['audience'],
       rateVisibility: publishAudience.rateVisibility as PublishCollectionDto['rateVisibility'],
@@ -720,10 +727,7 @@ export function RepostSheet({
       showSourceShops: hasForeign ? publishAudience.showSourceShops : false,
       ...publishAudienceDtoFields(publishAudience),
       ...(canPublishAlready ? {} : { consentToSell: true }),
-      ...publishPricingFieldsFromForm(publishForm, {
-        rateMin: packPreview.data?.rateMin ?? editDetail.data?.rate ?? null,
-        rateMax: packPreview.data?.rateMax ?? editDetail.data?.rateMax ?? null,
-      }),
+      ...pricingFields,
     };
   };
 
@@ -1022,12 +1026,6 @@ export function RepostSheet({
         }
       >
         <div className="flex flex-col gap-4">
-          {previewPending || showPublishForm ? (
-            <p className="text-sm text-muted">
-              Publish under your name for the buyers you choose.
-            </p>
-          ) : null}
-
           {packLocked ? (
             <div className="flex flex-col gap-2" data-testid="repost-pack-locked">
               <InlineNotice message="Open this collection first — designs aren’t visible to put in a collection yet." />

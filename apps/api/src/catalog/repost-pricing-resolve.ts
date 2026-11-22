@@ -379,4 +379,62 @@ export async function resolvedBandsForPacks(
   return out;
 }
 
+/**
+ * When a design is opened outside its album (product detail), prefer the trader
+ * pack’s resolved buyer-facing ₹ over raw mill Product.rate when a curated calc
+ * pack contains the design and the pack Shows rates (or viewer is pack owner).
+ */
+export async function buyerFacingViaCuratedPackForProduct(
+  prisma: PrismaService,
+  viewerCompanyId: string,
+  productId: string,
+  productCompanyId: string,
+): Promise<number | null | undefined> {
+  const rows = await prisma.collectionProduct.findMany({
+    where: {
+      productId,
+      excluded: false,
+      collection: {
+        status: 'published',
+        companyId: { not: productCompanyId },
+      },
+    },
+    select: {
+      collection: {
+        select: {
+          id: true,
+          companyId: true,
+          rate: true,
+          rateVisibility: true,
+          repostSourceCollectionId: true,
+          repostPricingMode: true,
+          repostMarginValue: true,
+          repostEditedRate: true,
+          repostEditOwnBase: true,
+        },
+      },
+    },
+    take: 12,
+  });
+  let sawOnRequestCalc = false;
+  for (const row of rows) {
+    const pack = row.collection;
+    if (!isRepostPricingMode(pack.repostPricingMode)) continue;
+    const isOwner = viewerCompanyId === pack.companyId;
+    if (!isOwner && pack.rateVisibility !== RateVisibility.Visible) {
+      sawOnRequestCalc = true;
+      continue;
+    }
+    const resolved = await resolvePackMemberBuyerRates(prisma, pack, {
+      viewerCompanyId,
+    });
+    const hit = resolved.get(productId);
+    if (hit) return hit.buyerFacing;
+  }
+  // Only On-request calc packs — hide rather than leak mill Product.rate.
+  if (sawOnRequestCalc) return null;
+  // No curated calc pack — caller keeps Product.rate.
+  return undefined;
+}
+
 export { RepostPricingMode };

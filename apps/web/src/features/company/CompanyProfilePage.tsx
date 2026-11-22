@@ -1,5 +1,12 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import {
+  Link,
+  Navigate,
+  useLocation,
+  useNavigate,
+  useParams,
+  useSearchParams,
+} from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   OrderIntent,
@@ -21,6 +28,7 @@ import {
   categoryDisplayLabel,
 } from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
+import { navigateBackOr } from '@/lib/navigateBackOr';
 import {
   seePacksShopLabel,
   shopWriteLabel,
@@ -80,7 +88,6 @@ import {
   SELECTION_DOCK_CLEARANCE_CLASS,
 } from '@/features/browse/BottomTradeDock';
 import { CatalogShareSheet } from '@/features/browse/CatalogShareSheet';
-import { OrderCollectionResolveSheet } from '@/features/browse/OrderCollectionResolveSheet';
 import { usePrepareCatalogOrder } from '@/features/browse/usePrepareCatalogOrder';
 import {
   clearResumeAfterAlbumPick,
@@ -230,6 +237,7 @@ export function BusinessProfileBody({
   const id = companyIdProp ?? paramId;
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const queryClient = useQueryClient();
   const myCompanyId = useCompanyId();
   const isHome = variant === 'home';
@@ -259,7 +267,6 @@ export function BusinessProfileBody({
   const [aboutExpanded, setAboutExpanded] = useState(false);
   const [qtyOpen, setQtyOpen] = useState(false);
   const [qtyEntries, setQtyEntries] = useState<BrowseShortlistEntry[] | null>(null);
-  const [orderResolveOpen, setOrderResolveOpen] = useState(false);
   const [lockedProductIds, setLockedProductIds] = useState<string[]>([]);
   const { prepare: prepareCatalogOrder } = usePrepareCatalogOrder();
   const [orderError, setOrderError] = useState<string | null>(null);
@@ -671,7 +678,7 @@ export function BusinessProfileBody({
       <>
         <PageHeader
           title={company.name}
-          onBack={() => navigate(`/company/${id}`)}
+          onBack={() => navigateBackOr(navigate, location.key, `/company/${id}`)}
         />
         <p className="px-1 py-8 text-center text-sm text-muted">This business is private.</p>
       </>
@@ -773,7 +780,7 @@ export function BusinessProfileBody({
         <PageHeader
           title={company.name}
           titleEnd={isGstVerified(company.verification) ? <GstTick /> : null}
-          onBack={() => navigate(`/company/${id}`)}
+          onBack={() => navigateBackOr(navigate, location.key, `/company/${id}`)}
           action={
             showCatalogue || hasShop || !shelfReady ? (
               <CatalogFindToggle
@@ -1346,13 +1353,6 @@ export function BusinessProfileBody({
                     shortlist: shopEntries,
                   });
                   if (prepared.kind === 'error') return;
-                  if (prepared.kind === 'resolve') {
-                    const otherDesigns = shortlist.entries.filter((entry) => entry.companyId !== id);
-                    writeBrowseShortlist([...otherDesigns, ...prepared.shortlist]);
-                    setLockedProductIds(prepared.lockedProductIds);
-                    setOrderResolveOpen(true);
-                    return;
-                  }
                   const otherDesigns = shortlist.entries.filter((entry) => entry.companyId !== id);
                   const otherAlbums = albumPick.entries.filter((entry) => entry.companyId !== id);
                   writeBrowseShortlist([...otherDesigns, ...prepared.shortlist]);
@@ -1377,33 +1377,6 @@ export function BusinessProfileBody({
         </BottomTradeDock>
       ) : null}
 
-      <OrderCollectionResolveSheet
-        intent="order"
-        open={orderResolveOpen}
-        onClose={() => setOrderResolveOpen(false)}
-        albums={shopAlbums}
-        designCount={shopEntries.length}
-        existingShortlist={shopEntries}
-        onResolved={({ shortlist: nextShortlist, remainingAlbums, navigateToCollectionId, lockedProductIds: locked }) => {
-          const otherDesigns = shortlist.entries.filter((entry) => entry.companyId !== id);
-          const otherAlbums = albumPick.entries.filter((entry) => entry.companyId !== id);
-          writeBrowseShortlist([...otherDesigns, ...nextShortlist]);
-          writeBrowseAlbumPick([...otherAlbums, ...remainingAlbums]);
-          setOrderResolveOpen(false);
-          setLockedProductIds(locked ?? []);
-          if (navigateToCollectionId) {
-            writeResumeAfterAlbumPick('order');
-            navigate(`/collections/${navigateToCollectionId}`, {
-              state: { enterSelect: true },
-            });
-            return;
-          }
-          clearResumeAfterAlbumPick();
-          setQtyEntries(nextShortlist);
-          setQtyOpen(true);
-        }}
-      />
-
       <HowManyEachSheet
         open={qtyOpen}
         onClose={() => {
@@ -1419,6 +1392,12 @@ export function BusinessProfileBody({
         orderGoesToName={packHandlerName(qtyEntries ?? shopEntries) ?? company.name}
         collectionId={collectionIdForPackOrder(qtyEntries ?? shopEntries)}
         sheetJob="order"
+        onRemoveProduct={(productId) => {
+          shortlist.removeIds([productId]);
+          setQtyEntries((prev) =>
+            prev ? prev.filter((entry) => entry.productId !== productId) : prev,
+          );
+        }}
         onSendOrder={(lines, place) => {
           setOrderError(null);
           placeShopOrder.mutate({

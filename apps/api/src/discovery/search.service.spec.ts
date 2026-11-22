@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { companyNotBlockedWith } from '../access/connection-pair';
+import { discoverableProfileWhere } from './follow-access';
 import { SearchService } from './search.service';
 import type { PrismaService } from '../core/prisma/prisma.service';
 import type { DiscoverySerializer } from './discovery.serializer';
@@ -21,7 +22,11 @@ describe('SearchService.companies', () => {
       expect.objectContaining({
         where: expect.objectContaining({
           id: { not: 'viewer' },
-          ...companyNotBlockedWith('viewer'),
+          // Block exclusion + profile visibility are separate AND clauses.
+          AND: expect.arrayContaining([
+            companyNotBlockedWith('viewer'),
+            discoverableProfileWhere('viewer'),
+          ]),
         }),
       }),
     );

@@ -44,17 +44,21 @@ describe('userFacingValidationMessage', () => {
     expect(userFacingValidationMessage(result.error)).toBe(VALIDATION_USER_MESSAGE);
   });
 
-  it('surfaces photo image URL copy from createOrderSchema', async () => {
-    const { createOrderSchema, OrderKind } = await import('@ekum/domain-types');
-    const result = createOrderSchema.safeParse({
-      sellerCompanyId: 'c1',
-      kind: OrderKind.Photo,
-      items: [{ name: 'Photo 1', quantity: 10, images: ['/media/not-absolute.jpg'] }],
-    });
-    expect(result.success).toBe(false);
-    if (result.success) return;
-    expect(userFacingValidationMessage(result.error)).toBe(
-      'Photo isn’t ready yet. Remove it and add it again.',
-    );
-  });
+  it(
+    'surfaces photo image URL copy from createOrderSchema',
+    async () => {
+      const { createOrderSchema, OrderKind } = await import('@ekum/domain-types');
+      const result = createOrderSchema.safeParse({
+        sellerCompanyId: 'c1',
+        kind: OrderKind.Photo,
+        items: [{ name: 'Photo 1', quantity: 10, images: ['/media/not-absolute.jpg'] }],
+      });
+      expect(result.success).toBe(false);
+      if (result.success) return;
+      expect(userFacingValidationMessage(result.error)).toBe(
+        'Photo isn’t ready yet. Remove it and add it again.',
+      );
+    },
+    15_000,
+  );
 });

@@ -35,6 +35,7 @@ function connectedPrisma(extra: Record<string, unknown> = {}) {
     tradeLane: { findFirst: vi.fn(async () => null) },
     follow: { findUnique: vi.fn(async () => null) },
     companySettings: { findUnique: vi.fn(async () => null) },
+    companyBlock: { count: async () => 0, findMany: async () => [] },
     ...extra,
   };
 }
@@ -43,6 +44,8 @@ function withAuditPrisma(prisma: PrismaService): PrismaService {
   const merged: Record<string, unknown> = {
     follow: { findUnique: vi.fn(async () => ({ status: 'allowed', accessKind: 'pack' })) },
     companySettings: { findUnique: vi.fn(async () => null) },
+    companyBlock: { count: async () => 0, findMany: async () => [] },
+    connection: { findUnique: async () => null },
     ...(prisma as unknown as Record<string, unknown>),
   };
   if (typeof merged.$transaction !== 'function') {

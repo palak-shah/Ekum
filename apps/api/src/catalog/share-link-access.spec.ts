@@ -182,6 +182,7 @@ describe('share-link access locks (claim ≠ grant)', () => {
           },
         ]),
       },
+      collectionProduct: { findMany: vi.fn(async () => []) },
       collectionViewGrant: { upsert },
     } as unknown as PrismaService;
 
@@ -227,6 +228,7 @@ describe('share-link access locks (claim ≠ grant)', () => {
           },
         ]),
       },
+      collectionProduct: { findMany: vi.fn(async () => []) },
       collectionViewGrant: { upsert },
     } as unknown as PrismaService;
 
@@ -260,6 +262,7 @@ describe('share-link access locks (claim ≠ grant)', () => {
           },
         ]),
       },
+      collectionProduct: { findMany: vi.fn(async () => []) },
       collectionViewGrant: { findFirst: vi.fn() },
       collectionViewRequest: { findFirst: vi.fn(), create: vi.fn() },
     } as unknown as PrismaService;

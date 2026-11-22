@@ -289,7 +289,6 @@ export function MyCatalogPage({
   const shortlist = useBrowseShortlist();
   const albumPick = useBrowseAlbumPick();
   const orderFlow = useShortlistOrderFlow();
-  const [orderResolveOpen, setOrderResolveOpen] = useState(false);
   const [lockedProductIds, setLockedProductIds] = useState<string[]>([]);
   const { prepare: prepareCatalogOrder } = usePrepareCatalogOrder();
   const [curateResolveOpen, setCurateResolveOpen] = useState(false);
@@ -652,12 +651,6 @@ export function MyCatalogPage({
           shortlist: designs,
         });
         if (prepared.kind === 'error') return;
-        if (prepared.kind === 'resolve') {
-          writeBrowseShortlist(prepared.shortlist);
-          setLockedProductIds(prepared.lockedProductIds);
-          setOrderResolveOpen(true);
-          return;
-        }
         writeBrowseShortlist(prepared.shortlist);
         writeBrowseAlbumPick(prepared.remainingAlbums);
         setLockedProductIds(prepared.lockedProductIds);
@@ -694,11 +687,6 @@ export function MyCatalogPage({
     void (async () => {
       const prepared = await prepareCatalogOrder({ albums, shortlist: [] });
       if (prepared.kind === 'error') return;
-      if (prepared.kind === 'resolve') {
-        setLockedProductIds(prepared.lockedProductIds);
-        setOrderResolveOpen(true);
-        return;
-      }
       writeBrowseShortlist(prepared.shortlist);
       writeBrowseAlbumPick(prepared.remainingAlbums);
       setLockedProductIds(prepared.lockedProductIds);
@@ -1392,30 +1380,6 @@ export function MyCatalogPage({
       />
 
       <OrderCollectionResolveSheet
-        intent="order"
-        open={orderResolveOpen}
-        onClose={() => setOrderResolveOpen(false)}
-        albums={albumPick.entries}
-        designCount={shortlist.count}
-        existingShortlist={shortlist.entries}
-        onResolved={({ shortlist: nextShortlist, remainingAlbums, navigateToCollectionId, lockedProductIds: locked }) => {
-          writeBrowseShortlist(nextShortlist);
-          writeBrowseAlbumPick(remainingAlbums);
-          setOrderResolveOpen(false);
-          setLockedProductIds(locked ?? []);
-          if (navigateToCollectionId) {
-            writeResumeAfterAlbumPick('order');
-            navigate(`/collections/${navigateToCollectionId}`, {
-              state: { enterSelect: true },
-            });
-            return;
-          }
-          clearResumeAfterAlbumPick();
-          setQtyEntries(nextShortlist);
-          orderFlow.setQtyOpen(true);
-        }}
-      />
-      <OrderCollectionResolveSheet
         intent="curate"
         open={curateResolveOpen}
         onClose={() => setCurateResolveOpen(false)}
@@ -1463,6 +1427,12 @@ export function MyCatalogPage({
         )}
         collectionId={collectionIdForPackOrder(qtyEntries ?? shortlist.entries)}
         sheetJob="order"
+        onRemoveProduct={(productId) => {
+          shortlist.removeIds([productId]);
+          setQtyEntries((prev) =>
+            prev ? prev.filter((entry) => entry.productId !== productId) : prev,
+          );
+        }}
         onSendOrder={(lines, place) => {
           orderFlow.sendOrder(lines, {
             ...place,

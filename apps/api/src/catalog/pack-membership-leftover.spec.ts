@@ -117,15 +117,31 @@ describe('pack membership leftover (regression)', () => {
         deleteMany,
         createMany,
       },
-      connection: { findMany: async () => [] },
+      connection: { findMany: async () => [], findUnique: async () => null },
+      companyBlock: { count: async () => 0, findMany: async () => [] },
       follow: { findMany: async () => [] },
       productRelistGrant: { findMany: async () => [] },
-      $transaction: async (ops: unknown) => {
-        if (Array.isArray(ops)) {
-          await Promise.all(ops as Promise<unknown>[]);
+      $transaction: async (arg: unknown) => {
+        if (typeof arg === 'function') {
+          // Interactive transaction: same collectionProduct/collection/product bag as prisma.
+          return (arg as (tx: unknown) => Promise<unknown>)({
+            $queryRawUnsafe: vi.fn(async () => []),
+            $executeRawUnsafe: vi.fn(async () => 0),
+            collectionProduct: prisma.collectionProduct,
+            collection: prisma.collection,
+            product: prisma.product,
+          });
         }
+        if (Array.isArray(arg)) {
+          await Promise.all(arg as Promise<unknown>[]);
+        }
+        return arg;
       },
-    } as unknown as PrismaService;
+    } as unknown as PrismaService & {
+      collectionProduct: unknown;
+      collection: unknown;
+      product: unknown;
+    };
     const service = new CollectionService(
       prisma,
       { toCollectionDetail: () => ({ id: 'c1', products: [] }) } as unknown as CatalogSerializer,

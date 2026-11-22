@@ -25,6 +25,7 @@ import {
 } from '@/features/orders/HowManyLineHeading';
 import { HowManyCatalogBlock, type HowManyCatalogProduct } from '@/features/orders/HowManyCatalogBlock';
 import { HowManyGroupedLines } from '@/features/orders/HowManyGroupedLines';
+import { groupHowManyByCollection } from '@/features/orders/howManyCollectionGroups';
 import {
   howManyOrderFooterSummary,
   howManyOrderUnitsMixed,
@@ -427,6 +428,23 @@ export function HowManyEachSheet({
   const looseLines = lines.filter((line) =>
     displayRows.some((row) => row.kind === 'line' && row.item.id === line.product.id),
   );
+  // After inviteUrl early return — plain compute, not useMemo (hooks order).
+  const collectionGroups = groupHowManyByCollection(
+    looseLines.map((line) => ({
+      ...line,
+      id: line.product.id,
+      sourceCollectionId: (line.product as HowManyCatalogProduct).sourceCollectionId,
+      sourceCollectionName: (line.product as HowManyCatalogProduct).sourceCollectionName,
+    })),
+  );
+  const removeProducts = (productIds: string[]) => {
+    setRemoved((prev) => {
+      const next = new Set(prev);
+      for (const id of productIds) next.add(id);
+      return next;
+    });
+    for (const id of productIds) onRemoveProduct?.(id);
+  };
 
   const showTicketExtras =
     sheetJob === 'ask' ||
@@ -561,106 +579,155 @@ export function HowManyEachSheet({
               />
             );
           })}
-          {looseLines.length > 0 ? (
-          <HowManyGroupedLines
-            items={looseLines}
-            unitOf={(line) => line.product.unit}
-            getKey={(line) => line.product.id}
-            testId="how-many-loose-lines"
-            lineTestId="how-many-line"
-            renderLine={({ product, quantity }, _index, last) => {
-              const thumbs = howManyPhotoUrls(product);
-              const thumb = thumbs[0] ?? null;
-              const noteValue = notes[product.id] ?? '';
-              const noun = qtyCountNoun(product.unit);
-              return (
-                <>
-                  <OrderLineStack
-                    trailingBelow
-                    photo={
-                      thumb ? (
-                        <button
-                          type="button"
-                          data-testid={`how-many-photo-${product.id}`}
-                          className="h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-foam"
-                          aria-label={`View photo for ${product.name}`}
-                          onClick={() => {
-                            setPhotoIndex(galleryIndexForProduct(activeProducts, product.id));
-                            setPhotoOpen(true);
-                          }}
-                        >
-                          <ManagedImage src={thumb} alt="" variant={MEDIA_VARIANT.Thumbnail1} className="h-full w-full object-cover" />
-                        </button>
-                      ) : (
-                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-foam text-sm font-body text-muted">
-                          {product.name.charAt(0)}
-                        </div>
-                      )
-                    }
-                    title={
-                      <HowManyLineHeading
-                        name={product.name}
-                        unit={product.unit}
-                        dispatchUnit={product.dispatchUnit}
-                        catalogRateUnit={product.catalogRateUnit}
-                        piecesPerPack={product.piecesPerPack}
-                        moq={product.moq}
-                        rate={product.rate}
-                        rateMax={product.rateMax}
-                        quantity={quantity}
-                        shop={multiShop ? product.companyName : null}
-                        showPackSize={packSizesDiffer}
-                      />
-                    }
-                    nameEnd={
-                      activeProducts.length > 1 && !lockedSet.has(product.id) ? (
-                        <HowManyRemoveButton
-                          name={product.name}
-                          disabled={busy}
-                          onClick={() => {
-                            setRemoved((prev) => new Set(prev).add(product.id));
-                            onRemoveProduct?.(product.id);
-                          }}
-                        />
-                      ) : null
-                    }
-                    trailing={
-                      <HowManyQtyRow
-                        unit={product.unit}
-                        piecesPerPack={product.piecesPerPack}
-                        sheetMixedPack={packSizesDiffer}
-                        stepper={
-                          <QtyStepper
-                            value={quantity}
-                            disabled={busy}
-                            chainQty
-                            enterKeyHint={last ? 'done' : 'next'}
-                            aria-label={`${noun} for ${product.name}`}
-                            onChange={(next) => {
-                              setOverrides((prev) => ({ ...prev, [product.id]: next }));
-                              if (next != null) persistQty(next);
-                            }}
-                          />
-                        }
-                      />
-                    }
-                  />
-                  <HowManyLineNote
-                    value={noteValue}
+          {collectionGroups.map((group) => {
+            const groupLines = group.items.map(({ product, quantity, note }) => ({
+              product,
+              quantity,
+              note,
+            }));
+            const heading =
+              group.kind === 'collection' ? (
+                <div
+                  key={`head-${group.collectionId}`}
+                  className="flex items-center justify-between gap-2 pt-1"
+                  data-testid={`how-many-collection-heading-${group.collectionId}`}
+                >
+                  <p className="min-w-0 truncate text-[13px] font-emphasis text-muted">
+                    {group.name}
+                  </p>
+                  <HowManyRemoveButton
+                    name={group.name}
+                    ariaLabel={`Clear ${group.name}`}
                     disabled={busy}
-                    ariaLabel={`Note for ${product.name}`}
-                    onChange={(next) =>
-                      setNotes((prev) => ({
-                        ...prev,
-                        [product.id]: next,
-                      }))
+                    testId={`how-many-clear-collection-${group.collectionId}`}
+                    onClick={() =>
+                      removeProducts(group.items.map((item) => item.product.id))
                     }
                   />
-                </>
-              );
-            }}
-          />
-          ) : null}
+                </div>
+              ) : null;
+            return (
+              <div
+                key={
+                  group.kind === 'collection'
+                    ? `collection-${group.collectionId}`
+                    : 'loose'
+                }
+                className="flex flex-col gap-2"
+              >
+                {heading}
+                <HowManyGroupedLines
+                  items={groupLines}
+                  unitOf={(line) => line.product.unit}
+                  getKey={(line) => line.product.id}
+                  testId={
+                    group.kind === 'collection'
+                      ? `how-many-collection-lines-${group.collectionId}`
+                      : 'how-many-loose-lines'
+                  }
+                  lineTestId="how-many-line"
+                  renderLine={({ product, quantity }, _index, last) => {
+                    const thumbs = howManyPhotoUrls(product);
+                    const thumb = thumbs[0] ?? null;
+                    const noteValue = notes[product.id] ?? '';
+                    const noun = qtyCountNoun(product.unit);
+                    return (
+                      <>
+                        <OrderLineStack
+                          trailingBelow
+                          photo={
+                            thumb ? (
+                              <button
+                                type="button"
+                                data-testid={`how-many-photo-${product.id}`}
+                                className="h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-foam"
+                                aria-label={`View photo for ${product.name}`}
+                                onClick={() => {
+                                  setPhotoIndex(
+                                    galleryIndexForProduct(activeProducts, product.id),
+                                  );
+                                  setPhotoOpen(true);
+                                }}
+                              >
+                                <ManagedImage
+                                  src={thumb}
+                                  alt=""
+                                  variant={MEDIA_VARIANT.Thumbnail1}
+                                  className="h-full w-full object-cover"
+                                />
+                              </button>
+                            ) : (
+                              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-foam text-sm font-body text-muted">
+                                {product.name.charAt(0)}
+                              </div>
+                            )
+                          }
+                          title={
+                            <HowManyLineHeading
+                              name={product.name}
+                              unit={product.unit}
+                              dispatchUnit={product.dispatchUnit}
+                              catalogRateUnit={product.catalogRateUnit}
+                              piecesPerPack={product.piecesPerPack}
+                              moq={product.moq}
+                              rate={product.rate}
+                              rateMax={product.rateMax}
+                              quantity={quantity}
+                              shop={multiShop ? product.companyName : null}
+                              showPackSize={packSizesDiffer}
+                            />
+                          }
+                          nameEnd={
+                            activeProducts.length > 1 && !lockedSet.has(product.id) ? (
+                              <HowManyRemoveButton
+                                name={product.name}
+                                disabled={busy}
+                                onClick={() => removeProducts([product.id])}
+                              />
+                            ) : null
+                          }
+                          trailing={
+                            <HowManyQtyRow
+                              unit={product.unit}
+                              piecesPerPack={product.piecesPerPack}
+                              sheetMixedPack={packSizesDiffer}
+                              stepper={
+                                <QtyStepper
+                                  value={quantity}
+                                  disabled={busy}
+                                  chainQty
+                                  enterKeyHint={last ? 'done' : 'next'}
+                                  aria-label={`${noun} for ${product.name}`}
+                                  onChange={(next) => {
+                                    setOverrides((prev) => ({
+                                      ...prev,
+                                      [product.id]: next,
+                                    }));
+                                    if (next != null) persistQty(next);
+                                  }}
+                                />
+                              }
+                            />
+                          }
+                        />
+                        <HowManyLineNote
+                          value={noteValue}
+                          disabled={busy}
+                          ariaLabel={`Note for ${product.name}`}
+                          onChange={(next) =>
+                            setNotes((prev) => ({
+                              ...prev,
+                              [product.id]: next,
+                            }))
+                          }
+                        />
+                      </>
+                    );
+                  }}
+                />
+              </div>
+            );
+          })}
           </div>
 
           {showTicketExtras ? (

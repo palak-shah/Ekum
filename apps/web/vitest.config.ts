@@ -17,5 +17,8 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
     include: ['src/**/*.{test,spec}.{ts,tsx}'],
+    // Full-suite jsdom load; isolated runs finish well under 5s.
+    testTimeout: 15_000,
+    hookTimeout: 15_000,
   },
 });

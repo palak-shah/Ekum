@@ -308,7 +308,7 @@ describe('ReferenceResolver catalog cards', () => {
     const reference = references.get('m-req');
     expect(reference?.status).toBe('requested');
     expect(reference?.event).toBe('order_requested');
-    expect(reference?.eventLabel).toBe('Requested');
+    expect(reference?.eventLabel).toBe('Placed');
     expect(reference?.orderLabel).toBe('Order #ORD1');
     // Legacy "Buyer" actorLabel must resolve to the real business name.
     expect(reference?.actorLabel).toBe('Jaipur Emporium');

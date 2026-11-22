@@ -59,6 +59,9 @@ describe('CompanyService.listPublishedCollections credit ceiling', () => {
     const traderHop = {
       id: 't1-pack',
       companyId: 't1',
+      // Live upstream hop — soft-unavailable would omit the buyer pack (not this test's job).
+      status: 'published',
+      allowForward: true,
       showSourceShops: false,
       repostSourceCollectionId: null,
       company: { name: T1 },
@@ -89,6 +92,7 @@ describe('CompanyService.listPublishedCollections credit ceiling', () => {
           return [buyerPack];
         },
       },
+      collectionProduct: { findMany: async () => [] },
     } as unknown as PrismaService;
 
     const visibility = {

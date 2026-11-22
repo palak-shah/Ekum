@@ -37,6 +37,7 @@ describe('AccessService.createRequest rules', () => {
     const prisma = {
       company: { findUnique: async () => ({ id: 'target' }) },
       connection: { findUnique: async () => null },
+      companyBlock: { count: async () => 0, findMany: async () => [] },
       accessRequest: {
         findFirst: async () => null,
         create,

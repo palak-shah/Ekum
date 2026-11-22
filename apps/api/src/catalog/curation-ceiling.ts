@@ -138,20 +138,41 @@ export type RateVisibilityProduct = {
 };
 
 /**
- * Curated pack rate ceiling: show rates only where every foreign source allows
- * visible rates. Otherwise force on_request (Slice A default).
+ * Curated pack rate ceiling.
+ *
+ * Trader-owned selling quote (calc mode Same/Edit/Margin): honor the curator's
+ * requested Visible / On request. Mill Product.rateVisibility must not force the
+ * pack back to On request — Same/Margin/editOwnBase still refuse to leak
+ * undisclosed mill ₹ in the resolver.
+ *
+ * Without calc mode (legacy / pass-through): keep Slice A — Visible only when
+ * every foreign source allows visible rates.
  */
 export function curatedPublishRateVisibility(input: {
   curatorCompanyId: string;
   requested: string;
   products: RateVisibilityProduct[];
+  /** Pack has Same / Edit / Margin — trader owns selling-quote disclosure. */
+  calcPricingMode?: string | null;
 }): string {
+  const requested =
+    input.requested === 'visible' || input.requested === 'on_request'
+      ? input.requested
+      : 'on_request';
+  const calc =
+    input.calcPricingMode === 'same' ||
+    input.calcPricingMode === 'edit' ||
+    input.calcPricingMode === 'margin_fixed' ||
+    input.calcPricingMode === 'margin_percent';
+  if (calc) {
+    return requested;
+  }
   const foreign = input.products.filter((product) => product.companyId !== input.curatorCompanyId);
   if (foreign.length === 0) {
-    return input.requested;
+    return requested;
   }
   const allSourcesVisible = foreign.every((product) => product.rateVisibility === 'visible');
-  if (allSourcesVisible && input.requested === 'visible') {
+  if (allSourcesVisible && requested === 'visible') {
     return 'visible';
   }
   return 'on_request';

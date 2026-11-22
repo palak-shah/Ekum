@@ -37,6 +37,104 @@ describe('snapshotItems repost pricing (Batch 3.2)', () => {
     };
   }
 
+  it('Edit from-pack parent stamps trader editedRate, not mill Product.rate', async () => {
+    const prisma = {
+      product: {
+        findMany: vi.fn(async () => [
+          {
+            id: 'sku-1',
+            companyId: 'mill',
+            name: 'Cotton',
+            sku: 'C1',
+            status: ProductStatus.Published,
+            rate: decimal(100),
+            images: ['https://img/1.jpg'],
+            unit: 'pc',
+            dispatchUnit: null,
+            catalogRateUnit: null,
+            piecesPerPack: null,
+            catalogCollectionId: null,
+          },
+        ]),
+      },
+      collection: {
+        findUnique: vi.fn(async ({ where }: { where: { id: string } }) => {
+          if (where.id === 'pack-trader') {
+            return {
+              id: 'pack-trader',
+              companyId: 'trader',
+              rate: null,
+              rateVisibility: RateVisibility.Visible,
+              repostSourceCollectionId: 'pack-mill',
+              repostPricingMode: RepostPricingMode.Edit,
+              repostMarginValue: null,
+              repostEditedRate: decimal(125),
+              repostEditOwnBase: null,
+            };
+          }
+          if (where.id === 'pack-mill') {
+            return {
+              id: 'pack-mill',
+              companyId: 'mill',
+              rate: null,
+              rateVisibility: RateVisibility.Visible,
+              repostSourceCollectionId: null,
+              repostPricingMode: null,
+              repostMarginValue: null,
+              repostEditedRate: null,
+              repostEditOwnBase: null,
+              products: [
+                {
+                  productId: 'sku-1',
+                  pricingMode: null,
+                  marginValue: null,
+                  editedRate: null,
+                  editOwnBase: null,
+                  product: { id: 'sku-1', rate: decimal(100) },
+                },
+              ],
+            };
+          }
+          return null;
+        }),
+      },
+      collectionProduct: {
+        findMany: vi.fn(async ({ where }: { where: { collectionId: string } }) => {
+          if (where.collectionId === 'pack-trader') {
+            return [
+              {
+                productId: 'sku-1',
+                pricingMode: null,
+                marginValue: null,
+                editedRate: null,
+                editOwnBase: null,
+                product: { id: 'sku-1', rate: decimal(100), companyId: 'mill' },
+              },
+            ];
+          }
+          return [];
+        }),
+      },
+    };
+
+    const service = buildService(prisma);
+    const rows = await service.snapshotItems(
+      {
+        kind: OrderKind.Standard,
+        intent: OrderIntent.Order,
+        sellerCompanyId: 'trader',
+        items: [{ productId: 'sku-1', quantity: 10, images: [] }],
+      },
+      {
+        allowForeignProducts: true,
+        catalogWholePack: { id: 'pack-trader', name: 'Trader Edit' },
+      },
+    );
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.rate).toBe(125);
+  });
+
   it('calc-mode from-pack parent stamps resolved buyer-facing, not mill Product.rate', async () => {
     const prisma = {
       product: {

@@ -114,23 +114,25 @@ export function HowManyQtyRow({
   );
 }
 
-/** Line-item × — top-right, beside the product name. */
+/** Line-item × — top-right, beside the product name (or Clear on a collection heading). */
 export function HowManyRemoveButton({
   name,
   disabled,
   onClick,
   testId = 'how-many-remove',
+  ariaLabel,
 }: {
   name: string;
   disabled?: boolean;
   onClick: () => void;
   testId?: string;
+  ariaLabel?: string;
 }) {
   return (
     <button
       type="button"
       disabled={disabled}
-      aria-label={`Remove ${name}`}
+      aria-label={ariaLabel ?? `Remove ${name}`}
       data-testid={testId}
       className="shrink-0 p-0.5 text-muted disabled:opacity-45"
       onClick={onClick}

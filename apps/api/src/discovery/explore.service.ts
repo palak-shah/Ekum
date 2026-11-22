@@ -85,6 +85,7 @@ import {
   buyerFacingBand,
   resolvePackMemberBuyerRates,
   resolvedBandsForPacks,
+  buyerFacingViaCuratedPackForProduct,
 } from '../catalog/repost-pricing-resolve';
 import {
   interestHitLabel,
@@ -1754,6 +1755,16 @@ export class ExploreService {
     };
     if (!showBody) {
       return { ...card, ...extras, images: [], rate: null, visible: false };
+    }
+    // Curated via-pack: trader calc quote beats mill Product.rate for buyers.
+    const viaPackRate = await buyerFacingViaCuratedPackForProduct(
+      this.prisma,
+      viewerCompanyId,
+      id,
+      product.companyId,
+    );
+    if (viaPackRate !== undefined) {
+      return { ...card, ...extras, rate: viaPackRate, visible: true };
     }
     if (!isOwner && !connected && product.rateVisibility === RateVisibility.OnRequest) {
       return { ...card, ...extras, rate: null, visible: true };

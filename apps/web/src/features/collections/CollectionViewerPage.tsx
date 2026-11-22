@@ -300,7 +300,6 @@ export function CollectionViewerPage() {
   const [firstMessageOpen, setFirstMessageOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const [pageSelecting, setPageSelecting] = useState(false);
-  const [orderResolveOpen, setOrderResolveOpen] = useState(false);
   const [lockedProductIds, setLockedProductIds] = useState<string[]>([]);
   const { prepare: prepareCatalogOrder } = usePrepareCatalogOrder();
   const [curateResolveOpen, setCurateResolveOpen] = useState(false);
@@ -405,12 +404,6 @@ export function CollectionViewerPage() {
         shortlist: tradeable,
       });
       if (prepared.kind === 'error') return;
-      if (prepared.kind === 'resolve') {
-        writeBrowseShortlist(prepared.shortlist);
-        setLockedProductIds(prepared.lockedProductIds);
-        setOrderResolveOpen(true);
-        return;
-      }
       writeBrowseShortlist(prepared.shortlist);
       writeBrowseAlbumPick(prepared.remainingAlbums);
       setLockedProductIds(prepared.lockedProductIds);
@@ -1995,30 +1988,6 @@ export function CollectionViewerPage() {
       />
 
       <OrderCollectionResolveSheet
-        intent="order"
-        open={orderResolveOpen}
-        onClose={() => setOrderResolveOpen(false)}
-        albums={albumPick.entries}
-        designCount={shortlist.count}
-        existingShortlist={shortlist.entries}
-        onResolved={({ shortlist: nextShortlist, remainingAlbums, navigateToCollectionId, lockedProductIds: locked }) => {
-          writeBrowseShortlist(nextShortlist);
-          writeBrowseAlbumPick(remainingAlbums);
-          setOrderResolveOpen(false);
-          setLockedProductIds(locked ?? []);
-          if (navigateToCollectionId) {
-            writeResumeAfterAlbumPick('order');
-            navigate(`/collections/${navigateToCollectionId}`, {
-              state: { enterSelect: true },
-            });
-            return;
-          }
-          clearResumeAfterAlbumPick();
-          setQtyEntries(nextShortlist);
-          orderFlow.setQtyOpen(true);
-        }}
-      />
-      <OrderCollectionResolveSheet
         intent="curate"
         open={curateResolveOpen}
         onClose={() => setCurateResolveOpen(false)}
@@ -2062,6 +2031,12 @@ export function CollectionViewerPage() {
         orderGoesToName={packPlaceGoesToName(orderFlow.waveEntries(qtySource))}
         collectionId={collectionIdForPackOrder(qtySource) ?? id}
         sheetJob="order"
+        onRemoveProduct={(productId) => {
+          shortlist.removeIds([productId]);
+          setQtyEntries((prev) =>
+            prev ? prev.filter((entry) => entry.productId !== productId) : prev,
+          );
+        }}
         onSendOrder={(lines, place) => {
           orderFlow.sendOrder(lines, {
             ...place,

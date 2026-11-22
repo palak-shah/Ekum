@@ -24,6 +24,8 @@ export type BrowseShortlistEntry = {
   catalogName?: string | null;
   /** Curated pack these lines were picked from (I handle → from-pack). */
   sourceCollectionId?: string;
+  /** Album name for How many collection headings. */
+  sourceCollectionName?: string;
   /** Desk publish allow-to-relist on that pack (Slice B desk chain). */
   sourcePackAllowForward?: boolean;
   sourceHandlerName?: string;

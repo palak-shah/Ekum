@@ -39,7 +39,7 @@ describe('stripLeadingParty / isRedundantActionDetail', () => {
 
   it('treats accepted quote as redundant when primary ends with Accepted', () => {
     expect(isRedundantActionDetail('accepted quote', 'Order #N3QJ Accepted')).toBe(true);
-    expect(isRedundantActionDetail('3 designs', 'Order #J5NS Requested')).toBe(false);
+    expect(isRedundantActionDetail('3 designs', 'Order #J5NS Placed')).toBe(false);
   });
 });
 
@@ -47,7 +47,7 @@ describe('buildOrderTradeCard slots', () => {
   it('maps rich incoming order to uniform slots', () => {
     const message = orderMessage();
     const model = buildOrderTradeCard(message, message.reference, 'Jaipur Emporium', false);
-    expect(model.primary).toBe('Order #J5NS Requested');
+    expect(model.primary).toBe('Order #J5NS Placed');
     expect(model.who).toBeNull();
     expect(model.details).toContain('3 designs');
     expect(model.variant).toBe('bubble');
@@ -103,7 +103,7 @@ describe('buildOrderTradeCard slots', () => {
   it('omits redundant who on outgoing rich order without teammate', () => {
     const message = orderMessage({ id: 'm1', mine: true });
     const model = buildOrderTradeCard(message, message.reference, 'You', false);
-    expect(model.primary).toBe('Order #J5NS Requested');
+    expect(model.primary).toBe('Order #J5NS Placed');
     expect(model.who).toBeNull();
     expect(model.details).toContain('3 designs');
   });

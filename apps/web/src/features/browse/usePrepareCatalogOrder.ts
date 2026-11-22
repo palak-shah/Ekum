@@ -7,13 +7,11 @@ import {
   CATALOG_WHOLE_SELECT_TOAST,
   expandWholeCatalogsInShortlist,
   fetchCollectionOrderPreview,
-  needsOrderResolveChoice,
   resolveCatalogOrderAlbums,
   type CatalogOrderResolveResult,
 } from './catalogWholeOrder';
 
 export type PreparedCatalogOrder =
-  | { kind: 'resolve'; shortlist: BrowseShortlistEntry[]; lockedProductIds: string[] }
   | ({ kind: 'qty' } & CatalogOrderResolveResult)
   | ({ kind: 'navigate' } & CatalogOrderResolveResult)
   | { kind: 'error' };
@@ -52,13 +50,7 @@ export function usePrepareCatalogOrder() {
             lockedProductIds: exclusive.lockedProductIds,
           };
         }
-        if (needsOrderResolveChoice(input.albums)) {
-          return {
-            kind: 'resolve',
-            shortlist: exclusive.shortlist,
-            lockedProductIds: exclusive.lockedProductIds,
-          };
-        }
+        // Order skips All/Choose — expand every album as All (locked → navigate).
         const result = await resolveCatalogOrderAlbums({
           albums: input.albums,
           existingShortlist: exclusive.shortlist,

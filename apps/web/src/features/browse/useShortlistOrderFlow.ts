@@ -53,6 +53,12 @@ export function entriesAsProducts(entries: BrowseShortlistEntry[]): ProductView[
         catalogCollectionId: entry.catalogCollectionId ?? null,
         catalogOrderMode: entry.catalogOrderMode ?? null,
         catalogRateUnit: entry.catalogRateUnit ?? null,
+        ...(entry.sourceCollectionId
+          ? { sourceCollectionId: entry.sourceCollectionId }
+          : {}),
+        ...(entry.sourceCollectionName
+          ? { sourceCollectionName: entry.sourceCollectionName }
+          : {}),
         ...(entry.catalogWhole
           ? { catalogWhole: true, catalogName: entry.catalogName ?? null }
           : {}),

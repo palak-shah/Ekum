@@ -11,6 +11,9 @@ import { ManagedImage } from '@/ui/ManagedImage';
 export type HowManyCatalogProduct = ProductView & {
   catalogWhole?: boolean;
   catalogName?: string | null;
+  /** Expanded pack stamp for How many collection headings (not whole). */
+  sourceCollectionId?: string | null;
+  sourceCollectionName?: string | null;
 };
 
 export function HowManyCatalogBlock({

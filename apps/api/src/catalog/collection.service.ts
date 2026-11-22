@@ -812,6 +812,10 @@ export class CollectionService {
       curatorCompanyId: companyId,
       requested: dto.rateVisibility,
       products,
+      calcPricingMode:
+        dto.repostPricingMode !== undefined
+          ? dto.repostPricingMode
+          : (existing as { repostPricingMode?: string | null }).repostPricingMode,
     });
 
     const startsAt = parseScheduleInstant(dto.startsAt, 'start');

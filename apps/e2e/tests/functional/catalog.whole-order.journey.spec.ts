@@ -268,7 +268,7 @@ test.describe('catalog Order as whole @functional @catalog @orders', () => {
     await expect(confirm.getByText(catalogName).first()).toBeVisible();
   });
 
-  test('pick catalog still offers Choose designs', async ({ page, request }) => {
+  test('pick catalog Order expands to How many (no Choose designs)', async ({ page, request }) => {
     test.setTimeout(120_000);
     const stamp = Date.now();
     const catalogName = `Pick catalog ${stamp}`;
@@ -289,7 +289,10 @@ test.describe('catalog Order as whole @functional @catalog @orders', () => {
     await page.getByTestId(`you-collection-row-${catalog.id}`).click();
     await expect(page.getByTestId('company-shop-dock')).toBeVisible();
     await page.getByTestId('company-shop-order').click();
-    await expect(page.getByTestId('resolve-pick-designs')).toBeVisible({ timeout: 20_000 });
-    await expect(page.getByTestId('how-many-lines')).toHaveCount(0);
+    await expect(page.getByTestId('resolve-pick-designs')).toHaveCount(0);
+    await expect(page.getByTestId('how-many-lines')).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId(`how-many-collection-heading-${catalog.id}`)).toBeVisible();
+    await expect(page.getByText(silk).first()).toBeVisible();
+    await expect(page.getByText(cotton).first()).toBeVisible();
   });
 });

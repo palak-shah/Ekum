@@ -109,9 +109,17 @@ function AlbumLanded() {
   return <div data-testid="album-landed" data-pack-manage={packManage ? '1' : '0'} />;
 }
 
+function LocationProbe() {
+  const location = useLocation();
+  return (
+    <p data-testid="location-probe">{`${location.pathname}${location.search}`}</p>
+  );
+}
+
 function shopRoutes() {
   return (
     <>
+      <Route path="/prior" element={<div data-testid="prior-landed" />} />
       <Route path="/company/:id" element={<CompanyProfilePage />} />
       <Route path="/company/:id/catalogue" element={<ShopCataloguePage />} />
       <Route path="/collections/:id" element={<AlbumLanded />} />
@@ -500,6 +508,67 @@ describe('CompanyProfilePage shop chrome', () => {
     expect(screen.getByTestId('company-shop-select')).toBeInTheDocument();
     expect(screen.getByTestId('company-shop-search-toggle')).toBeInTheDocument();
     expect(screen.getByTestId('page-header-back')).toBeInTheDocument();
+  });
+
+  it('See all → Back → Back leaves the shop/catalogue pair (no history ping-pong)', async () => {
+    const user = userEvent.setup();
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter
+          initialEntries={[
+            { pathname: '/prior', key: 'prior' },
+            { pathname: '/company/seed-company-ravi', key: 'shop' },
+          ]}
+          initialIndex={1}
+        >
+          <LocationProbe />
+          <Routes>{shopRoutes()}</Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    expect(await screen.findByTestId('business-profile-view-all')).toBeInTheDocument();
+    await user.click(screen.getByTestId('business-profile-view-all'));
+    expect(await screen.findByTestId('business-profile-catalogue-page')).toBeInTheDocument();
+    expect(screen.getByTestId('location-probe')).toHaveTextContent(
+      '/company/seed-company-ravi/catalogue?tab=collections',
+    );
+    await user.click(screen.getByTestId('page-header-back'));
+    expect(await screen.findByTestId('business-profile-shop')).toBeInTheDocument();
+    expect(screen.getByTestId('location-probe')).toHaveTextContent(
+      '/company/seed-company-ravi',
+    );
+    await user.click(screen.getByTestId('page-header-back'));
+    expect(await screen.findByTestId('prior-landed')).toBeInTheDocument();
+    expect(screen.getByTestId('location-probe')).toHaveTextContent('/prior');
+    expect(screen.queryByTestId('business-profile-catalogue-page')).toBeNull();
+  });
+
+  it('catalogue deep-link Back falls back to the shop face', async () => {
+    const user = userEvent.setup();
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter
+          initialEntries={[
+            {
+              pathname: '/company/seed-company-ravi/catalogue',
+              search: '?tab=collections',
+              key: 'default',
+            },
+          ]}
+        >
+          <LocationProbe />
+          <Routes>{shopRoutes()}</Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    expect(await screen.findByTestId('business-profile-catalogue-page')).toBeInTheDocument();
+    await user.click(screen.getByTestId('page-header-back'));
+    expect(await screen.findByTestId('business-profile-shop')).toBeInTheDocument();
+    expect(screen.getByTestId('location-probe')).toHaveTextContent(
+      '/company/seed-company-ravi',
+    );
   });
 
   it('lists every allowed collection on the catalogue page', async () => {

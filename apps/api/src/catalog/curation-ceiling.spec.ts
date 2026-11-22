@@ -240,7 +240,7 @@ describe('curatedPublishRateVisibility', () => {
     ).toBe('visible');
   });
 
-  it('forces on_request when any foreign source is on_request', () => {
+  it('forces on_request when any foreign source is on_request (no calc mode)', () => {
     expect(
       curatedPublishRateVisibility({
         curatorCompanyId: 'me',
@@ -272,6 +272,28 @@ describe('curatedPublishRateVisibility', () => {
         curatorCompanyId: 'me',
         requested: 'visible',
         products: [{ companyId: 'other' }],
+      }),
+    ).toBe('on_request');
+  });
+
+  it('honors trader Visible when calc mode is set despite foreign on_request', () => {
+    expect(
+      curatedPublishRateVisibility({
+        curatorCompanyId: 'me',
+        requested: 'visible',
+        calcPricingMode: 'edit',
+        products: [{ companyId: 'other', rateVisibility: 'on_request' }],
+      }),
+    ).toBe('visible');
+  });
+
+  it('honors trader On request when calc mode is set', () => {
+    expect(
+      curatedPublishRateVisibility({
+        curatorCompanyId: 'me',
+        requested: 'on_request',
+        calcPricingMode: 'margin_fixed',
+        products: [{ companyId: 'other', rateVisibility: 'visible' }],
       }),
     ).toBe('on_request');
   });

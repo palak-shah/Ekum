@@ -514,6 +514,163 @@ describe('RepostSheet', () => {
     expect(onClose).toHaveBeenCalled();
   });
 
+  function savedEditDetail(overrides: Record<string, unknown> = {}) {
+    return {
+      ...editDetail(),
+      rateVisibility: 'visible',
+      repostPricingMode: 'edit',
+      repostEditedRate: 125,
+      memberPricing: [
+        {
+          productId: 'p1',
+          pricingMode: 'edit',
+          marginValue: null,
+          editedRate: 125,
+          editOwnBase: null,
+          hasOverride: true,
+        },
+      ],
+      ...overrides,
+    };
+  }
+
+  it.each([
+    {
+      name: 'Edit',
+      detail: () => savedEditDetail(),
+      expectRatesOn: true,
+      assertUi: async () => {
+        expect(await screen.findByTestId('repost-pricing-choices')).toBeTruthy();
+        expect(await screen.findByTestId('repost-pricing-edit-list')).toBeTruthy();
+        expect(screen.getByTestId('repost-pricing-edit-row-p1')).toBeTruthy();
+      },
+    },
+    {
+      name: 'Same',
+      detail: () =>
+        savedEditDetail({
+          repostPricingMode: 'same',
+          repostEditedRate: null,
+          memberPricing: [],
+        }),
+      expectRatesOn: true,
+      assertUi: async () => {
+        expect(await screen.findByTestId('repost-pricing-choices')).toBeTruthy();
+        expect(screen.getByTestId('repost-pricing-same')).toBeTruthy();
+      },
+    },
+    {
+      name: 'fixed margin',
+      detail: () =>
+        savedEditDetail({
+          repostPricingMode: 'margin_fixed',
+          repostMarginValue: 20,
+          repostEditedRate: null,
+          memberPricing: [],
+        }),
+      expectRatesOn: true,
+      assertUi: async () => {
+        expect(await screen.findByTestId('repost-pricing-choices')).toBeTruthy();
+        expect(screen.getByTestId('repost-pricing-margin')).toBeTruthy();
+      },
+    },
+    {
+      name: 'percent margin',
+      detail: () =>
+        savedEditDetail({
+          repostPricingMode: 'margin_percent',
+          repostMarginValue: 10,
+          repostEditedRate: null,
+          memberPricing: [],
+        }),
+      expectRatesOn: true,
+      assertUi: async () => {
+        expect(await screen.findByTestId('repost-pricing-choices')).toBeTruthy();
+        expect(screen.getByTestId('repost-pricing-margin')).toBeTruthy();
+      },
+    },
+    {
+      name: 'On Request',
+      detail: () =>
+        savedEditDetail({
+          rateVisibility: 'on_request',
+          repostPricingMode: 'edit',
+          repostEditedRate: 125,
+        }),
+      expectRatesOn: false,
+      assertUi: async () => {
+        expect(screen.queryByTestId('repost-pricing-choices')).toBeNull();
+      },
+    },
+  ])(
+    'edit hydrate restores Show rates + $name; no-op Save omits pricing wipe when rates off',
+    async ({ detail, expectRatesOn, assertUi, name }) => {
+      const user = userEvent.setup();
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      const pack = detail();
+      vi.mocked(api.get).mockImplementation(async (path: string) => {
+        if (path === '/collections/child-1') return pack;
+        if (path === '/connections') return [];
+        if (path === '/broadcasts/lists') return [];
+        if (path === '/settings') return { tradeDefaults: {} };
+        if (path === '/collections') return [];
+        return {};
+      });
+      vi.mocked(api.post).mockImplementation(async (path: string) => {
+        if (path === '/collections/curate-check') {
+          return { allowedProductIds: ['p1'], blocked: [] };
+        }
+        if (path === '/collections/child-1/publish') return pack;
+        return {};
+      });
+      render(
+        <QueryClientProvider client={client}>
+          <MemoryRouter>
+            <ToastProvider>
+              <RepostSheet
+                open
+                onClose={() => undefined}
+                target={target}
+                editCollectionId="child-1"
+              />
+            </ToastProvider>
+          </MemoryRouter>
+        </QueryClientProvider>,
+      );
+      expect(await screen.findByRole('heading', { name: 'Edit repost' })).toBeTruthy();
+      // Wait for edit detail hydrate (heading shows while still “Loading designs…”).
+      expect(await screen.findByTestId('repost-show-rates')).toBeTruthy();
+      if (expectRatesOn) {
+        expect(screen.getByTestId('repost-rates-on').className).toContain('border-accent');
+      } else {
+        expect(screen.getByTestId('repost-rates-off').className).toContain('border-accent');
+        expect(screen.queryByTestId('repost-pricing')).toBeNull();
+      }
+      await assertUi();
+      if (name === 'Edit') {
+        expect(screen.getByTestId('repost-pricing-edit-rate-p1')).toHaveValue('125');
+      }
+      const save = await screen.findByTestId('repost-publish');
+      await user.click(save);
+      const publishCall = vi
+        .mocked(api.post)
+        .mock.calls.find((c) => c[0] === '/collections/child-1/publish');
+      expect(publishCall).toBeTruthy();
+      const body = publishCall?.[1] as Record<string, unknown>;
+      if (name === 'On Request') {
+        // Rates off must not send Same wipe.
+        expect(body.repostPricingMode).toBeUndefined();
+        expect(body.rateVisibility).toBe('on_request');
+      } else {
+        expect(body.rateVisibility).toBe('visible');
+        expect(body.repostPricingMode).toBe(pack.repostPricingMode);
+        if (pack.repostPricingMode === 'edit') {
+          expect(body.repostEditedRate).toBe(125);
+        }
+      }
+    },
+  );
+
   it('edit Save still publishes when curate-check blocks all members (settings-only)', async () => {
     const user = userEvent.setup();
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });

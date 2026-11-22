@@ -35,7 +35,7 @@ describe('chat order card title shape', () => {
   it('labels quote and accepted without Lines updated', () => {
     expect(chatTitle('o1', OrderChatEvent.QuoteSent)).toMatch(/· Quote$/);
     expect(chatTitle('o1', OrderChatEvent.QuoteAccepted)).toMatch(/· Accepted$/);
-    expect(chatTitle('o1', OrderChatEvent.OrderRequested)).toMatch(/· Requested$/);
+    expect(chatTitle('o1', OrderChatEvent.OrderRequested)).toMatch(/· Placed$/);
     expect(chatTitle('o1', OrderChatEvent.RateRequested)).toMatch(/· Inquiry$/);
     expect(chatTitle('o1', OrderChatEvent.OrderUpdated)).toMatch(/· Updated$/);
   });

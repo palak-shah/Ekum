@@ -48,6 +48,7 @@ function makeTradeAccess(options: {
       findUnique: async () =>
         options.connectionStatus ? { status: options.connectionStatus } : null,
     },
+    companyBlock: { count: async () => 0, findMany: async () => [] },
   } as unknown as PrismaService;
   const visibility = new VisibilityService(visibilityPrisma);
   const products = options.products ?? [];

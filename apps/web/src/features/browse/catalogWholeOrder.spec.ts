@@ -124,6 +124,7 @@ describe('expandPreviewMembers', () => {
     expect(rows[0]).toMatchObject({
       productId: 'p1',
       sourceCollectionId: 'cat-1',
+      sourceCollectionName: 'Season',
       catalogWhole: true,
       catalogName: 'Season',
       catalogCollectionId: 'cat-1',

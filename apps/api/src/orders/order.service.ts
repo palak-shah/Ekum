@@ -6655,11 +6655,12 @@ export class OrderService {
         (sum, item) => sum + (shippedByItem.get(item.id) ?? 0),
         0,
       );
+      // Only Confirmed → PartShipped. Re-writing part_shipped bumps @updatedAt and
+      // sticks Orders list "just now" on every list / needs-you heal poll.
       if (
         shippedTotal > 0 &&
         remaining > 0 &&
-        (parentAfter.status === OrderStatus.Confirmed ||
-          parentAfter.status === OrderStatus.PartShipped)
+        parentAfter.status === OrderStatus.Confirmed
       ) {
         await this.prisma.order.update({
           where: { id: parent.id },

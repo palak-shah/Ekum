@@ -53,12 +53,20 @@ const shop = (id: string, name: string, city: string) => ({
   },
 });
 
-function mockGets(opts: { connections: unknown[]; team: unknown[] }) {
+function directThreadRow(companyId: string, name = 'Jaipur Emporium') {
+  return { id: 'thread-existing', type: 'direct', counterpart: { id: companyId, name } };
+}
+
+function mockGets(opts: { connections: unknown[]; team: unknown[]; threads?: unknown[] }) {
+  vi.mocked(api.get).mockReset();
   vi.mocked(api.get).mockImplementation(async (path: string) => {
-    if (path === '/connections') return opts.connections;
-    if (path === '/access-requests/outgoing') return [];
-    if (path === '/search') return { results: [], nextCursor: null };
-    if (path === '/team/members') return opts.team;
+    const base = path.split('?')[0] ?? path;
+    if (base === '/connections') return opts.connections;
+    if (base === '/access-requests/outgoing') return [];
+    if (base === '/search') return { results: [], nextCursor: null };
+    if (base === '/team/members') return opts.team;
+    if (base === '/threads') return { results: opts.threads ?? [], nextCursor: null };
+    if (base === '/companies/me') return { name: 'My Shop', logoUrl: null };
     throw new Error(`unexpected ${path}`);
   });
 }
@@ -85,6 +93,7 @@ describe('StartChatSheet', () => {
 
   beforeEach(() => {
     showToast.mockReset();
+    vi.mocked(api.post).mockReset();
     mockGets({ connections: [], team: staffTeam });
   });
 
@@ -117,6 +126,7 @@ describe('StartChatSheet', () => {
     mockGets({
       connections: [shop('co-1', 'Jaipur Emporium', 'Jaipur')],
       team: staffTeam,
+      threads: [directThreadRow('co-1')],
     });
     vi.mocked(api.post).mockResolvedValue(directThread('thread-d', 'created'));
 
@@ -129,10 +139,11 @@ describe('StartChatSheet', () => {
     expect(screen.getByText('Pushya')).toBeVisible();
     expect(screen.queryByLabelText('Search your team')).toBeNull();
     expect(screen.queryByRole('button', { name: 'skip' })).toBeNull();
-    expect(screen.getByRole('button', { name: 'Open chat with Jaipur Emporium' })).toBeVisible();
-    await user.click(screen.getByRole('button', { name: 'Open chat with Jaipur Emporium' }));
+    expect(screen.getByRole('button', { name: 'Message Jaipur Emporium' })).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Message Jaipur Emporium' }));
     expect(api.post).toHaveBeenCalledWith('/threads/direct', {
       companyId: 'co-1',
+      visibility: 'shared',
       memberUserIds: [],
     });
     expect(showToast).toHaveBeenCalledWith('Chat started with Jaipur Emporium', 'success');
@@ -143,6 +154,7 @@ describe('StartChatSheet', () => {
     mockGets({
       connections: [shop('co-1', 'Jaipur Emporium', 'Jaipur')],
       team: staffTeam,
+      threads: [directThreadRow('co-1')],
     });
     vi.mocked(api.post).mockResolvedValue(directThread('thread-d', 'existing'));
 
@@ -151,9 +163,10 @@ describe('StartChatSheet', () => {
     await user.click(screen.getByText('Jaipur Emporium'));
     await user.click(screen.getByRole('button', { name: 'Next' }));
     await user.click(screen.getByText('Pushya'));
-    await user.click(screen.getByRole('button', { name: 'Open chat with Jaipur Emporium' }));
+    await user.click(screen.getByRole('button', { name: 'Message Jaipur Emporium' }));
     expect(api.post).toHaveBeenCalledWith('/threads/direct', {
       companyId: 'co-1',
+      visibility: 'shared',
       memberUserIds: ['u-1'],
     });
   });
@@ -177,7 +190,7 @@ describe('StartChatSheet', () => {
     expect(screen.queryByRole('heading', { name: 'New group' })).toBeNull();
     await user.click(screen.getByRole('button', { name: 'Next' }));
     expect(screen.getByRole('heading', { name: 'Add your team' })).toBeVisible();
-    expect(screen.getByRole('button', { name: 'Open chat with Ring Road Silks' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Message Ring Road Silks' })).toBeVisible();
   });
 
   it('opens direct without team when there is no staff', async () => {
@@ -185,15 +198,17 @@ describe('StartChatSheet', () => {
     mockGets({
       connections: [shop('co-1', 'Jaipur Emporium', 'Jaipur')],
       team: [{ userId: 'u-owner', name: 'Ravi', role: 'owner' }],
+      threads: [directThreadRow('co-1')],
     });
     vi.mocked(api.post).mockResolvedValue(directThread('thread-d', 'created'));
 
     renderSheet();
     await screen.findByText('Jaipur Emporium');
     await user.click(screen.getByText('Jaipur Emporium'));
-    await user.click(screen.getByRole('button', { name: 'Open chat with Jaipur Emporium' }));
+    await user.click(screen.getByRole('button', { name: 'Message Jaipur Emporium' }));
     expect(api.post).toHaveBeenCalledWith('/threads/direct', {
       companyId: 'co-1',
+      visibility: 'shared',
       memberUserIds: [],
     });
   });
@@ -203,6 +218,7 @@ describe('StartChatSheet', () => {
     mockGets({
       connections: [shop('co-1', 'Jaipur Emporium', 'Jaipur')],
       team: staffTeam,
+      threads: [directThreadRow('co-1')],
     });
     vi.mocked(api.post).mockResolvedValue(directThread('thread-d', 'existing'));
 
@@ -211,12 +227,29 @@ describe('StartChatSheet', () => {
     await user.click(screen.getByText('Jaipur Emporium'));
     await user.click(screen.getByRole('button', { name: 'Next' }));
     expect(screen.queryByRole('button', { name: 'skip' })).toBeNull();
-    await user.click(screen.getByRole('button', { name: 'Open chat with Jaipur Emporium' }));
+    await user.click(screen.getByRole('button', { name: 'Message Jaipur Emporium' }));
     expect(api.post).toHaveBeenCalledWith('/threads/direct', {
       companyId: 'co-1',
+      visibility: 'shared',
       memberUserIds: [],
     });
     expect(showToast).toHaveBeenCalledWith('Opened chat with Jaipur Emporium', 'success');
+  });
+
+  it('composes the first message instead of creating an empty chat when no 1:1 exists', async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.post).mockClear();
+    mockGets({
+      connections: [shop('co-1', 'Jaipur Emporium', 'Jaipur')],
+      team: [{ userId: 'u-owner', name: 'Ravi', role: 'owner' }],
+    });
+
+    renderSheet();
+    await screen.findByText('Jaipur Emporium');
+    await user.click(screen.getByText('Jaipur Emporium'));
+    await user.click(screen.getByRole('button', { name: 'Message Jaipur Emporium' }));
+    expect(await screen.findByTestId('first-message-sheet')).toBeVisible();
+    expect(api.post).not.toHaveBeenCalled();
   });
 
   it('shows team search when there are 10 or more staff', async () => {
@@ -246,6 +279,7 @@ describe('StartChatSheet', () => {
     mockGets({
       connections: [shop('co-1', 'Jaipur Emporium', 'Jaipur')],
       team: [{ userId: 'u-owner', name: 'Ravi', role: 'owner' }],
+      threads: [directThreadRow('co-1')],
     });
     vi.mocked(api.post).mockRejectedValue(
       new ApiError({
@@ -259,7 +293,7 @@ describe('StartChatSheet', () => {
     renderSheet();
     await screen.findByText('Jaipur Emporium');
     await user.click(screen.getByText('Jaipur Emporium'));
-    await user.click(screen.getByRole('button', { name: 'Open chat with Jaipur Emporium' }));
+    await user.click(screen.getByRole('button', { name: 'Message Jaipur Emporium' }));
     expect(await screen.findByText('Same as Jaipur Emporium.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Open chat' })).toBeVisible();
   });

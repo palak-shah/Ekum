@@ -484,6 +484,8 @@ describe('ExploreService.collectionDetail trust rules', () => {
               id: 'foreign-1',
               companyId: 'supplier',
               status: 'published',
+              // Foreign members need allowForward on, else P2 hides them (not this test's job).
+              allowForward: true,
               rate: 200,
               rateVisibility: 'on_request',
             },

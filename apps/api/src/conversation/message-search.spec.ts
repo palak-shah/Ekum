@@ -10,7 +10,7 @@ describe('formatSearchHitPreview', () => {
         body: null,
         metadata: { orderLabel: 'Order #OKYD', event: OrderChatEvent.OrderRequested },
       }),
-    ).toBe('In chat · Order #OKYD · Requested');
+    ).toBe('In chat · Order #OKYD · Placed');
   });
 
   it('formats shared design/collection name', () => {

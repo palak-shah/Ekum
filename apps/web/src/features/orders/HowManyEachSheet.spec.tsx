@@ -157,6 +157,57 @@ describe('HowManyEachSheet line chrome', () => {
     expect(screen.queryByTestId('how-many-remove')).toBeNull();
   });
 
+  it('shows collection headings and Clear removes the whole group', async () => {
+    const user = userEvent.setup();
+    const onRemoveProduct = vi.fn();
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <HowManyEachSheet
+            open
+            onClose={vi.fn()}
+            sellerId="c1"
+            products={[
+              {
+                ...product,
+                id: 'a1',
+                name: 'Alpha',
+                sourceCollectionId: 'col-a',
+                sourceCollectionName: 'Pack A',
+              } as ProductView,
+              {
+                ...product,
+                id: 'a2',
+                name: 'Amber',
+                sourceCollectionId: 'col-a',
+                sourceCollectionName: 'Pack A',
+              } as ProductView,
+              {
+                ...product,
+                id: 'b1',
+                name: 'Beta',
+                sourceCollectionId: 'col-b',
+                sourceCollectionName: 'Pack B',
+              } as ProductView,
+            ]}
+            onRemoveProduct={onRemoveProduct}
+            onSendOrder={vi.fn()}
+            onAskRates={vi.fn()}
+          />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    expect(screen.getByTestId('how-many-collection-heading-col-a')).toHaveTextContent('Pack A');
+    expect(screen.getByTestId('how-many-collection-heading-col-b')).toHaveTextContent('Pack B');
+    await user.click(screen.getByTestId('how-many-clear-collection-col-a'));
+    expect(screen.queryByText('Alpha')).toBeNull();
+    expect(screen.queryByText('Amber')).toBeNull();
+    expect(screen.getByText('Beta')).toBeInTheDocument();
+    expect(onRemoveProduct).toHaveBeenCalledWith('a1');
+    expect(onRemoveProduct).toHaveBeenCalledWith('a2');
+  });
+
   it('groups mixed units, restacks pack first, and hides Same for all', () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(

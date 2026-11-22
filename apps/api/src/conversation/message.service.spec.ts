@@ -638,6 +638,11 @@ describe('MessageService.list filters', () => {
       },
       messageStar: { findMany: async () => [] },
       messageReaction: { findMany: async () => [] },
+      threadParticipant: {
+        findMany: async () => [],
+        findFirst: async () => null,
+        update: async () => ({}),
+      },
       $queryRaw: async () => [] as { id: string }[],
       product: { findMany: async () => [] },
       collection: { findMany: async () => [] },
@@ -776,6 +781,11 @@ describe('MessageService.list filters', () => {
         },
       },
       messageStar: { findMany: async () => [] },
+      threadParticipant: {
+        findMany: async () => [],
+        findFirst: async () => null,
+        update: async () => ({}),
+      },
       $queryRaw: async () => [{ id: 'm-order-hit' }],
       product: { findMany: async () => [] },
       collection: { findMany: async () => [] },
@@ -1046,6 +1056,11 @@ describe('MessageService edit / hide / delete / star', () => {
         },
       },
       messageStar: { findMany: async () => [] },
+      threadParticipant: {
+        findMany: async () => [],
+        findFirst: async () => null,
+        update: async () => ({}),
+      },
     } as unknown as PrismaService;
     const references = { resolve: async () => new Map() } as unknown as ReferenceResolver;
     const service = new MessageService(

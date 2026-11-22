@@ -67,10 +67,17 @@ export function productToOrderShortlistEntry(
     allowForward?: boolean;
     catalogWhole?: boolean;
     catalogName?: string | null;
+    /** Regular / pick heading on How many. */
+    collectionName?: string | null;
     sourceDirect?: boolean;
   },
 ): BrowseShortlistEntry {
   const path = pack?.path === 'handle' || pack?.path === 'direct' ? pack.path : undefined;
+  const collectionName =
+    pack?.collectionName?.trim() ||
+    pack?.catalogName?.trim() ||
+    (pack ? albumName(pack) : null) ||
+    null;
   return {
     productId: product.id,
     name: product.name?.trim() || 'Design',
@@ -96,6 +103,7 @@ export function productToOrderShortlistEntry(
     ...(pack
       ? {
           sourceCollectionId: pack.collectionId,
+          ...(collectionName ? { sourceCollectionName: collectionName } : {}),
           sourceHandlerName: fallbackCompany.name,
           sourceHandlerCompanyId: fallbackCompany.id,
           sourcePath: path,
@@ -140,6 +148,7 @@ export function expandPreviewMembers(
       },
       {
         collectionId: album.collectionId,
+        collectionName: album.name || preview.name,
         path: route.sourcePath,
         sourceDirect: route.sourceDirect,
         allowForward: album.allowForward ?? preview.allowForward,

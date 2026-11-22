@@ -265,6 +265,7 @@ describe('OrderService.sendUp', () => {
     const prisma = {
       order: {
         findUnique: vi.fn(async () => down),
+        findFirst: vi.fn(async () => null),
         findMany: vi.fn(async () => [
           {
             id: 'seed-order-handle-up',
