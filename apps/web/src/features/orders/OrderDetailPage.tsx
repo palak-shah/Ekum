@@ -4246,6 +4246,7 @@ export function OrderDetailPage() {
         saving={amendOrder.isPending}
         onSave={() => amendOrder.mutate()}
         onOpenPhoto={(item) => openPhotoViewer(galleryIndexForItem(data.items ?? [], item.id))}
+        showBillTotal={data.showBillTotal === true}
       />
 
 

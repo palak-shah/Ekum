@@ -14,6 +14,7 @@ import {
   lastGroupedItem,
   qtyCountNoun,
 } from '@/features/orders/howManyLineMeta';
+import { howManyFooterWithoutMoneyUnlessAllowed } from '@/features/orders/howManySectionHeading';
 import { OrderLineStack } from '@/features/orders/OrderLineStack';
 import { OrderQtyFooterSummary } from '@/features/orders/OrderQtyFooterSummary';
 import { urlsForOrderItem } from '@/features/orders/orderItemImages';
@@ -56,6 +57,7 @@ export function AmendOrderSheet({
   saving,
   onSave,
   onOpenPhoto,
+  showBillTotal,
 }: {
   open: boolean;
   onClose: () => void;
@@ -80,6 +82,8 @@ export function AmendOrderSheet({
   saving?: boolean;
   onSave: () => void;
   onOpenPhoto: (item: OrderItemView) => void;
+  /** Seller Settings showBillTotalOnOrders — default off. */
+  showBillTotal?: boolean;
 }) {
   const lines = items.filter((item) => item.productId);
   const remaining = lines.filter((item) => !removed.has(item.id));
@@ -105,14 +109,17 @@ export function AmendOrderSheet({
     (item) => item.unit,
   )?.id;
   const packSizesDiffer = howManyPackSizesDiffer(remaining);
-  const footerSummary = howManyOrderFooterSummary(
-    remaining.map((item) => ({
-      quantity: parseQtyDraft(qty[item.id] ?? String(item.quantity)),
-      unit: item.unit,
-      piecesPerPack: item.piecesPerPack,
-      dispatchUnit: item.dispatchUnit,
-      rate: item.rate,
-    })),
+  const footerSummary = howManyFooterWithoutMoneyUnlessAllowed(
+    howManyOrderFooterSummary(
+      remaining.map((item) => ({
+        quantity: parseQtyDraft(qty[item.id] ?? String(item.quantity)),
+        unit: item.unit,
+        piecesPerPack: item.piecesPerPack,
+        dispatchUnit: item.dispatchUnit,
+        rate: item.rate,
+      })),
+    ),
+    showBillTotal === true,
   );
   const canSave =
     remainingCount >= 1 &&

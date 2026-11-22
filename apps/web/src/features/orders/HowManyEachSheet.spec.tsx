@@ -19,6 +19,7 @@ function mockApiGet(followers: unknown[] = [{ company: { id: 'buyer-1', name: 'B
   vi.mocked(api.get).mockImplementation(async (path: string) => {
     if (path === '/connections') return [];
     if (path === '/follows/followers') return followers;
+    if (path === '/settings') return { showBillTotalOnOrders: false };
     throw new Error('skip');
   });
 }
@@ -200,6 +201,11 @@ describe('HowManyEachSheet line chrome', () => {
     );
     expect(screen.getByTestId('how-many-collection-heading-col-a')).toHaveTextContent('Pack A');
     expect(screen.getByTestId('how-many-collection-heading-col-b')).toHaveTextContent('Pack B');
+    // Subtle separator chrome (not foam / ink emphasis SectionHeader)
+    expect(screen.getByTestId('how-many-collection-heading-col-a').querySelector('p')?.className).toMatch(
+      /text-\[12px].*text-muted/,
+    );
+    expect(screen.queryByText(/This becomes/i)).toBeNull();
     await user.click(screen.getByTestId('how-many-clear-collection-col-a'));
     expect(screen.queryByText('Alpha')).toBeNull();
     expect(screen.queryByText('Amber')).toBeNull();
@@ -441,6 +447,50 @@ describe('HowManyEachSheet line chrome', () => {
       expect.objectContaining({ productId: 'p1', quantity: 1 }),
       expect.objectContaining({ productId: 'p2', quantity: 1 }),
     ]);
+  });
+
+  it('uses subtle shop · pack separators for multi-shop baskets (no N-orders banner)', () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <HowManyEachSheet
+            open
+            onClose={vi.fn()}
+            sellerId="multi"
+            products={[
+              {
+                ...product,
+                id: 'a1',
+                name: 'Alpha',
+                companyId: 's1',
+                companyName: 'Surat Silk',
+                sourceCollectionId: 'col-a',
+                sourceCollectionName: 'Wedding',
+              } as ProductView,
+              {
+                ...product,
+                id: 'b1',
+                name: 'Beta',
+                companyId: 's2',
+                companyName: 'Ravi Traders',
+                sourceCollectionId: 'col-b',
+                sourceCollectionName: 'Daily',
+              } as ProductView,
+            ]}
+            onSendOrder={vi.fn()}
+            onAskRates={vi.fn()}
+          />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    const headA = screen.getByTestId('how-many-collection-heading-col-a');
+    const headB = screen.getByTestId('how-many-collection-heading-col-b');
+    expect(headA).toHaveTextContent('Surat Silk · Wedding');
+    expect(headB).toHaveTextContent('Ravi Traders · Daily');
+    expect(headA.querySelector('p')?.className).toMatch(/text-\[12px].*text-muted/);
+    expect(screen.queryByTestId('how-many-goes-to')).toBeNull();
+    expect(screen.queryByText(/This becomes/i)).toBeNull();
   });
 
   it('whole catalog collapses mill + own members with stamped pack id', () => {

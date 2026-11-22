@@ -25,6 +25,8 @@ export function designSheetShortlistEntry(
   companyNameFallback = '',
   pack?: {
     collectionId: string;
+    /** Album title for How many section headings. */
+    collectionName?: string | null;
     handlerName: string;
     handlerCompanyId?: string;
     path: string | null;
@@ -33,6 +35,7 @@ export function designSheetShortlistEntry(
   },
 ): BrowseShortlistEntry {
   const path = pack?.path === 'handle' || pack?.path === 'direct' ? pack.path : undefined;
+  const collectionName = pack?.collectionName?.trim() || '';
   return {
     productId: product.id,
     name: product.name,
@@ -57,6 +60,7 @@ export function designSheetShortlistEntry(
     ...(pack
       ? {
           sourceCollectionId: pack.collectionId,
+          ...(collectionName ? { sourceCollectionName: collectionName } : {}),
           sourceHandlerName: pack.handlerName,
           ...(pack.handlerCompanyId ? { sourceHandlerCompanyId: pack.handlerCompanyId } : {}),
           sourcePath: path,

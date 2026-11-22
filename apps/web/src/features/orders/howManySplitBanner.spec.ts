@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
+  howManyIsMultiShop,
   howManyShopGroups,
   howManySingleGoesTo,
   howManySplitBanner,
 } from './howManySplitBanner';
 
 describe('howManySplitBanner (BM — sr 42 mixed basket)', () => {
-  it('names each shop and drops a single Order goes to', () => {
+  it('names each shop for grouping helpers and never emits N-orders banner', () => {
     const products = [
       { companyId: 'a', companyName: 'Shreeji Textiles' },
       { companyId: 'b', companyName: 'Surat Silk House' },
@@ -16,9 +17,8 @@ describe('howManySplitBanner (BM — sr 42 mixed basket)', () => {
       { name: 'Shreeji Textiles', count: 1 },
       { name: 'Surat Silk House', count: 2 },
     ]);
-    expect(howManySplitBanner(products)).toBe(
-      'This becomes 2 orders — Shreeji Textiles (1 design), Surat Silk House (2 designs)',
-    );
+    expect(howManyIsMultiShop(products)).toBe(true);
+    expect(howManySplitBanner(products)).toBeNull();
     expect(howManySingleGoesTo(products, 'Ravi Trading Co.')).toBeNull();
   });
 
@@ -28,6 +28,7 @@ describe('howManySplitBanner (BM — sr 42 mixed basket)', () => {
       { companyId: 'a', companyName: 'Shreeji Textiles' },
     ];
     expect(howManySplitBanner(products)).toBeNull();
+    expect(howManyIsMultiShop(products)).toBe(false);
     expect(howManySingleGoesTo(products, 'Ravi Trading Co.')).toBe('Ravi Trading Co.');
   });
 });

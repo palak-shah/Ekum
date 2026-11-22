@@ -47,7 +47,7 @@ When a **new web image** is on the server, a quiet top pill appears: **New versi
 | Capabilities | `publish` / `refer` still gate ＋ Broadcast and Refer even if selling is on |
 | Contact person vs business | Profile edits business fields; auth user name is the person |
 | Appearance | Light / Dark / System; default System; per `userId` on device; Ink & Lime tokens in `tokens.css`; Light/Dark/System chips match Chats kit Chip (gray idle, chip-on selected); no chat wallpaper picker |
-| Show bill total on orders | Seller-company setting (database, not Appearance). Default off. Same ticket for every party on that hop. I-handle: buyer hop uses the trader’s flag; mill hop uses the mill’s. |
+| Show bill total on orders | Seller-company setting (database, not Appearance). Default off. Same ticket for every party on that hop; How many / Amend footer ₹ uses the same flag. I-handle: buyer hop uses the trader’s flag; mill hop uses the mill’s. |
 | Logout | Clears tokens; next open → login |
 | Version identity | Semver from root `VERSION`; build id unique per image; baked at build — not runtime UI constants |
 | Deployment flag | Explicit `production` \| `test` (not inferred from `NODE_ENV`) |

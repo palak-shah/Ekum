@@ -1,6 +1,6 @@
 # Feature gap matrix
 
-**Updated:** 2026-11-22 (Repost Edit rates hydrate + buyer-facing + Place stamp)  
+**Updated:** 2026-11-22 (How many separators + bill total Settings)  
 **Source:** Completeness reviews under `docs/superpowers/reviews/completeness/`  
 **Tracks:** Regression (`@smoke @regression` / BM-* units) · Functional (`@functional`)  
 **Audit:** [2026-10-22-functional-gap-audit.md](./2026-10-22-functional-gap-audit.md) — requirements vs code vs tests. Does not replace rows below.
@@ -10,6 +10,7 @@ Verification: Functional · Regression · Unit-only · Untested
 
 | Module | Capability | Product status | Verification | Completeness priority | Notes |
 |--------|------------|----------------|--------------|----------------------|-------|
+| Orders | How many subtle `{shop} · {pack}` separators (no N-orders banner); footer ₹ gated by showBillTotalOnOrders (default off) | Works | Unit | Required | Completeness 2026-11-22-how-many-separators-bill-total |
 | Explore / Orders | Edit repost hydrate (Show rates + modes); trader calc Visible Clamp Redesign; buyer Explore/album/shop/via-pack ₹; createFromPack stamps buyer-facing; OrderItem immutable | Works | Unit + Prisma integration | Required | Completeness 2026-11-22-repost-edit-rates-buyer-facing; no Same wipe on rates-off Save |
 | Explore / Catalog | Remove repost (Edit sheet → Draft; preserve exploreActivityAt); mixed soft omit (local stay; honest chrome); no Delete on Explore | Works | Unit | Required | Completeness 2026-11-21-remove-repost-availability; Redesign of P1 whole-pack omit |
 | Explore | Own card + Trading → Edit post / Edit repost (shared RepostSheet; card id only; not-allowed = gray Repost; Message gray on own) | Works | Unit | Required | Completeness 2026-11-21-own-explore-edit; Redesign of own always-gray Repost |

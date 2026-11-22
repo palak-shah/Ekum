@@ -133,6 +133,7 @@ export function DesignSheet({
   collectionId?: string | null;
   packStamp?: {
     collectionId: string;
+    collectionName?: string | null;
     handlerName: string;
     handlerCompanyId?: string;
     path: string | null;

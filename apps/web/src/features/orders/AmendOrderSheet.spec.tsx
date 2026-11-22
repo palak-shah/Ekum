@@ -36,6 +36,7 @@ function renderSheet(
   opts: {
     removed?: Set<string>;
     onToggleRemoved?: (id: string) => void;
+    showBillTotal?: boolean;
   } = {},
 ) {
   const onSave = vi.fn();
@@ -63,13 +64,14 @@ function renderSheet(
       onImages={vi.fn()}
       onSave={onSave}
       onOpenPhoto={vi.fn()}
+      showBillTotal={opts.showBillTotal}
     />,
   );
   return { onSave, onQty, onToggleRemoved };
 }
 
 describe('AmendOrderSheet How many chrome', () => {
-  it('puts − n + under the name with no Sets on the row; footer holds units and ₹', () => {
+  it('puts − n + under the name with no Sets on the row; footer qty only by default', () => {
     renderSheet([
       item({ id: 'i1', productId: 'p1', name: 'Navy', quantity: 2, piecesPerPack: 4, rate: 40 }),
     ]);
@@ -81,8 +83,16 @@ describe('AmendOrderSheet How many chrome', () => {
     );
     const footer = screen.getByTestId('order-amend-footer');
     expect(within(footer).getByTestId('how-many-sets-summary')).toHaveTextContent('2 sets = 8 pcs');
-    expect(within(footer).getByTestId('how-many-billing-total')).toHaveTextContent('₹320');
+    expect(within(footer).queryByTestId('how-many-billing-total')).toBeNull();
     expect(within(footer).getByTestId('order-amend-save')).toBeInTheDocument();
+  });
+
+  it('shows footer ₹ when showBillTotal is on', () => {
+    const items = [
+      item({ id: 'i1', productId: 'p1', name: 'Navy', quantity: 2, piecesPerPack: 4, rate: 40 }),
+    ];
+    renderSheet(items, { i1: '2' }, { showBillTotal: true });
+    expect(screen.getByTestId('how-many-billing-total')).toHaveTextContent('₹320');
   });
 
   it('groups mixed units and hides per-line unit captions', () => {

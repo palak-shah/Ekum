@@ -20,16 +20,15 @@ export function howManyShopGroups(products: ShopLine[]): Array<{ name: string; c
   return order.map((id) => map.get(id)!);
 }
 
-/** Mixed basket — never a single “Order goes to …”. */
-export function howManySplitBanner(products: ShopLine[]): string | null {
-  const shops = howManyShopGroups(products);
-  if (shops.length < 2) return null;
-  const parts = shops.map(
-    (shop) => `${shop.name} (${shop.count} design${shop.count === 1 ? '' : 's'})`,
-  );
-  return `This becomes ${shops.length} orders — ${parts.join(', ')}`;
+/**
+ * Retired sheet banner — multi-shop uses subtle shop·pack separators instead.
+ * Kept so call sites stay; always null.
+ */
+export function howManySplitBanner(_products: ShopLine[]): string | null {
+  return null;
 }
 
+/** Multi-shop baskets never get a single “Order goes to …”. */
 export function howManySingleGoesTo(
   products: ShopLine[],
   orderGoesToName?: string | null,
@@ -37,4 +36,8 @@ export function howManySingleGoesTo(
   if (howManyShopGroups(products).length > 1) return null;
   const name = orderGoesToName?.trim();
   return name || null;
+}
+
+export function howManyIsMultiShop(products: ShopLine[]): boolean {
+  return howManyShopGroups(products).length > 1;
 }

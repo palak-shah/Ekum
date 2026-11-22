@@ -236,6 +236,7 @@ function toShortlistEntry(
   companyName: string,
   pack?: {
     collectionId: string;
+    collectionName?: string | null;
     handlerName: string;
     handlerCompanyId?: string;
     path: string | null;
@@ -244,6 +245,7 @@ function toShortlistEntry(
   },
 ): BrowseShortlistEntry {
   const path = pack?.path === 'handle' || pack?.path === 'direct' ? pack.path : undefined;
+  const collectionName = pack?.collectionName?.trim() || '';
   return {
     productId: product.id,
     name: product.name,
@@ -266,6 +268,7 @@ function toShortlistEntry(
     ...(pack
       ? {
           sourceCollectionId: pack.collectionId,
+          ...(collectionName ? { sourceCollectionName: collectionName } : {}),
           sourceHandlerName: pack.handlerName,
           ...(pack.handlerCompanyId ? { sourceHandlerCompanyId: pack.handlerCompanyId } : {}),
           sourcePath: path,
@@ -540,6 +543,7 @@ export function CollectionViewerPage() {
     id && collection.data
       ? {
           collectionId: id,
+          collectionName: displayCollectionName(collection.data.name),
           handlerName: collection.data.company.name,
           handlerCompanyId: collection.data.company.id,
           allowForward: collection.data.allowForward !== false,

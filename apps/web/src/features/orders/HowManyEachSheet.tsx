@@ -27,6 +27,11 @@ import { HowManyCatalogBlock, type HowManyCatalogProduct } from '@/features/orde
 import { HowManyGroupedLines } from '@/features/orders/HowManyGroupedLines';
 import { groupHowManyByCollection } from '@/features/orders/howManyCollectionGroups';
 import {
+  howManyFooterMoneyAllowed,
+  howManyFooterWithoutMoneyUnlessAllowed,
+  howManySectionHeading,
+} from '@/features/orders/howManySectionHeading';
+import {
   howManyOrderFooterSummary,
   howManyOrderUnitsMixed,
   howManyPackSizesDiffer,
@@ -34,7 +39,7 @@ import {
 } from '@/features/orders/howManyLineMeta';
 import { OrderLineStack } from '@/features/orders/OrderLineStack';
 import { OrderQtyFooterSummary } from '@/features/orders/OrderQtyFooterSummary';
-import { howManySingleGoesTo, howManySplitBanner } from '@/features/orders/howManySplitBanner';
+import { howManyIsMultiShop, howManySingleGoesTo } from '@/features/orders/howManySplitBanner';
 import { api } from '@/lib/apiClient';
 import { useMyCompany } from '@/lib/queries';
 import { canNativeShare, shareOrCopyInvite } from '@/lib/shareInvite';
@@ -91,6 +96,7 @@ export function HowManyEachSheet({
   lockedProductIds,
   sheetJob = 'order',
   forBuyerProducts,
+  showBillTotal,
 }: {
   open: boolean;
   onClose: () => void;
@@ -115,10 +121,21 @@ export function HowManyEachSheet({
    * `ask` — Ask rates only (shop / design Ask dock).
    */
   sheetJob?: 'order' | 'ask';
+  /**
+   * Seller Settings “Show bill total on orders” (default off).
+   * Multi-shop: pass true only when every goes-to seller has the flag on.
+   */
+  showBillTotal?: boolean;
 }) {
   const { selling, trading, isLoading: presenceLoading } = useTradePresence();
   const me = useMyCompany();
   const { showToast } = useToast();
+  const ownSettings = useQuery({
+    queryKey: ['company-settings'],
+    queryFn: () =>
+      api.get<{ showBillTotalOnOrders?: boolean }>('/settings'),
+    enabled: open && Boolean(me.data?.id),
+  });
   const canSellOrTrade = selling || trading;
   const followers = useQuery({
     queryKey: ['follows', 'followers'],
@@ -285,12 +302,18 @@ export function HowManyEachSheet({
   };
 
   const busy = Boolean(submitting || asking || attachBusy);
-  const splitBanner = sellerId === 'multi' ? howManySplitBanner(activeProducts) : null;
-  const goesTo =
-    sellerId === 'multi'
-      ? howManySingleGoesTo(activeProducts, orderGoesToName)
-      : orderGoesToName?.trim() || null;
-  const multiShop = Boolean(splitBanner);
+  const multiShop =
+    sellerId === 'multi' || howManyIsMultiShop(activeProducts);
+  const goesTo = multiShop
+    ? howManySingleGoesTo(activeProducts, orderGoesToName)
+    : orderGoesToName?.trim() || null;
+  const billTotalAllowed = howManyFooterMoneyAllowed([
+    showBillTotal === true ||
+      (sellerId !== 'multi' &&
+        me.data?.id != null &&
+        sellerId === me.data.id &&
+        ownSettings.data?.showBillTotalOnOrders === true),
+  ]);
   const displayRows = useMemo(
     () => collapseCatalogWholeLines(activeProducts as HowManyCatalogProduct[]),
     [activeProducts],
@@ -421,6 +444,7 @@ export function HowManyEachSheet({
     if (money == null || money <= 0) return { rows: base.rows };
     return { rows: base.rows, money: `₹${money.toLocaleString('en-IN')}` };
   })();
+  const footerForUi = howManyFooterWithoutMoneyUnlessAllowed(footerSummary, billTotalAllowed);
   const packSizesDiffer = howManyPackSizesDiffer(activeProducts);
   const unitsMixed = howManyOrderUnitsMixed(activeProducts);
   const showSameForAll =
@@ -433,6 +457,8 @@ export function HowManyEachSheet({
     looseLines.map((line) => ({
       ...line,
       id: line.product.id,
+      companyId: line.product.companyId,
+      companyName: line.product.companyName,
       sourceCollectionId: (line.product as HowManyCatalogProduct).sourceCollectionId,
       sourceCollectionName: (line.product as HowManyCatalogProduct).sourceCollectionName,
     })),
@@ -453,7 +479,7 @@ export function HowManyEachSheet({
   /** Sticky: qty/₹ + primary CTA only — Note / transporter / buyer live in the scroll. */
   const decideFooter = (
     <div className="flex flex-col gap-2.5" data-testid="how-many-footer">
-      {footerSummary ? <OrderQtyFooterSummary summary={footerSummary} /> : null}
+      {footerForUi ? <OrderQtyFooterSummary summary={footerForUi} /> : null}
       {showAskButton ? (
         <Button
           fullWidth
@@ -511,16 +537,12 @@ export function HowManyEachSheet({
         footer={decideFooter}
       >
         <div className="flex flex-col gap-4 pb-1">
-          {splitBanner ? (
+          {goesTo ? (
             <p
-              data-testid="how-many-split"
-              className="rounded-xl border border-line bg-foam px-3.5 py-2.5 text-[14px] font-emphasis leading-snug text-ink"
+              data-testid="how-many-goes-to"
+              className="text-[13px] leading-snug text-muted"
             >
-              {splitBanner}
-            </p>
-          ) : goesTo ? (
-            <p className="rounded-xl border border-line bg-foam px-3.5 py-2.5 text-[14px] font-emphasis leading-snug text-ink">
-              Order goes to <span className="font-emphasis">{goesTo}</span>
+              Order goes to <span className="font-emphasis text-ink">{goesTo}</span>
             </p>
           ) : null}
           {showSameForAll ? (
@@ -561,9 +583,22 @@ export function HowManyEachSheet({
             if (row.kind !== 'catalog') return null;
             const qty =
               lines.find((line) => line.product.id === row.items[0]?.id)?.quantity ?? sharedQty;
+            const lead = row.items[0];
+            // Whole catalog = one album title above the member list.
+            const catalogHeading = howManySectionHeading({
+              packName: row.catalogName,
+            });
             return (
+              <div key={row.catalogCollectionId} className="flex flex-col gap-2">
+                {catalogHeading ? (
+                  <p
+                    className="min-w-0 truncate pt-1 text-[12px] font-body leading-snug text-muted"
+                    data-testid={`how-many-catalog-heading-${row.catalogCollectionId}`}
+                  >
+                    {catalogHeading}
+                  </p>
+                ) : null}
               <HowManyCatalogBlock
-                key={row.catalogCollectionId}
                 name={row.catalogName}
                 members={row.items}
                 quantity={qty}
@@ -577,6 +612,7 @@ export function HowManyEachSheet({
                   if (next != null) persistQty(next);
                 }}
               />
+              </div>
             );
           })}
           {collectionGroups.map((group) => {
@@ -585,34 +621,37 @@ export function HowManyEachSheet({
               quantity,
               note,
             }));
+            const clearLabel = group.heading || 'these designs';
             const heading =
-              group.kind === 'collection' ? (
+              group.heading || group.collectionId ? (
                 <div
-                  key={`head-${group.collectionId}`}
+                  key={`head-${group.key}`}
                   className="flex items-center justify-between gap-2 pt-1"
-                  data-testid={`how-many-collection-heading-${group.collectionId}`}
+                  data-testid={
+                    group.collectionId
+                      ? `how-many-collection-heading-${group.collectionId}`
+                      : `how-many-section-heading-${group.key}`
+                  }
                 >
-                  <p className="min-w-0 truncate text-[13px] font-emphasis text-muted">
-                    {group.name}
+                  <p className="min-w-0 truncate text-[12px] font-body leading-snug text-muted">
+                    {group.heading || 'Collection'}
                   </p>
-                  <HowManyRemoveButton
-                    name={group.name}
-                    ariaLabel={`Clear ${group.name}`}
-                    disabled={busy}
-                    testId={`how-many-clear-collection-${group.collectionId}`}
-                    onClick={() =>
-                      removeProducts(group.items.map((item) => item.product.id))
-                    }
-                  />
+                  {group.collectionId ? (
+                    <HowManyRemoveButton
+                      name={clearLabel}
+                      ariaLabel={`Clear ${clearLabel}`}
+                      disabled={busy}
+                      testId={`how-many-clear-collection-${group.collectionId}`}
+                      onClick={() =>
+                        removeProducts(group.items.map((item) => item.product.id))
+                      }
+                    />
+                  ) : null}
                 </div>
               ) : null;
             return (
               <div
-                key={
-                  group.kind === 'collection'
-                    ? `collection-${group.collectionId}`
-                    : 'loose'
-                }
+                key={group.key}
                 className="flex flex-col gap-2"
               >
                 {heading}
@@ -621,7 +660,7 @@ export function HowManyEachSheet({
                   unitOf={(line) => line.product.unit}
                   getKey={(line) => line.product.id}
                   testId={
-                    group.kind === 'collection'
+                    group.collectionId
                       ? `how-many-collection-lines-${group.collectionId}`
                       : 'how-many-loose-lines'
                   }
@@ -673,7 +712,7 @@ export function HowManyEachSheet({
                               rate={product.rate}
                               rateMax={product.rateMax}
                               quantity={quantity}
-                              shop={multiShop ? product.companyName : null}
+                              shop={null}
                               showPackSize={packSizesDiffer}
                             />
                           }
