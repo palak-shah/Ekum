@@ -118,7 +118,7 @@ When publishing (or updating visibility), the sheet sets:
 |-------|--------|------------------|
 | **Audience** | API: `everyone` · `connections` · `followers` · `selected` (+ company IDs and optional **Buyer group(s)**). **Publish / Visibility UI:** **My followers** · **Selected** only (no Everyone). Legacy `everyone` / `connections` rows are **migrated and enforced as Followers** (same as the sheet chip — no “hidden Everyone” until save). Not My connections — connections mix suppliers. | Followers |
 | **Rate visibility** | `visible` · `on_request` | On request (or company usual). **`on_request` is Ask** — buyers enquire via existing **Ask for rates** / inquiry; not a separate pricing-mode enum. Repost **calculation** modes (Same / Margin / Edit — Batch 3) are independent of this field. |
-| **Buyers can add these designs to their collections** | checkbox (on by default) | Uncheck = lock **Curate / relist** only. **Forward** stays free |
+| **Allow repost** | checkbox (on by default) | Uncheck = lock **Curate / relist** only. **Forward** stays free |
 
 | Audience | Who sees on Explore |
 |----------|---------------------|

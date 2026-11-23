@@ -565,13 +565,17 @@ describe('RepostSheet', () => {
         savedEditDetail({
           repostPricingMode: 'margin_fixed',
           repostMarginValue: 20,
-          repostEditedRate: null,
+          repostEditedRate: 125,
           memberPricing: [],
         }),
       expectRatesOn: true,
       assertUi: async () => {
         expect(await screen.findByTestId('repost-pricing-choices')).toBeTruthy();
-        expect(screen.getByTestId('repost-pricing-margin')).toBeTruthy();
+        expect(screen.getByTestId('repost-pricing-margin').className).toContain('border-accent');
+        expect(screen.getByTestId('repost-pricing-same').className).not.toContain('border-accent');
+        expect(screen.getByTestId('repost-pricing-edit').className).not.toContain('border-accent');
+        expect(screen.getByTestId('repost-pricing-margin-value')).toHaveValue('20');
+        expect(screen.queryByTestId('repost-pricing-edit-list')).toBeNull();
       },
     },
     {

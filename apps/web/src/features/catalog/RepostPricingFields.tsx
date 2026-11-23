@@ -9,6 +9,7 @@ import {
   isPrototypeMarginMode,
   packPricingModeLabel,
   prototypeMarginChoice,
+  withExclusiveRepostPricingMode,
   type RepostPricingFormState,
 } from '@/features/catalog/repostPricingForm';
 
@@ -106,11 +107,7 @@ export function RepostPricingFields({
               data-testid={`${testIdPrefix}-same`}
               className={segClass(sameOn)}
               onClick={() =>
-                onChange({
-                  mode: RepostPricingMode.Same,
-                  marginValue: value.marginValue,
-                  editedRate: value.editedRate,
-                })
+                onChange(withExclusiveRepostPricingMode(value, RepostPricingMode.Same))
               }
             >
               Same
@@ -120,11 +117,7 @@ export function RepostPricingFields({
               data-testid={`${testIdPrefix}-edit`}
               className={segClass(editOn)}
               onClick={() =>
-                onChange({
-                  mode: RepostPricingMode.Edit,
-                  marginValue: value.marginValue,
-                  editedRate: value.editedRate,
-                })
+                onChange(withExclusiveRepostPricingMode(value, RepostPricingMode.Edit))
               }
             >
               Edit rate
@@ -134,14 +127,14 @@ export function RepostPricingFields({
               data-testid={`${testIdPrefix}-margin`}
               className={segClass(marginOn)}
               onClick={() =>
-                onChange({
-                  mode:
+                onChange(
+                  withExclusiveRepostPricingMode(
+                    value,
                     value.mode === RepostPricingMode.MarginPercent
                       ? RepostPricingMode.MarginPercent
                       : RepostPricingMode.MarginFixed,
-                  marginValue: value.marginValue,
-                  editedRate: value.editedRate,
-                })
+                  ),
+                )
               }
             >
               ± Margin

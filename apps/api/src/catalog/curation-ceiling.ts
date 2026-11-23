@@ -148,6 +148,26 @@ export type RateVisibilityProduct = {
  * Without calc mode (legacy / pass-through): keep Slice A — Visible only when
  * every foreign source allows visible rates.
  */
+/**
+ * Allow download cannot exceed foreign members (and optional immediate source pack).
+ * Own-only packs: requested as-is.
+ */
+export function curatedPublishAllowDownload(input: {
+  curatorCompanyId: string;
+  requested: boolean;
+  products: Array<{ companyId: string; allowDownload?: boolean | null }>;
+  /** Immediate upstream pack allowDownload when reposting a collection. */
+  sourcePackAllowDownload?: boolean | null;
+}): boolean {
+  if (!input.requested) return false;
+  if (input.sourcePackAllowDownload === false) return false;
+  const foreign = input.products.filter(
+    (product) => product.companyId !== input.curatorCompanyId,
+  );
+  if (foreign.length === 0) return true;
+  return foreign.every((product) => product.allowDownload === true);
+}
+
 export function curatedPublishRateVisibility(input: {
   curatorCompanyId: string;
   requested: string;

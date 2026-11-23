@@ -71,6 +71,30 @@ describe('PhotoViewer', () => {
     );
   });
 
+  it('shows Download only when allowDownload', () => {
+    const { rerender } = render(
+      <PhotoViewer
+        open
+        urls={['http://localhost:3000/media/c1/a.jpg']}
+        index={0}
+        onIndex={() => {}}
+        onClose={() => {}}
+      />,
+    );
+    expect(screen.queryByTestId('photo-viewer-download')).toBeNull();
+    rerender(
+      <PhotoViewer
+        open
+        urls={['http://localhost:3000/media/c1/a.jpg']}
+        index={0}
+        onIndex={() => {}}
+        onClose={() => {}}
+        allowDownload
+      />,
+    );
+    expect(screen.getByTestId('photo-viewer-download')).toBeTruthy();
+  });
+
   it('loads the original URL, not a thumbnail sibling', () => {
     render(
       <PhotoViewer

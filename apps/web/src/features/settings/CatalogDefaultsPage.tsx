@@ -181,7 +181,7 @@ export function CatalogDefaultsPage() {
             checked={allowForward}
             onChange={(e) => setAllowForward(e.target.checked)}
           />
-          <span>Buyers can add these designs to their collections</span>
+          <span>Allow repost</span>
         </label>
         <label className="flex items-start gap-2 rounded-xl border border-line px-3 py-3 text-sm text-ink">
           <input
@@ -190,7 +190,7 @@ export function CatalogDefaultsPage() {
             checked={allowDownload}
             onChange={(e) => setAllowDownload(e.target.checked)}
           />
-          <span>Buyers can download these designs</span>
+          <span>Allow download</span>
         </label>
       </section>
 

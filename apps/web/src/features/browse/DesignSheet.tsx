@@ -69,6 +69,7 @@ export type DesignSheetProduct = Pick<
   | 'companyId'
   | 'companyName'
   | 'allowForward'
+  | 'allowDownload'
   | 'categories'
   | 'description'
   | 'unit'
@@ -82,6 +83,7 @@ export type DesignSheetProduct = Pick<
   catalogCollectionId?: string | null;
   catalogOrderMode?: string | null;
   collectionNames?: string[] | null;
+  allowDownload?: boolean;
 };
 
 /**
@@ -179,6 +181,10 @@ export function DesignSheet({
 
   const urls = product.images;
   const safeIndex = urls.length > 0 ? Math.min(index, urls.length - 1) : 0;
+  const canDownload =
+    canEdit ||
+    product.allowDownload === true ||
+    (Boolean(me.data?.id) && me.data?.id === product.companyId);
   const curatedFrom = Boolean(shopLine?.startsWith('From '));
   const entry = designSheetShortlistEntry(
     { ...product, piecesPerPack: product.piecesPerPack ?? null },
@@ -551,6 +557,8 @@ export function DesignSheet({
         index={safeIndex}
         onIndex={onIndex}
         onClose={() => setPhotoOpen(false)}
+        allowDownload={canDownload}
+        downloadFileBase={product.name?.trim() || 'design'}
       />
       <HowManyEachSheet
         open={qtyOpen}

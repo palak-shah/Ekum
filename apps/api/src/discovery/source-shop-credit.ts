@@ -1,5 +1,5 @@
 /**
- * Visitor mill credit (Show supplier name) — trust ladder hop ceiling.
+ * Visitor mill credit (Show supplier) — trust ladder hop ceiling.
  * Owner library cues use raw member shops elsewhere; this is visitor-facing only.
  */
 

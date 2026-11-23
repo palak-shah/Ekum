@@ -20,6 +20,26 @@ function distance(a: { x: number; y: number }, b: { x: number; y: number }): num
   return Math.hypot(a.x - b.x, a.y - b.y);
 }
 
+async function downloadCurrentPhoto(url: string, fileBase: string) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('Download failed');
+  const blob = await res.blob();
+  const objectUrl = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  const ext =
+    blob.type === 'image/png'
+      ? 'png'
+      : blob.type === 'image/webp'
+        ? 'webp'
+        : 'jpg';
+  anchor.href = objectUrl;
+  anchor.download = `${fileBase || 'design'}.${ext}`;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(objectUrl);
+}
+
 export function PhotoViewer({
   open,
   urls,
@@ -32,6 +52,9 @@ export function PhotoViewer({
   details,
   /** Optional header action (e.g. View in chat from cross-chat Photos find). */
   headerAction,
+  /** When set, show Download for the current photo (owner / allowDownload). */
+  allowDownload = false,
+  downloadFileBase,
 }: {
   open: boolean;
   urls: string[];
@@ -41,6 +64,8 @@ export function PhotoViewer({
   captions?: Array<string | null | undefined>;
   details?: Array<string | null | undefined>;
   headerAction?: { label: string; onClick: () => void; testId?: string };
+  allowDownload?: boolean;
+  downloadFileBase?: string;
 }) {
   const safeIndex = clamp(index, urls.length);
   const caption = captions?.[safeIndex]?.trim() || null;
@@ -209,6 +234,19 @@ export function PhotoViewer({
             onClick={headerAction.onClick}
           >
             {headerAction.label}
+          </button>
+        ) : allowDownload && src ? (
+          <button
+            type="button"
+            data-testid="photo-viewer-download"
+            className="rounded-full px-3 py-1.5 text-sm font-emphasis hover:bg-white/10"
+            onClick={() => {
+              void downloadCurrentPhoto(src, downloadFileBase ?? caption ?? 'design').catch(
+                () => undefined,
+              );
+            }}
+          >
+            Download
           </button>
         ) : (
           <span className="w-16" />

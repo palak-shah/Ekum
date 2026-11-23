@@ -155,6 +155,44 @@ export function isPrototypeMarginMode(mode: RepostPricingModeValue | null): bool
   );
 }
 
+/**
+ * One of Same | Edit | ± Margin — clear the inactive field drafts.
+ * ₹/% stays a sub-control under Margin (mode already MarginFixed/Percent).
+ */
+export function withExclusiveRepostPricingMode(
+  prev: RepostPricingFormState,
+  mode: RepostPricingModeValue | null,
+): RepostPricingFormState {
+  if (mode == null || mode === RepostPricingMode.Same) {
+    return { mode: RepostPricingMode.Same, marginValue: '', editedRate: '' };
+  }
+  if (isPrototypeMarginMode(mode)) {
+    return {
+      mode,
+      marginValue: prev.marginValue,
+      editedRate: '',
+    };
+  }
+  if (mode === RepostPricingMode.Edit) {
+    return {
+      mode: RepostPricingMode.Edit,
+      marginValue: '',
+      editedRate: prev.editedRate,
+    };
+  }
+  return { mode: RepostPricingMode.Same, marginValue: '', editedRate: '' };
+}
+
+/** Hydrate from pack with exclusive drafts (margin XOR edited). */
+export function exclusiveRepostPricingFormFromPack(input: {
+  repostPricingMode?: string | null;
+  repostMarginValue?: number | null;
+  repostEditedRate?: number | null;
+}): RepostPricingFormState {
+  const raw = repostPricingFormFromPack(input);
+  return withExclusiveRepostPricingMode(raw, raw.mode);
+}
+
 export function publishPricingFieldsFromForm(
   form: RepostPricingFormState,
   sourceBand: { rateMin?: number | null; rateMax?: number | null },

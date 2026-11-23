@@ -194,6 +194,7 @@ import { canSetMemberLiveInPack } from '@/features/collections/curatedMemberAvai
 import {
   maxPublishAudienceForCuratedPack,
 } from './curationAudienceCeiling';
+import { maxAllowDownloadForCuratedPack } from './downloadCeiling';
 import { audienceForPublishSheet } from './publishAudienceOptions';
 import {
   normalizePackDispatchUnit,
@@ -647,6 +648,16 @@ export function CollectionEditorPage() {
     () => maxPublishAudienceForCuratedPack(company.data?.id, ceilingMembers),
     [company.data?.id, ceilingMembers],
   );
+  const maxAllowDownload = useMemo(
+    () => maxAllowDownloadForCuratedPack(company.data?.id, ceilingMembers),
+    [company.data?.id, ceilingMembers],
+  );
+  useEffect(() => {
+    if (maxAllowDownload !== false) return;
+    setPublishAudience((prev) =>
+      prev.allowDownload ? { ...prev, allowDownload: false } : prev,
+    );
+  }, [maxAllowDownload]);
   const createMemberCount = readyCreatePhotos.length + createLibraryDesigns.length;
   const hasCreateMembers =
     pendingPhotos.length > 0 ||
@@ -2264,6 +2275,7 @@ export function CollectionEditorPage() {
         connectionsLoading={connections.isLoading}
         tradeDefaults={settings.data?.tradeDefaults}
         maxAudience={maxCuratedAudience}
+        maxAllowDownload={hasForeignMembers ? maxAllowDownload : null}
         showSourceShopsOption={hasForeignMembers}
         showConsent={!canPublishAlready}
         consent={consent}
@@ -3116,6 +3128,7 @@ export function CollectionEditorPage() {
             tradeDefaults={settings.data?.tradeDefaults}
             isVisibilityUpdate={editing && isPublished}
             maxAudience={maxCuratedAudience}
+            maxAllowDownload={hasForeignMembers ? maxAllowDownload : null}
             showSourceShopsOption={hasForeignMembers}
             showConsent={!canPublishAlready}
             consent={consent}

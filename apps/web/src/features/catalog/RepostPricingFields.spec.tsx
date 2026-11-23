@@ -79,6 +79,45 @@ describe('RepostPricingFields prototype', () => {
     expect(onEditRateChange).toHaveBeenCalled();
   });
 
+  it('switching Margin clears editedRate; Edit clears margin', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    const { rerender } = render(
+      <RepostPricingFields
+        variant="prototype"
+        value={{
+          mode: RepostPricingMode.Edit,
+          marginValue: '5',
+          editedRate: '140',
+        }}
+        onChange={onChange}
+      />,
+    );
+    await user.click(screen.getByTestId('repost-pricing-margin'));
+    expect(onChange).toHaveBeenCalledWith({
+      mode: RepostPricingMode.MarginFixed,
+      marginValue: '5',
+      editedRate: '',
+    });
+    rerender(
+      <RepostPricingFields
+        variant="prototype"
+        value={{
+          mode: RepostPricingMode.MarginFixed,
+          marginValue: '10',
+          editedRate: '99',
+        }}
+        onChange={onChange}
+      />,
+    );
+    await user.click(screen.getByTestId('repost-pricing-edit'));
+    expect(onChange).toHaveBeenLastCalledWith({
+      mode: RepostPricingMode.Edit,
+      marginValue: '',
+      editedRate: '99',
+    });
+  });
+
   it('Margin shows ₹/% subcontrol and keeps draft value across toggle', async () => {
     const user = userEvent.setup();
     let form = {

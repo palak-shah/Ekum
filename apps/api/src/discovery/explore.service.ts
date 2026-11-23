@@ -36,6 +36,8 @@ import { VisibilityService } from '../access/visibility.service';
 import { discoverableProfileWhere } from './follow-access';
 import { CatalogSerializer } from '../catalog/catalog.serializer';
 import { CollectionService } from '../catalog/collection.service';
+import { mapMediaUrlsForViewer } from '../media/media-url-token';
+import { catalogMediaAccess } from '../media/catalog-media-access';
 import { shouldReuseRepostChild } from '../catalog/collection-lineage';
 import {
   generalMemberJoinRows,
@@ -1268,7 +1270,7 @@ export class ExploreService {
       return {
         company,
         relevance,
-        previewImages: previewImages.slice(0, 4),
+        previewImages: mapMediaUrlsForViewer(previewImages.slice(0, 4), 'preview'),
         designCount: row._count.products,
         collectionCount: row._count.collections,
         latestPostedAt: sortAt > 0 ? new Date(sortAt).toISOString() : row.createdAt.toISOString(),
@@ -1486,22 +1488,38 @@ export class ExploreService {
           ...this.catalog.toProductView(entry.product),
           companyName,
         };
+        // Pack owner always gets full member media even when companyId is the mill.
+        const access =
+          isOwner ||
+          album.allowDownload === true ||
+          entry.product.allowDownload === true
+            ? 'full'
+            : 'preview';
+        const withMedia = {
+          ...view,
+          // Effective download for this album hop (pack OR design).
+          allowDownload:
+            isOwner ||
+            album.allowDownload === true ||
+            entry.product.allowDownload === true,
+          images: mapMediaUrlsForViewer(view.images, access),
+        };
         if (usesCalc) {
           const buyerFacing = albumBuyerRates?.get(entry.productId)?.buyerFacing ?? null;
           if (isOwner) {
-            return { ...view, rate: buyerFacing };
+            return { ...withMedia, rate: buyerFacing };
           }
           if (!connected && album.rateVisibility === RateVisibility.OnRequest) {
-            return { ...view, rate: null };
+            return { ...withMedia, rate: null };
           }
-          return { ...view, rate: buyerFacing };
+          return { ...withMedia, rate: buyerFacing };
         }
         if (isOwner) {
-          return view;
+          return withMedia;
         }
         // Rates stay "on request" until connected when the collection says so.
         if (!connected && album.rateVisibility === RateVisibility.OnRequest) {
-          return { ...view, rate: null };
+          return { ...withMedia, rate: null };
         }
         // Foreign members: apply the source product's rate ceiling for this viewer.
         const sourceId = entry.product.companyId;
@@ -1510,9 +1528,9 @@ export class ExploreService {
           entry.product.rateVisibility === RateVisibility.OnRequest &&
           !connectedToSource.get(sourceId)
         ) {
-          return { ...view, rate: null };
+          return { ...withMedia, rate: null };
         }
-        return view;
+        return withMedia;
       });
     }
 
@@ -1756,6 +1774,13 @@ export class ExploreService {
     if (!showBody) {
       return { ...card, ...extras, images: [], rate: null, visible: false };
     }
+    const access = catalogMediaAccess({
+      viewerCompanyId,
+      ownerCompanyId: product.companyId,
+      allowDownload: product.allowDownload === true,
+    });
+    const images = mapMediaUrlsForViewer(product.images, access);
+    const allowDownload = isOwner || product.allowDownload === true;
     // Curated via-pack: trader calc quote beats mill Product.rate for buyers.
     const viaPackRate = await buyerFacingViaCuratedPackForProduct(
       this.prisma,
@@ -1764,12 +1789,12 @@ export class ExploreService {
       product.companyId,
     );
     if (viaPackRate !== undefined) {
-      return { ...card, ...extras, rate: viaPackRate, visible: true };
+      return { ...card, ...extras, images, allowDownload, rate: viaPackRate, visible: true };
     }
     if (!isOwner && !connected && product.rateVisibility === RateVisibility.OnRequest) {
-      return { ...card, ...extras, rate: null, visible: true };
+      return { ...card, ...extras, images, allowDownload, rate: null, visible: true };
     }
-    return { ...card, ...extras, visible: true };
+    return { ...card, ...extras, images, allowDownload, visible: true };
   }
 
   /** True when this object was shared into a thread the viewer still belongs to. */
@@ -1991,7 +2016,7 @@ export class ExploreService {
       const collectionTimes = row.collections.map((collection) => collection.updatedAt.getTime());
       const latestMs = Math.max(0, ...designTimes, ...collectionTimes);
       map.set(row.id, {
-        previewImages: previewImages.slice(0, 4),
+        previewImages: mapMediaUrlsForViewer(previewImages.slice(0, 4), 'preview'),
         designCount: row._count.products,
         collectionCount: row._count.collections,
         latestPostedAt: latestMs > 0 ? new Date(latestMs).toISOString() : null,

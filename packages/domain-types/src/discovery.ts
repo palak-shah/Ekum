@@ -130,6 +130,8 @@ export interface CollectionCard {
   updatedAt: string;
   /** Relist/curate lock snapshot (`allowForward` column). Forward is free. */
   allowForward: boolean;
+  /** PhotoViewer Download / original tokens for visitors. */
+  allowDownload?: boolean;
   /**
    * Pack Direct | I handle override. null = use owner Profile default.
    */
@@ -204,6 +206,8 @@ export interface ExploreProductCard {
   postedAt: string;
   /** Relist/curate lock snapshot. Forward is free. */
   allowForward: boolean;
+  /** PhotoViewer Download when true (or owner). */
+  allowDownload?: boolean;
   /** Exclusive own catalog — Order as whole remaps from this design. */
   catalogCollectionId?: string | null;
   catalogOrderMode?: string | null;

@@ -4,6 +4,7 @@ import { RateVisibility } from '@ekum/domain-types';
 import {
   collectionHasRepostPricingSurface,
   defaultPackRepostPricingForm,
+  exclusiveRepostPricingFormFromPack,
   exploreShowRatesOn,
   memberPricingDtoFromForm,
   publishPricingFieldsFromForm,
@@ -12,9 +13,51 @@ import {
   repostPricingFormFromPack,
   repostPricingFormReady,
   repostSheetPricingReady,
+  withExclusiveRepostPricingMode,
 } from './repostPricingForm';
 
 describe('repostPricingForm', () => {
+  it('exclusive mode clears the inactive drafts', () => {
+    const fromEdit = withExclusiveRepostPricingMode(
+      { mode: RepostPricingMode.Edit, marginValue: '5', editedRate: '140' },
+      RepostPricingMode.MarginFixed,
+    );
+    expect(fromEdit).toEqual({
+      mode: RepostPricingMode.MarginFixed,
+      marginValue: '5',
+      editedRate: '',
+    });
+    const fromMargin = withExclusiveRepostPricingMode(
+      { mode: RepostPricingMode.MarginFixed, marginValue: '10', editedRate: '99' },
+      RepostPricingMode.Edit,
+    );
+    expect(fromMargin).toEqual({
+      mode: RepostPricingMode.Edit,
+      marginValue: '',
+      editedRate: '99',
+    });
+    expect(
+      withExclusiveRepostPricingMode(
+        { mode: RepostPricingMode.Edit, marginValue: '3', editedRate: '50' },
+        RepostPricingMode.Same,
+      ),
+    ).toEqual({ mode: RepostPricingMode.Same, marginValue: '', editedRate: '' });
+  });
+
+  it('hydrate from pack drops sibling field for exclusive mode', () => {
+    expect(
+      exclusiveRepostPricingFormFromPack({
+        repostPricingMode: RepostPricingMode.MarginFixed,
+        repostMarginValue: 10,
+        repostEditedRate: 125,
+      }),
+    ).toEqual({
+      mode: RepostPricingMode.MarginFixed,
+      marginValue: '10',
+      editedRate: '',
+    });
+  });
+
   it('pack form ready for Same; margin/edit need values', () => {
     expect(repostPricingFormReady(defaultPackRepostPricingForm())).toBe(true);
     expect(

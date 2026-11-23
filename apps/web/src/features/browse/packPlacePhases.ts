@@ -65,7 +65,7 @@ export function packPlaceGoesToName(entries: PackPlaceLine[]): string | null {
 /**
  * Chat counterpart for one line. Direct → mill. I-handle with a pack owner → trader.
  * A bare design (no pack stamp) stays the design's shop.
- * Show supplier name does not change this.
+ * Show supplier does not change this.
  */
 export function messageCounterpart(entry: PackPlaceLine): { id: string; name: string } {
   if (!isDirectPackLine(entry)) {

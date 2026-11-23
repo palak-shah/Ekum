@@ -182,7 +182,7 @@ export function BuyerGroupFormSheet({
                   setDraft((d) => ({ ...d, allowForward: event.target.checked }))
                 }
               />
-              <span>Buyers can add these designs to their collections</span>
+              <span>Allow repost</span>
             </label>
           </>
         ) : (

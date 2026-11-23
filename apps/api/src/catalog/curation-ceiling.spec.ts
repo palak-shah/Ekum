@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   audienceRank,
   assertProductsCuratable,
+  curatedPublishAllowDownload,
   curatedPublishRateVisibility,
 } from './curation-ceiling';
 
@@ -226,6 +227,53 @@ describe('assertProductsCuratable', () => {
         }),
       'CURATED_AUDIENCE_TOO_WIDE',
     );
+  });
+});
+
+describe('curatedPublishAllowDownload', () => {
+  it('allows own-only packs when requested', () => {
+    expect(
+      curatedPublishAllowDownload({
+        curatorCompanyId: 'me',
+        requested: true,
+        products: [{ companyId: 'me', allowDownload: false }],
+      }),
+    ).toBe(true);
+  });
+
+  it('blocks when any foreign member has download off', () => {
+    expect(
+      curatedPublishAllowDownload({
+        curatorCompanyId: 'me',
+        requested: true,
+        products: [
+          { companyId: 'mill', allowDownload: false },
+          { companyId: 'mill-2', allowDownload: true },
+        ],
+      }),
+    ).toBe(false);
+  });
+
+  it('blocks when source pack download is off', () => {
+    expect(
+      curatedPublishAllowDownload({
+        curatorCompanyId: 'me',
+        requested: true,
+        products: [{ companyId: 'mill', allowDownload: true }],
+        sourcePackAllowDownload: false,
+      }),
+    ).toBe(false);
+  });
+
+  it('allows when every foreign member and source pack allow', () => {
+    expect(
+      curatedPublishAllowDownload({
+        curatorCompanyId: 'me',
+        requested: true,
+        products: [{ companyId: 'mill', allowDownload: true }],
+        sourcePackAllowDownload: true,
+      }),
+    ).toBe(true);
   });
 });
 

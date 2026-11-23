@@ -20,6 +20,7 @@ export function exploreProductToSheet(
     companyId: data.company.id,
     companyName: data.company.name,
     allowForward: data.allowForward !== false,
+    allowDownload: data.allowDownload === true,
     categories: data.categories ?? [],
     description: data.description ?? null,
     unit: data.unit ?? null,

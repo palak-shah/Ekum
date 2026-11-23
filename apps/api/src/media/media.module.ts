@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
+import { APP_INTERCEPTOR } from '@nestjs/core';
 import { MediaController } from './media.controller';
 import { MediaService } from './media.service';
+import { SignMediaUrlsInterceptor } from './sign-media-urls.interceptor';
 import { storageProvider } from './storage/storage.provider';
 
 /**
@@ -10,7 +12,11 @@ import { storageProvider } from './storage/storage.provider';
  */
 @Module({
   controllers: [MediaController],
-  providers: [MediaService, storageProvider],
+  providers: [
+    MediaService,
+    storageProvider,
+    { provide: APP_INTERCEPTOR, useClass: SignMediaUrlsInterceptor },
+  ],
   exports: [MediaService],
 })
 export class MediaModule {}

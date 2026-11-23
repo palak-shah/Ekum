@@ -51,6 +51,11 @@ function isAppMediaPath(pathname: string): boolean {
  * unchanged. Seed catalog rewrites to `seed/thumbnail1|2/{name}.webp`.
  * PhotoViewer must keep `original`.
  */
+/** Path-bound tokens must not be rewritten to another variant path. */
+export function hasMediaAccessToken(url: string): boolean {
+  return url.includes('ekum_sig=');
+}
+
 export function mediaDisplayUrl(
   url: string | null | undefined,
   variant: MediaVariant = MEDIA_VARIANT.Thumbnail1,
@@ -59,6 +64,8 @@ export function mediaDisplayUrl(
   const absolute =
     origin !== undefined ? toAbsoluteMediaUrl(url, origin) : toAbsoluteMediaUrl(url);
   if (!absolute) return '';
+  // Signed URLs are path-bound — keep as returned by the API.
+  if (hasMediaAccessToken(absolute)) return absolute;
   if (variant === MEDIA_VARIANT.Original) return absolute;
   return mediaVariantUrl(absolute, variant);
 }

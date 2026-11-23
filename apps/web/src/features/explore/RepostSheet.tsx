@@ -12,6 +12,7 @@ import {
   type ConnectionView,
   type CreateCollectionDto,
   type CurateCheckView,
+  type ExploreProductPreviewView,
   type PublishCollectionDto,
   type SetCollectionProductsDto,
   type ShareLinkView,
@@ -22,12 +23,13 @@ import {
 } from '@/features/catalog/RepostPricingFields';
 import {
   defaultPackRepostPricingForm,
+  exclusiveRepostPricingFormFromPack,
   exploreShowRatesOn,
   isPrototypeMarginMode,
   memberPricingDtoFromForm,
   publishPricingFieldsFromForm,
-  repostPricingFormFromPack,
   repostSheetPricingReady,
+  withExclusiveRepostPricingMode,
   type RepostPricingFormState,
 } from '@/features/catalog/repostPricingForm';
 import { formatCatalogRate } from '@/lib/catalogRate';
@@ -51,6 +53,7 @@ import { collectionNameClash } from '@/features/catalog/collectionCreateHelpers'
 import { RepostSkipSection } from '@/features/browse/RepostSkipSection';
 import { repostCoverUrl } from '@/features/browse/repostCoverUrl';
 import { maxPublishAudienceForCuratedPack } from '@/features/catalog/curationAudienceCeiling';
+import { maxAllowDownloadForCuratedPack } from '@/features/catalog/downloadCeiling';
 import { readCompanyPublishDefaults } from '@/features/catalog/publishDefaults';
 import {
   emptyPublishAudienceState,
@@ -167,6 +170,8 @@ export function RepostSheet({
   const [resolvingEdit, setResolvingEdit] = useState(false);
   const seededSource = useRef<string>('');
   const editHydrated = useRef(false);
+  /** Gate form until edit detail restores Show rates + calc (avoid On-request flash). */
+  const [editFormReady, setEditFormReady] = useState(false);
   /** Ignore stale resolve results after Strict Mode remount / close. */
   const resolveGen = useRef(0);
 
@@ -184,6 +189,15 @@ export function RepostSheet({
         `/explore/collections/${(target as { collectionId: string }).collectionId}`,
       ),
     enabled: open && target?.kind === 'collection' && !editing,
+  });
+
+  const productPreview = useQuery({
+    queryKey: ['explore', 'products', target?.kind === 'product' ? target.productId : ''],
+    queryFn: () =>
+      api.get<ExploreProductPreviewView>(
+        `/explore/products/${(target as { productId: string }).productId}`,
+      ),
+    enabled: open && target?.kind === 'product' && !editing,
   });
 
   const editDetail = useQuery({
@@ -210,22 +224,65 @@ export function RepostSheet({
         .map((product) => ({
           companyId: product.companyId,
           audience: 'followers',
+          allowDownload: product.allowDownload === true,
         }));
     }
     if (!target) return [];
     if (target.kind === 'product') {
-      return [{ companyId: target.companyId, audience: 'followers' }];
+      return [
+        {
+          companyId: target.companyId,
+          audience: 'followers',
+          allowDownload: productPreview.data?.allowDownload === true,
+        },
+      ];
     }
     return (packPreview.data?.products ?? []).map((product) => ({
       companyId: product.companyId,
       audience: product.audience || 'followers',
+      allowDownload: product.allowDownload === true,
     }));
-  }, [editing, editDetail.data, target, packPreview.data?.products]);
+  }, [
+    editing,
+    editDetail.data,
+    target,
+    packPreview.data?.products,
+    productPreview.data?.allowDownload,
+  ]);
 
   const maxAudience = useMemo(
     () => maxPublishAudienceForCuratedPack(myCompanyId, ceilingMembers),
     [myCompanyId, ceilingMembers],
   );
+
+  const sourcePackAllowDownload = useMemo(() => {
+    if (editing && editDetail.data) {
+      // Edit child — ceiling already baked into members; source pack N/A.
+      return null;
+    }
+    if (target?.kind === 'collection') {
+      const flag = packPreview.data?.allowDownload;
+      return typeof flag === 'boolean' ? flag : null;
+    }
+    return null;
+  }, [editing, editDetail.data, target, packPreview.data?.allowDownload]);
+
+  const maxAllowDownload = useMemo(
+    () =>
+      maxAllowDownloadForCuratedPack(
+        myCompanyId,
+        ceilingMembers,
+        sourcePackAllowDownload,
+      ),
+    [myCompanyId, ceilingMembers, sourcePackAllowDownload],
+  );
+
+  useEffect(() => {
+    if (maxAllowDownload !== false) return;
+    setPublishAudience((prev) =>
+      prev.allowDownload ? { ...prev, allowDownload: false } : prev,
+    );
+  }, [maxAllowDownload]);
 
   const hasForeign = useMemo(() => {
     if (!myCompanyId) return true;
@@ -409,25 +466,30 @@ export function RepostSheet({
       }),
     );
     setPricingForm(
-      repostPricingFormFromPack({
+      exclusiveRepostPricingFormFromPack({
         repostPricingMode: detail.repostPricingMode,
         repostMarginValue: detail.repostMarginValue,
         repostEditedRate: detail.repostEditedRate,
       }),
     );
     const drafts: Record<string, string> = {};
-    for (const row of detail.memberPricing ?? []) {
-      if (row.pricingMode === RepostPricingMode.Edit && row.editedRate != null) {
-        drafts[row.productId] = String(row.editedRate);
+    const mode = detail.repostPricingMode;
+    if (mode === RepostPricingMode.Edit) {
+      for (const row of detail.memberPricing ?? []) {
+        if (row.pricingMode === RepostPricingMode.Edit && row.editedRate != null) {
+          drafts[row.productId] = String(row.editedRate);
+        }
       }
     }
     setEditRatesByProductId(drafts);
+    setEditFormReady(true);
   }, [open, editing, editDetail.data, resolvedEditId, seedKey, maxAudience]);
 
   useEffect(() => {
     if (!open) {
       seededSource.current = '';
       editHydrated.current = false;
+      setEditFormReady(false);
       resolveGen.current += 1;
       setResolvingEdit(false);
       setResolvedEditId(typeof editCollectionId === 'string' ? editCollectionId : null);
@@ -533,7 +595,8 @@ export function RepostSheet({
     packPreview.data.products == null;
 
   const previewPending = wantEdit
-    ? resolvingEdit || (Boolean(resolvedEditId) && editDetail.isLoading)
+    ? resolvingEdit ||
+      (Boolean(resolvedEditId) && (editDetail.isLoading || !editFormReady))
     : target?.kind === 'collection' && packPreview.isLoading;
   const previewFailed = wantEdit
     ? (!resolvingEdit && !resolvedEditId) || editDetail.isError
@@ -550,7 +613,12 @@ export function RepostSheet({
       Array.isArray(packPreview.data.products) &&
       packPreview.data.products.length === 0;
   const showPublishForm =
-    Boolean(target) && !previewPending && !previewFailed && !packLocked && !noMembers;
+    Boolean(target) &&
+    !previewPending &&
+    !previewFailed &&
+    !packLocked &&
+    !noMembers &&
+    (!editing || editFormReady);
   const previewErrorMessage =
     wantEdit && !resolvedEditId && sheetError
       ? sheetError
@@ -851,6 +919,7 @@ export function RepostSheet({
       if (conflictId) {
         setResolvedEditId(conflictId);
         editHydrated.current = false;
+        setEditFormReady(false);
         throw err;
       }
       if (createdId) {
@@ -888,6 +957,7 @@ export function RepostSheet({
         if (conflictId) {
           setResolvedEditId(conflictId);
           editHydrated.current = false;
+          setEditFormReady(false);
           setSheetError(null);
           onReposted?.(conflictId);
           void queryClient.invalidateQueries({ queryKey: ['explore'] });
@@ -1142,7 +1212,11 @@ export function RepostSheet({
                   variant="prototype"
                   value={pricingForm}
                   onChange={(next) => {
-                    setPricingForm(next);
+                    const exclusive = withExclusiveRepostPricingMode(next, next.mode);
+                    setPricingForm(exclusive);
+                    if (exclusive.mode !== RepostPricingMode.Edit) {
+                      setEditRatesByProductId({});
+                    }
                     setSheetError(null);
                   }}
                   editDesigns={editDesignRows}
@@ -1161,16 +1235,17 @@ export function RepostSheet({
                 onChange={(next) => {
                   setSheetError(null);
                   // Show rates gate owns rateVisibility — keep Who from overwriting it.
-                  setPublishAudience({
+                  setPublishAudience((prev) => ({
                     ...next,
-                    rateVisibility: publishAudience.rateVisibility,
-                  });
+                    rateVisibility: prev.rateVisibility,
+                  }));
                 }}
                 lists={broadcastLists.data ?? []}
                 connections={activeConnections}
                 connectionsLoading={connections.isLoading}
                 tradeDefaults={settings.data?.tradeDefaults}
                 maxAudience={maxAudience}
+                maxAllowDownload={hasForeign ? maxAllowDownload : null}
                 showSourceShopsOption={hasForeign}
                 hideShowRates
                 isVisibilityUpdate={editing}

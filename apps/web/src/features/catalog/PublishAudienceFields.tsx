@@ -126,7 +126,12 @@ type Props = {
    * Wider options are faded + disabled. `null` = no ceiling.
    */
   maxAudience?: string | null;
-  /** Curated / Repost packs: Show supplier name toggle (default off). */
+  /**
+   * Curated / Repost: when false, Allow download is disabled and forced off.
+   * `null` / omit = no download ceiling (own designs).
+   */
+  maxAllowDownload?: boolean | null;
+  /** Curated / Repost packs: Show supplier toggle (default off). */
   showSourceShopsOption?: boolean;
   /**
    * Explore RepostSheet owns Show rates above calc — hide the duplicate under Who.
@@ -149,6 +154,7 @@ export function PublishAudienceFields({
   onCreateGroup,
   isVisibilityUpdate = false,
   maxAudience = null,
+  maxAllowDownload = null,
   showSourceShopsOption = false,
   hideShowRates = false,
 }: Props) {
@@ -157,6 +163,7 @@ export function PublishAudienceFields({
   const showRules = whoReady;
   const showWhen = whoReady;
   const hasCeiling = Boolean(maxAudience);
+  const downloadLocked = maxAllowDownload === false;
 
   const toggleGroup = (list: BroadcastListView) => {
     const has = state.selectedGroupIds.includes(list.id);
@@ -394,61 +401,75 @@ export function PublishAudienceFields({
             </div>
           ) : null}
 
-          <label className="flex items-start gap-2 rounded-xl border border-line px-3 py-3 text-sm text-ink">
-            <input
-              type="checkbox"
-              className="mt-0.5"
-              checked={state.allowForward}
-              onChange={(event) =>
-                onChange({
-                  ...state,
-                  allowForward: event.target.checked,
-                  policyHint: null,
-                })
-              }
-            />
-            <span>Buyers can add these designs to their collections</span>
-          </label>
-          <label className="flex items-start gap-2 rounded-xl border border-line px-3 py-3 text-sm text-ink">
-            <input
-              type="checkbox"
-              className="mt-0.5"
-              checked={state.allowDownload}
-              onChange={(event) =>
-                onChange({
-                  ...state,
-                  allowDownload: event.target.checked,
-                  policyHint: null,
-                })
-              }
-            />
-            <span>Buyers can download these designs</span>
-          </label>
-          {showSourceShopsOption ? (
-            <label
-              className="flex items-start gap-2 rounded-xl border border-line px-3 py-3 text-sm text-ink"
-              data-testid="publish-show-source-shops"
-            >
-              <input
-                type="checkbox"
-                className="mt-0.5"
-                checked={state.showSourceShops}
-                onChange={(event) =>
-                  onChange({
-                    ...state,
-                    showSourceShops: event.target.checked,
-                    policyHint: null,
-                  })
-                }
-              />
-              <span>
-                Show supplier name
-                <span className="mt-0.5 block text-xs font-body text-muted">
-                  Buyers see which mill the designs came from. Off by default.
+          <div>
+            <p className="mb-2 text-sm font-emphasis text-ink">Permissions</p>
+            <div className="flex flex-col gap-1.5">
+              <label className="flex items-start gap-2 rounded-xl border border-line px-3 py-3 text-sm text-ink">
+                <input
+                  type="checkbox"
+                  className="mt-0.5"
+                  checked={state.allowForward}
+                  onChange={(event) =>
+                    onChange({
+                      ...state,
+                      allowForward: event.target.checked,
+                      policyHint: null,
+                    })
+                  }
+                />
+                <span>Allow repost</span>
+              </label>
+              <label
+                className={cx(
+                  'flex items-start gap-2 rounded-xl border border-line px-3 py-3 text-sm text-ink',
+                  downloadLocked ? 'opacity-50' : null,
+                )}
+              >
+                <input
+                  type="checkbox"
+                  className="mt-0.5"
+                  data-testid="publish-allow-download"
+                  checked={downloadLocked ? false : state.allowDownload}
+                  disabled={downloadLocked}
+                  onChange={(event) =>
+                    onChange({
+                      ...state,
+                      allowDownload: event.target.checked,
+                      policyHint: null,
+                    })
+                  }
+                />
+                <span>
+                  Allow download
+                  {downloadLocked ? (
+                    <span className="mt-0.5 block text-xs text-muted">
+                      Upstream does not allow download
+                    </span>
+                  ) : null}
                 </span>
-              </span>
-            </label>
-          ) : null}
+              </label>
+              {showSourceShopsOption ? (
+                <label
+                  className="flex items-start gap-2 rounded-xl border border-line px-3 py-3 text-sm text-ink"
+                  data-testid="publish-show-source-shops"
+                >
+                  <input
+                    type="checkbox"
+                    className="mt-0.5"
+                    checked={state.showSourceShops}
+                    onChange={(event) =>
+                      onChange({
+                        ...state,
+                        showSourceShops: event.target.checked,
+                        policyHint: null,
+                      })
+                    }
+                  />
+                  <span>Show supplier</span>
+                </label>
+              ) : null}
+            </div>
+          </div>
           {state.policyHint ? (
             <p className="text-xs text-muted">{state.policyHint}</p>
           ) : null}

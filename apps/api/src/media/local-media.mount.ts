@@ -6,6 +6,7 @@ import type { INestApplication } from '@nestjs/common';
 import type { NextFunction, Request, Response } from 'express';
 import express from 'express';
 import { mediaDiskCandidates } from './media-disk-path';
+import { isMediaImagePath, verifyMediaUrlToken } from './media-url-token';
 
 const CONTENT_TYPES: Record<string, string> = {
   '.jpg': 'image/jpeg',
@@ -84,6 +85,17 @@ export function mountLocalMedia(app: INestApplication, mediaRoot: string): void 
 
   http.get('/media/*path', async (req: Request, res: Response) => {
     const relative = mediaPathParam(req);
+    const pathname = `/media/${relative.replace(/^\/+/, '')}`.replace(/\/+/g, '/');
+    // Catalog images require a path-bound token (preview or full).
+    if (isMediaImagePath(pathname)) {
+      const kind = typeof req.query.ekum_k === 'string' ? req.query.ekum_k : null;
+      const exp = typeof req.query.ekum_exp === 'string' ? req.query.ekum_exp : null;
+      const sig = typeof req.query.ekum_sig === 'string' ? req.query.ekum_sig : null;
+      if (!verifyMediaUrlToken({ pathname, kind, exp, sig })) {
+        res.status(401).json({ message: 'Media access token required.' });
+        return;
+      }
+    }
     const candidates = mediaDiskCandidates(relative);
     if (candidates.length === 0) {
       res.status(400).end();

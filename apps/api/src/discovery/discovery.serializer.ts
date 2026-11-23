@@ -18,6 +18,7 @@ import {
   collectionSourceShopNames,
   type SourceCreditHop,
 } from './source-shop-credit';
+import { mapMediaUrlsForViewer } from '../media/media-url-token';
 
 export {
   collectionSourceShopNames,
@@ -108,14 +109,18 @@ export class DiscoverySerializer {
       description: collection.description?.trim() || null,
       categories: general ? [] : collection.categories ?? [],
       memberFind: collectionMemberFind(collection.products),
-      coverImage: collection.coverImage,
-      previewImages: preview.previewImages,
+      // Feed / list: always signed preview (thumbnail1) — not originals.
+      coverImage: collection.coverImage
+        ? mapMediaUrlsForViewer([collection.coverImage], 'preview')[0] ?? null
+        : collection.coverImage,
+      previewImages: mapMediaUrlsForViewer(preview.previewImages, 'preview'),
       imageCount: preview.imageCount,
       productCount: collection._count.products,
       status: collection.status,
       // Explore “when” = last publish / new-design activity when set.
       updatedAt: (collection.exploreActivityAt ?? collection.updatedAt).toISOString(),
       allowForward: collection.allowForward,
+      allowDownload: collection.allowDownload === true,
       /** Legacy column ignored — path is TradeLane / Your paths. */
       orderPathPreference: null,
       rateMin: rate.rateMin,
@@ -151,7 +156,7 @@ export class DiscoverySerializer {
     return {
       id: product.id,
       name: product.name,
-      images: product.images,
+      images: mapMediaUrlsForViewer(product.images, 'preview'),
       rate: product.rate === null ? null : product.rate.toNumber(),
       unit: product.unit,
       company: this.companySerializer.toPublicSummary(product.company),
@@ -169,7 +174,8 @@ export class DiscoverySerializer {
     return {
       id: product.id,
       name: product.name,
-      images: product.images,
+      // List/feed card: preview only. productDetail upgrades when allowDownload/owner.
+      images: mapMediaUrlsForViewer(product.images, 'preview'),
       rate: product.rate === null ? null : product.rate.toNumber(),
       rateMax: product.rateMax === null ? null : product.rateMax.toNumber(),
       unit: product.unit,
@@ -179,6 +185,7 @@ export class DiscoverySerializer {
       categories: product.categories ?? [],
       postedAt: (product.postedToMarketAt ?? product.createdAt).toISOString(),
       allowForward: product.allowForward,
+      allowDownload: product.allowDownload === true,
       catalogCollectionId:
         (product as { catalogCollectionId?: string | null }).catalogCollectionId ?? null,
       viewerReposted: opts?.viewerReposted === true,
