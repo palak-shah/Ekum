@@ -11,7 +11,6 @@ import {
   unavailableDesignsSummary,
   zeroEligibleSharedReason,
 } from '@/features/browse/curateCheck';
-import { CurateWhyHint } from '@/features/browse/CurateWhyHint';
 import { ManagedImage } from '@/ui/ManagedImage';
 import { Button, cx } from '@/ui/kit';
 
@@ -86,7 +85,7 @@ function DesignRow({
 export function RepostSkipSection({
   allowed,
   blocked,
-  extraHint,
+  extraHint: _extraHint,
   allowRelistAsk,
   trading,
   myCompanyId,
@@ -97,6 +96,7 @@ export function RepostSkipSection({
 }: {
   allowed: RepostSkipRow[];
   blocked: Array<RepostSkipRow & { code: string }>;
+  /** Kept for call-site compat; skip reason is plain text (no i-hint). */
   extraHint?: string | null;
   allowRelistAsk: boolean;
   trading: boolean;
@@ -195,17 +195,10 @@ export function RepostSkipSection({
         </ul>
       ) : null}
 
-      {blocked.length > 0 && !zeroEligible ? (
-        <div className="flex flex-col gap-1">
-          {!showPerRowReason && sharedReason ? (
-            <p className="text-sm font-body text-muted" data-testid="repost-skip-reason">
-              {sharedReason}
-            </p>
-          ) : null}
-          <div className="flex items-center gap-1">
-            <CurateWhyHint codes={codes} extra={extraHint} testId="curate-skip-info" />
-          </div>
-        </div>
+      {blocked.length > 0 && !zeroEligible && !showPerRowReason && sharedReason ? (
+        <p className="text-sm font-body text-muted" data-testid="repost-skip-reason">
+          {sharedReason}
+        </p>
       ) : null}
 
       {relistAskable.length > 1 ? (

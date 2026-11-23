@@ -22,7 +22,7 @@ export function partitionRelistableDesigns(
   return { allowed, locked };
 }
 
-/** Albums that can enter Curate resolve (pack / Pick designs). */
+/** Albums that can expand into Curate (pack-locked skipped). */
 export function partitionRelistableAlbums(entries: BrowseAlbumEntry[]) {
   const allowed: BrowseAlbumEntry[] = [];
   const locked: BrowseAlbumEntry[] = [];

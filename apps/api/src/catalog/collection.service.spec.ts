@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import {
+  CatalogOrderMode,
   CollectionKind,
   CollectionStatus,
   ProductStatus,
@@ -2055,6 +2056,8 @@ describe('CollectionService.create repost source', () => {
           status: CollectionStatus.Published,
           masterCategoryId: 'cat-mill',
           categories: ['Sarees'],
+          kind: CollectionKind.Regular,
+          orderMode: null,
         }),
         create,
         update: vi.fn(async (args: { data: Record<string, unknown> }) => args.data),
@@ -2079,6 +2082,58 @@ describe('CollectionService.create repost source', () => {
           repostSourceCollectionId: 'src-col',
           repostSourceProductId: null,
           categories: ['Sarees'],
+          kind: CollectionKind.Regular,
+          orderMode: null,
+        }),
+      }),
+    );
+  });
+
+  it('inherits catalog kind + whole orderMode when curating a catalog source', async () => {
+    const create = vi.fn(async (args: { data: Record<string, unknown> }) => ({
+      id: 'mine-cat',
+      ...args.data,
+      products: [],
+      _count: { products: 0 },
+    }));
+    const prisma = {
+      collection: {
+        findFirst: vi
+          .fn()
+          .mockResolvedValueOnce(null)
+          .mockResolvedValueOnce(null),
+        findUnique: async () => ({
+          id: 'src-catalog',
+          companyId: 'peer',
+          status: CollectionStatus.Published,
+          masterCategoryId: 'cat-mill',
+          categories: ['Sarees'],
+          kind: CollectionKind.Catalog,
+          orderMode: CatalogOrderMode.Whole,
+        }),
+        create,
+        update: vi.fn(async (args: { data: Record<string, unknown> }) => args.data),
+      },
+      companySettings: {
+        findUnique: async () => null,
+        upsert: vi.fn(async () => ({})),
+      },
+    } as unknown as PrismaService;
+    const serializer = {
+      toCollectionView: (row: { id: string }) => ({ id: row.id }),
+    } as unknown as CatalogSerializer;
+    const service = new CollectionService(prisma, serializer, jobs, masterData);
+    await service.create('me', 'u1', {
+      name: 'Catalog Repost',
+      categories: [],
+      repostSourceCollectionId: 'src-catalog',
+    });
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          repostSourceCollectionId: 'src-catalog',
+          kind: CollectionKind.Catalog,
+          orderMode: CatalogOrderMode.Whole,
         }),
       }),
     );

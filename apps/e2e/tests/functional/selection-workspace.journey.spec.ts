@@ -120,7 +120,7 @@ test.describe('selection workspace @functional @explore', () => {
     await expect(page).toHaveURL(/\/explore/);
   });
 
-  test('Curate on albums opens Use whole collection resolve', async ({ page }) => {
+  test('Curate on albums skips resolve and opens Repost sheet', async ({ page }) => {
     await loginAsRavi(page);
     await page.goto('/explore');
     await expect(page.getByTestId('explore-filter')).toBeVisible({ timeout: 15_000 });
@@ -132,12 +132,15 @@ test.describe('selection workspace @functional @explore', () => {
     await page.getByTestId('explore-cart').click();
     await expect(page.getByRole('heading', { name: 'Cart' })).toBeVisible();
     await page.getByTestId('selection-curate').click();
-    await expect(page.getByRole('heading', { name: 'Repost from collections' })).toBeVisible();
-    await expect(page.getByText('Use whole collection').first()).toBeVisible();
-    await expect(page.getByText('Pick designs').first()).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Repost' })).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(page.getByText('Use whole collection')).toHaveCount(0);
+    await expect(page.getByText('Pick designs')).toHaveCount(0);
+    await expect(page.getByTestId('repost-path-choose')).toBeVisible();
   });
 
-  test('Repost Pick designs shows Continue Repost on the album', async ({ page }) => {
+  test('Cart album Repost expands into Repost sheet without Pick designs', async ({ page }) => {
     await loginAsRavi(page);
     await page.goto('/explore');
     await expect(page.getByTestId('explore-filter')).toBeVisible({ timeout: 15_000 });
@@ -167,12 +170,11 @@ test.describe('selection workspace @functional @explore', () => {
       timeout: 15_000,
     });
     await page.getByTestId('selection-curate').click();
-    await expect(page.getByRole('heading', { name: 'Repost from collections' })).toBeVisible();
-    await page.getByTestId('resolve-pick-designs').click();
-    await page.getByRole('button', { name: 'Continue' }).click();
-    await expect(page).toHaveURL(/\/collections\/seed-col-1/);
-    await expect(page.getByTestId('album-pick-continue')).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByTestId('album-pick-continue')).toContainText('Continue Repost');
+    await expect(page.getByRole('heading', { name: 'Repost' })).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(page.getByTestId('resolve-pick-designs')).toHaveCount(0);
+    await expect(page.getByTestId('repost-path-choose')).toBeVisible();
   });
 
   test('pack-locked design stays visible with reason', async ({ page }) => {

@@ -74,11 +74,8 @@ import {
   type BrowseShortlistEntry,
 } from '@/features/browse/browseShortlist';
 import { CurateFromSelectionSheet } from '@/features/browse/CurateFromSelectionSheet';
-import {
-  curateDefaultPackName,
-  partitionRelistableAlbums,
-} from '@/features/browse/curateAlbumResolve';
-import { OrderCollectionResolveSheet } from '@/features/browse/OrderCollectionResolveSheet';
+import { curateDefaultPackName } from '@/features/browse/curateAlbumResolve';
+import { usePrepareCatalogCurate } from '@/features/browse/usePrepareCatalogCurate';
 import { usePrepareCatalogOrder } from '@/features/browse/usePrepareCatalogOrder';
 import {
   CATALOG_WHOLE_SELECT_TOAST,
@@ -291,7 +288,7 @@ export function MyCatalogPage({
   const orderFlow = useShortlistOrderFlow();
   const [lockedProductIds, setLockedProductIds] = useState<string[]>([]);
   const { prepare: prepareCatalogOrder } = usePrepareCatalogOrder();
-  const [curateResolveOpen, setCurateResolveOpen] = useState(false);
+  const { prepare: prepareCatalogCurate } = usePrepareCatalogCurate();
   const [curateOpen, setCurateOpen] = useState(false);
   const [curateProductIds, setCurateProductIds] = useState<string[] | undefined>(undefined);
   const [curateDefaultName, setCurateDefaultName] = useState('');
@@ -668,11 +665,24 @@ export function MyCatalogPage({
       return;
     }
     if (intent === 'curate') {
-      if (albums.length > 0) {
-        setCurateResolveOpen(true);
-        return;
-      }
-      openCurateWithDesigns(designs, []);
+      void (async () => {
+        const prepared = await prepareCatalogCurate({ albums, shortlist: designs });
+        if (prepared.kind === 'error') return;
+        if (prepared.kind === 'empty') {
+          showToast('Pick at least one design.');
+          return;
+        }
+        writeBrowseShortlist(prepared.shortlist);
+        writeBrowseAlbumPick(prepared.remainingAlbums);
+        if (prepared.kind === 'navigate' && prepared.navigateToCollectionId) {
+          writeResumeAfterAlbumPick('curate');
+          navigate(`/collections/${prepared.navigateToCollectionId}`, {
+            state: { enterSelect: true },
+          });
+          return;
+        }
+        openCurateWithDesigns(prepared.shortlist, prepared.expandedAlbumNames);
+      })();
     }
   };
 
@@ -1379,33 +1389,6 @@ export function MyCatalogPage({
         }}
       />
 
-      <OrderCollectionResolveSheet
-        intent="curate"
-        open={curateResolveOpen}
-        onClose={() => setCurateResolveOpen(false)}
-        albums={partitionRelistableAlbums(albumPick.entries).allowed}
-        designCount={shortlist.count}
-        existingShortlist={shortlist.entries}
-        onResolved={({
-          shortlist: nextShortlist,
-          remainingAlbums,
-          navigateToCollectionId,
-          expandedAlbumNames,
-        }) => {
-          writeBrowseShortlist(nextShortlist);
-          writeBrowseAlbumPick(remainingAlbums);
-          setCurateResolveOpen(false);
-          if (navigateToCollectionId) {
-            writeResumeAfterAlbumPick('curate');
-            navigate(`/collections/${navigateToCollectionId}`, {
-              state: { enterSelect: true },
-            });
-            return;
-          }
-          clearResumeAfterAlbumPick();
-          openCurateWithDesigns(nextShortlist, expandedAlbumNames);
-        }}
-      />
       <HowManyEachSheet
         open={orderFlow.qtyOpen}
         onClose={() => {

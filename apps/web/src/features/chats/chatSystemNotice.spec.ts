@@ -5,6 +5,7 @@ import {
   isOrderTaggedUpdate,
   orderTagQuotePreview,
   orderTaggedUpdateText,
+  repostEditInvalidatedCollectionPath,
   shareRevokedNoticeText,
 } from './chatSystemNotice';
 
@@ -38,6 +39,20 @@ describe('isChatSystemNotice', () => {
       },
     };
     expect(isChatSystemNotice(message)).toBe(true);
+  });
+
+  it('treats Edit-rate invalidated as a centered notice with pack path', () => {
+    const message = {
+      type: 'system',
+      body: 'Surat Silk changed rates for Wedding Edit — set your rate again.',
+      metadata: {
+        kind: 'repost_edit_rate_invalidated',
+        collectionId: 'child-1',
+        path: '/collections/child-1',
+      },
+    };
+    expect(isChatSystemNotice(message)).toBe(true);
+    expect(repostEditInvalidatedCollectionPath(message)).toBe('/collections/child-1');
   });
 });
 

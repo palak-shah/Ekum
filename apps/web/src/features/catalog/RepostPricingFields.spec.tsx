@@ -28,26 +28,15 @@ describe('RepostPricingFields prototype', () => {
     expect(screen.queryByTestId('repost-pricing-margin-block')).toBeNull();
   });
 
-  it('Edit lists designs with supplier ref; restricted omits ₹ but keeps input', async () => {
+  it('Edit shows one pack Your rate ₹ (no per-design list)', async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
-    const onEditRateChange = vi.fn();
     const { rerender } = render(
       <RepostPricingFields
         variant="prototype"
         value={defaultPackRepostPricingForm()}
         onChange={onChange}
-        editDesigns={[
-          {
-            productId: 'p1',
-            name: 'Silk',
-            supplierRate: 100,
-            supplierRateLabel: 'Supplier ₹100/pc',
-          },
-          { productId: 'p2', name: 'Cotton', supplierRate: null },
-        ]}
-        editRatesByProductId={{}}
-        onEditRateChange={onEditRateChange}
+        supplierCue="Supplier ₹100/pc"
       />,
     );
     await user.click(screen.getByTestId('repost-pricing-edit'));
@@ -59,24 +48,17 @@ describe('RepostPricingFields prototype', () => {
         variant="prototype"
         value={{ mode: RepostPricingMode.Edit, marginValue: '', editedRate: '' }}
         onChange={onChange}
-        editDesigns={[
-          {
-            productId: 'p1',
-            name: 'Silk',
-            supplierRate: 100,
-            supplierRateLabel: 'Supplier ₹100/pc',
-          },
-          { productId: 'p2', name: 'Cotton', supplierRate: null },
-        ]}
-        editRatesByProductId={{}}
-        onEditRateChange={onEditRateChange}
+        supplierCue="Supplier ₹100/pc"
       />,
     );
-    expect(screen.getByTestId('repost-pricing-edit-list')).toBeTruthy();
+    expect(screen.getByTestId('repost-pricing-edit-pack')).toBeTruthy();
+    expect(screen.getByTestId('repost-pricing-edited-rate')).toBeTruthy();
+    expect(screen.queryByTestId('repost-pricing-edit-list')).toBeNull();
     expect(screen.getByText('Supplier ₹100/pc')).toBeTruthy();
-    expect(screen.getByText('Supplier rate not shared')).toBeTruthy();
-    await user.type(screen.getByTestId('repost-pricing-edit-rate-p2'), '90');
-    expect(onEditRateChange).toHaveBeenCalled();
+    await user.type(screen.getByTestId('repost-pricing-edited-rate'), '150');
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({ editedRate: expect.stringContaining('1') }),
+    );
   });
 
   it('switching Margin clears editedRate; Edit clears margin', async () => {
@@ -132,6 +114,10 @@ describe('RepostPricingFields prototype', () => {
       <RepostPricingFields variant="prototype" value={form} onChange={onChange} />,
     );
     expect(screen.getByTestId('repost-pricing-margin-block')).toBeTruthy();
+    expect(screen.getByTestId('repost-pricing-margin-value')).toHaveAttribute(
+      'placeholder',
+      '0',
+    );
     await user.click(screen.getByTestId('repost-pricing-margin-percent'));
     expect(onChange).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -147,5 +133,25 @@ describe('RepostPricingFields prototype', () => {
       />,
     );
     expect(screen.getByTestId('repost-pricing-margin-value')).toHaveValue('10');
+  });
+
+  it('minus steps below 0 (discount)', async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(
+      <RepostPricingFields
+        variant="prototype"
+        value={{
+          mode: RepostPricingMode.MarginFixed,
+          marginValue: '0',
+          editedRate: '',
+        }}
+        onChange={onChange}
+      />,
+    );
+    await user.click(screen.getByTestId('repost-pricing-margin-minus'));
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({ marginValue: '-1' }),
+    );
   });
 });

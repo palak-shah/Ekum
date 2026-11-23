@@ -103,6 +103,8 @@ type PackResolveRow = {
   companyId: string;
   rate: { toNumber(): number } | number | null;
   rateVisibility: string;
+  /** Rate per — buyer-facing round (pc → ₹1, mtr → 0.25). */
+  catalogRateUnit?: string | null;
   repostSourceCollectionId?: string | null;
   repostPricingMode?: string | null;
   repostMarginValue?: { toNumber(): number } | number | null;
@@ -178,7 +180,9 @@ async function resolvePackMemberBuyerRatesInner(
       marginValue: true,
       editedRate: true,
       editOwnBase: true,
-      product: { select: { id: true, rate: true, companyId: true } },
+      product: {
+        select: { id: true, rate: true, companyId: true, catalogRateUnit: true },
+      },
     },
   });
 
@@ -190,6 +194,8 @@ async function resolvePackMemberBuyerRatesInner(
       opts.sourceDisclosed === true || opts.viewerCompanyId === pack.companyId;
     for (const row of members) {
       const productRate = asNumber(row.product.rate);
+      const rateUnit =
+        row.product.catalogRateUnit ?? pack.catalogRateUnit ?? null;
       const config = effectiveRepostPricingConfig(
         packConfig,
         memberPricingOverrideFromRow(row),
@@ -215,6 +221,7 @@ async function resolvePackMemberBuyerRatesInner(
           config,
           sourceRate,
           sourceDisclosed: sourceRate != null,
+          rateUnit,
         }),
       );
     }
@@ -317,12 +324,14 @@ async function resolvePackMemberBuyerRatesInner(
       });
       continue;
     }
+    const rateUnit = row.product.catalogRateUnit ?? pack.catalogRateUnit ?? null;
     out.set(
       row.productId,
       resolveRepostDesignPricing({
         config,
         sourceRate: immediate.sourceRate,
         sourceDisclosed: immediate.sourceDisclosed,
+        rateUnit,
       }),
     );
   }

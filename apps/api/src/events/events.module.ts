@@ -13,6 +13,7 @@ import {
   type RelistGrantedEvent,
   type FollowAllowedEvent,
   type RepostSyncDesignsAddedEvent,
+  type RepostEditRateInvalidatedEvent,
 } from './domain-events';
 
 /**
@@ -73,6 +74,10 @@ export class DomainEvents {
 
   repostSyncDesignsAdded(payload: RepostSyncDesignsAddedEvent): void {
     this.emitter.emit(DomainEventName.RepostSyncDesignsAdded, payload);
+  }
+
+  repostEditRateInvalidated(payload: RepostEditRateInvalidatedEvent): void {
+    this.emitter.emit(DomainEventName.RepostEditRateInvalidated, payload);
   }
 }
 

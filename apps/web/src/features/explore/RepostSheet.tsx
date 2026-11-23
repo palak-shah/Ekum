@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   RateVisibility,
   RepostPricingMode,
+  roundRepostBuyerFacing,
   type BroadcastListView,
   type CollectionDetailView,
   type CollectionPreviewView,
@@ -26,7 +27,6 @@ import {
   exclusiveRepostPricingFormFromPack,
   exploreShowRatesOn,
   isPrototypeMarginMode,
-  memberPricingDtoFromForm,
   publishPricingFieldsFromForm,
   repostSheetPricingReady,
   withExclusiveRepostPricingMode,
@@ -156,10 +156,6 @@ export function RepostSheet({
   /** Batch 3 calc — Ask stays Show rates (rateVisibility), not a mode. */
   const [pricingForm, setPricingForm] = useState<RepostPricingFormState>(() =>
     defaultPackRepostPricingForm(),
-  );
-  /** Prototype Edit drafts — preserved across mode switches. */
-  const [editRatesByProductId, setEditRatesByProductId] = useState<Record<string, string>>(
-    {},
   );
   const wantEdit = editCollectionId !== undefined;
   /** Child pack id for edit (prop or ALREADY_REPOSTED details). */
@@ -437,7 +433,6 @@ export function RepostSheet({
     setSheetError(null);
     setReadyInvite(null);
     setPricingForm(defaultPackRepostPricingForm());
-    setEditRatesByProductId({});
     setBaselineProductIds([]);
   }, [open, sourceKey, seedKey, target, editing]);
 
@@ -472,16 +467,6 @@ export function RepostSheet({
         repostEditedRate: detail.repostEditedRate,
       }),
     );
-    const drafts: Record<string, string> = {};
-    const mode = detail.repostPricingMode;
-    if (mode === RepostPricingMode.Edit) {
-      for (const row of detail.memberPricing ?? []) {
-        if (row.pricingMode === RepostPricingMode.Edit && row.editedRate != null) {
-          drafts[row.productId] = String(row.editedRate);
-        }
-      }
-    }
-    setEditRatesByProductId(drafts);
     setEditFormReady(true);
   }, [open, editing, editDetail.data, resolvedEditId, seedKey, maxAudience]);
 
@@ -632,8 +617,6 @@ export function RepostSheet({
   const pricingReady = repostSheetPricingReady({
     showRates,
     form: pricingForm,
-    editProductIds: editing ? productIds : allowedIds,
-    editRatesByProductId,
   });
 
   const supplierCue = useMemo(() => {
@@ -662,7 +645,7 @@ export function RepostSheet({
         : base + margin;
     if (!Number.isFinite(next)) return null;
     const label = formatCatalogRate({
-      rate: Math.round(next * 100) / 100,
+      rate: roundRepostBuyerFacing(next, packPreview.data?.rateUnit ?? null),
       unit: packPreview.data?.rateUnit ?? null,
     });
     return label && label !== 'On request' ? label : null;
@@ -770,22 +753,14 @@ export function RepostSheet({
 
   const buildPublishDto = (): PublishCollectionDto => {
     const ratesOn = exploreShowRatesOn(publishAudience.rateVisibility);
-    const memberIds = editing ? productIds : allowedIds;
     // Rates off: omit calc fields so publish does not wipe Edit/Margin → Same
     // (match CollectionEditor). Visibility still updates.
+    // Edit is pack/catalog only — one editedRate on the collection.
     const pricingFields = ratesOn
-      ? publishPricingFieldsFromForm(
-          pricingForm.mode === RepostPricingMode.Edit && memberIds.length === 1
-            ? {
-                ...pricingForm,
-                editedRate: editRatesByProductId[memberIds[0]!] ?? pricingForm.editedRate,
-              }
-            : pricingForm,
-          {
-            rateMin: packPreview.data?.rateMin ?? editDetail.data?.rate ?? null,
-            rateMax: packPreview.data?.rateMax ?? editDetail.data?.rateMax ?? null,
-          },
-        )
+      ? publishPricingFieldsFromForm(pricingForm, {
+          rateMin: packPreview.data?.rateMin ?? editDetail.data?.rate ?? null,
+          rateMax: packPreview.data?.rateMax ?? editDetail.data?.rateMax ?? null,
+        })
       : {};
     return {
       audience: publishAudience.audience as PublishCollectionDto['audience'],
@@ -797,28 +772,6 @@ export function RepostSheet({
       ...(canPublishAlready ? {} : { consentToSell: true }),
       ...pricingFields,
     };
-  };
-
-  const patchEditMemberPricing = async (collectionId: string, memberIds: string[]) => {
-    const ratesOn = exploreShowRatesOn(publishAudience.rateVisibility);
-    if (!ratesOn || pricingForm.mode !== RepostPricingMode.Edit) return;
-    const byId = new Map(editDesignRows.map((row) => [row.productId, row]));
-    for (const productId of memberIds) {
-      const draft = editRatesByProductId[productId];
-      if (draft == null || draft.trim() === '') continue;
-      const row = byId.get(productId);
-      await api.patch(`/collections/${collectionId}/member-pricing`, {
-        ...memberPricingDtoFromForm(
-          productId,
-          {
-            mode: RepostPricingMode.Edit,
-            marginValue: '',
-            editedRate: draft,
-          },
-          row?.supplierRate ?? null,
-        ),
-      });
-    }
   };
 
   const runEditSave = async () => {
@@ -849,7 +802,6 @@ export function RepostSheet({
     }
 
     await api.post(`/collections/${resolvedEditId}/publish`, buildPublishDto());
-    await patchEditMemberPricing(resolvedEditId, productIds);
 
     void queryClient.invalidateQueries({ queryKey: ['my-collections'] });
     void queryClient.invalidateQueries({ queryKey: ['explore'] });
@@ -887,7 +839,6 @@ export function RepostSheet({
       } satisfies SetCollectionProductsDto);
 
       await api.post(`/collections/${created.id}/publish`, buildPublishDto());
-      await patchEditMemberPricing(created.id, allowedIds);
 
       void queryClient.invalidateQueries({ queryKey: ['my-collections'] });
       void queryClient.invalidateQueries({ queryKey: ['explore'] });
@@ -1212,17 +1163,7 @@ export function RepostSheet({
                   variant="prototype"
                   value={pricingForm}
                   onChange={(next) => {
-                    const exclusive = withExclusiveRepostPricingMode(next, next.mode);
-                    setPricingForm(exclusive);
-                    if (exclusive.mode !== RepostPricingMode.Edit) {
-                      setEditRatesByProductId({});
-                    }
-                    setSheetError(null);
-                  }}
-                  editDesigns={editDesignRows}
-                  editRatesByProductId={editRatesByProductId}
-                  onEditRateChange={(productId, rate) => {
-                    setEditRatesByProductId((prev) => ({ ...prev, [productId]: rate }));
+                    setPricingForm(withExclusiveRepostPricingMode(next, next.mode));
                     setSheetError(null);
                   }}
                   supplierCue={supplierCue}

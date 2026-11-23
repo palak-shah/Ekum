@@ -52,9 +52,12 @@ export function RepostPricingFields({
   editInvalidated = false,
   testIdPrefix = 'repost-pricing',
   variant = 'default',
-  editDesigns = [],
-  editRatesByProductId = {},
-  onEditRateChange,
+  /** @deprecated Pack Edit is collection-only; ignored on prototype. */
+  editDesigns: _editDesigns = [],
+  /** @deprecated Pack Edit is collection-only; ignored on prototype. */
+  editRatesByProductId: _editRatesByProductId = {},
+  /** @deprecated Pack Edit is collection-only; ignored on prototype. */
+  onEditRateChange: _onEditRateChange,
   supplierCue = null,
   buyerRatePreview = null,
 }: {
@@ -67,7 +70,10 @@ export function RepostPricingFields({
   editInvalidated?: boolean;
   testIdPrefix?: string;
   variant?: 'default' | 'prototype';
-  /** Prototype Edit — one selling ₹ per design. */
+  /**
+   * @deprecated Explore Edit is pack/catalog only — props kept for call-site
+   * compatibility; prototype ignores them.
+   */
   editDesigns?: RepostEditDesignRow[];
   editRatesByProductId?: Record<string, string>;
   onEditRateChange?: (productId: string, rate: string) => void;
@@ -76,6 +82,9 @@ export function RepostPricingFields({
   /** Quiet buyer-rate preview for Margin when disclosed. */
   buyerRatePreview?: string | null;
 }) {
+  void _editDesigns;
+  void _editRatesByProductId;
+  void _onEditRateChange;
   if (variant === 'prototype') {
     const marginOn = isPrototypeMarginMode(value.mode);
     const marginKind = prototypeMarginChoice(value.mode);
@@ -196,8 +205,8 @@ export function RepostPricingFields({
                   aria-label="Decrease margin"
                   onClick={() => {
                     const n = Number(value.marginValue);
-                    const next = Number.isFinite(n) ? Math.max(0, n - 1) : 0;
-                    onChange({ ...value, marginValue: String(next) });
+                    const base = Number.isFinite(n) ? n : 0;
+                    onChange({ ...value, marginValue: String(base - 1) });
                   }}
                 >
                   −
@@ -206,7 +215,7 @@ export function RepostPricingFields({
                   inputMode="decimal"
                   value={value.marginValue}
                   onChange={(e) => onChange({ ...value, marginValue: e.target.value })}
-                  placeholder={marginKind === 'fixed' ? '10' : '5'}
+                  placeholder="0"
                   data-testid={`${testIdPrefix}-margin-value`}
                   className={sheetStepperQtyInputClass}
                   aria-label={marginKind === 'fixed' ? 'Margin rupees' : 'Margin percent'}
@@ -218,8 +227,8 @@ export function RepostPricingFields({
                   aria-label="Increase margin"
                   onClick={() => {
                     const n = Number(value.marginValue);
-                    const next = Number.isFinite(n) ? n + 1 : 1;
-                    onChange({ ...value, marginValue: String(next) });
+                    const base = Number.isFinite(n) ? n : 0;
+                    onChange({ ...value, marginValue: String(base + 1) });
                   }}
                 >
                   +
@@ -235,56 +244,16 @@ export function RepostPricingFields({
         ) : null}
 
         {editOn ? (
-          <div className="flex flex-col gap-2" data-testid={`${testIdPrefix}-edit-list`}>
-            {editDesigns.length === 0 ? (
-              <Field label="Your rate ₹">
-                <TextInput
-                  inputMode="decimal"
-                  value={value.editedRate}
-                  onChange={(e) => onChange({ ...value, editedRate: e.target.value })}
-                  placeholder="e.g. 150"
-                  data-testid={`${testIdPrefix}-edited-rate`}
-                />
-              </Field>
-            ) : (
-              editDesigns.map((row) => (
-                <div
-                  key={row.productId}
-                  className="flex items-center gap-3 rounded-xl border border-line px-3 py-2"
-                  data-testid={`${testIdPrefix}-edit-row-${row.productId}`}
-                >
-                  {row.thumbUrl ? (
-                    <img
-                      src={row.thumbUrl}
-                      alt=""
-                      className="h-12 w-12 shrink-0 rounded-lg object-cover"
-                    />
-                  ) : (
-                    <div className="h-12 w-12 shrink-0 rounded-lg bg-foam" />
-                  )}
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-emphasis text-ink">{row.name}</p>
-                    {row.supplierRate != null && Number.isFinite(row.supplierRate) ? (
-                      <p className="text-xs text-muted">
-                        {row.supplierRateLabel ?? `Supplier ₹${row.supplierRate}`}
-                      </p>
-                    ) : (
-                      <p className="text-xs text-muted">Supplier rate not shared</p>
-                    )}
-                  </div>
-                  <div className="w-24 shrink-0">
-                    <TextInput
-                      inputMode="decimal"
-                      value={editRatesByProductId[row.productId] ?? ''}
-                      onChange={(e) => onEditRateChange?.(row.productId, e.target.value)}
-                      placeholder="₹"
-                      aria-label={`Selling rate for ${row.name}`}
-                      data-testid={`${testIdPrefix}-edit-rate-${row.productId}`}
-                    />
-                  </div>
-                </div>
-              ))
-            )}
+          <div className="flex flex-col gap-2" data-testid={`${testIdPrefix}-edit-pack`}>
+            <Field label="Your rate ₹">
+              <TextInput
+                inputMode="decimal"
+                value={value.editedRate}
+                onChange={(e) => onChange({ ...value, editedRate: e.target.value })}
+                placeholder="e.g. 150"
+                data-testid={`${testIdPrefix}-edited-rate`}
+              />
+            </Field>
           </div>
         ) : null}
       </div>
@@ -355,7 +324,7 @@ export function RepostPricingFields({
             inputMode="decimal"
             value={value.marginValue}
             onChange={(e) => onChange({ ...value, marginValue: e.target.value })}
-            placeholder={value.mode === RepostPricingMode.MarginFixed ? 'e.g. 10' : 'e.g. 5'}
+            placeholder="0"
             data-testid={`${testIdPrefix}-margin-value`}
           />
         </Field>

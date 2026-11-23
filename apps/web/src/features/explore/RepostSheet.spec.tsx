@@ -229,7 +229,7 @@ describe('RepostSheet', () => {
     expect(screen.queryByText('Who can see this?')).toBeNull();
   });
 
-  it('gates calc behind Show rates; Edit shows design rows', async () => {
+  it('gates calc behind Show rates; Edit shows one pack rate', async () => {
     const user = userEvent.setup();
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(tree(target, client));
@@ -237,10 +237,11 @@ describe('RepostSheet', () => {
     expect(screen.queryByTestId('repost-pricing')).toBeNull();
     await user.click(screen.getByTestId('repost-rates-on'));
     expect(await screen.findByTestId('repost-pricing-choices')).toBeTruthy();
-    expect(screen.queryByTestId('repost-pricing-edit-list')).toBeNull();
+    expect(screen.queryByTestId('repost-pricing-edit-pack')).toBeNull();
     await user.click(screen.getByTestId('repost-pricing-edit'));
-    expect(await screen.findByTestId('repost-pricing-edit-list')).toBeTruthy();
-    expect(screen.getByTestId('repost-pricing-edit-row-p1')).toHaveTextContent('Supplier');
+    expect(await screen.findByTestId('repost-pricing-edit-pack')).toBeTruthy();
+    expect(screen.getByTestId('repost-pricing-edited-rate')).toBeTruthy();
+    expect(screen.queryByTestId('repost-pricing-edit-list')).toBeNull();
   });
 
   it('create open upgrades to Edit when repost-of finds an existing child', async () => {
@@ -409,7 +410,7 @@ describe('RepostSheet', () => {
     expect(screen.getByTestId('repost-pricing-edit')).toBeTruthy();
     expect(screen.getByTestId('repost-pricing-same')).toBeTruthy();
     await user.click(screen.getByTestId('repost-pricing-edit'));
-    expect(await screen.findByTestId('repost-pricing-edit-list')).toBeTruthy();
+    expect(await screen.findByTestId('repost-pricing-edit-pack')).toBeTruthy();
     // Same keeps Save enabled (Edit without ₹ would disable it).
     await user.click(screen.getByTestId('repost-pricing-same'));
     const save = await screen.findByTestId('repost-publish');
@@ -541,8 +542,9 @@ describe('RepostSheet', () => {
       expectRatesOn: true,
       assertUi: async () => {
         expect(await screen.findByTestId('repost-pricing-choices')).toBeTruthy();
-        expect(await screen.findByTestId('repost-pricing-edit-list')).toBeTruthy();
-        expect(screen.getByTestId('repost-pricing-edit-row-p1')).toBeTruthy();
+        expect(await screen.findByTestId('repost-pricing-edit-pack')).toBeTruthy();
+        expect(screen.getByTestId('repost-pricing-edited-rate')).toHaveValue('125');
+        expect(screen.queryByTestId('repost-pricing-edit-list')).toBeNull();
       },
     },
     {
@@ -575,7 +577,7 @@ describe('RepostSheet', () => {
         expect(screen.getByTestId('repost-pricing-same').className).not.toContain('border-accent');
         expect(screen.getByTestId('repost-pricing-edit').className).not.toContain('border-accent');
         expect(screen.getByTestId('repost-pricing-margin-value')).toHaveValue('20');
-        expect(screen.queryByTestId('repost-pricing-edit-list')).toBeNull();
+        expect(screen.queryByTestId('repost-pricing-edit-pack')).toBeNull();
       },
     },
     {
@@ -652,7 +654,7 @@ describe('RepostSheet', () => {
       }
       await assertUi();
       if (name === 'Edit') {
-        expect(screen.getByTestId('repost-pricing-edit-rate-p1')).toHaveValue('125');
+        expect(screen.getByTestId('repost-pricing-edited-rate')).toHaveValue('125');
       }
       const save = await screen.findByTestId('repost-publish');
       await user.click(save);

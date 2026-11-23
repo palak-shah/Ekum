@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import {
   ProductStatus,
+  ratesEqual,
   type CreateProductDto,
   type ListCatalogQuery,
   type PostProductToMarketDto,
@@ -18,6 +19,7 @@ import { resolveProductSku } from './sku';
 import { draftPacksLeftWithoutPublishedDesign } from './draft-packs-after-design-hide';
 import { prismaModelHasField, withPrismaField } from '../common/prisma-model-fields';
 import { MasterDataService } from './master-data/master-data.service';
+import { RepostEditInvalidateService } from './repost-edit-invalidate.service';
 
 @Injectable()
 export class ProductService {
@@ -25,6 +27,7 @@ export class ProductService {
     private readonly prisma: PrismaService,
     private readonly serializer: CatalogSerializer,
     @Optional() private readonly masterData?: MasterDataService,
+    @Optional() private readonly editInvalidate?: RepostEditInvalidateService,
   ) {}
 
   async create(
@@ -115,6 +118,12 @@ export class ProductService {
             required: false,
           })
         : undefined;
+    const oldRate =
+      existing.rate == null
+        ? null
+        : typeof existing.rate === 'number'
+          ? existing.rate
+          : Number(existing.rate);
     const product = await this.prisma.product.update({
       where: { id },
       data: {
@@ -140,6 +149,20 @@ export class ProductService {
       },
       include: productActorInclude,
     });
+    const newRate =
+      dto.rate === undefined
+        ? oldRate
+        : dto.rate == null
+          ? null
+          : Number(dto.rate);
+    if (dto.rate !== undefined && !ratesEqual(oldRate, newRate) && this.editInvalidate) {
+      await this.editInvalidate.afterProductRateChange({
+        productId: id,
+        supplierCompanyId: companyId,
+        oldRate: Number.isFinite(oldRate as number) ? (oldRate as number) : null,
+        newRate: Number.isFinite(newRate as number) ? (newRate as number) : null,
+      });
+    }
     return this.serializer.toProductView(product);
   }
 

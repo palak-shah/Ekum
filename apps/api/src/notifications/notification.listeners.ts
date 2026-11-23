@@ -12,6 +12,7 @@ import {
   type PaymentAskEvent,
   type ReturnEvent,
   type RepostSyncDesignsAddedEvent,
+  type RepostEditRateInvalidatedEvent,
 } from '../events/domain-events';
 import { PrismaService } from '../core/prisma/prisma.service';
 import { NotificationService } from './notification.service';
@@ -122,6 +123,25 @@ export class NotificationListeners {
         type: NotificationType.Collection,
         title: 'Designs added to your collection',
         body,
+        refType: 'collection',
+        refId: event.collectionId,
+      }),
+    );
+  }
+
+  @OnEvent(DomainEventName.RepostEditRateInvalidated)
+  async onRepostEditRateInvalidated(event: RepostEditRateInvalidatedEvent): Promise<void> {
+    const supplierName = await this.companyName(event.supplierCompanyId);
+    const packName = event.collectionName.trim() || 'your collection';
+    const title = supplierName
+      ? `${supplierName} changed rates for ${packName}`
+      : `Rates changed for ${packName}`;
+    await this.guard(() =>
+      this.notifications.create({
+        recipientCompanyId: event.curatorCompanyId,
+        type: NotificationType.Collection,
+        title,
+        body: 'Set your Edit rate again.',
         refType: 'collection',
         refId: event.collectionId,
       }),

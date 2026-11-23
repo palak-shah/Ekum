@@ -181,6 +181,7 @@ import {
   orderLifecycleOrderId,
   orderTagQuotePreview,
   orderTaggedUpdateText,
+  repostEditInvalidatedCollectionPath,
   shareRevokedNoticeText,
 } from './chatSystemNotice';
 import { threadDateChip } from './threadDateChip';
@@ -4028,7 +4029,19 @@ function TimelineItem({
       shareRevokedNoticeText(message, viewerCompanyId) ??
       message.body?.trim() ??
       'Notice';
-    const pill = <p className={CHAT_SYSTEM_PILL_CLASS}>{text}</p>;
+    const editPackPath = repostEditInvalidatedCollectionPath(message);
+    const pill = editPackPath ? (
+      <button
+        type="button"
+        className={CHAT_SYSTEM_PILL_CLASS}
+        data-testid={`chat-system-notice-link-${message.id}`}
+        onClick={() => navigate(editPackPath)}
+      >
+        {text}
+      </button>
+    ) : (
+      <p className={CHAT_SYSTEM_PILL_CLASS}>{text}</p>
+    );
     return (
       <div
         className="flex w-full justify-center py-1.5"

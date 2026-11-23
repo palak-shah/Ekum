@@ -39,9 +39,24 @@ export type ResolvedRepostPricing = {
   mode: RepostPricingMode | null;
 };
 
-/** Paisa-safe ₹ rounding used across order billing. */
+/** Paisa-safe ₹ rounding used across order billing / equality. */
 export function roundRepostRate(value: number): number {
   return Math.round(value * 100) / 100;
+}
+
+/**
+ * Buyer-facing display/stamp round by Rate per:
+ * mtr → nearest 0.25; pc and every other Rate per → nearest ₹1.
+ */
+export function roundRepostBuyerFacing(
+  value: number,
+  rateUnit: string | null | undefined,
+): number {
+  if (!Number.isFinite(value)) return value;
+  if (rateUnit === 'mtr') {
+    return Math.round(value * 4) / 4;
+  }
+  return Math.round(value);
 }
 
 export function isRepostPricingMode(value: unknown): value is RepostPricingMode {
@@ -133,7 +148,8 @@ export function validateRepostPricingConfig(
   };
 }
 
-function ratesEqual(a: number | null, b: number | null): boolean {
+/** Paisa equality for Edit ownBase vs live source (and invalidate matching). */
+export function ratesEqual(a: number | null, b: number | null): boolean {
   if (a == null || b == null) return a === b;
   return roundRepostRate(a) === roundRepostRate(b);
 }
@@ -148,9 +164,13 @@ export function resolveRepostDesignPricing(input: {
   sourceRate: number | null;
   /** Viewer (trader) is authorized to see that source rate. */
   sourceDisclosed: boolean;
+  /** Rate per unit — drives buyer-facing ₹1 / 0.25 round. */
+  rateUnit?: string | null;
 }): ResolvedRepostPricing {
   const config = validateRepostPricingConfig(input.config);
   const sourceDisclosed = input.sourceDisclosed === true;
+  const rateUnit = input.rateUnit ?? null;
+  const roundFacing = (v: number) => roundRepostBuyerFacing(v, rateUnit);
   // Fail closed: undisclosed source is treated as absent for calc inputs.
   const sourceRate =
     sourceDisclosed &&
@@ -175,7 +195,7 @@ export function resolveRepostDesignPricing(input: {
     return {
       sourceRate,
       sourceDisclosed,
-      buyerFacing: sourceRate,
+      buyerFacing: sourceRate != null ? roundFacing(sourceRate) : null,
       canQuoteIndependent,
       editInvalidated: false,
       mode: config.mode,
@@ -186,7 +206,7 @@ export function resolveRepostDesignPricing(input: {
     const margin = config.marginValue;
     const buyerFacing =
       sourceRate != null && margin != null
-        ? roundRepostRate(sourceRate + margin)
+        ? roundFacing(sourceRate + margin)
         : null;
     return {
       sourceRate,
@@ -202,7 +222,7 @@ export function resolveRepostDesignPricing(input: {
     const margin = config.marginValue;
     const buyerFacing =
       sourceRate != null && margin != null
-        ? roundRepostRate(sourceRate * (1 + margin / 100))
+        ? roundFacing(sourceRate * (1 + margin / 100))
         : null;
     return {
       sourceRate,
@@ -222,7 +242,7 @@ export function resolveRepostDesignPricing(input: {
       sourceRate,
       sourceDisclosed,
       buyerFacing:
-        config.editedRate != null ? roundRepostRate(config.editedRate) : null,
+        config.editedRate != null ? roundFacing(config.editedRate) : null,
       canQuoteIndependent,
       editInvalidated: false,
       mode: config.mode,
@@ -245,7 +265,7 @@ export function resolveRepostDesignPricing(input: {
     sourceRate,
     sourceDisclosed,
     buyerFacing:
-      config.editedRate != null ? roundRepostRate(config.editedRate) : null,
+      config.editedRate != null ? roundFacing(config.editedRate) : null,
     canQuoteIndependent,
     editInvalidated: false,
     mode: config.mode,

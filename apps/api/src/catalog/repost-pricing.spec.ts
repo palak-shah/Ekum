@@ -5,6 +5,7 @@ import {
   effectiveRepostPricingConfig,
   resolveImmediateSourceInput,
   resolveRepostDesignPricing,
+  roundRepostBuyerFacing,
   roundRepostRate,
   validateRepostPricingConfig,
 } from '@ekum/domain-types';
@@ -13,6 +14,14 @@ describe('repost pricing resolver (Batch 3)', () => {
   it('rounds to paisa', () => {
     expect(roundRepostRate(10.006)).toBe(10.01);
     expect(roundRepostRate(10.004)).toBe(10);
+  });
+
+  it('buyer-facing rounds ₹1/pc and 0.25/mtr', () => {
+    expect(roundRepostBuyerFacing(424.2, 'pc')).toBe(424);
+    expect(roundRepostBuyerFacing(424.6, 'pc')).toBe(425);
+    expect(roundRepostBuyerFacing(10.1, 'mtr')).toBe(10);
+    expect(roundRepostBuyerFacing(10.2, 'mtr')).toBe(10.25);
+    expect(roundRepostBuyerFacing(10.4, 'set')).toBe(10);
   });
 
   it('Same uses disclosed source; restricted source yields null', () => {
@@ -65,8 +74,35 @@ describe('repost pricing resolver (Batch 3)', () => {
         },
         sourceRate: 200,
         sourceDisclosed: true,
+        rateUnit: 'pc',
       }).buyerFacing,
     ).toBe(220);
+    expect(
+      resolveRepostDesignPricing({
+        config: {
+          mode: RepostPricingMode.MarginPercent,
+          marginValue: 1,
+          editedRate: null,
+          editOwnBase: null,
+        },
+        sourceRate: 420,
+        sourceDisclosed: true,
+        rateUnit: 'pc',
+      }).buyerFacing,
+    ).toBe(424);
+    expect(
+      resolveRepostDesignPricing({
+        config: {
+          mode: RepostPricingMode.MarginFixed,
+          marginValue: -5,
+          editedRate: null,
+          editOwnBase: null,
+        },
+        sourceRate: 420,
+        sourceDisclosed: true,
+        rateUnit: 'pc',
+      }).buyerFacing,
+    ).toBe(415);
     expect(
       resolveRepostDesignPricing({
         config: {

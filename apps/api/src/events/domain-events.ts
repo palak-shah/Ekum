@@ -18,6 +18,8 @@ export const DomainEventName = {
   FollowAllowed: 'follow.allowed',
   /** Source sync added new (non-excluded) designs to a trader's repost pack. */
   RepostSyncDesignsAdded: 'repost.sync_designs_added',
+  /** Supplier rate moved off a dependent Edit ownBase — pack Edit cleared. */
+  RepostEditRateInvalidated: 'repost.edit_rate_invalidated',
 } as const;
 
 export interface AccessApprovedEvent {
@@ -104,4 +106,12 @@ export interface RepostSyncDesignsAddedEvent {
   collectionName: string;
   ownerCompanyId: string;
   addedCount: number;
+}
+
+/** Dependent Edit cleared after supplier rate change. */
+export interface RepostEditRateInvalidatedEvent {
+  collectionId: string;
+  collectionName: string;
+  curatorCompanyId: string;
+  supplierCompanyId: string;
 }

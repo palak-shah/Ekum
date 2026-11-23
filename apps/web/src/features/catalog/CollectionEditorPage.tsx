@@ -22,6 +22,7 @@ import {
   ProductStatus,
   PublishAudience,
   RateVisibility,
+  RepostPricingMode,
   Unit,
   categoriesToTagSlots,
   createCatalogRateUnit,
@@ -565,6 +566,16 @@ export function CollectionEditorPage() {
     if (!ownerId) return false;
     return selectedProducts.some((product) => product.companyId !== ownerId);
   }, [selectedProducts, company.data?.id]);
+  /** Album Edit on curated / repost — name + own price only (not mill Order and dispatch). */
+  const isCuratedAlbumEdit = useMemo(() => {
+    if (!editing || !existing.data) return false;
+    if (Array.isArray(existing.data.memberPricing)) return true;
+    const ownerId = existing.data.companyId ?? company.data?.id;
+    if (!ownerId) return false;
+    return existing.data.products.some(
+      (product) => !product.excluded && product.companyId !== ownerId,
+    );
+  }, [editing, existing.data, company.data?.id]);
   const memberSheetCanSetLive = useMemo(() => {
     if (memberSheet?.kind !== 'product') return false;
     const product =
@@ -688,11 +699,24 @@ export function CollectionEditorPage() {
       });
       setTagSlotsState(categoriesToTagSlots(loadedCategories));
       const activeProducts = existing.data.products.filter((product) => !product.excluded);
-      // Pack rate lives on the collection; fall back to unanimous members for older packs.
+      const ownerId = existing.data.companyId;
+      const curatedChild =
+        Array.isArray(existing.data.memberPricing) ||
+        activeProducts.some((product) => product.companyId !== ownerId);
+      const facingRates = (existing.data.memberPricing ?? [])
+        .map((row) => row.buyerFacing)
+        .filter((rate): rate is number => rate != null && Number.isFinite(rate));
+      const unanimousFacing =
+        facingRates.length > 0 && facingRates.every((rate) => rate === facingRates[0])
+          ? facingRates[0]
+          : null;
+      // Pack rate lives on the collection; curated falls back to trader buyer-facing (not mill ₹).
       const loadedRate =
-        existing.data.rate != null
-          ? formatRateInput(existing.data.rate, existing.data.rateMax ?? null)
-          : unanimousMemberRate(activeProducts);
+        curatedChild && unanimousFacing != null
+          ? formatRateInput(unanimousFacing, null)
+          : existing.data.rate != null
+            ? formatRateInput(existing.data.rate, existing.data.rateMax ?? null)
+            : unanimousMemberRate(activeProducts);
       if (loadedRate || !rateFieldsHydrated.current) {
         const rateParts = splitRateInput(loadedRate);
         setRateFrom(rateParts.from);
@@ -957,6 +981,29 @@ export function CollectionEditorPage() {
       }
       const packRate = combineRateInput(rateFrom, rateTo).trim();
       const packParsed = parseRateInput(packRate);
+      if (isCuratedAlbumEdit) {
+        // Name + own price only — never rewrite mill Order and dispatch / units.
+        await api.patch<CollectionDetailView>(`/collections/${id}`, {
+          name: form.name.trim(),
+          description: form.description.trim() || undefined,
+        });
+        if (packParsed.rate != null && existing.data) {
+          await api.post(`/collections/${id}/publish`, {
+            audience: existing.data.audience || PublishAudience.Followers,
+            rateVisibility: existing.data.rateVisibility,
+            allowForward: existing.data.allowForward !== false,
+            allowDownload: existing.data.allowDownload === true,
+            showSourceShops: existing.data.showSourceShops === true,
+            companyIds: existing.data.audienceCompanyIds ?? [],
+            groupIds: existing.data.audienceGroupIds ?? [],
+            repostPricingMode: RepostPricingMode.Edit,
+            repostEditedRate: packParsed.rate,
+            repostMarginValue: null,
+            repostEditOwnBase: null,
+          });
+        }
+        return { unpublishedOwn: 0, designsFailed: false as const };
+      }
       const packSharedForDto = packStampShared(sameForAll, packRate);
       const sellAs = productFieldsFromMember({
         name: form.name,
@@ -2287,7 +2334,7 @@ export function CollectionEditorPage() {
 
   const identityFields = (
     <div className="flex flex-col gap-3">
-      {isCatalog ? (
+      {isCatalog && !isCuratedAlbumEdit ? (
         <>
           <div data-testid="catalog-exclusive-note" className={CATALOG_EXCLUSIVE_NOTE_CLASS}>
             <p className={CATALOG_EXCLUSIVE_NOTE_TEXT_CLASS}>{CATALOG_EXCLUSIVE_NOTE}</p>
@@ -2340,10 +2387,12 @@ export function CollectionEditorPage() {
       </Field>
       {!isGeneral ? (
       <div className="flex flex-col gap-2" data-testid="collection-product-details">
-        <p className="text-xs font-body uppercase tracking-wide text-muted">Product details</p>
+        <p className="text-xs font-body uppercase tracking-wide text-muted">
+          {isCuratedAlbumEdit ? 'Your rate' : 'Product details'}
+        </p>
         <ProductDetailsSlots
           category={
-            hasForeignMembers ? null : (
+            hasForeignMembers || isCuratedAlbumEdit ? null : (
             <MasterCategoryField
               required
               value={form.masterCategoryId}
@@ -2358,8 +2407,9 @@ export function CollectionEditorPage() {
               from={rateFrom}
               to={rateTo}
               rateUnit={packRateUnit}
-              permittedUnits={permittedUnits}
+              permittedUnits={isCuratedAlbumEdit ? [packRateUnit] : permittedUnits}
               onRateUnit={(next) => {
+                if (isCuratedAlbumEdit) return;
                 ratePerTouchedRef.current = true;
                 setSameForAll((prev) => applyCollectionRateUnit(prev, next));
               }}
@@ -2374,7 +2424,7 @@ export function CollectionEditorPage() {
             />
           }
           tags={
-            hasForeignMembers ? null : (
+            hasForeignMembers || isCuratedAlbumEdit ? null : (
             <CascadeTagsFields
               items={tagSlots.items}
               qualities={tagSlots.qualities}
@@ -2390,7 +2440,7 @@ export function CollectionEditorPage() {
       </div>
       ) : null}
       {isCreate && !isGeneral ? whoExpandable : null}
-      {!isGeneral ? (
+      {!isGeneral && !isCuratedAlbumEdit ? (
       <>
       {isCatalog ? null : (
       <div className="flex flex-col gap-1">

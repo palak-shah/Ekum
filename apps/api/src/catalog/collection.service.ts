@@ -3,6 +3,7 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import {
   CatalogOrderMode,
@@ -12,7 +13,9 @@ import {
   FollowAccessKind,
   JobType,
   ProductStatus,
+  ratesEqual,
   RepostOrigin,
+  RepostPricingMode,
   applyOwnerSetProductsToMembership,
   applySourceSyncToMembership,
   forcePreserveExclusions,
@@ -67,6 +70,7 @@ import {
 } from './collection-lineage';
 import { prismaModelHasField, withPrismaField } from '../common/prisma-model-fields';
 import { MasterDataService } from './master-data/master-data.service';
+import { RepostEditInvalidateService } from './repost-edit-invalidate.service';
 import {
   assertNotGeneralMutation,
   ensureGeneralCollection,
@@ -155,6 +159,7 @@ export class CollectionService {
     private readonly serializer: CatalogSerializer,
     private readonly jobs: JobQueue,
     private readonly masterData: MasterDataService,
+    @Optional() private readonly editInvalidate?: RepostEditInvalidateService,
   ) {}
 
   /**
@@ -224,6 +229,21 @@ export class CollectionService {
       dto.categories && dto.categories.length > 0
         ? dto.categories
         : (repostSource.sourceCategories ?? dto.categories ?? []);
+    const effectiveKind =
+      dto.kind === CollectionKind.Catalog
+        ? CollectionKind.Catalog
+        : repostSource.sourceKind === CollectionKind.Catalog
+          ? CollectionKind.Catalog
+          : CollectionKind.Regular;
+    const effectiveOrderMode =
+      effectiveKind === CollectionKind.Catalog
+        ? (dto.orderMode ??
+          (repostSource.sourceOrderMode === CatalogOrderMode.Whole ||
+          repostSource.sourceOrderMode === CatalogOrderMode.Pick
+            ? repostSource.sourceOrderMode
+            : CatalogOrderMode.Pick))
+        : null;
+
     if (repostSource.reuseCollectionId) {
       const reused = await this.prisma.collection.update({
         where: { id: repostSource.reuseCollectionId },
@@ -234,6 +254,15 @@ export class CollectionService {
             ? { masterCategoryId }
             : {}),
           ...(categories.length > 0 ? { categories } : {}),
+          ...(prismaModelHasField('Collection', 'kind') &&
+          repostSource.sourceKind === CollectionKind.Catalog
+            ? { kind: CollectionKind.Catalog }
+            : {}),
+          ...(prismaModelHasField('Collection', 'orderMode') &&
+          effectiveKind === CollectionKind.Catalog &&
+          effectiveOrderMode
+            ? { orderMode: effectiveOrderMode }
+            : {}),
           updatedByUserId: userId,
         },
         include: listInclude,
@@ -277,20 +306,10 @@ export class CollectionService {
               createdByUserId: userId,
               updatedByUserId: userId,
               ...(prismaModelHasField('Collection', 'kind')
-                ? {
-                    kind:
-                      dto.kind === CollectionKind.Catalog
-                        ? CollectionKind.Catalog
-                        : CollectionKind.Regular,
-                  }
+                ? { kind: effectiveKind }
                 : {}),
               ...(prismaModelHasField('Collection', 'orderMode')
-                ? {
-                    orderMode:
-                      dto.kind === CollectionKind.Catalog
-                        ? (dto.orderMode ?? CatalogOrderMode.Pick)
-                        : null,
-                  }
+                ? { orderMode: effectiveOrderMode }
                 : {}),
               ...(repostSource.repostSourceCollectionId || repostSource.repostSourceProductId
                 ? {
@@ -397,6 +416,9 @@ export class CollectionService {
     repostSourceProductId?: string | null;
     sourceMasterCategoryId?: string | null;
     sourceCategories?: string[];
+    /** Catalog source only — inherit on create/reuse. Regular/product stay unset. */
+    sourceKind?: CollectionKind | null;
+    sourceOrderMode?: CatalogOrderMode | null;
     reuseCollectionId?: string;
   }> {
     if (!dto.repostSourceCollectionId && !dto.repostSourceProductId) {
@@ -417,6 +439,8 @@ export class CollectionService {
           status: true,
           masterCategoryId: true,
           categories: true,
+          kind: true,
+          orderMode: true,
         },
       });
       if (!source || source.status !== CollectionStatus.Published) {
@@ -431,6 +455,17 @@ export class CollectionService {
           message: 'You can’t repost your own pack.',
         });
       }
+      const inheritCatalog =
+        source.kind === CollectionKind.Catalog
+          ? {
+              sourceKind: CollectionKind.Catalog as CollectionKind,
+              sourceOrderMode:
+                source.orderMode === CatalogOrderMode.Whole ||
+                source.orderMode === CatalogOrderMode.Pick
+                  ? source.orderMode
+                  : CatalogOrderMode.Pick,
+            }
+          : {};
       const existing = await this.findImmediateRepostChild(companyId, {
         sourceCollectionId: source.id,
       });
@@ -442,6 +477,7 @@ export class CollectionService {
             sourceMasterCategoryId: source.masterCategoryId,
             sourceCategories: source.categories ?? [],
             reuseCollectionId: existing.id,
+            ...inheritCatalog,
           };
         }
         throw new ConflictException({
@@ -455,6 +491,7 @@ export class CollectionService {
         repostSourceProductId: null,
         sourceMasterCategoryId: source.masterCategoryId,
         sourceCategories: source.categories ?? [],
+        ...inheritCatalog,
       };
     }
     const productId = dto.repostSourceProductId!;
@@ -665,6 +702,13 @@ export class CollectionService {
       nextName = await this.assertNameAvailable(companyId, dto.name, { excludeId: id });
     }
 
+    const existingRateRaw = (existing as { rate?: { toNumber(): number } | number | null }).rate;
+    const oldPackRate =
+      existingRateRaw == null
+        ? null
+        : typeof existingRateRaw === 'number'
+          ? existingRateRaw
+          : existingRateRaw.toNumber();
     const collection = await this.prisma.collection.update({
       where: { id },
       data: {
@@ -712,6 +756,19 @@ export class CollectionService {
       },
       include: listInclude,
     });
+    if (dto.rate !== undefined && this.editInvalidate) {
+      const newPackRate = dto.rate == null ? null : Number(dto.rate);
+      const oldN = Number.isFinite(oldPackRate as number) ? (oldPackRate as number) : null;
+      const newN = Number.isFinite(newPackRate as number) ? (newPackRate as number) : null;
+      if (!ratesEqual(oldN, newN)) {
+        await this.editInvalidate.afterSourceCollectionRateChange({
+          sourceCollectionId: id,
+          supplierCompanyId: companyId,
+          oldRate: oldN,
+          newRate: newN,
+        });
+      }
+    }
     if (endsAt !== undefined) {
       await this.scheduleExpire(id, endsAt);
       // Reload: scheduleExpire may have drafted immediately when endsAt is past.
@@ -916,6 +973,21 @@ export class CollectionService {
       },
       include: listInclude,
     });
+    // Pack/catalog Edit owns the quote — drop leftover design Edit overrides.
+    if (pricingWrite?.repostPricingMode === RepostPricingMode.Edit) {
+      await this.prisma.collectionProduct.updateMany({
+        where: {
+          collectionId: id,
+          pricingMode: RepostPricingMode.Edit,
+        },
+        data: {
+          pricingMode: null,
+          marginValue: null,
+          editedRate: null,
+          editOwnBase: null,
+        },
+      });
+    }
     await rememberPublishDefaults(this.prisma, companyId, {
       rateVisibility,
       allowForward,

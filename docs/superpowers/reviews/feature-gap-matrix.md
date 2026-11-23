@@ -1,6 +1,6 @@
 # Feature gap matrix
 
-**Updated:** 2026-11-22 (How many separators + bill total Settings)  
+**Updated:** 2026-11-23 (Pack Edit rate + supplier notify)  
 **Source:** Completeness reviews under `docs/superpowers/reviews/completeness/`  
 **Tracks:** Regression (`@smoke @regression` / BM-* units) · Functional (`@functional`)  
 **Audit:** [2026-10-22-functional-gap-audit.md](./2026-10-22-functional-gap-audit.md) — requirements vs code vs tests. Does not replace rows below.
@@ -10,10 +10,12 @@ Verification: Functional · Regression · Unit-only · Untested
 
 | Module | Capability | Product status | Verification | Completeness priority | Notes |
 |--------|------------|----------------|--------------|----------------------|-------|
+| Explore / Catalog | Pack-only Edit on Repost; Margin pack+designs; dependent Edit clear on supplier rate + bell + chat with supplier; Margin never blanks | Works | Unit | Required | Completeness 2026-11-23-pack-edit-rate-supplier-notify; album design Edit override deferred |
 | Orders | How many subtle `{shop} · {pack}` separators (no N-orders banner); footer ₹ gated by showBillTotalOnOrders (default off) | Works | Unit | Required | Completeness 2026-11-22-how-many-separators-bill-total |
 | Explore / Orders | Edit repost hydrate (Show rates + modes); trader calc Visible Clamp Redesign; buyer Explore/album/shop/via-pack ₹; createFromPack stamps buyer-facing; OrderItem immutable | Works | Unit + Prisma integration | Required | Completeness 2026-11-22-repost-edit-rates-buyer-facing; no Same wipe on rates-off Save |
 | Explore / Catalog | Remove repost (Edit sheet → Draft; preserve exploreActivityAt); mixed soft omit (local stay; honest chrome); no Delete on Explore | Works | Unit | Required | Completeness 2026-11-21-remove-repost-availability; Redesign of P1 whole-pack omit |
 | Explore | Own card + Trading → Edit post / Edit repost (shared RepostSheet; card id only; not-allowed = gray Repost; Message gray on own) | Works | Unit | Required | Completeness 2026-11-21-own-explore-edit; Redesign of own always-gray Repost |
+| Explore / Catalog | Catalog curate inherits kind+orderMode; margin starts 0 / allows −; buyer-facing ₹1/pc · 0.25/mtr; album Edit curated = name + own price | Works | Unit + live API | Required | Completeness 2026-11-23-repost-catalog-margin-edit; sheet #1–#5 |
 | Catalog / Explore | Followers skip-list: Explore feed hide only; Allowed follow opens album / Place / Saved / share | Works | Unit | Required | Completeness 2026-11-05-followers-skip-list-access; Redesign of 2026-10-29 detail-leak |
 | Catalog / Explore | Dead ends: soft shell Ask; share claim navigates only (no auto grant); DesignAlbum chat; destination CTA | Works | Unit | Required | Completeness 2026-11-06-catalog-dead-end-access; claim≠grant + 48h grant expiry lock 2026-11-20 |
 | Explore | Collection post: one photo, swipe up to 5, last card View more, name/rate/tags; iPhone can scroll the feed from the photo | Works | Unit | Required | Completeness 2026-10-19-explore-feed-carousel; BM-07 `PHOTO_STRIP_TOUCH_CLASS` pan-x pan-y |
@@ -398,8 +400,9 @@ Verification: Functional · Regression · Unit-only · Untested
 | Media | Shared WhatsApp-style photo viewer (pinch/zoom) | Works | Unit | Required | Completeness 2026-08-21; kit + chat + sheets + Explore design |
 | Catalog | Batch Add designs: SKU thumbs, 1 vs 2+ details, sheet always-open details | Works | Unit + Functional | Required | Completeness 2026-09-02-add-designs; not filename names; no chips |
 | Explore | Select preserves Design+Collection; Order resolves albums; Share/Bookmark keep types | Works | Unit | Required | Completeness 2026-09-03-explore-select-preserve-types; types preserved |
-| Browse | Order collections Continue expands packs then How many | Redesign | Unit + Functional | Required | Superseded 2026-11-22-order-skip-resolve-how-many: Order expands straight to How many (no All/Choose); Curate resolve stays; 2026-09-28 Continue no-op still applies to Curate sheet |
+| Browse | Order collections Continue expands packs then How many | Redesign | Unit + Functional | Required | Superseded 2026-11-22-order-skip-resolve-how-many: Order expands straight to How many (no All/Choose); 2026-09-28 Continue no-op still applies to Curate sheet |
 | Browse | Order skip resolve: How many collection headings + Clear / ×; whole catalog no pick/choose | Works | Unit + Functional | Required | Completeness 2026-11-22-order-skip-resolve-how-many |
+| Browse | Curate/Repost skip resolve: silent expand-all into Curate sheet | Works | Unit + Functional | Required | Completeness 2026-11-23-curate-skip-resolve |
 | Browse | Company shop: this-seller Message · Share · Order dock; Share profile (chat + OS); hide nav while dock up | Works | Unit + Functional | Required | Completeness 2026-10-09-company-shop-dock-message-share-order; one pile, shop-scoped act |
 | Catalog | Trader UI noun is **collection** (not pack) | Works | Unit | Required | Completeness 2026-10-09-collection-not-pack-copy; keep order-unit packs |
 | Browse | Company shop Collections: Explore mosaic + name; Select + same dock (resolve albums) | Works | Unit + Functional | Required | Completeness 2026-09-24-company-shop-collections |

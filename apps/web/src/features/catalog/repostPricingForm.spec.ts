@@ -42,6 +42,17 @@ describe('repostPricingForm', () => {
         RepostPricingMode.Same,
       ),
     ).toEqual({ mode: RepostPricingMode.Same, marginValue: '', editedRate: '' });
+    // Empty margin → 0 so Repost stays enabled
+    expect(
+      withExclusiveRepostPricingMode(
+        { mode: RepostPricingMode.Same, marginValue: '', editedRate: '' },
+        RepostPricingMode.MarginPercent,
+      ),
+    ).toEqual({
+      mode: RepostPricingMode.MarginPercent,
+      marginValue: '0',
+      editedRate: '',
+    });
   });
 
   it('hydrate from pack drops sibling field for exclusive mode', () => {
@@ -228,16 +239,22 @@ describe('repostPricingForm', () => {
     ).toBe(false);
   });
 
-  it('multi-design Edit needs every selling ₹; restricted source still ok when filled', () => {
-    expect(repostEditDesignsReady(['a', 'b'], { a: '10', b: '' })).toBe(false);
-    expect(repostEditDesignsReady(['a', 'b'], { a: '10', b: '12' })).toBe(true);
+  it('pack Edit ready uses collection editedRate only', () => {
+    expect(repostEditDesignsReady(['a', 'b'], {}, '140')).toBe(true);
+    expect(repostEditDesignsReady(['a', 'b'], { a: '10', b: '12' }, '')).toBe(false);
+    expect(
+      repostSheetPricingReady({
+        showRates: true,
+        form: { mode: RepostPricingMode.Edit, marginValue: '', editedRate: '150' },
+        editProductIds: ['a', 'b'],
+        editRatesByProductId: {},
+      }),
+    ).toBe(true);
     expect(
       repostSheetPricingReady({
         showRates: true,
         form: { mode: RepostPricingMode.Edit, marginValue: '', editedRate: '' },
-        editProductIds: ['a', 'b'],
-        editRatesByProductId: { a: '100', b: '110' },
       }),
-    ).toBe(true);
+    ).toBe(false);
   });
 });

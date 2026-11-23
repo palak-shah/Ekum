@@ -14,6 +14,7 @@ import {
 import { ProductService } from './product.service';
 import { CollectionService } from './collection.service';
 import { CollectionPropagateService } from './collection-propagate.service';
+import { RepostEditInvalidateService } from './repost-edit-invalidate.service';
 import { ShareLinkService } from './share-link.service';
 import { CatalogTagService } from './catalog-tag.service';
 import { CatalogSerializer } from './catalog.serializer';
@@ -54,6 +55,7 @@ import {
     ProductService,
     CollectionService,
     CollectionPropagateService,
+    RepostEditInvalidateService,
     CatalogTagService,
     MasterDataService,
     ShareLinkService,

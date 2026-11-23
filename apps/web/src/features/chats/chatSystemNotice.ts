@@ -73,10 +73,26 @@ export function isChatSystemNotice(message: {
   if (!meta) return true;
   if (meta.kind === 'member_left' || meta.kind === 'company_left') return true;
   if (meta.kind === 'share_revoked') return true;
+  if (meta.kind === 'repost_edit_rate_invalidated') return true;
   if (meta.kind === 'collection_view_request' || meta.kind === 'relist_request') return false;
   if (meta.kind === 'order_lines' || meta.kind === 'order') return false;
   if (meta.side === 'company') return false;
   return !meta.kind;
+}
+
+/** Path to reopen the cleared Edit pack from a rate-change system line. */
+export function repostEditInvalidatedCollectionPath(message: {
+  metadata?: unknown;
+}): string | null {
+  const meta = metaOf(message);
+  if (!meta || meta.kind !== 'repost_edit_rate_invalidated') return null;
+  if (typeof meta.path === 'string' && meta.path.startsWith('/collections/')) {
+    return meta.path;
+  }
+  if (typeof meta.collectionId === 'string' && meta.collectionId.trim()) {
+    return `/collections/${meta.collectionId.trim()}`;
+  }
+  return null;
 }
 
 /** Viewer-relative mill Repost-off line (Share/Forward is unrelated). Null if not that kind. */

@@ -118,10 +118,10 @@ export function repostEditDesignsReady(
   editRatesByProductId: Record<string, string>,
   packEditedRate?: string,
 ): boolean {
-  if (productIds.length === 0) {
-    return isFiniteRateDraft(packEditedRate);
-  }
-  return productIds.every((id) => isFiniteRateDraft(editRatesByProductId[id]));
+  // Pack/catalog Edit only — one selling ₹ on the collection.
+  void productIds;
+  void editRatesByProductId;
+  return isFiniteRateDraft(packEditedRate);
 }
 
 /** Calc gate for Explore Repost: skip when Show rates is OFF. */
@@ -132,13 +132,11 @@ export function repostSheetPricingReady(input: {
   editRatesByProductId?: Record<string, string>;
 }): boolean {
   if (!input.showRates) return true;
-  if (input.form.mode === RepostPricingMode.Edit && (input.editProductIds?.length ?? 0) > 0) {
-    return repostEditDesignsReady(
-      input.editProductIds ?? [],
-      input.editRatesByProductId ?? {},
-      input.form.editedRate,
-    );
+  if (input.form.mode === RepostPricingMode.Edit) {
+    return isFiniteRateDraft(input.form.editedRate);
   }
+  void input.editProductIds;
+  void input.editRatesByProductId;
   return repostPricingFormReady(input.form);
 }
 
@@ -169,7 +167,8 @@ export function withExclusiveRepostPricingMode(
   if (isPrototypeMarginMode(mode)) {
     return {
       mode,
-      marginValue: prev.marginValue,
+      // Empty looks like “not ready”; start at 0 so Repost stays enabled.
+      marginValue: prev.marginValue.trim() === '' ? '0' : prev.marginValue,
       editedRate: '',
     };
   }
