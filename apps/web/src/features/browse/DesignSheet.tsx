@@ -18,6 +18,7 @@ import { designSheetShortlistEntry } from '@/features/browse/designSheetEntry';
 import type { BrowseShortlistEntry } from '@/features/browse/browseShortlist';
 import { usePrepareCatalogOrder } from '@/features/browse/usePrepareCatalogOrder';
 import { designSheetMoreIds } from '@/features/browse/designSheetMoreIds';
+import { downloadMediaFile } from '@/lib/downloadMedia';
 import {
   addToPackActionLabel,
   type AddToPackLabelSurface,
@@ -52,6 +53,7 @@ import {
   BookmarkIcon,
   CartIcon,
   ChatIcon,
+  DownloadIcon,
   MoreHorizontalIcon,
   PaperPlaneIcon,
   CollectionIcon,
@@ -208,6 +210,7 @@ export function DesignSheet({
     canRemove: Boolean(canRemove && onRemove && collectionId),
     canDelete: Boolean(canDelete && onDelete),
     canAddToPack: Boolean(canAddToPack && onAddToPack),
+    canDownload: canDownload && urls.length > 0,
   });
 
   const publishInPack = useMutation({
@@ -316,6 +319,24 @@ export function DesignSheet({
             void save.toggle();
           },
           testId: `${testIdPrefix}-bookmark`,
+        },
+      ];
+    }
+    if (id === 'download') {
+      const src = urls[safeIndex] ?? urls[0];
+      if (!src) return [];
+      return [
+        {
+          id: 'download',
+          label: 'Download',
+          icon: <DownloadIcon width={20} height={20} />,
+          onClick: () => {
+            setMoreOpen(false);
+            void downloadMediaFile(src, product.name?.trim() || 'design').catch(() => {
+              showToast('Could not download.', 'danger');
+            });
+          },
+          testId: `${testIdPrefix}-download`,
         },
       ];
     }

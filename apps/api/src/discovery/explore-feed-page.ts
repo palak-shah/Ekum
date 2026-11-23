@@ -52,3 +52,27 @@ export function olderThanActivityWhere(
     ],
   };
 }
+
+/**
+ * Cross-kind continue: only activity strictly before the cursor time.
+ * Do not use `id < cursorEntityId` across collection vs product tables —
+ * equal timestamps would re-emit rows already on the prior page.
+ */
+export function olderThanActivityStrict(
+  postedAt: Date,
+  activityField: 'exploreActivityAt' | 'postedToMarketAt',
+): Record<string, unknown> {
+  return { [activityField]: { lt: postedAt } };
+}
+
+/** Keep first occurrence of each feedId after merge/sort. */
+export function uniqueFeedRowsById<T extends { feedId: string }>(rows: T[]): T[] {
+  const seen = new Set<string>();
+  const out: T[] = [];
+  for (const row of rows) {
+    if (seen.has(row.feedId)) continue;
+    seen.add(row.feedId);
+    out.push(row);
+  }
+  return out;
+}

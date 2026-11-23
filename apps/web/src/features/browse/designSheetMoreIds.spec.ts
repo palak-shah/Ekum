@@ -8,6 +8,17 @@ describe('designSheetMoreIds', () => {
     ).toEqual(['bookmark']);
   });
 
+  it('visitor with Allow download: Bookmark · Download', () => {
+    expect(
+      designSheetMoreIds({
+        canEdit: false,
+        canRemove: false,
+        canDelete: false,
+        canDownload: true,
+      }),
+    ).toEqual(['bookmark', 'download']);
+  });
+
   it('own design in collection: Bookmark · Edit · Remove · Delete', () => {
     expect(
       designSheetMoreIds({ canEdit: true, canRemove: true, canDelete: true }),

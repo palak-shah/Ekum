@@ -147,6 +147,15 @@ export const ShareIcon = (props: IconProps) => (
   </Icon>
 );
 
+/** Save photo / file (DesignSheet ⋯ Download). */
+export const DownloadIcon = (props: IconProps) => (
+  <Icon {...props}>
+    <path d="M12 3v12" />
+    <path d="m7 10 5 5 5-5" />
+    <path d="M5 21h14" />
+  </Icon>
+);
+
 /**
  * In-app Share (paper plane). Stroke via currentColor / theme.
  * Distinct from SendIcon (chat send) and ShareIcon (native/OS).

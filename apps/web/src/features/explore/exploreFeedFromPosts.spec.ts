@@ -9,6 +9,7 @@ import {
   exploreLandingBlocked,
   feedCursorFromMixedId,
   mixedOpportunitiesFromExplorePosts,
+  uniqueMixedOpportunitiesById,
 } from './exploreFeedFromPosts';
 
 const collectionPost = {
@@ -52,6 +53,21 @@ describe('exploreFeedFromPosts', () => {
     const rows = mixedOpportunitiesFromExplorePosts([collectionPost]);
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({ kind: 'collection', id: 'c:c1' });
+  });
+
+  it('keeps first occurrence when older pages repeat the same pack id', () => {
+    const pageA = mixedOpportunitiesFromExplorePosts([collectionPost]);
+    const pageB = mixedOpportunitiesFromExplorePosts([
+      { ...collectionPost, postedAt: '2026-09-01T10:00:00.000Z' },
+    ]);
+    const home = [{ id: 'c:other', kind: 'collection' as const }];
+    const older = uniqueMixedOpportunitiesById([...pageA, ...pageB]);
+    expect(older.map((row) => row.id)).toEqual(['c:c1']);
+    const visible = uniqueMixedOpportunitiesById([
+      ...home,
+      ...older.filter((row) => row.id !== 'c:other'),
+    ]);
+    expect(visible.map((row) => row.id)).toEqual(['c:other', 'c:c1']);
   });
 
   it('unblocks landing when first-paint posts exist', () => {

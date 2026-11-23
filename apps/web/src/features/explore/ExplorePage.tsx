@@ -72,6 +72,7 @@ import {
   exploreBuyingShouldProbeOlder,
   feedCursorFromMixedId,
   mixedOpportunitiesFromExplorePosts,
+  uniqueMixedOpportunitiesById,
 } from './exploreFeedFromPosts';
 import { loadExploreFeedSeenMap } from './exploreFeedSeen';
 import { EXPLORE_SEARCH_HINT } from './exploreSearchHint';
@@ -777,8 +778,10 @@ export function ExplorePage() {
 
   const olderPosts = useMemo(
     () =>
-      mixedOpportunitiesFromExplorePosts(
-        olderFeed.data?.pages.flatMap((page) => page.results) ?? [],
+      uniqueMixedOpportunitiesById(
+        mixedOpportunitiesFromExplorePosts(
+          olderFeed.data?.pages.flatMap((page) => page.results) ?? [],
+        ),
       ),
     [olderFeed.data?.pages],
   );
@@ -791,7 +794,8 @@ export function ExplorePage() {
     const extra = homeTailOpen
       ? olderPosts.filter((row) => !homeIds.has(row.id))
       : [];
-    return [...homeHead, ...mid, ...extra];
+    // Home + older must stay unique by post id (API continue can overlap pages).
+    return uniqueMixedOpportunitiesById([...homeHead, ...mid, ...extra]);
   }, [homeHead, homeTail, homeTailOpen, olderPosts, homeIds]);
   const feedExhausted = exploreBuyingFeedExhausted({
     homeReady: home.isSuccess,

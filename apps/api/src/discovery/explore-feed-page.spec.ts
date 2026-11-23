@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   diversifyNewestThenFill,
+  olderThanActivityStrict,
   olderThanActivityWhere,
   parseFeedCursor,
+  uniqueFeedRowsById,
 } from './explore-feed-page';
 
 describe('diversifyNewestThenFill', () => {
@@ -43,5 +45,30 @@ describe('olderThanActivityWhere', () => {
         { AND: [{ exploreActivityAt: at }, { id: { lt: 'id-9' } }] },
       ],
     });
+  });
+});
+
+describe('olderThanActivityStrict', () => {
+  it('uses only activity strictly before cursor (cross-kind continue)', () => {
+    const at = new Date('2026-11-01T00:00:00.000Z');
+    expect(olderThanActivityStrict(at, 'exploreActivityAt')).toEqual({
+      exploreActivityAt: { lt: at },
+    });
+    // Equal-timestamp collection must not reappear after a product cursor.
+    expect(olderThanActivityStrict(at, 'postedToMarketAt')).not.toEqual(
+      olderThanActivityWhere(at, 'product-9', 'postedToMarketAt'),
+    );
+  });
+});
+
+describe('uniqueFeedRowsById', () => {
+  it('keeps first feedId when merge repeats a pack', () => {
+    expect(
+      uniqueFeedRowsById([
+        { feedId: 'c:pack-1', name: 'first' },
+        { feedId: 'p:d1', name: 'design' },
+        { feedId: 'c:pack-1', name: 'dup' },
+      ]).map((row) => row.name),
+    ).toEqual(['first', 'design']);
   });
 });

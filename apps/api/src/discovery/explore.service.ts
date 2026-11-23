@@ -48,8 +48,10 @@ import {
 import { peerCompanyIdFilter, pinOwnRows, prependOwnCapped } from './explore-own-pin';
 import {
   diversifyNewestThenFill,
+  olderThanActivityStrict,
   olderThanActivityWhere,
   parseFeedCursor,
+  uniqueFeedRowsById,
 } from './explore-feed-page';
 import {
   collectionSourceShopNames,
@@ -893,24 +895,42 @@ export class ExploreService {
 
     const companyFilter = this.companyFilter(viewerCompanyId, query);
     const take = query.limit + 1;
+    // Same-kind: activity + id keyset. Cross-kind: activity strictly older only
+    // (never id < other-table cursor — equal timestamps re-emitted prior rows).
+    const collectionOlder =
+      parsed.kind === 'collection'
+        ? (olderThanActivityWhere(
+            postedAt,
+            parsed.entityId,
+            'exploreActivityAt',
+          ) as Prisma.CollectionWhereInput)
+        : (olderThanActivityStrict(postedAt, 'exploreActivityAt') as Prisma.CollectionWhereInput);
+    const productOlder =
+      parsed.kind === 'product'
+        ? (olderThanActivityWhere(
+            postedAt,
+            parsed.entityId,
+            'postedToMarketAt',
+          ) as Prisma.ProductWhereInput)
+        : (olderThanActivityStrict(postedAt, 'postedToMarketAt') as Prisma.ProductWhereInput);
     const collectionWhere: Prisma.CollectionWhereInput = {
       status: CollectionStatus.Published,
       ...publicCollectionKindWhere(),
+      // Match page-1: own packs stay out of continue (home pins them).
+      companyId: { not: viewerCompanyId },
       company: companyFilter,
       AND: [
         collectionAudienceVisibility(viewerCompanyId),
         ...liveWindowClauses(),
-        olderThanActivityWhere(postedAt, parsed.entityId, 'exploreActivityAt') as Prisma.CollectionWhereInput,
+        collectionOlder,
       ],
     };
     const productWhere: Prisma.ProductWhereInput = {
       status: ProductStatus.Published,
       postedToMarketAt: { not: null },
+      companyId: { not: viewerCompanyId },
       company: companyFilter,
-      AND: [
-        audienceVisibility(viewerCompanyId),
-        olderThanActivityWhere(postedAt, parsed.entityId, 'postedToMarketAt') as Prisma.ProductWhereInput,
-      ],
+      AND: [audienceVisibility(viewerCompanyId), productOlder],
     };
 
     const [collections, products] = await Promise.all([
@@ -928,13 +948,15 @@ export class ExploreService {
       }),
     ]);
 
-    const merged = await this.omitSoftUnavailableFeedRows(
-      viewerCompanyId,
-      await this.hideDesignsCoveredByPacks(
-        [
-          ...withLiveDesigns(collections).map((row) => this.toCollectionFeedRow(row)),
-          ...products.map((row) => this.toProductFeedRow(row)),
-        ].sort(byPostedAtDesc),
+    const merged = uniqueFeedRowsById(
+      await this.omitSoftUnavailableFeedRows(
+        viewerCompanyId,
+        await this.hideDesignsCoveredByPacks(
+          [
+            ...withLiveDesigns(collections).map((row) => this.toCollectionFeedRow(row)),
+            ...products.map((row) => this.toProductFeedRow(row)),
+          ].sort(byPostedAtDesc),
+        ),
       ),
     );
     const page = merged.slice(0, take);

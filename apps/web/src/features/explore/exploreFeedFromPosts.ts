@@ -6,6 +6,18 @@ export const EXPLORE_INITIAL_FEED_POSTS = 12;
 /** Light parallel feed for first paint while home enriches. */
 export const EXPLORE_FIRST_PAINT_POSTS = 6;
 
+/** Keep first occurrence of each row id (Load more must not re-show a card). */
+export function uniqueMixedOpportunitiesById<T extends { id: string }>(rows: T[]): T[] {
+  const seen = new Set<string>();
+  const out: T[] = [];
+  for (const row of rows) {
+    if (seen.has(row.id)) continue;
+    seen.add(row.id);
+    out.push(row);
+  }
+  return out;
+}
+
 /** Map mixed feed API rows into Explore card models (first-paint / progressive). */
 export function mixedOpportunitiesFromExplorePosts(posts: ExplorePost[]): MixedOpportunity[] {
   return posts.map((post) => {

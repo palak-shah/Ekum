@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { downloadMediaFile } from '@/lib/downloadMedia';
 import {
   classifyDrag,
   doubleTapScale,
@@ -18,26 +19,6 @@ function clamp(index: number, length: number): number {
 
 function distance(a: { x: number; y: number }, b: { x: number; y: number }): number {
   return Math.hypot(a.x - b.x, a.y - b.y);
-}
-
-async function downloadCurrentPhoto(url: string, fileBase: string) {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error('Download failed');
-  const blob = await res.blob();
-  const objectUrl = URL.createObjectURL(blob);
-  const anchor = document.createElement('a');
-  const ext =
-    blob.type === 'image/png'
-      ? 'png'
-      : blob.type === 'image/webp'
-        ? 'webp'
-        : 'jpg';
-  anchor.href = objectUrl;
-  anchor.download = `${fileBase || 'design'}.${ext}`;
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  URL.revokeObjectURL(objectUrl);
 }
 
 export function PhotoViewer({
@@ -241,7 +222,7 @@ export function PhotoViewer({
             data-testid="photo-viewer-download"
             className="rounded-full px-3 py-1.5 text-sm font-emphasis hover:bg-white/10"
             onClick={() => {
-              void downloadCurrentPhoto(src, downloadFileBase ?? caption ?? 'design').catch(
+              void downloadMediaFile(src, downloadFileBase ?? caption ?? 'design').catch(
                 () => undefined,
               );
             }}
