@@ -9,7 +9,7 @@ export {
 
 export const YOU_LIBRARY_TABS: Array<{ id: YouLibraryTab; label: string; testId: string }> = [
   { id: 'collections', label: 'Collections', testId: 'you-tab-collections' },
-  { id: 'catalogs', label: 'Catalogs', testId: 'you-tab-catalogs' },
+  { id: 'catalogs', label: 'Catalogues', testId: 'you-tab-catalogs' },
   { id: 'products', label: 'Designs', testId: 'you-tab-designs' },
 ];
 

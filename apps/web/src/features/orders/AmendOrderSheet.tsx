@@ -195,7 +195,10 @@ export function AmendOrderSheet({
                 setSameOpen(true);
               }}
             >
-              {sameForAllChipLabel(sharedQty)}
+              {sameForAllChipLabel(
+                sharedQty,
+                remaining[0] ? qtyCountNoun(remaining[0].unit) : null,
+              )}
             </button>
           )
         ) : null}

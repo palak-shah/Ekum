@@ -82,13 +82,13 @@ const PAIR: Array<{ name: string; fn: CopyFn }> = [
 ];
 
 const COLLECTION_WORD = /\bcollections?\b/i;
-const CATALOG_WORD = /\bcatalogs?\b/i;
+const CATALOGUE_WORD = /\bcatalogues?\b/i;
 
 describe('pack kind copy never interchanges', () => {
-  it('catalog strings say catalog, not collection', () => {
+  it('catalogue strings say catalogue, not collection', () => {
     for (const row of PAIR) {
       const text = row.fn(CATALOG);
-      expect(text, row.name).toMatch(CATALOG_WORD);
+      expect(text, row.name).toMatch(CATALOGUE_WORD);
       expect(text, row.name).not.toMatch(COLLECTION_WORD);
     }
     expect(noDesignsInThisPack(CATALOG)).not.toMatch(COLLECTION_WORD);
@@ -98,48 +98,48 @@ describe('pack kind copy never interchanges', () => {
     expect(publishingThisPackExplore(CATALOG)).not.toMatch(COLLECTION_WORD);
     expect(ratesOnRequestWhenForeign(CATALOG)).not.toMatch(COLLECTION_WORD);
     expect(packNameTakenBody('Diwali', CATALOG)).not.toMatch(COLLECTION_WORD);
-    expect(askToSeeThisPackBody('Ravi Textiles', CATALOG)).toMatch(CATALOG_WORD);
+    expect(askToSeeThisPackBody('Ravi Textiles', CATALOG)).toMatch(CATALOGUE_WORD);
     expect(askedToOpenThisPack('Ravi Textiles', CATALOG)).not.toMatch(COLLECTION_WORD);
-    expect(deleteOnlyThisPackBody(CATALOG)).toMatch(/this catalog/);
+    expect(deleteOnlyThisPackBody(CATALOG)).toMatch(/this catalogue/);
   });
 
-  it('collection strings say collection, not catalog', () => {
+  it('collection strings say collection, not catalogue', () => {
     for (const row of PAIR) {
       const text = row.fn(COLLECTION);
       expect(text, row.name).toMatch(COLLECTION_WORD);
-      expect(text, row.name).not.toMatch(CATALOG_WORD);
+      expect(text, row.name).not.toMatch(CATALOGUE_WORD);
     }
-    expect(noDesignsInThisPack(COLLECTION)).not.toMatch(CATALOG_WORD);
-    expect(publishThisPackConsent(COLLECTION)).not.toMatch(CATALOG_WORD);
-    expect(publishingThisPackExplore(COLLECTION)).not.toMatch(CATALOG_WORD);
-    expect(packNameTakenBody('Wedding', COLLECTION)).not.toMatch(CATALOG_WORD);
-    expect(askedToOpenThisPack('Ravi Textiles', COLLECTION)).not.toMatch(CATALOG_WORD);
+    expect(noDesignsInThisPack(COLLECTION)).not.toMatch(CATALOGUE_WORD);
+    expect(publishThisPackConsent(COLLECTION)).not.toMatch(CATALOGUE_WORD);
+    expect(publishingThisPackExplore(COLLECTION)).not.toMatch(CATALOGUE_WORD);
+    expect(packNameTakenBody('Wedding', COLLECTION)).not.toMatch(CATALOGUE_WORD);
+    expect(askedToOpenThisPack('Ravi Textiles', COLLECTION)).not.toMatch(CATALOGUE_WORD);
   });
 
-  it('New catalog vs New collection, Catalog name vs Collection name', () => {
-    expect(newPackTitle(CATALOG)).toBe('New catalog');
+  it('New catalogue vs New collection, Catalogue name vs Collection name', () => {
+    expect(newPackTitle(CATALOG)).toBe('New catalogue');
     expect(newPackTitle(COLLECTION)).toBe('New collection');
-    expect(editPackTitle(CATALOG)).toBe('Edit catalog');
-    expect(packNameLabel(CATALOG)).toBe('Catalog name');
+    expect(editPackTitle(CATALOG)).toBe('Edit catalogue');
+    expect(packNameLabel(CATALOG)).toBe('Catalogue name');
     expect(packNameLabel(COLLECTION)).toBe('Collection name');
-    expect(updatePackLabel(CATALOG)).toBe('Update catalog');
-    expect(enterPackNameError(CATALOG)).toBe('Enter a catalog name.');
-    expect(findInThisPack(CATALOG)).toBe('Find in this catalog');
-    expect(shareThisPackLabel(CATALOG)).toBe('Share this catalog');
+    expect(updatePackLabel(CATALOG)).toBe('Update catalogue');
+    expect(enterPackNameError(CATALOG)).toBe('Enter a catalogue name.');
+    expect(findInThisPack(CATALOG)).toBe('Find in this catalogue');
+    expect(shareThisPackLabel(CATALOG)).toBe('Share this catalogue');
     expect(createKindFromFlag(true)).toBe(CollectionKind.Catalog);
     expect(createKindFromFlag(false)).toBe(CollectionKind.Regular);
   });
 
-  it('ask-to-see body may mention your collection as the dest, never this collection on a catalog', () => {
+  it('ask-to-see body may mention your collection as the dest, never this collection on a catalogue', () => {
     const catalogAsk = askToSeeThisPackBody('Meena', CATALOG);
-    expect(catalogAsk).toContain('this catalog');
+    expect(catalogAsk).toContain('this catalogue');
     expect(catalogAsk).not.toContain('this collection');
     expect(catalogAsk).toContain('your collection');
   });
 
   it('soft-unavailable copy is not Ask / Request to access', () => {
     expect(packUnavailableTitle(COLLECTION)).toMatch(/isn’t available/);
-    expect(packUnavailableTitle(CATALOG)).toMatch(/catalog/);
+    expect(packUnavailableTitle(CATALOG)).toMatch(/catalogue/);
     expect(packUnavailableBody()).not.toMatch(/Ask|Request to access/i);
     expect(packUnavailableBody()).toMatch(/source/i);
   });

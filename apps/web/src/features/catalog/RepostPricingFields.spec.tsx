@@ -8,7 +8,7 @@ import { defaultPackRepostPricingForm } from './repostPricingForm';
 afterEach(() => cleanup());
 
 describe('RepostPricingFields prototype', () => {
-  it('shows Same / Edit / ± Margin and hides per-design inputs on Same', () => {
+  it('shows Same as supplier / Edit rate / Set margin and hides per-design inputs on Same', () => {
     render(
       <RepostPricingFields
         variant="prototype"

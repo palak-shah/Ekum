@@ -172,7 +172,6 @@ export function PublishAudienceFields({
   const showSelectedExtras = state.audience === PublishAudience.Selected;
   const showRules = whoReady;
   const showWhen = whoReady;
-  const hasCeiling = Boolean(maxAudience);
   const downloadLocked = maxAllowDownload === false;
   const forwardLocked = maxAllowForward === false;
   const excludeSet = useMemo(
@@ -307,9 +306,6 @@ export function PublishAudienceFields({
             );
           })}
         </div>
-        {hasCeiling ? (
-          <p className="mt-2 text-xs text-muted">Limited by a sourced design’s audience.</p>
-        ) : null}
 
         {showSelectedExtras ? (
           <div className="mt-3 flex flex-col gap-3">
@@ -413,12 +409,12 @@ export function PublishAudienceFields({
         <div className="flex flex-col gap-3">
           {!hideShowRates ? (
             <div>
-              <p className="mb-2 text-sm font-emphasis text-ink">Show rates?</p>
+              <p className="mb-2 text-sm font-emphasis text-ink">Show rates</p>
               <div className="flex flex-col gap-1.5">
                 {(
                   [
                     [RateVisibility.OnRequest, 'On request'],
-                    [RateVisibility.Visible, 'Visible'],
+                    [RateVisibility.Visible, 'Show rates'],
                   ] as const
                 ).map(([value, label]) => (
                   <button

@@ -53,7 +53,7 @@ export class NotificationListeners {
     const title =
       event.accessKind === 'pack'
         ? shopName
-          ? `${shopName} let you repost`
+          ? `${shopName} allowed you to repost their collections`
           : 'Repost allowed'
         : shopName
           ? `${shopName} accepted your follow`

@@ -171,11 +171,11 @@ describe('addToPackActionLabel', () => {
     expect(addToPackCanOffer([inCatalog])).toBe(true);
     expect(addToPackIsMove([inCatalog])).toBe(true);
     expect(addToPackCanOffer([gc, inCatalog])).toBe(false);
-    expect(addToPackActionLabel([gc], 'library')).toBe('Add to collection / catalog');
-    expect(addToPackActionLabel([inPack], 'library')).toBe('Add to collection / catalog');
+    expect(addToPackActionLabel([gc], 'library')).toBe('Add to collection / catalogue');
+    expect(addToPackActionLabel([inPack], 'library')).toBe('Add to collection / catalogue');
     expect(addToPackActionLabel([inPack], 'album')).toBe('Add to other collections');
-    expect(addToPackActionLabel([inCatalog], 'library')).toBe('Move to catalog / collection');
-    expect(addToPackActionLabel([inCatalog], 'album')).toBe('Move to catalog / collection');
+    expect(addToPackActionLabel([inCatalog], 'library')).toBe('Move to catalogue / collection');
+    expect(addToPackActionLabel([inCatalog], 'album')).toBe('Move to catalogue / collection');
     expect(addToPackConfirmLabel([inCatalog])).toBe('Move');
     expect(addToPackConfirmLabel([gc])).toBe('Add');
     expect(addToPackActionLabel([gc])).toBe('Add to other collections');
@@ -192,8 +192,8 @@ describe('libraryDesignMembershipLine', () => {
 });
 
 describe('addToPackAddedToast', () => {
-  it('names catalog vs one vs many collections', () => {
-    expect(addToPackAddedToast({ collectionIds: [], catalogId: 'cat' })).toBe('Added to catalog');
+  it('names catalogue vs one vs many collections', () => {
+    expect(addToPackAddedToast({ collectionIds: [], catalogId: 'cat' })).toBe('Added to catalogue');
     expect(addToPackAddedToast({ collectionIds: ['col'], catalogId: null })).toBe(
       'Added to collection',
     );
@@ -201,7 +201,7 @@ describe('addToPackAddedToast', () => {
       'Added to 2 collections',
     );
     expect(addToPackAddedToast({ collectionIds: [], catalogId: 'cat' }, true)).toBe(
-      'Moved to catalog',
+      'Moved to catalogue',
     );
     expect(addToPackAddedToast({ collectionIds: ['col'], catalogId: null }, true)).toBe(
       'Moved to collection',
@@ -215,17 +215,17 @@ describe('libraryPickerHint', () => {
     expect(libraryPickerHint('regular', false)).not.toMatch(/General Collection/);
   });
 
-  it('replace hint keeps catalog vs collection', () => {
-    expect(libraryPickerHint('catalog', true)).toMatch(/keeps the catalog/);
+  it('replace hint keeps catalogue vs collection', () => {
+    expect(libraryPickerHint('catalog', true)).toMatch(/keeps the catalogue/);
     expect(libraryPickerHint('catalog', true)).not.toMatch(/collection/);
     expect(libraryPickerHint('regular', true)).toMatch(/keeps the collection/);
-    expect(libraryPickerHint('regular', true)).not.toMatch(/catalog/);
+    expect(libraryPickerHint('regular', true)).not.toMatch(/catalogue/);
   });
 });
 
 describe('libraryPickerEmptyCopy', () => {
-  it('explains catalog leftovers vs already-in-this-collection', () => {
-    expect(libraryPickerEmptyCopy('catalog')).toMatch(/General Collection/);
-    expect(libraryPickerEmptyCopy('regular')).toMatch(/already in this collection/);
+  it('uses one empty line for both pack kinds', () => {
+    expect(libraryPickerEmptyCopy('regular')).toBe('No designs to add');
+    expect(libraryPickerEmptyCopy('catalog')).toBe('No designs to add');
   });
 });

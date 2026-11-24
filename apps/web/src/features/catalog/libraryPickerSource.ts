@@ -182,8 +182,8 @@ export function addToPackCanOffer(
 }
 
 /**
- * Exclusive: Move to catalog / collection.
- * Library (You Designs / General Collection): Add to collection / catalog.
+ * Exclusive: Move to catalogue / collection.
+ * Library (You Designs / General Collection): Add to collection / catalogue.
  * Regular album: Add to other collections.
  */
 export function addToPackActionLabel(
@@ -194,8 +194,8 @@ export function addToPackActionLabel(
   }[],
   surface: AddToPackLabelSurface = 'album',
 ): string {
-  if (addToPackIsMove(designs)) return 'Move to catalog / collection';
-  if (surface === 'library') return 'Add to collection / catalog';
+  if (addToPackIsMove(designs)) return 'Move to catalogue / collection';
+  if (surface === 'library') return 'Add to collection / catalogue';
   return 'Add to other collections';
 }
 
@@ -244,18 +244,18 @@ export function addToPackEmptyCopy(designs: readonly {
   collectionNames?: string[];
 }[]): string {
   if (addToPackIsMixedExclusive(designs)) {
-    return 'Pick leftover designs, or only catalog designs, not both.';
+    return 'Pick leftover designs, or only catalogue designs, not both.';
   }
-  return 'Create a collection or catalog first.';
+  return 'Create a collection or catalogue first.';
 }
 
 export function addToPackAddedToast(pick: AddToPackPick, move = false): string {
   if (move) {
-    if (pick.catalogId) return 'Moved to catalog';
+    if (pick.catalogId) return 'Moved to catalogue';
     const n = pick.collectionIds.length;
     return n === 1 ? 'Moved to collection' : `Moved to ${n} collections`;
   }
-  if (pick.catalogId) return 'Added to catalog';
+  if (pick.catalogId) return 'Added to catalogue';
   const n = pick.collectionIds.length;
   return n === 1 ? 'Added to collection' : `Added to ${n} collections`;
 }
@@ -275,8 +275,6 @@ export function libraryPickerHint(
   return 'Tap to add. Added designs show in your album — Done when finished.';
 }
 
-export function libraryPickerEmptyCopy(packKind: 'regular' | 'catalog'): string {
-  return packKind === 'catalog'
-    ? 'Only leftover designs from General Collection can join a catalog.'
-    : 'All your designs are already in this collection.';
+export function libraryPickerEmptyCopy(_packKind: 'regular' | 'catalog'): string {
+  return 'No designs to add';
 }

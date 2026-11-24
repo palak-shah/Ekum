@@ -14,10 +14,10 @@ import {
 } from '@/features/catalog/repostPricingForm';
 
 const MODE_OPTIONS = [
-  [RepostPricingMode.Same, 'Same as source'],
-  [RepostPricingMode.MarginFixed, 'Add ₹ margin'],
-  [RepostPricingMode.MarginPercent, 'Add % margin'],
-  [RepostPricingMode.Edit, 'Edit quote'],
+  [RepostPricingMode.Same, 'Same as supplier'],
+  [RepostPricingMode.MarginFixed, 'Set margin ₹'],
+  [RepostPricingMode.MarginPercent, 'Set margin %'],
+  [RepostPricingMode.Edit, 'Edit rate'],
 ] as const;
 
 export type RepostEditDesignRow = {
@@ -42,7 +42,7 @@ const segClass = (selected: boolean) =>
 /**
  * Pack / design buyer-facing calc controls (Batch 3 language).
  * Show rates (`rateVisibility`) stays outside this block.
- * `variant="prototype"` = Explore RepostSheet compact Same / Edit / ± Margin.
+ * `variant="prototype"` = Explore RepostSheet compact Same as supplier / Edit rate / Set margin.
  */
 export function RepostPricingFields({
   value,
@@ -116,7 +116,7 @@ export function RepostPricingFields({
                 onChange(withExclusiveRepostPricingMode(value, RepostPricingMode.Same))
               }
             >
-              Same
+              Same as supplier
             </button>
             <button
               type="button"
@@ -143,7 +143,7 @@ export function RepostPricingFields({
                 )
               }
             >
-              ± Margin
+              Set margin
             </button>
           </div>
         </div>

@@ -1,6 +1,6 @@
 # Feature gap matrix
 
-**Updated:** 2026-11-24 (Repost audit #15–#20)  
+**Updated:** 2026-11-24 (Repost audit #24–#40 copy)  
 **Source:** Completeness reviews under `docs/superpowers/reviews/completeness/`  
 **Tracks:** Regression (`@smoke @regression` / BM-* units) · Functional (`@functional`)  
 **Audit:** [2026-10-22-functional-gap-audit.md](./2026-10-22-functional-gap-audit.md) — requirements vs code vs tests. Does not replace rows below.
@@ -10,6 +10,7 @@ Verification: Functional · Regression · Unit-only · Untested
 
 | Module | Capability | Product status | Verification | Completeness priority | Notes |
 |--------|------------|----------------|--------------|----------------------|-------|
+| Explore / Catalog / Orders / Notifications | Audit #24–#40 copy: Same as supplier / Edit rate / Set margin; On request / Show rates; plain loader; no helpers; Create & share link; one busy label; thumb-only skip; All: n unit; one album from-line; catalogue spelling; short exclusive; No designs to add; Pack notify | Works | Unit | Required | Completeness 2026-11-24-repost-audit-24-40-copy; #29/#30/#34 verified |
 | Explore / Orders / Notifications | Audit #15–#20: create inherit+ceilings; Selected exclude chain; album ⋯/Select Repost; Explore leave clears explore-origin only; How many blank; notify header + Shared coalesce; drop feed new-design meta | Works | Unit | Required | Completeness 2026-11-24-repost-audit-15-20; no supplier “reposted” bell |
 | Explore | viewerReposted mill card + own child: Your ₹ + Supplier ₹ + Margin; edit sheets previous+supplier | Works | Unit | Required | Completeness 2026-11-24-owner-viewer-repost-feed-rates; Redesign of #7 not-on-Explore |
 | Explore / Orders | Owner Supplier ₹ cue; done icon accent + Reposted toast; feed bump on published member add; Place pack-scoped immutable rates; How many ₹ + sets=pcs gated by showBillTotalOnOrders | Works | Unit + Prisma integration + live API | Required | Completeness 2026-11-24-repost-supplier-rate-feed-bill; sheet #7–#10 #12; Clamp Redesign How many conversion |

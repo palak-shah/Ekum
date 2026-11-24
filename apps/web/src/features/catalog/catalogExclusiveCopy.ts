@@ -1,6 +1,6 @@
-/** Why-block on New catalog / Edit catalog — own members follow the catalog. */
+/** Why-block on New catalogue / Edit catalogue — own members follow the catalogue. */
 export const CATALOG_EXCLUSIVE_NOTE =
-  'All designs in this catalog are exclusive. They use this catalog’s category, rates, and dispatch.';
+  'Designs in this catalogue are exclusive.';
 
 /** Same wash as order-line notes — important, not a quiet Card. */
 export const CATALOG_EXCLUSIVE_NOTE_CLASS =

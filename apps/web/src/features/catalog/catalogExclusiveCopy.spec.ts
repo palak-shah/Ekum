@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  CATALOG_EXCLUSIVE_NOTE,
   CATALOG_EXCLUSIVE_NOTE_CLASS,
   CATALOG_EXCLUSIVE_NOTE_TEXT_CLASS,
 } from './catalogExclusiveCopy';
@@ -9,5 +10,9 @@ describe('catalog exclusive note highlight', () => {
     expect(CATALOG_EXCLUSIVE_NOTE_CLASS).toMatch(/bg-warning-soft/);
     expect(CATALOG_EXCLUSIVE_NOTE_TEXT_CLASS).toMatch(/font-emphasis/);
     expect(CATALOG_EXCLUSIVE_NOTE_TEXT_CLASS).toMatch(/text-warning-ink/);
+  });
+
+  it('keeps the exclusive blurb short with catalogue spelling', () => {
+    expect(CATALOG_EXCLUSIVE_NOTE).toBe('Designs in this catalogue are exclusive.');
   });
 });

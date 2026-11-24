@@ -28,45 +28,49 @@ function isHttpUrl(value: string | null | undefined): value is string {
   return Boolean(value && /^https?:\/\//i.test(value));
 }
 
-function DesignRow({
+function DesignThumb({ row }: { row: RepostSkipRow }) {
+  return (
+    <div
+      className="h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-foam"
+      title={row.name}
+      data-testid="repost-eligible-row"
+    >
+      {row.thumbUrl && isHttpUrl(row.thumbUrl) ? (
+        <ManagedImage
+          src={row.thumbUrl}
+          alt=""
+          variant={MEDIA_VARIANT.Thumbnail1}
+          className="h-full w-full object-cover"
+        />
+      ) : (
+        <span className="flex h-full w-full items-center justify-center text-sm font-body text-muted">
+          {row.name.slice(0, 1).toUpperCase()}
+        </span>
+      )}
+    </div>
+  );
+}
+
+/** Blocked row: thumb + quiet reason / Ask — no design name or supplier line. */
+function BlockedRow({
   row,
-  muted,
   reason,
   askLabel,
   onAsk,
 }: {
   row: RepostSkipRow;
-  muted?: boolean;
   reason?: string;
   askLabel?: string;
   onAsk?: () => void;
 }) {
   return (
     <li
-      className={cx(
-        'flex items-center gap-2.5 rounded-xl border px-2.5 py-2',
-        muted ? 'border-line bg-foam/60' : 'border-line bg-surface',
-      )}
-      data-testid={muted ? 'curate-blocked-row' : 'repost-eligible-row'}
+      className="flex items-center gap-2.5 rounded-xl border border-line bg-foam/60 px-2.5 py-2"
+      data-testid="curate-blocked-row"
     >
-      <div className="h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-foam">
-        {row.thumbUrl && isHttpUrl(row.thumbUrl) ? (
-          <ManagedImage
-            src={row.thumbUrl}
-            alt=""
-            variant={MEDIA_VARIANT.Thumbnail1}
-            className="h-full w-full object-cover"
-          />
-        ) : (
-          <span className="flex h-full w-full items-center justify-center text-sm font-body text-muted">
-            {row.name.slice(0, 1).toUpperCase()}
-          </span>
-        )}
-      </div>
+      <DesignThumb row={row} />
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-emphasis text-ink">{row.name}</p>
-        <p className="truncate text-[12px] text-muted">{row.companyName}</p>
-        {reason ? <p className="mt-0.5 text-[12px] font-body text-muted">{reason}</p> : null}
+        {reason ? <p className="text-[12px] font-body text-muted">{reason}</p> : null}
       </div>
       {askLabel && onAsk ? (
         <button
@@ -129,9 +133,14 @@ export function RepostSkipSection({
   return (
     <div className="flex flex-col gap-2">
       {allowed.length > 0 ? (
-        <ul className="flex max-h-44 flex-col gap-2 overflow-y-auto" data-testid="repost-eligible-list">
+        <ul
+          className="flex max-h-44 flex-wrap gap-2 overflow-y-auto"
+          data-testid="repost-eligible-list"
+        >
           {allowed.map((row) => (
-            <DesignRow key={row.productId} row={row} />
+            <li key={row.productId}>
+              <DesignThumb row={row} />
+            </li>
           ))}
         </ul>
       ) : null}
@@ -164,10 +173,9 @@ export function RepostSkipSection({
             const waiting = Boolean(pendingByProductId[row.productId]);
             const showAsk = relistAskable.some((item) => item.productId === row.productId);
             return (
-              <DesignRow
+              <BlockedRow
                 key={row.productId}
                 row={row}
-                muted
                 reason={
                   waiting
                     ? 'Waiting for Allow'

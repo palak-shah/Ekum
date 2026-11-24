@@ -1,13 +1,13 @@
 import { CollectionKind } from '@ekum/domain-types';
 import { isCatalogCollection } from './youLibraryKind';
 
-/** User-facing pack noun. Catalog never reads as collection. */
-export function packNoun(kind?: string | null): 'catalog' | 'collection' {
-  return isCatalogCollection(kind) ? 'catalog' : 'collection';
+/** User-facing pack noun. Catalogue never reads as collection (`kind=catalog` unchanged). */
+export function packNoun(kind?: string | null): 'catalogue' | 'collection' {
+  return isCatalogCollection(kind) ? 'catalogue' : 'collection';
 }
 
-export function packNounCap(kind?: string | null): 'Catalog' | 'Collection' {
-  return isCatalogCollection(kind) ? 'Catalog' : 'Collection';
+export function packNounCap(kind?: string | null): 'Catalogue' | 'Collection' {
+  return isCatalogCollection(kind) ? 'Catalogue' : 'Collection';
 }
 
 export function thisPack(kind?: string | null): string {

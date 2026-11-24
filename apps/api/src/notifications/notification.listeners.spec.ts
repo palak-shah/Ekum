@@ -103,6 +103,23 @@ describe('NotificationListeners enriched copy', () => {
     );
   });
 
+  it('Pack follow Allow uses clear repost collections title', async () => {
+    const { listeners, create } = makeListeners({ 'shop-1': 'Surat Silk House' });
+    await listeners.onFollowAllowed({
+      shopCompanyId: 'shop-1',
+      followerCompanyId: 'trader-1',
+      accessKind: 'pack',
+    });
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        recipientCompanyId: 'trader-1',
+        title: 'Surat Silk House allowed you to repost their collections',
+        refType: 'company',
+        refId: 'shop-1',
+      }),
+    );
+  });
+
   it('payment requested names the seller and order label', async () => {
     const { listeners, create } = makeListeners({ 'seller-1': 'Ravi Mills' });
     await listeners.onPaymentRequested({

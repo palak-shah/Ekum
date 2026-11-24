@@ -1374,12 +1374,6 @@ export function CollectionViewerPage() {
                 {ownerSourceLine}
               </p>
             ) : null}
-            {data.products && showHandleCopy ? (
-              <div className="px-0.5" data-testid="collection-order-goes-to">
-                <p className="text-sm font-emphasis text-ink">Order goes to {data.company.name}</p>
-                <p className="text-xs text-muted">You chat with them. They send the mill lots on.</p>
-              </div>
-            ) : null}
           </div>
         ) : null}
 
@@ -1924,7 +1918,7 @@ export function CollectionViewerPage() {
             <LoadingBlock label="Loading designs…" />
           ) : selectableDesigns.length === 0 ? (
             <div className="flex flex-col items-center gap-3 py-6 text-center">
-              <p className="text-sm text-muted">No designs in your library yet.</p>
+              <p className="text-sm text-muted">No designs to add</p>
               <Button
                 variant="secondary"
                 onClick={() => {

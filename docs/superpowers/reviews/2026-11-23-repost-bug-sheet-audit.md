@@ -9,20 +9,22 @@ No fixes in this pass — pick a row `#` to fix next.
 
 | Verdict | Count |
 |---|---:|
-| Fixed (this pass) | 15 (#1–#5, #7–#8, #11–#12, #15–#20) |
-| Already fixed / verified | 8 (#9–#10 + prior WAD) |
+| Fixed (this pass) | 29 (#1–#5, #7–#8, #11–#12, #15–#20, #24–#28, #31–#33, #35–#40) |
+| Already fixed / verified | 11 (#9–#10, #13–#14, #22, #29–#30, #34, #41 + prior WAD) |
 | Confirmed bug (remaining) | 5 |
 | Misunderstanding | 2 |
 | Change / feature | 5 |
-| Text | 12 |
+| Text | 0 |
 | Discuss / Needs product lock | 2 |
 | Partial / needs more hops | 0 |
 | **Total** | **48** |
 
 **Fixed this pass (#1–#5 + #11 via #1):** Completeness `2026-11-23-repost-catalog-margin-edit-completeness`. Live: new catalog curate → `kind=catalog`/`whole`; 1% margin → **₹424**; margin 0/−; album Edit strips Order/dispatch.  
 **Fixed / verified (#7–#10 + #12):** Completeness `2026-11-24-repost-supplier-rate-feed-bill-completeness`. Owner Supplier ₹; done icon accent + Reposted toast; feed bump on published member add; Place pack-scoped rates immutable (two-pack integration); How many ₹ + sets=pcs gated by Show bill total (default OFF).  
-**Fix next (High):** **#6** · **#15** · **#47** · **#17**  
-**Do not silent-fix:** **#18**/#48 · **#30** · **#24–25**
+**Fixed (#15–#20):** Completeness `2026-11-24-repost-audit-15-20`.  
+**Fixed (#24–#40 copy):** Completeness `2026-11-24-repost-audit-24-40-copy` — pricing/Show rates dialect, plain loader, no helpers, Create & share link, thumb-only skip, All: n unit, one album from-line, catalogue spelling, short exclusive, empty add, Pack notify. #29/#30/#34 verified.  
+**Fix next (High):** **#6** · **#47**  
+**Do not silent-fix:** **#18**/#48 · **#45**
 
 ## Scenario notes
 
@@ -60,23 +62,23 @@ No fixes in this pass — pick a row `#` to fix next.
 | 21 | Supplier · Who has access | Navigates to Edit behind pop-up | **Confirmed bug** | Pattern matches Edit collection details navigation side-effect; not re-clicked on catalogue this pass — keep Confirmed from sheet + known Who→edit coupling. | Low |
 | 22 | Buyer · Orders tab | Opens Selling | **Already fixed / WAD** | [`firstOrdersListTabWithContent`](apps/web/src/features/orders/ordersListDefault.spec.ts): empty Selling → Buying when buying has rows. Buyer-only empty-all still Selling. | Low |
 | 23 | All · Misc UI | Tick / Following / header | **Change / feature** | Multiple chrome dialect asks; needs design lock, not one patch. | Low |
-| 24 | Copy · rate options | Sheet vs Who has access names | **Text** | Align labels after product decides one set of words. | Medium |
-| 25 | Copy · show-rate titles | Visibility & rates vs Who has access | **Text** | Same. | Medium |
-| 26 | Copy · loader | “Checking which can go in…” | **Text** | Live string in [`RepostSheet.tsx`](apps/web/src/features/explore/RepostSheet.tsx). | Low |
-| 27 | Copy · rates helper | Wrong “Rates stay on request…” | **Text** | Same file — helper still rendered. | Medium |
-| 28 | Copy · audience helper | “Limited by a sourced…” | **Text** | Remove per sheet. | Low |
-| 29 | Copy · Show supplier | Long why-line | **Text** | Label-only per sheet. | Low |
-| 30 | Copy · checkboxes | Add + download vs Allow labels | **Discuss** | Needs product decision (merge / rename). Don’t silent-merge. | Medium |
-| 31 | Copy · share link | “Repost + share a link · 48 hours” | **Text** | String in RepostSheet. | Low |
-| 32 | Copy · loading | Reposting… + Working… | **Text** | Both strings present in RepostSheet. | Low |
-| 33 | Copy · design rows | Codes + supplier on each | **Text** / Change | Thumbnails-only is a denser redesign. | Low |
-| 34 | Copy · rate line | “Supplier ₹” for trader rate | **Text** | Label should be “Your rate” on chain hop. | Medium |
-| 35 | Copy · Same for all | “Same for all · 2” | **Text** | Chip copy. | Low |
-| 36 | Copy · chain header | Multiple From / Order goes lines | **Text** / Polish | Meena already sees trader from-line + Order goes + mill jargon line. Chain Buyer2 not fully walked. | Medium |
-| 37 | Copy · catalogue spelling | catalog vs catalogue | **Text** | | Low |
-| 38 | Copy · exclusive blurb | Long exclusive text | **Text** | | Low |
-| 39 | Copy · empty add | Leftover GC message | **Text** | | Low |
-| 40 | Copy · notify | “let you repost” unclear | **Text** | Confirm trigger then reword. | Low |
+| 24 | Copy · rate options | Sheet vs Who has access names | **Fixed** | Modes: **Same as supplier** · **Edit rate** · **Set margin** (`RepostPricingFields` / `packPricingModeLabel`). | Medium |
+| 25 | Copy · show-rate titles | Visibility & rates vs Who has access | **Fixed** | **On request** · **Show rates** on Repost + Who / defaults (not Visible). | Medium |
+| 26 | Copy · loader | “Checking which can go in…” | **Fixed** | RepostSheet → **Loading…**. | Low |
+| 27 | Copy · rates helper | Wrong “Rates stay on request…” | **Fixed** | Helper removed from RepostSheet / packKind seed. | Medium |
+| 28 | Copy · audience helper | “Limited by a sourced…” | **Fixed** | Removed from PublishAudienceFields. | Low |
+| 29 | Copy · Show supplier | Long why-line | **Already fixed / verified** | Label-only **Show supplier**. | Low |
+| 30 | Copy · checkboxes | Add + download vs Allow labels | **Already fixed / verified** | Kept **Allow repost** / **Allow download** (no Add+ rename). | Medium |
+| 31 | Copy · share link | “Repost + share a link · 48 hours” | **Fixed** | CTA **Create & share link**; field still 48-hour link. | Low |
+| 32 | Copy · loading | Reposting… + Working… | **Fixed** | One busy label: create **Reposting…**, edit **Saving…**. | Low |
+| 33 | Copy · design rows | Codes + supplier on each | **Fixed** | Eligible/skip thumbs only; blocked keep Ask quietly. | Low |
+| 34 | Copy · rate line | “Supplier ₹” for trader rate | **Already fixed / verified** | Trader form uses **Your rate**; Supplier stays mill cue. | Medium |
+| 35 | Copy · Same for all | “Same for all · 2” | **Fixed** | Chip **All** / **All: {n} {unit}**. | Low |
+| 36 | Copy · chain header | Multiple From / Order goes lines | **Fixed** | Curated visitor album: one **`from {shop}`** line; How many keeps Order goes. | Medium |
+| 37 | Copy · catalogue spelling | catalog vs catalogue | **Fixed** | `packNoun` → catalogue; You **Catalogues**; picker toasts/labels. | Low |
+| 38 | Copy · exclusive blurb | Long exclusive text | **Fixed** | **Designs in this catalogue are exclusive.** | Low |
+| 39 | Copy · empty add | Leftover GC message | **Fixed** | **No designs to add** (+ Add photos). | Low |
+| 40 | Copy · notify | “let you repost” unclear | **Fixed** | `{shop} allowed you to repost their collections`. | Low |
 | 41 | Auto-add new designs | New design missing on repost | **Already fixed / WAD** | After ~minutes (propagate job), child had **4** designs including Dohar D. Early poll at 2.5s missed it — async, not permanent drop. | High |
 | 42 | Supplier · Design ⋯ | Move on catalogue design | **Confirmed bug** | Catalogue exclusivity docs allow Move; sheet wants hide. Product may need Redesign if we hide. | Medium |
 | 43 | Supplier · Own design | Add to cart / Order | **Confirmed bug** | Own design should be Edit/Share only for supplier job. | Medium |

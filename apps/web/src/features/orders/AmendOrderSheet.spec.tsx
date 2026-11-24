@@ -165,7 +165,7 @@ describe('AmendOrderSheet How many chrome', () => {
       }),
     ]);
     const chip = screen.getByTestId('same-for-all-chip');
-    expect(chip).toHaveTextContent('Same for all');
+    expect(chip).toHaveTextContent('All');
     const lines = screen.getByTestId('order-amend-lines');
     expect(chip.compareDocumentPosition(lines) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     await user.click(chip);

@@ -155,7 +155,7 @@ export function CatalogDefaultsPage() {
             {(
               [
                 [RateVisibility.OnRequest, 'On request'],
-                [RateVisibility.Visible, 'Visible'],
+                [RateVisibility.Visible, 'Show rates'],
               ] as const
             ).map(([value, label]) => (
               <button

@@ -112,7 +112,6 @@ import {
   publishPackSheetTitle,
   publishThisPackConsent,
   publishingThisPackExplore,
-  ratesOnRequestWhenForeign,
   untitledPackFallback,
 } from '@/features/catalog/packKindCopy';
 import { OwnerPackLifecycleSheet } from '@/features/catalog/OwnerPackLifecycleSheet';
@@ -834,9 +833,7 @@ export function CollectionEditorPage() {
         : usual.rateVisibility,
       allowForward: usual.allowForward,
       allowDownload: usual.allowDownload,
-      policyHint: hasForeignMembers
-        ? ratesOnRequestWhenForeign(copyKind)
-        : null,
+      policyHint: null,
     }));
   }, [publishOpen, settings.data, existing.data?.status, hasForeignMembers]);
 
@@ -3075,7 +3072,7 @@ export function CollectionEditorPage() {
             <LoadingBlock label="Loading designs…" />
           ) : selectableDesigns.length === 0 ? (
             <div className="flex flex-col items-center gap-3 py-6 text-center">
-              <p className="text-sm text-muted">No designs in your library yet.</p>
+              <p className="text-sm text-muted">No designs to add</p>
               <Button
                 variant="secondary"
                 onClick={() => {
@@ -3137,7 +3134,7 @@ export function CollectionEditorPage() {
           !editing
             ? 'Create & Publish'
             : isPublished
-              ? 'Visibility & rates'
+              ? 'Who has access'
               : publishPackSheetTitle(copyKind)
         }
         footer={

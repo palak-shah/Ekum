@@ -152,9 +152,14 @@ export function QtyStepper({
   );
 }
 
-export function sameForAllChipLabel(appliedQty: number | null | undefined): string {
-  if (appliedQty == null || appliedQty <= 0) return 'Same for all';
-  return `Same for all · ${appliedQty}`;
+/** Idle **All**; with qty **All: 2 sets** (unit noun from How many). */
+export function sameForAllChipLabel(
+  appliedQty: number | null | undefined,
+  unitNoun?: string | null,
+): string {
+  if (appliedQty == null || appliedQty <= 0) return 'All';
+  const unit = unitNoun?.trim();
+  return unit ? `All: ${appliedQty} ${unit}` : `All: ${appliedQty}`;
 }
 
 /** Last typed line qty, else remembered shared qty — never open Same for all blank. */

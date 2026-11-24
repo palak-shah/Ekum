@@ -500,7 +500,10 @@ export function OrderBuilderPage() {
                   setSameOpen(true);
                 }}
               >
-                {sameForAllChipLabel(parseQtyDraft(bulkQty))}
+                {sameForAllChipLabel(
+                  parseQtyDraft(bulkQty),
+                  standardLines[0] ? qtyCountNoun(standardLines[0].unit) : null,
+                )}
               </button>
             )
           ) : null}

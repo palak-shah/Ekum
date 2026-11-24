@@ -282,11 +282,11 @@ export function memberPricingDtoFromForm(
 }
 
 export function packPricingModeLabel(mode: string | null | undefined): string {
-  if (mode === RepostPricingMode.MarginFixed) return '+ / − Margin (₹)';
-  if (mode === RepostPricingMode.MarginPercent) return '+ / − Margin (%)';
+  if (mode === RepostPricingMode.MarginFixed) return 'Set margin (₹)';
+  if (mode === RepostPricingMode.MarginPercent) return 'Set margin (%)';
   if (mode === RepostPricingMode.Edit) return 'Edit rate';
-  if (mode === RepostPricingMode.Same) return 'Same rate';
-  return 'Same rate';
+  if (mode === RepostPricingMode.Same) return 'Same as supplier';
+  return 'Same as supplier';
 }
 
 /** True when owner GET attached memberPricing (repost pack). */

@@ -922,10 +922,7 @@ export function RepostSheet({
     setPublishAudience((prev) => ({
       ...prev,
       rateVisibility: on ? RateVisibility.Visible : RateVisibility.OnRequest,
-      // Soft hint for foreign packs — trader can still turn Show rates on.
-      policyHint: !on && hasForeign
-        ? 'Rates stay on request when this collection includes others’ designs.'
-        : null,
+      policyHint: null,
     }));
   };
 
@@ -1279,10 +1276,10 @@ export function RepostSheet({
               data-testid="repost-link-48h"
             >
               {busy
-                ? 'Working…'
-                : canNativeShare()
-                  ? 'Repost + share a link · 48 hours'
-                  : 'Repost + copy a link · 48 hours'}
+                ? editing
+                  ? 'Saving…'
+                  : 'Reposting…'
+                : 'Create & share link'}
             </button>
             )}
             {showRemoveRepost ? (
@@ -1347,7 +1344,7 @@ export function RepostSheet({
           {showPublishForm ? (
             <>
               {curateCheck.isLoading && productIds.length > 0 ? (
-                <p className="text-sm text-muted">Checking which can go in…</p>
+                <p className="text-sm text-muted">Loading…</p>
               ) : null}
 
               {productIds.length > 0 && !curateCheck.isLoading ? (
@@ -1407,11 +1404,6 @@ export function RepostSheet({
                     Show rates
                   </button>
                 </div>
-                {!showRates && hasForeign ? (
-                  <p className="text-xs text-muted" data-testid="repost-rates-foreign-hint">
-                    Rates stay on request when this collection includes others’ designs.
-                  </p>
-                ) : null}
               </div>
 
               {showRates ? (

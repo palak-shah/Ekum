@@ -444,6 +444,9 @@ export function HowManyEachSheet({
   const unitsMixed = howManyOrderUnitsMixed(activeProducts);
   const showSameForAll =
     activeProducts.length > 1 && !unitsMixed && displayRows.every((row) => row.kind === 'line');
+  const sameForAllUnitNoun = showSameForAll
+    ? qtyCountNoun(activeProducts[0]?.unit)
+    : null;
   const looseLines = lines.filter((line) =>
     displayRows.some((row) => row.kind === 'line' && row.item.id === line.product.id),
   );
@@ -562,7 +565,7 @@ export function HowManyEachSheet({
                   setSameOpen(true);
                 }}
               >
-                {sameForAllChipLabel(sharedQty)}
+                {sameForAllChipLabel(sharedQty, sameForAllUnitNoun)}
               </button>
             )
           ) : null}

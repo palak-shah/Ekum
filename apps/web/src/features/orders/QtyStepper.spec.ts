@@ -16,9 +16,10 @@ describe('parseQtyDraft', () => {
 });
 
 describe('sameForAllChipLabel', () => {
-  it('is blank until a count exists, then shows last applied qty', () => {
-    expect(sameForAllChipLabel(null)).toBe('Same for all');
-    expect(sameForAllChipLabel(200)).toBe('Same for all · 200');
+  it('is All until a count exists, then All: n unit', () => {
+    expect(sameForAllChipLabel(null)).toBe('All');
+    expect(sameForAllChipLabel(200)).toBe('All: 200');
+    expect(sameForAllChipLabel(2, 'sets')).toBe('All: 2 sets');
   });
 });
 
