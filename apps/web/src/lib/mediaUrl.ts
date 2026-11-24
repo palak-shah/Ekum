@@ -3,6 +3,43 @@ import { MEDIA_VARIANT, mediaVariantUrl, type MediaVariant } from '@ekum/domain-
 export type { MediaVariant };
 export { MEDIA_VARIANT };
 
+/** Legacy path-bound media tokens (removed Completeness 2026-11-24). Never strip Azure SAS. */
+const MEDIA_ACCESS_PARAMS = ['ekum_k', 'ekum_exp', 'ekum_sig'] as const;
+
+/**
+ * Drop dead `ekum_*` query params from stored/catalog URLs so thumbs and GET
+ * use the plain path. Leaves Azure SAS and other query keys alone.
+ */
+export function stripMediaAccessParams(url: string): string {
+  const trimmed = url.trim();
+  if (!trimmed || !trimmed.includes('ekum_')) return trimmed;
+  try {
+    const relative = trimmed.startsWith('/');
+    const parsed = relative ? new URL(trimmed, 'http://localhost') : new URL(trimmed);
+    let changed = false;
+    for (const key of MEDIA_ACCESS_PARAMS) {
+      if (parsed.searchParams.has(key)) {
+        parsed.searchParams.delete(key);
+        changed = true;
+      }
+    }
+    if (!changed) return trimmed;
+    if (relative) {
+      const q = parsed.searchParams.toString();
+      return q ? `${parsed.pathname}?${q}${parsed.hash}` : `${parsed.pathname}${parsed.hash}`;
+    }
+    return parsed.href;
+  } catch {
+    return trimmed;
+  }
+}
+
+function stripAccessParamsInPlace(parsed: URL): void {
+  for (const key of MEDIA_ACCESS_PARAMS) {
+    parsed.searchParams.delete(key);
+  }
+}
+
 /**
  * Media URLs must be absolute http(s) for Zod create schemas. Local/beta often
  * mints relative `/media/…`, `http://localhost:8080/media/…`, or a raw LAN
@@ -22,6 +59,7 @@ export function toAbsoluteMediaUrl(
   if (trimmed.startsWith('blob:') || trimmed.startsWith('data:')) return trimmed;
   try {
     const absolute = new URL(trimmed, origin || 'http://localhost');
+    stripAccessParamsInPlace(absolute);
     const path = absolute.pathname + absolute.search + absolute.hash;
     if (!origin || !isAppMediaPath(absolute.pathname)) {
       return absolute.href;
@@ -38,7 +76,7 @@ export function toAbsoluteMediaUrl(
     }
     return absolute.href;
   } catch {
-    return trimmed;
+    return stripMediaAccessParams(trimmed);
   }
 }
 
@@ -51,7 +89,6 @@ function isAppMediaPath(pathname: string): boolean {
  * unchanged. Seed catalog rewrites to `seed/thumbnail1|2/{name}.webp`.
  * PhotoViewer must keep `original`.
  */
-/** Path-bound tokens must not be rewritten to another variant path. */
 export function hasMediaAccessToken(url: string): boolean {
   return url.includes('ekum_sig=');
 }
@@ -64,8 +101,6 @@ export function mediaDisplayUrl(
   const absolute =
     origin !== undefined ? toAbsoluteMediaUrl(url, origin) : toAbsoluteMediaUrl(url);
   if (!absolute) return '';
-  // Signed URLs are path-bound — keep as returned by the API.
-  if (hasMediaAccessToken(absolute)) return absolute;
   if (variant === MEDIA_VARIANT.Original) return absolute;
   return mediaVariantUrl(absolute, variant);
 }

@@ -1,6 +1,9 @@
 import { mapMediaUrlsForViewer, type MediaAccessKind } from './media-url-token';
 
-/** Owner or Allow download → full originals; everyone else → signed thumbnail1 only. */
+/**
+ * Who may use PhotoViewer / DesignSheet **Download**.
+ * Media image URL strings stay plain for every viewer (no token / no forced thumb rewrite).
+ */
 export function catalogMediaAccess(input: {
   viewerCompanyId: string | null | undefined;
   ownerCompanyId: string;

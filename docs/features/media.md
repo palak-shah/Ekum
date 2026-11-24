@@ -62,11 +62,11 @@ Pixel thumbs for existing `Media` image rows are enqueued by `media.thumbnail.ba
 
 - Kind: **image** / **audio** / **document**. Only images get thumbnails.
 - Who can see an image follows the parent object (catalog audience, chat, order, **or Business Profile access** for cover/showcase) — media is not a second visibility system. Profile cover / avatar / Showcase store URL **strings** on the company; `PATCH /companies/me` does **not** re-check Media/Product ownership (members who can edit are trusted to upload their own pictures). Removing them from the profile **unlinks** only (does not delete blobs or designs). Showcase is independent of collection audience.
-- **Access tokens (required):** catalog image GETs need a **path-bound** short-lived signature (local HMAC query or Azure read SAS). Untokenized `/media/…` image GET is denied. Tokens are minted in the same API JSON that returns the design/pack (no per-tile mint). Guessing another object’s path fails without that path’s signature.
-- **Allow download off** (visitor): API returns signed **thumbnail1** only; PhotoViewer shows preview; no **Download**. **Allow download on** or **owner**: signed thumb2/original as needed; PhotoViewer **Download** exports original. Screenshots of painted pixels cannot be stopped.
-- Dev may serve local files; production uses blob storage + SAS-style upload and read URLs.
+- **Plain media URLs (locked):** API responses return stored `/media/…` strings **without** path-bound signatures (`ekum_sig`). Local image GET serves the file without a token so DevTools / Network can open the URL. Legacy rows that still have `ekum_k` / `ekum_exp` / `ekum_sig` on the string are **stripped on read** (API + web) — no DB migration; Azure SAS query keys are left alone. Guessable paths are an accepted residual — who can *see* a design still follows the parent object; **Allow download** still gates PhotoViewer / DesignSheet **Download**. Completeness: `2026-11-24-plain-media-urls-completeness` (redesign of 2026-11-22 token gate).
+- **Allow download off** (visitor): no DesignSheet ⋯ **Download** / PhotoViewer **Download**. **Allow download on** or **owner**: PhotoViewer **Download** exports original. Screenshots of painted pixels cannot be stopped.
+- Dev may serve local files; production uses blob storage + SAS-style **upload** URLs when Azure is set.
 - Feature records store original URL **strings**, not Media IDs.
-- Display: **thumbnail1** (max 480) for list / locked preview; **thumbnail2** (max 1080) for Explore when download allowed / owner; **original** for PhotoViewer when allowed / owner. `mediaDisplayUrl` + `ManagedImage` pick the sibling; one `onError` falls back carefully (must not leak untokenized original to locked viewers).
+- Display: **thumbnail1** (max 480) for list thumbs; **thumbnail2** (max 1080) for Explore cards; **original** for PhotoViewer. `mediaDisplayUrl` + `ManagedImage` pick the sibling; one `onError` falls back to original when a thumb is missing.
 
 ## Edge cases / empty states
 
@@ -82,9 +82,9 @@ Pixel thumbs for existing `Media` image rows are enqueued by `media.thumbnail.ba
 
 ## Automated verification
 
-- Functional: `pnpm test:e2e:functional` — `@media` chat photo send (signed URLs; PhotoViewer still loads the served original/preview).
-- Units: `media-url-token`, `sign-media-urls.interceptor`, `catalog-media-access`, `downloadCeiling`, PhotoViewer Download visibility.
-- Completeness: `docs/superpowers/reviews/completeness/2026-11-22-allow-download-ceiling-export-completeness.md` (+ media folder / chat-photo Completeness).
+- Functional: `pnpm test:e2e:functional` — `@media` chat photo send (plain URLs; PhotoViewer loads original).
+- Units: `catalog-media-access`, `downloadCeiling`, PhotoViewer Download visibility; media path helpers as needed.
+- Completeness: `docs/superpowers/reviews/completeness/2026-11-24-plain-media-urls-completeness.md` (+ allow-download ceiling / media folder Completeness).
 
 ## Where it lives
 

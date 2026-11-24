@@ -1,55 +1,50 @@
 import { describe, expect, it } from 'vitest';
 import {
+  mapMediaUrlsForViewer,
   mediaUrlForViewer,
-  pathAllowedForPreview,
-  signMediaUrl,
-  verifyMediaUrlToken,
+  stripMediaAccessParams,
 } from './media-url-token';
 
-describe('media-url-token', () => {
-  it('signs and verifies a path-bound token', () => {
-    const url = signMediaUrl('http://localhost:3000/media/c1/thumbnail1/a.webp', 'preview');
-    const parsed = new URL(url);
-    expect(
-      verifyMediaUrlToken({
-        pathname: parsed.pathname,
-        kind: parsed.searchParams.get('ekum_k'),
-        exp: parsed.searchParams.get('ekum_exp'),
-        sig: parsed.searchParams.get('ekum_sig'),
-      }),
-    ).toBe(true);
+describe('media-url-token (plain URLs)', () => {
+  it('passes stored URLs through unchanged', () => {
+    const original = 'http://localhost:3000/media/c1/original/a.jpg';
+    expect(mediaUrlForViewer(original, 'preview')).toBe(original);
+    expect(mediaUrlForViewer(original, 'full')).toBe(original);
   });
 
-  it('rejects a token on a different pathname', () => {
-    const url = signMediaUrl('http://localhost:3000/media/c1/thumbnail1/a.webp', 'preview');
-    const parsed = new URL(url);
-    expect(
-      verifyMediaUrlToken({
-        pathname: '/media/c2/thumbnail1/a.webp',
-        kind: parsed.searchParams.get('ekum_k'),
-        exp: parsed.searchParams.get('ekum_exp'),
-        sig: parsed.searchParams.get('ekum_sig'),
-      }),
-    ).toBe(false);
+  it('mapMediaUrlsForViewer does not add tokens or rewrite variants', () => {
+    const urls = [
+      'http://localhost:3000/media/c1/original/a.jpg',
+      '/media/c1/thumbnail2/b.webp',
+    ];
+    expect(mapMediaUrlsForViewer(urls, 'preview')).toEqual(urls);
+    expect(mapMediaUrlsForViewer(urls, 'full')).toEqual(urls);
   });
 
-  it('preview tokens cannot open original paths', () => {
-    expect(pathAllowedForPreview('/media/c1/original/a.jpg')).toBe(false);
-    const url = signMediaUrl('http://localhost:3000/media/c1/original/a.jpg', 'preview');
-    const parsed = new URL(url);
-    expect(
-      verifyMediaUrlToken({
-        pathname: parsed.pathname,
-        kind: parsed.searchParams.get('ekum_k'),
-        exp: parsed.searchParams.get('ekum_exp'),
-        sig: parsed.searchParams.get('ekum_sig'),
-      }),
-    ).toBe(false);
+  it('trims whitespace', () => {
+    expect(mediaUrlForViewer('  /media/c1/original/a.jpg  ', 'full')).toBe(
+      '/media/c1/original/a.jpg',
+    );
   });
 
-  it('locked viewer rewrite uses thumbnail1 + preview token', () => {
-    const out = mediaUrlForViewer('http://localhost:3000/media/c1/original/a.jpg', 'preview');
-    expect(out).toContain('/thumbnail1/');
-    expect(out).toContain('ekum_k=preview');
+  it('strips legacy ekum_* tokens from absolute and relative URLs', () => {
+    expect(
+      mediaUrlForViewer(
+        'http://localhost:3000/media/c1/original/a.jpg?ekum_k=full&ekum_exp=999&ekum_sig=abc',
+        'full',
+      ),
+    ).toBe('http://localhost:3000/media/c1/original/a.jpg');
+    expect(
+      mapMediaUrlsForViewer(
+        ['/media/c1/original/a.jpg?ekum_k=preview&ekum_exp=1&ekum_sig=x'],
+        'preview',
+      ),
+    ).toEqual(['/media/c1/original/a.jpg']);
+  });
+
+  it('stripMediaAccessParams leaves non-ekum query keys', () => {
+    expect(
+      stripMediaAccessParams('/media/c1/a.jpg?ekum_sig=x&cache=1'),
+    ).toBe('/media/c1/a.jpg?cache=1');
   });
 });

@@ -229,7 +229,7 @@ Verification: Functional · Regression · Unit-only · Untested
 | Collections | Create polish (9-cap grid, publish-first, tags, no Everyone, tile→design sheet) | Works | Unit | Required | Completeness 2026-09-17-collection-create-polish |
 | Collections | Same for all + photos-first + rate range + unlimited design photos | Works | Unit + Functional | Required | Completeness 2026-09-18-collection-same-for-all-ux-simplify; Done = new photos only; library Diff; `collection.publish.journey` |
 | Collections | New collection redesign (always-visible · 3 expandables · Settings defaults · sticky / hide nav · merge Diff · piecesPerPack · allowDownload) | Works | Unit + Functional | Required | Completeness 2026-09-24-new-collection-redesign |
-| Media / Collections | Allow download hop ceiling + no public catalog media (path-bound preview vs full tokens; PhotoViewer Download) | Works | Unit | Required | Completeness 2026-11-22-allow-download-ceiling-export |
+| Media / Collections | Allow download hop ceiling + PhotoViewer Download; plain media URLs (no path-bound tokens) | Works | Unit | Required | Completeness 2026-11-22-allow-download-ceiling-export + 2026-11-24-plain-media-urls |
 | Collections | New collection add-and-go (photos + name; Who on Publish sheet) | Redesign | Functional | Required | Completeness 2026-09-24-collection-who-tags-set-size; Who expandable; pack tags append; set-size only for set |
 | Collections | Pack tags append onto own member designs (create, edit, album add; display union) | Works | Unit + Functional | Required | Completeness 2026-10-20-pack-tags-on-designs |
 | Collections | Seller create/publish / quick-add (edit) | Works | Functional | Recommended | `collection.publish.journey.spec.ts` |

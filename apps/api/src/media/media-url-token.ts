@@ -1,129 +1,49 @@
 /**
- * Path-bound short-lived signatures for local `/media/…` GETs.
- * Stealing a token for path A cannot open path B.
+ * Media URL helpers for catalog responses.
+ * Plain stored `/media/…` strings — no path-bound signatures (Completeness 2026-11-24).
+ * Legacy `ekum_*` query params from the old signer are stripped on read.
  */
-import { createHmac, timingSafeEqual } from 'node:crypto';
-import {
-  MEDIA_VARIANT,
-  mediaVariantUrl,
-  parseManagedMediaUrl,
-} from '@ekum/domain-types';
 
 export type MediaAccessKind = 'preview' | 'full';
 
-const DEFAULT_TTL_MS = 45 * 60_000;
+const MEDIA_ACCESS_PARAMS = ['ekum_k', 'ekum_exp', 'ekum_sig'] as const;
 
-function mediaSigningSecret(): string {
-  return (
-    process.env.MEDIA_URL_SECRET?.trim() ||
-    process.env.JWT_SECRET?.trim() ||
-    'ekum-dev-media-secret'
-  );
-}
-
-function signPayload(pathname: string, kind: MediaAccessKind, exp: number): string {
-  return createHmac('sha256', mediaSigningSecret())
-    .update(`${kind}:${exp}:${pathname}`)
-    .digest('base64url');
-}
-
-export function isMediaImagePath(pathname: string): boolean {
-  const lower = pathname.toLowerCase();
-  return (
-    lower.includes('/original/') ||
-    lower.includes('/thumbnail1/') ||
-    lower.includes('/thumbnail2/') ||
-    /\.(jpe?g|png|webp)$/i.test(lower)
-  );
-}
-
-/** Paths that a preview token may open (not original / not thumb2). */
-export function pathAllowedForPreview(pathname: string): boolean {
-  const lower = pathname.toLowerCase();
-  if (lower.includes('/original/')) return false;
-  if (lower.includes('/thumbnail2/')) return false;
-  return true;
-}
-
-export function signMediaUrl(
-  url: string,
-  kind: MediaAccessKind,
-  ttlMs: number = DEFAULT_TTL_MS,
-): string {
+/** Drop dead ekum_* tokens; never touch Azure SAS keys. */
+export function stripMediaAccessParams(url: string): string {
   const trimmed = url.trim();
-  if (!trimmed) return trimmed;
-  const relative = trimmed.startsWith('/');
-  let parsed: URL;
+  if (!trimmed || !trimmed.includes('ekum_')) return trimmed;
   try {
-    parsed = relative ? new URL(trimmed, 'http://localhost') : new URL(trimmed);
+    const relative = trimmed.startsWith('/');
+    const parsed = relative ? new URL(trimmed, 'http://localhost') : new URL(trimmed);
+    let changed = false;
+    for (const key of MEDIA_ACCESS_PARAMS) {
+      if (parsed.searchParams.has(key)) {
+        parsed.searchParams.delete(key);
+        changed = true;
+      }
+    }
+    if (!changed) return trimmed;
+    if (relative) {
+      const q = parsed.searchParams.toString();
+      return q ? `${parsed.pathname}?${q}${parsed.hash}` : `${parsed.pathname}${parsed.hash}`;
+    }
+    return parsed.href;
   } catch {
     return trimmed;
   }
-  if (!parsed.pathname.startsWith('/media')) {
-    return trimmed;
-  }
-  if (parsed.searchParams.has('ekum_sig')) {
-    return trimmed;
-  }
-  const exp = Math.floor((Date.now() + ttlMs) / 1000);
-  const sig = signPayload(parsed.pathname, kind, exp);
-  parsed.searchParams.set('ekum_k', kind);
-  parsed.searchParams.set('ekum_exp', String(exp));
-  parsed.searchParams.set('ekum_sig', sig);
-  if (relative) {
-    return `${parsed.pathname}?${parsed.searchParams.toString()}`;
-  }
-  return parsed.href;
 }
 
-export function verifyMediaUrlToken(input: {
-  pathname: string;
-  kind: string | null;
-  exp: string | null;
-  sig: string | null;
-}): boolean {
-  if (!input.kind || !input.exp || !input.sig) return false;
-  if (input.kind !== 'preview' && input.kind !== 'full') return false;
-  const exp = Number(input.exp);
-  if (!Number.isFinite(exp) || exp * 1000 < Date.now()) return false;
-  if (input.kind === 'preview' && !pathAllowedForPreview(input.pathname)) return false;
-  const expected = signPayload(input.pathname, input.kind, exp);
-  try {
-    const a = Buffer.from(expected);
-    const b = Buffer.from(input.sig);
-    if (a.length !== b.length) return false;
-    return timingSafeEqual(a, b);
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Locked visitor → thumbnail1 + preview token.
- * Owner / allowDownload → keep URL tier + full token.
- */
+/** Pass-through (plus strip legacy tokens). Access kind no longer rewrites variants. */
 export function mediaUrlForViewer(
   url: string,
-  access: 'preview' | 'full',
+  _access: MediaAccessKind,
 ): string {
-  const trimmed = url.trim();
-  if (!trimmed) return trimmed;
-  if (access === 'full') {
-    return signMediaUrl(trimmed, 'full');
-  }
-  const preview = mediaVariantUrl(trimmed, MEDIA_VARIANT.Thumbnail1) || trimmed;
-  // If variant rewrite failed, still try to avoid original in the string.
-  const parsed = parseManagedMediaUrl(preview);
-  const safe =
-    parsed && (parsed.blobPath.includes('/original/') || parsed.blobPath.includes('/thumbnail2/'))
-      ? mediaVariantUrl(trimmed, MEDIA_VARIANT.Thumbnail1) || preview
-      : preview;
-  return signMediaUrl(safe, 'preview');
+  return stripMediaAccessParams(url);
 }
 
 export function mapMediaUrlsForViewer(
   urls: string[] | null | undefined,
-  access: 'preview' | 'full',
+  access: MediaAccessKind,
 ): string[] {
   if (!urls?.length) return [];
   return urls.map((url) => mediaUrlForViewer(url, access));

@@ -25,7 +25,7 @@ describe('catalogMediaAccess', () => {
     ).toBe('full');
   });
 
-  it('locks other visitors to preview', () => {
+  it('locks other visitors to preview (Download gating only)', () => {
     expect(
       catalogMediaAccess({
         viewerCompanyId: 'buyer',
@@ -37,17 +37,31 @@ describe('catalogMediaAccess', () => {
 });
 
 describe('applyProductMediaAccess', () => {
-  it('rewrites locked visitor images to signed thumbnail1', () => {
+  it('keeps plain original URLs for locked visitors', () => {
+    const original = 'http://localhost:3000/media/mill/original/a.jpg';
     const out = applyProductMediaAccess(
       {
         companyId: 'mill',
         allowDownload: false,
-        images: ['http://localhost:3000/media/mill/original/a.jpg'],
+        images: [original],
       },
       'buyer',
     );
-    expect(out.images[0]).toContain('/thumbnail1/');
-    expect(out.images[0]).toContain('ekum_k=preview');
-    expect(out.images[0]).toContain('ekum_sig=');
+    expect(out.images[0]).toBe(original);
+    expect(out.images[0]).not.toContain('ekum_sig=');
+  });
+
+  it('strips legacy signed query params from stored product images', () => {
+    const out = applyProductMediaAccess(
+      {
+        companyId: 'mill',
+        allowDownload: false,
+        images: [
+          'http://localhost:3000/media/mill/original/a.jpg?ekum_k=full&ekum_exp=9&ekum_sig=abc',
+        ],
+      },
+      'buyer',
+    );
+    expect(out.images[0]).toBe('http://localhost:3000/media/mill/original/a.jpg');
   });
 });

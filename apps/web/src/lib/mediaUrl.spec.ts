@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { MEDIA_VARIANT, mediaDisplayUrl, toAbsoluteMediaUrl } from './mediaUrl';
+import {
+  MEDIA_VARIANT,
+  mediaDisplayUrl,
+  stripMediaAccessParams,
+  toAbsoluteMediaUrl,
+} from './mediaUrl';
 
 describe('toAbsoluteMediaUrl', () => {
   it('returns empty when the url is missing (group photo optional)', () => {
@@ -48,6 +53,37 @@ describe('toAbsoluteMediaUrl', () => {
     expect(toAbsoluteMediaUrl('data:audio/webm;base64,AAA', 'https://beta.ekum.app')).toBe(
       'data:audio/webm;base64,AAA',
     );
+  });
+
+  it('strips legacy ekum_* tokens from absolute and relative media URLs', () => {
+    expect(
+      toAbsoluteMediaUrl(
+        'http://localhost:8080/media/c1/original/a.jpg?ekum_k=full&ekum_exp=999&ekum_sig=abc',
+        'https://beta.ekum.app',
+      ),
+    ).toBe('https://beta.ekum.app/media/c1/original/a.jpg');
+    expect(
+      toAbsoluteMediaUrl(
+        '/media/c1/original/a.jpg?ekum_k=preview&ekum_exp=1&ekum_sig=x',
+        'https://beta.ekum.app',
+      ),
+    ).toBe('https://beta.ekum.app/media/c1/original/a.jpg');
+  });
+
+  it('does not strip Azure SAS query params', () => {
+    const azure =
+      'https://acct.blob.core.windows.net/media/c1/a.jpg?sv=2021-01-01&sig=azureSig';
+    expect(toAbsoluteMediaUrl(azure, 'https://beta.ekum.app')).toBe(azure);
+  });
+});
+
+describe('stripMediaAccessParams', () => {
+  it('removes only ekum_k / ekum_exp / ekum_sig', () => {
+    expect(
+      stripMediaAccessParams(
+        '/media/c1/original/a.jpg?ekum_k=full&ekum_exp=9&ekum_sig=abc&other=1',
+      ),
+    ).toBe('/media/c1/original/a.jpg?other=1');
   });
 });
 
@@ -101,5 +137,13 @@ describe('mediaDisplayUrl', () => {
     expect(
       mediaDisplayUrl('https://cdn.example/logo.jpg', MEDIA_VARIANT.Thumbnail1, 'https://beta.ekum.app'),
     ).toBe('https://cdn.example/logo.jpg');
+  });
+
+  it('rewrites thumbs after stripping legacy signed query params', () => {
+    const signed =
+      'http://localhost:8080/media/c1/original/a.jpg?ekum_k=full&ekum_exp=999&ekum_sig=abc';
+    expect(mediaDisplayUrl(signed, MEDIA_VARIANT.Thumbnail1, 'https://beta.ekum.app')).toBe(
+      'https://beta.ekum.app/media/c1/thumbnail1/a.webp',
+    );
   });
 });

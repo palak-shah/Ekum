@@ -1,6 +1,6 @@
 import { useEffect, useState, type ImgHTMLAttributes } from 'react';
 import { MEDIA_VARIANT, type MediaVariant } from '@ekum/domain-types';
-import { hasMediaAccessToken, mediaDisplayUrl, toAbsoluteMediaUrl } from '@/lib/mediaUrl';
+import { mediaDisplayUrl, toAbsoluteMediaUrl } from '@/lib/mediaUrl';
 
 export type ManagedImageProps = Omit<ImgHTMLAttributes<HTMLImageElement>, 'src'> & {
   src: string;
@@ -31,14 +31,7 @@ export function ManagedImage({
       {...rest}
       src={current}
       onError={(event) => {
-        // Do not fall back to an unsigned/original path when the preferred URL
-        // was tokenized — that would 401 or leak a guessable original.
-        if (
-          current !== original &&
-          original &&
-          !hasMediaAccessToken(current) &&
-          !hasMediaAccessToken(original)
-        ) {
+        if (current !== original && original) {
           setCurrent(original);
           return;
         }
