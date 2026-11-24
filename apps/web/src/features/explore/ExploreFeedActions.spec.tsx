@@ -179,8 +179,8 @@ describe('ExploreFeedActions', () => {
     await user.click(screen.getByTestId('explore-feed-repost'));
     expect(navigate).not.toHaveBeenCalled();
     expect(screen.getByRole('heading', { name: 'Repost' })).toBeTruthy();
-    expect(screen.getByTestId('repost-publish')).toBeTruthy();
-    expect(screen.getByTestId('repost-link-48h')).toBeTruthy();
+    expect(screen.getByTestId('repost-publish')).toHaveTextContent('Repost');
+    expect(screen.getByTestId('repost-link-48h')).toHaveTextContent('Create & share link');
   });
 
   it('Message opens enquire sheet with attachment and To shop', async () => {
@@ -364,6 +364,7 @@ describe('ExploreFeedActions', () => {
     await user.click(repost);
     expect(await screen.findByRole('heading', { name: 'Edit repost' })).toBeTruthy();
     expect(await screen.findByTestId('repost-publish')).toHaveTextContent('Save');
+    expect(screen.queryByTestId('repost-link-48h')).toBeNull();
     expect(vi.mocked(api.post).mock.calls.some((c) => c[0] === '/collections')).toBe(false);
   });
 

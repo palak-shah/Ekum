@@ -1275,11 +1275,7 @@ export function RepostSheet({
               className="text-center text-sm text-accent disabled:opacity-50"
               data-testid="repost-link-48h"
             >
-              {busy
-                ? editing
-                  ? 'Saving…'
-                  : 'Reposting…'
-                : 'Create & share link'}
+              {busy ? 'Reposting…' : 'Create & share link'}
             </button>
             )}
             {showRemoveRepost ? (
