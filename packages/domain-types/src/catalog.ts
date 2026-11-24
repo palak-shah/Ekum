@@ -8,6 +8,7 @@ import {
   unitValues,
 } from './enums';
 import { repostPricingModeValues } from './repost-pricing';
+import type { TaxonomyMain } from './category-taxonomy';
 
 /**
  * Catalog contracts. A Product (design) is the live entity: name optional on
@@ -174,7 +175,7 @@ export interface CatalogTagView {
 }
 
 /** Nested official drill-down (Main → Sub → Item + size/quality). */
-export type CatalogTaxonomyView = import('./category-taxonomy').TaxonomyMain[];
+export type CatalogTaxonomyView = TaxonomyMain[];
 
 /** Replaces the ordered set of products in a collection. */
 export const setCollectionProductsSchema = z.object({

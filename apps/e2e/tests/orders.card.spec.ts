@@ -21,7 +21,8 @@ test.describe('order card album @smoke @regression @orders', () => {
 
     await page.goto(`/chats/${order.threadId}`);
 
-    const orderCard = page.getByRole('button', { name: /Order #.*Requested/i }).last();
+    // Buyer place → card action is "Placed" (status remains requested in the API).
+    const orderCard = page.getByRole('button', { name: /Order #.*Placed/i }).last();
     await expect(orderCard.getByText(/3 designs/i)).toBeVisible();
     await expect(orderCard.getByTestId('photo-album-overflow')).toHaveText('+1');
   });

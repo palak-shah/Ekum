@@ -3,8 +3,8 @@ import { cursorPageQuerySchema } from './common';
 import {
   OrderIntent,
   OrderKind,
-  PaymentRequestStatus,
   type OrderLineStatus,
+  type PaymentRequestStatus,
   orderDirectionValues,
   orderIntentValues,
   orderKindValues,
