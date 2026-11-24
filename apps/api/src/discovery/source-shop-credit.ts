@@ -80,6 +80,26 @@ export function sourceHopsFromRows(
 }
 
 /**
+ * Company ids that must not appear in a curated child's Selected Who:
+ * pack owner, every source-chain hop, and foreign member mills.
+ */
+export function sourceChainCompanyIdsForPack(input: {
+  packCompanyId: string;
+  foreignMemberCompanyIds: string[];
+  sourceHops: SourceCreditHop[];
+}): string[] {
+  const ids = new Set<string>();
+  ids.add(input.packCompanyId);
+  for (const hop of input.sourceHops) {
+    if (hop.companyId) ids.add(hop.companyId);
+  }
+  for (const companyId of input.foreignMemberCompanyIds) {
+    if (companyId && companyId !== input.packCompanyId) ids.add(companyId);
+  }
+  return [...ids];
+}
+
+/**
  * Walk immediate→outer source hops. First hop that hid suppliers → that hop’s company.
  * All hops revealed (or none) → end mill company id.
  */

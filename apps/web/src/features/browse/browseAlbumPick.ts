@@ -13,6 +13,11 @@ export type BrowseAlbumEntry = {
   kind?: string | null;
   /** whole | pick when kind=catalog; otherwise omitted. */
   orderMode?: string | null;
+  /**
+   * `explore` = Explore page-local staging (cleared on leave /explore).
+   * `travel` = album / shop / Saved pile (survives Explore leave). Omit = travel.
+   */
+  selectionOrigin?: 'explore' | 'travel';
 };
 
 type Listener = () => void;
@@ -109,6 +114,13 @@ export function toggleBrowseAlbumEntry(entry: BrowseAlbumEntry): BrowseAlbumEntr
 
 export function clearBrowseAlbumPick(): void {
   writeBrowseAlbumPick([]);
+}
+
+/** Drop Explore-origin staging only; travel pile stays. */
+export function clearExploreOriginAlbumPick(): BrowseAlbumEntry[] {
+  const next = readBrowseAlbumPick().filter((row) => row.selectionOrigin !== 'explore');
+  writeBrowseAlbumPick(next);
+  return next;
 }
 
 export function removeBrowseAlbumIds(collectionIds: string[]): BrowseAlbumEntry[] {

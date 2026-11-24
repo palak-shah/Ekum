@@ -48,7 +48,6 @@ import {
 } from '@/features/orders/howManyLineMeta';
 import { OrderLineStack } from '@/features/orders/OrderLineStack';
 import { OrderQtyFooterSummary } from '@/features/orders/OrderQtyFooterSummary';
-import { readRememberedQty, rememberQty, rememberedQtyLabel } from '@/features/orders/qtyEachMemory';
 import {
   readLastTransporter,
   rememberTransporter,
@@ -160,7 +159,6 @@ export function OrderBuilderPage() {
     const selected = new Set(productIds);
     const rows = (collection.data?.products ?? []).filter((product) => selected.has(product.id));
     if (rows.length > 0) {
-      const seedQty = rememberedQtyLabel(readRememberedQty(sellerId || sellerFromUrl));
       setStandardLines(
         rows.map((product) => ({
           productId: product.id,
@@ -173,14 +171,14 @@ export function OrderBuilderPage() {
           piecesPerPack: product.piecesPerPack ?? null,
           dispatchUnit: product.dispatchUnit ?? null,
           catalogRateUnit: product.catalogRateUnit ?? null,
-          quantity: seedQty,
+          quantity: '',
           note: '',
         })),
       );
-      setInitialQuantities(Object.fromEntries(rows.map((product) => [product.id, seedQty])));
-      setBulkQty(seedQty);
+      setInitialQuantities(Object.fromEntries(rows.map((product) => [product.id, ''])));
+      setBulkQty('');
       setBulkDraft('');
-      setSameDraft(parseQtyDraft(seedQty));
+      setSameDraft(null);
       setSameOpen(false);
     }
   }, [collection.data, productIds.join(','), sellerId, sellerFromUrl]);
@@ -195,7 +193,6 @@ export function OrderBuilderPage() {
     }
     setBulkQty(cleaned);
     setBulkDraft(isQtyPreset(cleaned) ? '' : cleaned);
-    rememberQty(sellerId || sellerFromUrl, Number(cleaned));
   };
 
   const commitBulkDraft = () => {
@@ -575,7 +572,6 @@ export function OrderBuilderPage() {
                             enterKeyHint={last ? 'done' : 'next'}
                             aria-label={`${noun} for ${line.name}`}
                             onChange={(next) => {
-                              if (next != null) rememberQty(sellerId || sellerFromUrl, next);
                               setStandardLines((prev) =>
                                 prev.map((item) =>
                                   item.productId === line.productId
@@ -743,6 +739,7 @@ export function OrderBuilderPage() {
       )}
 
       {(() => {
+        const billOn = collection.data?.showBillTotalOnOrders === true;
         const summary = howManyOrderFooterSummary(
           standardLines.map((line) => ({
             quantity: parseQtyDraft(line.quantity),
@@ -751,8 +748,13 @@ export function OrderBuilderPage() {
             dispatchUnit: line.dispatchUnit,
             rate: line.rate ?? null,
           })),
+          { packConversion: billOn },
         );
-        return summary ? <OrderQtyFooterSummary summary={summary} /> : null;
+        const forUi =
+          summary && !billOn && summary.money
+            ? { rows: summary.rows }
+            : summary;
+        return forUi ? <OrderQtyFooterSummary summary={forUi} /> : null;
       })()}
 
       <TransporterField

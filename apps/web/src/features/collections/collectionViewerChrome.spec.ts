@@ -326,6 +326,8 @@ describe('collectionShowPackNote / facts / selection scope', () => {
     ).toEqual({
       tags: ['Readymade', 'S', 'Embroidered'],
       rate: '₹400/pc',
+      supplierRate: null,
+      margin: null,
       description: 'Soft georgette.',
     });
     expect(
@@ -333,10 +335,14 @@ describe('collectionShowPackNote / facts / selection scope', () => {
         categories: [],
         description: '   ',
         rateLabel: 'On request',
+        supplierRateLabel: 'Supplier ₹420/pc',
+        marginLabel: 'Margin ₹280',
       }),
     ).toEqual({
       tags: [],
       rate: null,
+      supplierRate: 'Supplier ₹420/pc',
+      margin: 'Margin ₹280',
       description: null,
     });
   });

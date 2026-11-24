@@ -388,6 +388,111 @@ export async function resolvedBandsForPacks(
   return out;
 }
 
+/** Viewer/owner Explore chrome stamps from a curated child pack. */
+export type CuratedOwnerRateChromeStamp = {
+  rateMin: number | null;
+  rateMax: number | null;
+  rateUnit: string | null;
+  supplierRateMin: number | null;
+  pricingMode: string | null;
+  marginValue: number | null;
+};
+
+function uniformDisclosedSourceFromResolved(
+  resolved: Map<string, ResolvedRepostPricing>,
+): number | null {
+  const rates: number[] = [];
+  for (const row of resolved.values()) {
+    if (row.sourceDisclosed && row.sourceRate != null && Number.isFinite(row.sourceRate)) {
+      rates.push(row.sourceRate);
+    }
+  }
+  if (rates.length === 0) return null;
+  const first = rates[0]!;
+  if (!rates.every((rate) => rate === first)) return null;
+  return first;
+}
+
+/**
+ * Load curated packs by id and stamp buyer-facing + uniform supplier + margin
+ * fields for Explore viewer/owner chrome. Fail-closed: missing packs omitted.
+ */
+export async function curatedOwnerRateChromeForPackIds(
+  prisma: PrismaService,
+  viewerCompanyId: string,
+  packIds: string[],
+): Promise<Map<string, CuratedOwnerRateChromeStamp>> {
+  const out = new Map<string, CuratedOwnerRateChromeStamp>();
+  const ids = [...new Set(packIds.filter(Boolean))];
+  if (ids.length === 0) return out;
+  const packs = await prisma.collection.findMany({
+    where: { id: { in: ids } },
+    select: {
+      id: true,
+      companyId: true,
+      rate: true,
+      rateVisibility: true,
+      catalogRateUnit: true,
+      repostSourceCollectionId: true,
+      repostSourceProductId: true,
+      repostPricingMode: true,
+      repostMarginValue: true,
+      repostEditedRate: true,
+      repostEditOwnBase: true,
+      products: {
+        where: { excluded: false },
+        select: {
+          productId: true,
+          pricingMode: true,
+          marginValue: true,
+          editedRate: true,
+          editOwnBase: true,
+          product: {
+            select: {
+              id: true,
+              rate: true,
+              catalogRateUnit: true,
+            },
+          },
+        },
+      },
+    },
+  });
+  await Promise.all(
+    packs.map(async (pack) => {
+      const isChild = Boolean(pack.repostSourceCollectionId || pack.repostSourceProductId);
+      if (!isChild) return;
+      // Only the pack owner (or viewer resolving their own child) gets chrome.
+      if (pack.companyId !== viewerCompanyId) return;
+      try {
+        const resolved = await resolvePackMemberBuyerRates(prisma, pack, {
+          viewerCompanyId,
+          sourceDisclosed: true,
+        });
+        const band = buyerFacingBand([...resolved.values()].map((row) => row.buyerFacing));
+        const units = pack.products
+          .map((row) => row.product.catalogRateUnit?.trim())
+          .filter(Boolean) as string[];
+        const agreedUnit =
+          pack.catalogRateUnit?.trim() ||
+          (units.length > 0 && new Set(units).size === 1 ? units[0]! : null);
+        const config = packPricingConfigFromRow(pack);
+        out.set(pack.id, {
+          rateMin: band.rateMin,
+          rateMax: band.rateMax,
+          rateUnit: agreedUnit,
+          supplierRateMin: uniformDisclosedSourceFromResolved(resolved),
+          pricingMode: config.mode,
+          marginValue: config.marginValue,
+        });
+      } catch {
+        // Fail-closed: omit stamp.
+      }
+    }),
+  );
+  return out;
+}
+
 /**
  * When a design is opened outside its album (product detail), prefer the trader
  * pack’s resolved buyer-facing ₹ over raw mill Product.rate when a curated calc

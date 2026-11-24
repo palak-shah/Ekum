@@ -1,13 +1,26 @@
-import { clearSelection } from '@/features/browse/clearSelection';
+import { clearExploreOriginAlbumPick } from '@/features/browse/browseAlbumPick';
+import { clearExploreOriginShortlist } from '@/features/browse/browseShortlist';
+import { clearResumeAfterAlbumPick } from '@/features/browse/resumeAfterAlbumPick';
+import { resetBrowseAlbumPickSelectMode } from '@/features/browse/useBrowseAlbumPick';
+import { resetBrowseShortlistSelectMode } from '@/features/browse/useBrowseShortlist';
 
 /** Pathname only — `?story=` / `?show=` on `/explore` is not leave. */
 export function explorePathLeft(from: string, to: string): boolean {
   return from === '/explore' && to !== '/explore';
 }
 
-/** Drop Explore staging checks + Selecting. Does not touch the parked cart. */
+/**
+ * Drop Explore-origin staging checks. Traveling Selection (album → Explore) stays.
+ * Does not touch the parked cart. Exits Selecting only when both piles are empty.
+ */
 export function clearExploreStaging(): void {
-  clearSelection();
+  const designs = clearExploreOriginShortlist();
+  const albums = clearExploreOriginAlbumPick();
+  clearResumeAfterAlbumPick();
+  if (designs.length === 0 && albums.length === 0) {
+    resetBrowseShortlistSelectMode();
+    resetBrowseAlbumPickSelectMode();
+  }
 }
 
 export function noteExplorePathChange(from: string, to: string): void {

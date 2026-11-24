@@ -114,6 +114,7 @@ import { Avatar, ErrorState, LoadingBlock, SearchInput, cx } from '@/ui/kit';
 import { catalogSearchMatches, designFindParts } from '@/features/catalog/catalogSearch';
 import { CatalogFindToggle } from '@/features/catalog/catalogFindToggle';
 import { YouCollectionListRow } from '@/features/catalog/YouCollectionListRow';
+import { YouLibraryCreateRow } from '@/features/catalog/YouLibraryCreateRow';
 import {
   shopCollectionShelfMeta,
   toShopCollectionRow,
@@ -123,6 +124,8 @@ import {
   bookmarkThisPackLabel,
   shareThisPackLabel,
 } from '@/features/catalog/packKindCopy';
+import { useTradePresence } from '@/lib/tradePresence';
+import { CREATE_FAB_EXPLAIN } from '@/app/createFabIntent';
 import { DesignSheet, type DesignSheetProduct } from '@/features/browse/DesignSheet';
 import { OwnerCollectionMoreSheet } from '@/features/collections/OwnerCollectionMoreSheet';
 import { visitorCollectionMoreIds } from '@/features/collections/visitorCollectionMore';
@@ -248,7 +251,11 @@ export function BusinessProfileBody({
   /** Select / Find / layout / trade dock — catalogue page only. */
   const shelfInteractive = isCatalogue;
   const { isOwner, can: canCap } = useTeamCaps();
+  const { selling } = useTradePresence();
   const canInviteTeam = isOwner || canCap('team');
+  const canUploads = canCap('uploads');
+  /** Own Home create path — same gate as nav ＋. */
+  const showOwnerCreate = isHome && selling && canUploads;
   const isOwn = Boolean(id) && id === myCompanyId;
   const shortlist = useBrowseShortlist();
   const albumPick = useBrowseAlbumPick();
@@ -671,7 +678,8 @@ export function BusinessProfileBody({
   const company = profile.data;
   const hasShop = designs.length > 0 || collections.length > 0;
   const shelfReady = shopCollections.isSuccess && shopDesigns.isSuccess;
-  const showCatalogue = profileAccess && shelfReady && hasShop;
+  const showCatalogue =
+    profileAccess && shelfReady && (hasShop || showOwnerCreate);
 
   if (isCatalogue && !profileAccess) {
     return (
@@ -1179,7 +1187,23 @@ export function BusinessProfileBody({
           {/* Preview faces hug content — no empty min-height reserve. */}
           <div>
           {shopTab === 'designs' ? (
-            displayDesigns.length > 0 ? (
+            <>
+              {showOwnerCreate ? (
+                <div className="px-1" data-testid="business-profile-home-create">
+                  <YouLibraryCreateRow
+                    testId="home-new-design"
+                    label="New design"
+                    onClick={() => {
+                      if (!canUploads) {
+                        showToast(CREATE_FAB_EXPLAIN, 'danger');
+                        return;
+                      }
+                      navigate('/catalog/products/new');
+                    }}
+                  />
+                </div>
+              ) : null}
+              {displayDesigns.length > 0 ? (
               <div
                 className={cx(
                   'px-3 py-3',
@@ -1216,11 +1240,36 @@ export function BusinessProfileBody({
                 ))}
               </div>
             ) : (
-              <p className="px-3 py-2.5 text-sm text-muted">
-                {listSearchActive ? 'No designs match.' : 'No published designs yet.'}
+              <p
+                className="px-3 py-2.5 text-sm text-muted"
+                data-testid={showOwnerCreate && !listSearchActive ? 'business-profile-home-empty' : undefined}
+              >
+                {listSearchActive
+                  ? 'No designs match.'
+                  : showOwnerCreate
+                    ? 'Nothing published yet'
+                    : 'No published designs yet.'}
               </p>
-            )
-          ) : displayCollections.length > 0 ? (
+            )}
+            </>
+          ) : (
+            <>
+              {showOwnerCreate ? (
+                <div className="px-1" data-testid="business-profile-home-create">
+                  <YouLibraryCreateRow
+                    testId="home-new-collection"
+                    label="New collection"
+                    onClick={() => {
+                      if (!canUploads) {
+                        showToast(CREATE_FAB_EXPLAIN, 'danger');
+                        return;
+                      }
+                      navigate('/catalog/collections/new');
+                    }}
+                  />
+                </div>
+              ) : null}
+              {displayCollections.length > 0 ? (
             <div className="flex flex-col px-2 py-1" data-testid="company-shop-collections">
               {displayCollections.map((collection) => {
                 const shelfMeta = shopCollectionShelfMeta({
@@ -1263,12 +1312,21 @@ export function BusinessProfileBody({
               })}
             </div>
           ) : (
-            <p className="px-3 py-2.5 text-sm text-muted">
-                {listSearchActive ? 'No collections match.' : 'No published collections yet.'}
-              </p>
-            )}
+            <p
+              className="px-3 py-2.5 text-sm text-muted"
+              data-testid={showOwnerCreate && !listSearchActive ? 'business-profile-home-empty' : undefined}
+            >
+              {listSearchActive
+                ? 'No collections match.'
+                : showOwnerCreate
+                  ? 'Nothing published yet'
+                  : 'No published collections yet.'}
+            </p>
+          )}
+            </>
+          )}
           </div>
-          {isHome ? (
+          {hasShop && isHome ? (
             <Link
               to={shopTab === 'designs' ? '/more?tab=products' : '/more?tab=collections'}
               data-testid="business-profile-view-more"
@@ -1277,7 +1335,7 @@ export function BusinessProfileBody({
               {seeAllCatalogueLabel(shopTab)}
             </Link>
           ) : null}
-          {isShopFace ? (
+          {hasShop && isShopFace ? (
             <Link
               to={`/company/${id}/catalogue?tab=${
                 shopTab === 'designs' ? 'products' : 'collections'

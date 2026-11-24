@@ -168,6 +168,20 @@ export function curatedPublishAllowDownload(input: {
   return foreign.every((product) => product.allowDownload === true);
 }
 
+/**
+ * Allow Repost cannot exceed the immediate source pack.
+ * Own-only / no source: requested as-is (true unless explicitly false).
+ */
+export function curatedPublishAllowForward(input: {
+  requested: boolean;
+  /** Immediate upstream pack allowForward when reposting a collection. */
+  sourcePackAllowForward?: boolean | null;
+}): boolean {
+  if (!input.requested) return false;
+  if (input.sourcePackAllowForward === false) return false;
+  return true;
+}
+
 export function curatedPublishRateVisibility(input: {
   curatorCompanyId: string;
   requested: string;

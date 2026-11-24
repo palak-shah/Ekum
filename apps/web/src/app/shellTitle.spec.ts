@@ -46,6 +46,11 @@ describe('shellTitle', () => {
     expect(pageOwnsTopChrome('/network')).toBe(true);
     expect(pageOwnsTopChrome('/network/connections')).toBe(true);
   });
+
+  it('lets Notifications PageHeader own the top band (no double title)', () => {
+    expect(shellTitle('/notifications')).toBeNull();
+    expect(pageOwnsTopChrome('/notifications')).toBe(true);
+  });
 });
 
 describe('isMainMenuPath', () => {

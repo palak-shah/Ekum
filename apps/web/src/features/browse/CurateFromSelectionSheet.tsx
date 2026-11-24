@@ -1,16 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   CollectionStatus,
-  uniqueSharedRepostHop,
-  type CollectionDetailView,
   type CollectionView,
-  type CreateCollectionDto,
   type CurateCheckView,
   type RelistAccessView,
   type RelistRequestView,
-  type SetCollectionProductsDto,
 } from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
 import { useTradePresence } from '@/lib/tradePresence';
@@ -19,28 +14,36 @@ import { curateSheetDesigns } from '@/features/browse/curateSheetDesigns';
 import { useBrowseCart } from '@/features/browse/useBrowseCart';
 import { useBrowseShortlist } from '@/features/browse/useBrowseShortlist';
 import {
-  curateExistingTargets,
   curatePublishedTargets,
   filterCurateTargetsByQuery,
-  findOwnedPackByName,
-  mergeCollectionProductIds,
 } from '@/features/browse/curateExisting';
 import {
-  CURATE_ADD_TO_IT,
-  CURATE_NAME_TAKEN,
   groupRelistAskBatches,
-  isCurateCeilingError,
   partitionCurateByCheck,
 } from '@/features/browse/curateCheck';
 import { useToast } from '@/ui/Toast';
-import { DockIconButton } from '@/features/browse/BottomTradeDock';
-import { BookmarkIcon, CollectionIcon, PlusIcon } from '@/ui/icons';
+import { CollectionIcon, PlusIcon } from '@/ui/icons';
 import { CurateWhyHint } from '@/features/browse/CurateWhyHint';
 import { RepostSkipSection } from '@/features/browse/RepostSkipSection';
-import { repostCoverUrl } from '@/features/browse/repostCoverUrl';
-import { Button, Field, InlineNotice, Sheet, TextInput, cx } from '@/ui/kit';
+import {
+  RepostSheet,
+  type RepostSheetProductMember,
+  type RepostSheetTarget,
+} from '@/features/explore/RepostSheet';
+import { Button, InlineNotice, Sheet, TextInput, cx } from '@/ui/kit';
 
-type RepostMode = 'choose' | 'existing' | 'new';
+type ChooseMode = 'choose' | 'existing';
+
+type RepostPhase =
+  | { kind: 'idle' }
+  | { kind: 'create'; target: RepostSheetTarget }
+  | {
+      kind: 'edit';
+      editCollectionId: string;
+      pendingProductIds: string[];
+      pendingMembers: RepostSheetProductMember[];
+      target: RepostSheetTarget;
+    };
 
 function statusLabel(status: CollectionView['status']): string {
   if (status === CollectionStatus.Published) return 'Published';
@@ -48,6 +51,23 @@ function statusLabel(status: CollectionView['status']): string {
   return 'Draft';
 }
 
+function membersFromEntries(
+  rows: { productId: string; name: string; thumbUrl?: string | null; companyId: string; companyName?: string; sourceCollectionId?: string | null }[],
+): RepostSheetProductMember[] {
+  return rows.map((row) => ({
+    productId: row.productId,
+    name: row.name,
+    thumbUrl: row.thumbUrl ?? null,
+    companyId: row.companyId,
+    companyName: row.companyName ?? '',
+    sourceCollectionId: row.sourceCollectionId ?? null,
+  }));
+}
+
+/**
+ * Cart / You Repost: New | Existing first, then shared Explore RepostSheet
+ * (Show rates / Same·Edit·±Margin / Who). Existing opens Edit with staged adds.
+ */
 export function CurateFromSelectionSheet({
   open,
   onClose,
@@ -64,7 +84,6 @@ export function CurateFromSelectionSheet({
   /** Called after a successful new pack or add-to-existing (before navigate). */
   onCurated?: () => void;
 }) {
-  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { showToast } = useToast();
   const { trading } = useTradePresence();
@@ -72,12 +91,12 @@ export function CurateFromSelectionSheet({
   const myCompanyId = me.data?.id;
   const shortlist = useBrowseShortlist();
   const cart = useBrowseCart();
-  const [name, setName] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [askingKey, setAskingKey] = useState<string | null>(null);
-  const [mode, setMode] = useState<RepostMode>('choose');
+  const [mode, setMode] = useState<ChooseMode>('choose');
   const [query, setQuery] = useState('');
   const [sheetError, setSheetError] = useState<string | null>(null);
+  const [askingKey, setAskingKey] = useState<string | null>(null);
+  const [repostPhase, setRepostPhase] = useState<RepostPhase>({ kind: 'idle' });
+  const [defaultPackName, setDefaultPackName] = useState('');
 
   const owned = useQuery({
     queryKey: ['my-collections'],
@@ -85,13 +104,7 @@ export function CurateFromSelectionSheet({
     enabled: open,
   });
 
-  /** Name clash / Add to it — any live album. */
   const ownedPacks = Array.isArray(owned.data) ? owned.data : [];
-  const nameTargets = useMemo(
-    () => curateExistingTargets(ownedPacks),
-    [ownedPacks],
-  );
-  /** Add to existing path — published only. */
   const publishedTargets = useMemo(
     () => curatePublishedTargets(ownedPacks),
     [ownedPacks],
@@ -104,11 +117,15 @@ export function CurateFromSelectionSheet({
   const wasOpen = useRef(false);
   useEffect(() => {
     if (open && !wasOpen.current) {
-      setName(defaultName?.trim() ?? '');
+      setDefaultPackName(defaultName?.trim() ?? '');
       setMode('choose');
       setQuery('');
       setSheetError(null);
       setAskingKey(null);
+      setRepostPhase({ kind: 'idle' });
+    }
+    if (!open) {
+      setRepostPhase({ kind: 'idle' });
     }
     wasOpen.current = open;
   }, [open, defaultName]);
@@ -128,7 +145,7 @@ export function CurateFromSelectionSheet({
     queryKey: ['collections', 'curate-check', idKey],
     queryFn: () =>
       api.post<CurateCheckView>('/collections/curate-check', { productIds: ids }),
-    enabled: open && ids.length > 0,
+    enabled: open && ids.length > 0 && repostPhase.kind === 'idle',
   });
 
   const relistAccess = useQuery({
@@ -145,18 +162,11 @@ export function CurateFromSelectionSheet({
         packByProductId,
       });
     },
-    enabled: open && ids.length > 0,
+    enabled: open && ids.length > 0 && repostPhase.kind === 'idle',
   });
 
   const { allowed, blocked } = partitionCurateByCheck(entries, curateCheck.data);
   const pendingByProductId = relistAccess.data?.pendingByProductId ?? {};
-
-  const nameClash = findOwnedPackByName(nameTargets, name);
-  /** Enable while check loads (entries stand in); after check, need ≥1 allowed. */
-  const canSubmit =
-    Boolean(name.trim()) &&
-    !nameClash &&
-    (allowed.length >= 1 || (entries.length >= 1 && curateCheck.isLoading));
 
   const askRelist = useMutation({
     mutationFn: async (rows: { productId: string; sourceCollectionId?: string }[]) => {
@@ -175,444 +185,267 @@ export function CurateFromSelectionSheet({
     },
   });
 
-  const refetchSplit = async () => {
-    const next = await queryClient.fetchQuery({
-      queryKey: ['collections', 'curate-check', idKey],
-      queryFn: () =>
-        api.post<CurateCheckView>('/collections/curate-check', { productIds: ids }),
-    });
-    return partitionCurateByCheck(entries, next);
-  };
-
-  const putMembers = async (collectionId: string, productIdsToPut: string[]) => {
-    return api.put<CollectionDetailView>(`/collections/${collectionId}/products`, {
-      productIds: productIdsToPut,
-    } satisfies SetCollectionProductsDto);
-  };
-
-  const createDraft = async (opts?: { openPublish?: boolean }) => {
-    const packName = name.trim();
-    if (!packName) {
-      setSheetError('Enter a collection name.');
-      return;
-    }
-    if (allowed.length < 1) {
-      if (curateCheck.isLoading) {
-        setSheetError('Still checking which designs can go in…');
-        return;
-      }
-      setSheetError('No designs can go in a collection yet.');
-      return;
-    }
-    const existing = findOwnedPackByName(nameTargets, packName);
-    if (existing) {
-      setSheetError(CURATE_NAME_TAKEN);
-      return;
-    }
-    const firstThumb = repostCoverUrl(allowed.find((item) => item.thumbUrl)?.thumbUrl);
-    const hop = uniqueSharedRepostHop(
-      allowed.map((entry) => ({
-        collectionId: entry.sourceCollectionId,
-        productId: entry.productId,
-      })),
-    );
-    setSaving(true);
-    setSheetError(null);
-    let createdId: string | undefined;
-    try {
-      const created = await api.post<CollectionDetailView>('/collections', {
-        name: packName,
-        categories: [],
-        ...(firstThumb ? { coverImage: firstThumb } : {}),
-        ...hop,
-      } satisfies CreateCollectionDto);
-      createdId = created.id;
-      const toPut = allowed.map((entry) => entry.productId);
-      let detail: CollectionDetailView;
-      try {
-        detail = await putMembers(created.id, toPut);
-      } catch (err) {
-        if (!(err instanceof ApiError) || !isCurateCeilingError(err)) throw err;
-        const retry = await refetchSplit();
-        if (retry.allowed.length < 1) {
-          try {
-            await api.del(`/collections/${created.id}`);
-          } catch {
-            // Best-effort
-          }
-          createdId = undefined;
-          return;
-        }
-        detail = await putMembers(
-          created.id,
-          retry.allowed.map((entry) => entry.productId),
-        );
-      }
-      queryClient.setQueryData(['collection', created.id], detail);
-      void queryClient.invalidateQueries({ queryKey: ['my-collections'] });
-      shortlist.removeIds(detail.products.map((product) => product.id));
-      onCurated?.();
-      onClose();
-      if (opts?.openPublish) {
-        // Whom sheet opens on the pack; after live publish → My Collections.
-        navigate(`/catalog/collections/${created.id}`, {
-          replace: true,
-          state: {
-            notice: 'Draft ready — finish publish',
-            openPublish: true,
-            afterPublish: 'collections' as const,
-          },
-        });
-        return;
-      }
-      showToast('Collection draft saved');
-      navigate('/catalog?tab=collections', {
-        replace: true,
-        state: { collectionFilter: 'draft', productFilter: 'draft' },
-      });
-    } catch (err) {
-      if (createdId) {
-        try {
-          await api.del(`/collections/${createdId}`);
-        } catch {
-          // Best-effort — do not leave the trader on an empty named draft.
-        }
-      }
-      if (err instanceof ApiError && isCurateCeilingError(err)) {
-        setSheetError(null);
-        void queryClient.invalidateQueries({ queryKey: ['collections', 'curate-check'] });
-        return;
-      }
-      const message =
-        err instanceof ApiError ? err.message : (err as Error).message || 'Could not save collection.';
-      setSheetError(message);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const addToExisting = async (pack: CollectionView) => {
+  const openCreateRepost = () => {
     if (allowed.length < 1) return;
-    setSaving(true);
-    setSheetError(null);
-    try {
-      const detail = await api.get<CollectionDetailView>(`/collections/${pack.id}`);
-      const existingIds = detail.products.map((product) => product.id);
-      const productIdsMerged = mergeCollectionProductIds(
-        existingIds,
-        allowed.map((entry) => entry.productId),
-      );
-      let updated: CollectionDetailView;
-      try {
-        updated = await putMembers(pack.id, productIdsMerged);
-      } catch (err) {
-        if (!(err instanceof ApiError) || !isCurateCeilingError(err)) throw err;
-        const retry = await refetchSplit();
-        if (retry.allowed.length < 1) return;
-        updated = await putMembers(
-          pack.id,
-          mergeCollectionProductIds(
-            existingIds,
-            retry.allowed.map((entry) => entry.productId),
-          ),
-        );
-      }
-      queryClient.setQueryData(['collection', pack.id], updated);
-      void queryClient.invalidateQueries({ queryKey: ['my-collections'] });
-      shortlist.removeIds(allowed.map((entry) => entry.productId));
-      onCurated?.();
-      onClose();
-      showToast(`Added to ${pack.name}`);
-      if (pack.status === CollectionStatus.Published) {
-        void queryClient.invalidateQueries({ queryKey: ['explore'] });
-      }
-      // Published → My Collections; draft/ready → Draft filter.
-      const inDrafts =
-        pack.status === CollectionStatus.Draft || pack.status === CollectionStatus.Ready;
-      navigate('/catalog?tab=collections', {
-        replace: true,
-        state: {
-          collectionFilter: inDrafts ? 'draft' : 'published',
-          productFilter: inDrafts ? 'draft' : 'published',
-        },
-      });
-    } catch (err) {
-      if (err instanceof ApiError && isCurateCeilingError(err)) {
-        setSheetError(null);
-        void queryClient.invalidateQueries({ queryKey: ['collections', 'curate-check'] });
-        return;
-      }
-      setSheetError(
-        err instanceof ApiError
-          ? err.message
-          : (err as Error).message || 'Could not add to collection.',
-      );
-    } finally {
-      setSaving(false);
-    }
+    const members = membersFromEntries(allowed);
+    setRepostPhase({
+      kind: 'create',
+      target: {
+        kind: 'products',
+        productIds: allowed.map((row) => row.productId),
+        name: defaultPackName.trim() || allowed[0]?.name || 'Repost',
+        coverImage: allowed.find((row) => row.thumbUrl)?.thumbUrl ?? null,
+        members,
+      },
+    });
   };
 
-  const skipChrome =
-    blocked.length > 0 || (allowed.length > 0 && !curateCheck.isLoading) ? (
-      <RepostSkipSection
-        allowed={blocked.length > 0 ? allowed : []}
-        blocked={blocked}
-        extraHint={sheetError}
-        allowRelistAsk
-        trading={trading}
-        myCompanyId={myCompanyId}
-        pendingByProductId={pendingByProductId}
-        askingKey={askingKey}
-        onAsk={(row) => {
-          setAskingKey(row.productId);
-          askRelist.mutate([row]);
-        }}
-        onAskAll={(rows) => {
-          setAskingKey('all-relist');
-          askRelist.mutate(rows);
-        }}
-      />
-    ) : null;
+  const openEditRepost = (pack: CollectionView) => {
+    if (allowed.length < 1) return;
+    const members = membersFromEntries(allowed);
+    setRepostPhase({
+      kind: 'edit',
+      editCollectionId: pack.id,
+      pendingProductIds: allowed.map((row) => row.productId),
+      pendingMembers: members,
+      target: {
+        kind: 'products',
+        productIds: allowed.map((row) => row.productId),
+        name: pack.name,
+        members,
+      },
+    });
+  };
+
+  const onRepostDone = (childId?: string) => {
+    void childId;
+    const usedIds = allowed.map((row) => row.productId);
+    shortlist.removeIds(usedIds);
+    onCurated?.();
+    setRepostPhase({ kind: 'idle' });
+    onClose();
+  };
+
+  const onRepostClose = () => {
+    setRepostPhase({ kind: 'idle' });
+    setMode('choose');
+  };
+
+  const skipChrome = (
+    <RepostSkipSection
+      allowed={allowed}
+      blocked={blocked}
+      extraHint={sheetError}
+      allowRelistAsk
+      trading={trading}
+      myCompanyId={myCompanyId}
+      pendingByProductId={pendingByProductId}
+      askingKey={askingKey}
+      onAsk={(row) => {
+        setAskingKey(row.productId);
+        askRelist.mutate([
+          {
+            productId: row.productId,
+            ...(row.sourceCollectionId ? { sourceCollectionId: row.sourceCollectionId } : {}),
+          },
+        ]);
+      }}
+      onAskAll={(rows) => {
+        setAskingKey('all');
+        askRelist.mutate(
+          rows.map((row) => ({
+            productId: row.productId,
+            ...(row.sourceCollectionId ? { sourceCollectionId: row.sourceCollectionId } : {}),
+          })),
+        );
+      }}
+    />
+  );
 
   const designSummary = (
     <p className="text-sm text-muted" data-testid="repost-design-summary">
-      {entries.length} design{entries.length === 1 ? '' : 's'} from{' '}
+      {entries.length} design{entries.length === 1 ? '' : 's'} ·{' '}
       {new Set(entries.map((entry) => entry.companyId)).size} business
       {new Set(entries.map((entry) => entry.companyId)).size === 1 ? '' : 'es'}
     </p>
   );
 
-  const newActions =
-    mode === 'new' && !nameClash ? (
-      <div className="flex items-stretch gap-2" data-testid="repost-new-actions">
-        <div className="w-[4.75rem] shrink-0">
-          <DockIconButton
-            testId="curate-save-draft"
-            label={saving ? '…' : 'Save'}
-            disabled={saving || !canSubmit}
-            onClick={() => void createDraft()}
-          >
-            <BookmarkIcon width={22} height={22} />
-          </DockIconButton>
-        </div>
-        <button
-          type="button"
-          data-testid="repost-publish"
-          disabled={saving || !canSubmit}
-          onClick={() => void createDraft({ openPublish: true })}
-          className={cx(
-            'flex min-h-12 min-w-0 flex-1 items-center justify-center rounded-xl px-4',
-            'border border-accent bg-accent text-sm font-emphasis text-on-accent',
-            'disabled:opacity-40',
-          )}
-        >
-          {saving ? 'Saving…' : 'Publish'}
-        </button>
-      </div>
-    ) : mode === 'new' && nameClash ? (
-      <Button
-        fullWidth
-        loading={saving}
-        disabled={allowed.length < 1}
-        onClick={() => void addToExisting(nameClash)}
-      >
-        {CURATE_ADD_TO_IT}
-      </Button>
-    ) : null;
+  const chooseOpen = open && repostPhase.kind === 'idle';
+  const repostOpen = open && repostPhase.kind !== 'idle';
 
   return (
-    <Sheet open={open} onClose={onClose} title="Repost" footer={newActions}>
-      {mode === 'choose' ? (
-        <div className="flex flex-col gap-3">
-          {designSummary}
-          {curateCheck.isLoading ? (
-            <p className="text-sm text-muted">Checking which can go in…</p>
-          ) : (
-            skipChrome
-          )}
-          {curateCheck.isLoading || allowed.length >= 1 ? (
-          <div className="flex flex-col gap-2" data-testid="repost-path-choose">
-            <button
-              type="button"
-              data-testid="repost-path-existing"
-              disabled={saving || allowed.length < 1}
-              onClick={() => {
-                setQuery('');
-                setSheetError(null);
-                setMode('existing');
-              }}
-              className={cx(
-                'flex w-full items-center gap-3 rounded-2xl border px-3.5 py-3 text-left',
-                'border-line bg-surface hover:border-accent hover:bg-accent/5 disabled:opacity-40',
-              )}
-            >
-              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent">
-                <CollectionIcon width={22} height={22} />
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block text-sm font-emphasis text-ink">Add to existing collection</span>
-                <span className="block text-xs font-body text-muted">
-                  Pick a published collection
-                </span>
-              </span>
-            </button>
-            <button
-              type="button"
-              data-testid="repost-path-new"
-              disabled={saving || allowed.length < 1}
-              onClick={() => {
-                setSheetError(null);
-                setMode('new');
-              }}
-              className={cx(
-                'flex w-full items-center gap-3 rounded-2xl border px-3.5 py-3 text-left',
-                'border-line bg-surface hover:border-accent hover:bg-accent/5 disabled:opacity-40',
-              )}
-            >
-              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent">
-                <PlusIcon width={22} height={22} />
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block text-sm font-emphasis text-ink">Add new</span>
-                <span className="block text-xs font-body text-muted">
-                  Name it, then publish
-                </span>
-              </span>
-            </button>
+    <>
+      <Sheet open={chooseOpen} onClose={onClose} title="Repost">
+        {mode === 'choose' ? (
+          <div className="flex flex-col gap-3">
+            {designSummary}
+            {curateCheck.isLoading ? (
+              <p className="text-sm text-muted">Checking which can go in…</p>
+            ) : (
+              skipChrome
+            )}
+            {curateCheck.isLoading || allowed.length >= 1 ? (
+              <div className="flex flex-col gap-2" data-testid="repost-path-choose">
+                <button
+                  type="button"
+                  data-testid="repost-path-existing"
+                  disabled={allowed.length < 1}
+                  onClick={() => {
+                    setQuery('');
+                    setSheetError(null);
+                    setMode('existing');
+                  }}
+                  className={cx(
+                    'flex w-full items-center gap-3 rounded-2xl border px-3.5 py-3 text-left',
+                    'border-line bg-surface hover:border-accent hover:bg-accent/5 disabled:opacity-40',
+                  )}
+                >
+                  <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent">
+                    <CollectionIcon width={22} height={22} />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-emphasis text-ink">
+                      Add to existing collection
+                    </span>
+                    <span className="block text-xs font-body text-muted">
+                      Pick a published collection · set rates
+                    </span>
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  data-testid="repost-path-new"
+                  disabled={allowed.length < 1}
+                  onClick={() => {
+                    setSheetError(null);
+                    openCreateRepost();
+                  }}
+                  className={cx(
+                    'flex w-full items-center gap-3 rounded-2xl border px-3.5 py-3 text-left',
+                    'border-line bg-surface hover:border-accent hover:bg-accent/5 disabled:opacity-40',
+                  )}
+                >
+                  <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-accent/10 text-accent">
+                    <PlusIcon width={22} height={22} />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-emphasis text-ink">Add new</span>
+                    <span className="block text-xs font-body text-muted">
+                      Name, rates, who — then Repost
+                    </span>
+                  </span>
+                </button>
+              </div>
+            ) : null}
           </div>
-          ) : null}
-        </div>
-      ) : null}
+        ) : null}
 
-      {mode === 'existing' ? (
-        <div className="flex flex-col gap-3">
-          <button
-            type="button"
-            className="self-start text-sm font-emphasis text-accent"
-            disabled={saving}
-            data-testid="repost-back-choose"
-            onClick={() => setMode('choose')}
-          >
-            ← Back
-          </button>
-          <p className="text-sm text-muted">
-            {allowed.length} design{allowed.length === 1 ? '' : 's'} · pick a published collection
-          </p>
-          {skipChrome}
-          {sheetError ? (
-            <div className="flex items-start gap-1">
-              <div className="min-w-0 flex-1">
-                <InlineNotice message={sheetError} tone="muted" />
-              </div>
-              {blocked.length < 1 ? (
-                <CurateWhyHint codes={[]} extra={sheetError} testId="curate-skip-info" />
-              ) : null}
-            </div>
-          ) : null}
-          {publishedTargets.length > 0 ? (
-            <TextInput
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search your collections"
-              autoComplete="off"
-            />
-          ) : null}
-          {owned.isLoading ? (
-            <p className="text-sm text-muted">Loading collections…</p>
-          ) : publishedTargets.length === 0 ? (
-            <div className="flex flex-col gap-2">
-              <p className="text-sm text-muted">No published collections yet.</p>
-              <Button
-                variant="secondary"
-                fullWidth
-                disabled={saving || allowed.length < 1}
-                onClick={() => setMode('new')}
-              >
-                Add new instead
-              </Button>
-            </div>
-          ) : filteredPublished.length === 0 ? (
-            <p className="text-sm text-muted">No collections match.</p>
-          ) : (
-            <ul
-              className="flex max-h-72 flex-col gap-2 overflow-y-auto"
-              data-testid="repost-existing-list"
+        {mode === 'existing' ? (
+          <div className="flex flex-col gap-3">
+            <button
+              type="button"
+              className="self-start text-sm font-emphasis text-accent"
+              data-testid="repost-back-choose"
+              onClick={() => setMode('choose')}
             >
-              {filteredPublished.map((pack) => (
-                <li key={pack.id}>
-                  <button
-                    type="button"
-                    disabled={saving || allowed.length < 1}
-                    onClick={() => void addToExisting(pack)}
-                    className={cx(
-                      'flex w-full items-center gap-3 rounded-2xl border px-3.5 py-3 text-left',
-                      'border-line bg-surface hover:border-accent hover:bg-accent/5 disabled:opacity-40',
-                    )}
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-emphasis tracking-tight text-ink">
-                        {pack.name}
-                      </p>
-                      <p className="truncate text-xs font-body text-muted">
-                        {statusLabel(pack.status)}
-                        {pack.productCount != null
-                          ? ` · ${pack.productCount} design${pack.productCount === 1 ? '' : 's'}`
-                          : ''}
-                      </p>
-                    </div>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      ) : null}
-
-      {mode === 'new' ? (
-        <div className="flex flex-col gap-3">
-          <button
-            type="button"
-            className="self-start text-sm font-emphasis text-accent"
-            disabled={saving}
-            data-testid="repost-back-choose"
-            onClick={() => setMode('choose')}
-          >
-            ← Back
-          </button>
-          {designSummary}
-          {curateCheck.isLoading ? (
-            <p className="text-sm text-muted">Checking which can go in…</p>
-          ) : (
-            skipChrome
-          )}
-          <Field label="Name">
-            <TextInput
-              value={name}
-              onChange={(e) => {
-                setName(e.target.value);
-                setSheetError(null);
-              }}
-              placeholder="e.g. Festive 2026"
-              autoComplete="off"
-              autoFocus
-              data-testid="repost-name"
-            />
-          </Field>
-          {nameClash ? (
-            <InlineNotice message={CURATE_NAME_TAKEN} tone="muted" />
-          ) : null}
-          {sheetError && !nameClash ? (
-            <div className="flex items-start gap-1">
-              <div className="min-w-0 flex-1">
-                <InlineNotice message={sheetError} tone="muted" />
+              ← Back
+            </button>
+            <p className="text-sm text-muted">
+              {allowed.length} design{allowed.length === 1 ? '' : 's'} · pick a published
+              collection
+            </p>
+            {skipChrome}
+            {sheetError ? (
+              <div className="flex items-start gap-1">
+                <div className="min-w-0 flex-1">
+                  <InlineNotice message={sheetError} tone="muted" />
+                </div>
+                {blocked.length < 1 ? (
+                  <CurateWhyHint codes={[]} extra={sheetError} testId="curate-skip-info" />
+                ) : null}
               </div>
-              {blocked.length < 1 ? (
-                <CurateWhyHint codes={[]} extra={sheetError} testId="curate-skip-info" />
-              ) : null}
-            </div>
-          ) : null}
-        </div>
+            ) : null}
+            {publishedTargets.length > 0 ? (
+              <TextInput
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search your collections"
+                autoComplete="off"
+              />
+            ) : null}
+            {owned.isLoading ? (
+              <p className="text-sm text-muted">Loading collections…</p>
+            ) : publishedTargets.length === 0 ? (
+              <div className="flex flex-col gap-2">
+                <p className="text-sm text-muted">No published collections yet.</p>
+                <Button
+                  variant="secondary"
+                  fullWidth
+                  disabled={allowed.length < 1}
+                  onClick={() => openCreateRepost()}
+                >
+                  Add new instead
+                </Button>
+              </div>
+            ) : filteredPublished.length === 0 ? (
+              <p className="text-sm text-muted">No collections match.</p>
+            ) : (
+              <ul
+                className="flex max-h-72 flex-col gap-2 overflow-y-auto"
+                data-testid="repost-existing-list"
+              >
+                {filteredPublished.map((pack) => (
+                  <li key={pack.id}>
+                    <button
+                      type="button"
+                      disabled={allowed.length < 1}
+                      data-testid={`repost-existing-${pack.id}`}
+                      onClick={() => openEditRepost(pack)}
+                      className={cx(
+                        'flex w-full items-center gap-3 rounded-2xl border px-3.5 py-3 text-left',
+                        'border-line bg-surface hover:border-accent hover:bg-accent/5 disabled:opacity-40',
+                      )}
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-emphasis tracking-tight text-ink">
+                          {pack.name}
+                        </p>
+                        <p className="truncate text-xs font-body text-muted">
+                          {statusLabel(pack.status)}
+                          {pack.productCount != null
+                            ? ` · ${pack.productCount} design${pack.productCount === 1 ? '' : 's'}`
+                            : ''}
+                        </p>
+                      </div>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        ) : null}
+      </Sheet>
+
+      {repostPhase.kind === 'create' ? (
+        <RepostSheet
+          open={repostOpen}
+          onClose={onRepostClose}
+          onReposted={onRepostDone}
+          target={repostPhase.target}
+        />
       ) : null}
-    </Sheet>
+      {repostPhase.kind === 'edit' ? (
+        <RepostSheet
+          open={repostOpen}
+          onClose={onRepostClose}
+          onReposted={onRepostDone}
+          target={repostPhase.target}
+          editCollectionId={repostPhase.editCollectionId}
+          editTitle="Edit repost"
+          pendingProductIds={repostPhase.pendingProductIds}
+          pendingMembers={repostPhase.pendingMembers}
+        />
+      ) : null}
+    </>
   );
 }

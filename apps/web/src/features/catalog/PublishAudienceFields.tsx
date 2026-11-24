@@ -1,3 +1,4 @@
+import { useEffect, useMemo } from 'react';
 import type { BroadcastListView, ConnectionView } from '@ekum/domain-types';
 import { PublishAudience, RateVisibility } from '@ekum/domain-types';
 import { ConnectionPicker } from '@/ui/ConnectionPicker';
@@ -131,6 +132,13 @@ type Props = {
    * `null` / omit = no download ceiling (own designs).
    */
   maxAllowDownload?: boolean | null;
+  /**
+   * Curated / Repost: when false, Allow repost is disabled and forced off
+   * (source pack ceiling).
+   */
+  maxAllowForward?: boolean | null;
+  /** Source-chain shops — omit from Selected ConnectionPicker. */
+  excludeCompanyIds?: string[];
   /** Curated / Repost packs: Show supplier toggle (default off). */
   showSourceShopsOption?: boolean;
   /**
@@ -155,6 +163,8 @@ export function PublishAudienceFields({
   isVisibilityUpdate = false,
   maxAudience = null,
   maxAllowDownload = null,
+  maxAllowForward = null,
+  excludeCompanyIds = [],
   showSourceShopsOption = false,
   hideShowRates = false,
 }: Props) {
@@ -164,6 +174,33 @@ export function PublishAudienceFields({
   const showWhen = whoReady;
   const hasCeiling = Boolean(maxAudience);
   const downloadLocked = maxAllowDownload === false;
+  const forwardLocked = maxAllowForward === false;
+  const excludeSet = useMemo(
+    () => new Set(excludeCompanyIds.filter(Boolean)),
+    [excludeCompanyIds],
+  );
+  const selectableConnections = useMemo(
+    () => connections.filter((row) => !excludeSet.has(row.company.id)),
+    [connections, excludeSet],
+  );
+
+  useEffect(() => {
+    if (excludeSet.size === 0) return;
+    let changed = false;
+    for (const id of state.audienceCompanies) {
+      if (excludeSet.has(id)) {
+        changed = true;
+        break;
+      }
+    }
+    if (!changed) return;
+    const next = new Set(
+      [...state.audienceCompanies].filter((id) => !excludeSet.has(id)),
+    );
+    onChange({ ...state, audienceCompanies: next });
+    // Strip source-chain ids only when exclude set or selection changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional narrow deps
+  }, [excludeSet, state.audienceCompanies]);
 
   const toggleGroup = (list: BroadcastListView) => {
     const has = state.selectedGroupIds.includes(list.id);
@@ -345,7 +382,8 @@ export function PublishAudienceFields({
                   embedded
                   label=""
                   loading={connectionsLoading}
-                  connections={connections}
+                  connections={selectableConnections}
+                  excludeCompanyIds={[...excludeSet]}
                   value={[...state.audienceCompanies]}
                   onChange={onCompaniesChange}
                   emptyMessage="Approve a connection first, then pick them here."
@@ -404,11 +442,17 @@ export function PublishAudienceFields({
           <div>
             <p className="mb-2 text-sm font-emphasis text-ink">Permissions</p>
             <div className="flex flex-col gap-1.5">
-              <label className="flex items-start gap-2 rounded-xl border border-line px-3 py-3 text-sm text-ink">
+              <label
+                className={cx(
+                  'flex items-start gap-2 rounded-xl border border-line px-3 py-3 text-sm text-ink',
+                  forwardLocked ? 'opacity-60' : null,
+                )}
+              >
                 <input
                   type="checkbox"
                   className="mt-0.5"
-                  checked={state.allowForward}
+                  checked={forwardLocked ? false : state.allowForward}
+                  disabled={forwardLocked}
                   onChange={(event) =>
                     onChange({
                       ...state,

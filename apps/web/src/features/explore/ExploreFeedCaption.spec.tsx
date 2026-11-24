@@ -26,9 +26,34 @@ describe('ExploreFeedCaption', () => {
     expect(screen.queryByTestId('explore-feed-rate')).toBeNull();
   });
 
-  it('omits muted meta when not passed', () => {
-    render(<ExploreFeedCaption title="Festive Silks" rateLine="₹900/pc" />);
-    expect(screen.queryByText(/designs/i)).toBeNull();
+  it('puts Fabric left and quiet chrome right on one row', () => {
+    render(
+      <ExploreFeedCaption
+        title="Festive Silks"
+        categoryLine="Fabric"
+        supplierRateLabel="Supplier ₹85/mtr"
+      />,
+    );
+    expect(screen.queryByTestId('explore-feed-rate')).toBeNull();
+    const cats = screen.getByTestId('explore-feed-categories');
+    const supplier = screen.getByTestId('explore-feed-supplier-rate');
+    expect(cats).toHaveTextContent('Fabric');
+    expect(supplier).toHaveTextContent('Supplier ₹85/mtr');
+    expect(cats.parentElement).toBe(supplier.parentElement?.parentElement);
+  });
+
+  it('shows Margin-only quiet chrome without a resulting rate line', () => {
+    render(
+      <ExploreFeedCaption
+        title="Festive Silks"
+        categoryLine="Fabric"
+        marginLabel="Margin ₹465"
+      />,
+    );
+    expect(screen.queryByTestId('explore-feed-rate')).toBeNull();
+    expect(screen.queryByTestId('explore-feed-supplier-rate')).toBeNull();
+    expect(screen.getByTestId('explore-feed-margin').textContent).toBe('Margin ₹465');
+    expect(screen.getByTestId('explore-feed-categories')).toHaveTextContent('Fabric');
   });
 
   it('shows quiet new-design meta when provided', () => {

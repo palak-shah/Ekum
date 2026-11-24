@@ -59,7 +59,6 @@ export function RepostPricingFields({
   /** @deprecated Pack Edit is collection-only; ignored on prototype. */
   onEditRateChange: _onEditRateChange,
   supplierCue = null,
-  buyerRatePreview = null,
 }: {
   value: RepostPricingFormState;
   onChange: (next: RepostPricingFormState) => void;
@@ -79,8 +78,6 @@ export function RepostPricingFields({
   onEditRateChange?: (productId: string, rate: string) => void;
   /** Quiet “Supplier ₹…” when disclosed. */
   supplierCue?: string | null;
-  /** Quiet buyer-rate preview for Margin when disclosed. */
-  buyerRatePreview?: string | null;
 }) {
   void _editDesigns;
   void _editRatesByProductId;
@@ -235,11 +232,6 @@ export function RepostPricingFields({
                 </button>
               </div>
             </div>
-            {buyerRatePreview ? (
-              <p className="text-xs text-muted" data-testid={`${testIdPrefix}-buyer-preview`}>
-                Buyer rate {buyerRatePreview}
-              </p>
-            ) : null}
           </div>
         ) : null}
 

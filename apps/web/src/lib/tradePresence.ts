@@ -24,7 +24,7 @@ export function useTradePresence(): TradePresence & {
   const presence = resolveTradePresence(company.data);
   return {
     ...presence,
-    canPublish: Boolean(company.data?.capabilities.publish),
+    canPublish: Boolean(company.data?.capabilities?.publish),
     isLoading: company.isLoading,
   };
 }

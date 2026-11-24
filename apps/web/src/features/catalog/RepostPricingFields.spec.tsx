@@ -28,6 +28,22 @@ describe('RepostPricingFields prototype', () => {
     expect(screen.queryByTestId('repost-pricing-margin-block')).toBeNull();
   });
 
+  it('Edit shows Supplier cue without Now ₹ or buyer preview', () => {
+    render(
+      <RepostPricingFields
+        variant="prototype"
+        value={{ mode: RepostPricingMode.Edit, marginValue: '', editedRate: '700' }}
+        onChange={() => {}}
+        supplierCue="Supplier ₹420/pc"
+      />,
+    );
+    expect(screen.getByTestId('repost-pricing-supplier-cue')).toHaveTextContent(
+      'Supplier ₹420/pc',
+    );
+    expect(screen.queryByTestId('repost-pricing-previous-rate')).toBeNull();
+    expect(screen.queryByTestId('repost-pricing-buyer-preview')).toBeNull();
+  });
+
   it('Edit shows one pack Your rate ₹ (no per-design list)', async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();

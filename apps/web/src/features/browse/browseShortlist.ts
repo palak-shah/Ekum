@@ -34,6 +34,11 @@ export type BrowseShortlistEntry = {
   sourcePath?: 'direct' | 'handle';
   /** This mill SKU Places as a Direct ticket for the viewing buyer. */
   sourceDirect?: boolean;
+  /**
+   * `explore` = Explore page-local staging (cleared on leave /explore).
+   * `travel` = album / shop / Saved pile (survives Explore leave). Omit = travel.
+   */
+  selectionOrigin?: 'explore' | 'travel';
 };
 
 type Listener = () => void;
@@ -125,6 +130,13 @@ export function removeBrowseShortlistIds(productIds: string[]): BrowseShortlistE
 
 export function clearBrowseShortlist(): void {
   writeBrowseShortlist([]);
+}
+
+/** Drop Explore-origin staging only; travel pile stays. */
+export function clearExploreOriginShortlist(): BrowseShortlistEntry[] {
+  const next = readBrowseShortlist().filter((row) => row.selectionOrigin !== 'explore');
+  writeBrowseShortlist(next);
+  return next;
 }
 
 export function addBrowseShortlistMany(entries: BrowseShortlistEntry[]): BrowseShortlistEntry[] {

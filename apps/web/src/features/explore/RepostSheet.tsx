@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   RateVisibility,
   RepostPricingMode,
-  roundRepostBuyerFacing,
+  uniqueSharedRepostHop,
   type BroadcastListView,
   type CollectionDetailView,
   type CollectionPreviewView,
@@ -26,7 +26,6 @@ import {
   defaultPackRepostPricingForm,
   exclusiveRepostPricingFormFromPack,
   exploreShowRatesOn,
-  isPrototypeMarginMode,
   publishPricingFieldsFromForm,
   repostSheetPricingReady,
   withExclusiveRepostPricingMode,
@@ -52,8 +51,15 @@ import { curateExistingTargets, findOwnedPackByName, mergeCollectionProductIds }
 import { collectionNameClash } from '@/features/catalog/collectionCreateHelpers';
 import { RepostSkipSection } from '@/features/browse/RepostSkipSection';
 import { repostCoverUrl } from '@/features/browse/repostCoverUrl';
-import { maxPublishAudienceForCuratedPack } from '@/features/catalog/curationAudienceCeiling';
-import { maxAllowDownloadForCuratedPack } from '@/features/catalog/downloadCeiling';
+import {
+  clampAudienceToCeiling,
+  maxPublishAudienceForCuratedPack,
+  narrowestAudienceCeiling,
+} from '@/features/catalog/curationAudienceCeiling';
+import {
+  maxAllowDownloadForCuratedPack,
+  maxAllowForwardForCuratedPack,
+} from '@/features/catalog/downloadCeiling';
 import { readCompanyPublishDefaults } from '@/features/catalog/publishDefaults';
 import {
   emptyPublishAudienceState,
@@ -70,6 +76,21 @@ import { canNativeShare, catalogShareCopy, shareOrCopyInvite } from '@/lib/share
 import { useToast } from '@/ui/Toast';
 import { Button, Field, InlineNotice, Sheet, TextArea, TextInput, cx } from '@/ui/kit';
 
+/** Cart multi-design member stub for create / staged Edit adds. */
+export type RepostSheetProductMember = {
+  productId: string;
+  name: string;
+  companyId: string;
+  thumbUrl?: string | null;
+  companyName?: string | null;
+  sourceCollectionId?: string | null;
+  rate?: number | null;
+  rateMax?: number | null;
+  unit?: string | null;
+  dispatchUnit?: string | null;
+  catalogRateUnit?: string | null;
+};
+
 export type RepostSheetTarget =
   | {
       kind: 'collection';
@@ -83,6 +104,13 @@ export type RepostSheetTarget =
       name: string;
       companyId: string;
       thumbUrl?: string | null;
+    }
+  | {
+      kind: 'products';
+      productIds: string[];
+      name: string;
+      coverImage?: string | null;
+      members?: RepostSheetProductMember[];
     };
 
 const MEMBERSHIP_UNAVAILABLE =
@@ -122,6 +150,8 @@ export function RepostSheet({
   target,
   editCollectionId,
   editTitle,
+  pendingProductIds,
+  pendingMembers,
 }: {
   open: boolean;
   onClose: () => void;
@@ -135,6 +165,13 @@ export function RepostSheet({
   editCollectionId?: string | null;
   /** Own original → Edit post; own child / peer child → Edit repost. */
   editTitle?: 'Edit post' | 'Edit repost';
+  /**
+   * Cart Existing: design ids staged to merge into the pack on Save.
+   * Unioned with current members for curate-check + membership PUT.
+   */
+  pendingProductIds?: string[];
+  /** Display / ceiling stubs for staged ids not yet on the pack. */
+  pendingMembers?: RepostSheetProductMember[];
 }) {
   const me = useMyCompany();
   const queryClient = useQueryClient();
@@ -202,26 +239,55 @@ export function RepostSheet({
     enabled: open && Boolean(resolvedEditId),
   });
 
+  const pendingIds = useMemo(
+    () =>
+      (pendingProductIds ?? [])
+        .map((id) => id.trim())
+        .filter((id) => id.length > 0),
+    [pendingProductIds],
+  );
+
   const productIds = useMemo(() => {
     if (editing && editDetail.data) {
-      return editDetail.data.products
+      const onPack = editDetail.data.products
         .filter((product) => !product.excluded)
         .map((product) => product.id);
+      const seen = new Set(onPack);
+      const merged = [...onPack];
+      for (const id of pendingIds) {
+        if (!seen.has(id)) {
+          seen.add(id);
+          merged.push(id);
+        }
+      }
+      return merged;
     }
     if (!target) return [] as string[];
     if (target.kind === 'product') return [target.productId];
+    if (target.kind === 'products') return [...target.productIds];
     return (packPreview.data?.products ?? []).map((product) => product.id);
-  }, [editing, editDetail.data, target, packPreview.data?.products]);
+  }, [editing, editDetail.data, target, packPreview.data?.products, pendingIds]);
 
   const ceilingMembers = useMemo(() => {
     if (editing && editDetail.data) {
-      return editDetail.data.products
+      const onPack = editDetail.data.products
         .filter((product) => !product.excluded)
         .map((product) => ({
           companyId: product.companyId,
-          audience: 'followers',
+          audience: 'followers' as const,
           allowDownload: product.allowDownload === true,
         }));
+      const known = new Set(
+        editDetail.data.products.filter((p) => !p.excluded).map((p) => p.id),
+      );
+      const staged = (pendingMembers ?? [])
+        .filter((row) => pendingIds.includes(row.productId) && !known.has(row.productId))
+        .map((row) => ({
+          companyId: row.companyId,
+          audience: 'followers' as const,
+          allowDownload: false,
+        }));
+      return [...onPack, ...staged];
     }
     if (!target) return [];
     if (target.kind === 'product') {
@@ -232,6 +298,17 @@ export function RepostSheet({
           allowDownload: productPreview.data?.allowDownload === true,
         },
       ];
+    }
+    if (target.kind === 'products') {
+      const byId = new Map((target.members ?? []).map((row) => [row.productId, row]));
+      return target.productIds.map((id) => {
+        const row = byId.get(id);
+        return {
+          companyId: row?.companyId ?? '',
+          audience: 'followers' as const,
+          allowDownload: false,
+        };
+      });
     }
     return (packPreview.data?.products ?? []).map((product) => ({
       companyId: product.companyId,
@@ -244,6 +321,8 @@ export function RepostSheet({
     target,
     packPreview.data?.products,
     productPreview.data?.allowDownload,
+    pendingIds,
+    pendingMembers,
   ]);
 
   const maxAudience = useMemo(
@@ -263,6 +342,15 @@ export function RepostSheet({
     return null;
   }, [editing, editDetail.data, target, packPreview.data?.allowDownload]);
 
+  const sourcePackAllowForward = useMemo(() => {
+    if (editing && editDetail.data) return null;
+    if (target?.kind === 'collection') {
+      const flag = packPreview.data?.allowForward;
+      return typeof flag === 'boolean' ? flag : null;
+    }
+    return null;
+  }, [editing, editDetail.data, target, packPreview.data?.allowForward]);
+
   const maxAllowDownload = useMemo(
     () =>
       maxAllowDownloadForCuratedPack(
@@ -273,6 +361,31 @@ export function RepostSheet({
     [myCompanyId, ceilingMembers, sourcePackAllowDownload],
   );
 
+  const maxAllowForward = useMemo(
+    () => maxAllowForwardForCuratedPack(sourcePackAllowForward),
+    [sourcePackAllowForward],
+  );
+
+  const sourceChainExcludeIds = useMemo(() => {
+    if (editing) return [] as string[];
+    if (target?.kind === 'collection') {
+      return packPreview.data?.sourceChainCompanyIds ?? [];
+    }
+    if (target?.kind === 'product') {
+      return target.companyId ? [target.companyId] : [];
+    }
+    if (target?.kind === 'products') {
+      return [
+        ...new Set(
+          (target.members ?? [])
+            .map((row) => row.companyId)
+            .filter((id): id is string => Boolean(id)),
+        ),
+      ];
+    }
+    return [] as string[];
+  }, [editing, target, packPreview.data?.sourceChainCompanyIds]);
+
   useEffect(() => {
     if (maxAllowDownload !== false) return;
     setPublishAudience((prev) =>
@@ -280,12 +393,30 @@ export function RepostSheet({
     );
   }, [maxAllowDownload]);
 
+  useEffect(() => {
+    if (maxAllowForward !== false) return;
+    setPublishAudience((prev) =>
+      prev.allowForward ? { ...prev, allowForward: false } : prev,
+    );
+  }, [maxAllowForward]);
+
   const hasForeign = useMemo(() => {
     if (!myCompanyId) return true;
     return ceilingMembers.some((row) => row.companyId !== myCompanyId);
   }, [myCompanyId, ceilingMembers]);
 
-  const sourceCollectionId = target?.kind === 'collection' ? target.collectionId : undefined;
+  const sourceCollectionId =
+    target?.kind === 'collection'
+      ? target.collectionId
+      : target?.kind === 'products'
+        ? (() => {
+            const hops = (target.members ?? [])
+              .map((row) => row.sourceCollectionId)
+              .filter((id): id is string => typeof id === 'string' && id.length > 0);
+            const unique = [...new Set(hops)];
+            return unique.length === 1 ? unique[0] : undefined;
+          })()
+        : undefined;
   const curateCheck = useQuery({
     queryKey: [
       'collections',
@@ -319,7 +450,7 @@ export function RepostSheet({
 
   const memberEntries = useMemo(() => {
     if (editing && editDetail.data) {
-      return editDetail.data.products
+      const onPack = editDetail.data.products
         .filter((product) => !product.excluded)
         .map((product) => ({
           productId: product.id,
@@ -333,6 +464,38 @@ export function RepostSheet({
           dispatchUnit: product.dispatchUnit ?? null,
           catalogRateUnit: product.catalogRateUnit ?? null,
         }));
+      const known = new Set(onPack.map((row) => row.productId));
+      const staged = (pendingMembers ?? [])
+        .filter((row) => pendingIds.includes(row.productId) && !known.has(row.productId))
+        .map((row) => ({
+          productId: row.productId,
+          name: row.name,
+          thumbUrl: row.thumbUrl ?? null,
+          companyId: row.companyId,
+          companyName: row.companyName ?? '',
+          rate: row.rate ?? null,
+          rateMax: row.rateMax ?? null,
+          unit: row.unit ?? null,
+          dispatchUnit: row.dispatchUnit ?? null,
+          catalogRateUnit: row.catalogRateUnit ?? null,
+        }));
+      // Staged ids without member stubs still appear for curate-check.
+      const stubbed = new Set([...known, ...staged.map((row) => row.productId)]);
+      const bare = pendingIds
+        .filter((id) => !stubbed.has(id))
+        .map((id) => ({
+          productId: id,
+          name: 'Design',
+          thumbUrl: null as string | null,
+          companyId: '',
+          companyName: '',
+          rate: null as number | null,
+          rateMax: null as number | null,
+          unit: null as string | null,
+          dispatchUnit: null as string | null,
+          catalogRateUnit: null as string | null,
+        }));
+      return [...onPack, ...staged, ...bare];
     }
     if (!target) return [];
     if (target.kind === 'product') {
@@ -351,6 +514,24 @@ export function RepostSheet({
         },
       ];
     }
+    if (target.kind === 'products') {
+      const byId = new Map((target.members ?? []).map((row) => [row.productId, row]));
+      return target.productIds.map((id) => {
+        const row = byId.get(id);
+        return {
+          productId: id,
+          name: row?.name ?? 'Design',
+          thumbUrl: row?.thumbUrl ?? null,
+          companyId: row?.companyId ?? '',
+          companyName: row?.companyName ?? '',
+          rate: row?.rate ?? null,
+          rateMax: row?.rateMax ?? null,
+          unit: row?.unit ?? null,
+          dispatchUnit: row?.dispatchUnit ?? null,
+          catalogRateUnit: row?.catalogRateUnit ?? null,
+        };
+      });
+    }
     return (packPreview.data?.products ?? []).map((product) => ({
       productId: product.id,
       name: product.name,
@@ -363,7 +544,7 @@ export function RepostSheet({
       dispatchUnit: product.dispatchUnit ?? null,
       catalogRateUnit: product.catalogRateUnit ?? null,
     }));
-  }, [editing, editDetail.data, target, packPreview.data?.products]);
+  }, [editing, editDetail.data, target, packPreview.data?.products, pendingIds, pendingMembers]);
 
   const { allowed: allowedRows, blocked: blockedRows } = partitionCurateByCheck(
     memberEntries,
@@ -421,8 +602,12 @@ export function RepostSheet({
       ? `c:${target.collectionId}`
       : target?.kind === 'product'
         ? `p:${target.productId}`
-        : '';
-  const seedKey = editing ? `edit:${resolvedEditId}` : sourceKey;
+        : target?.kind === 'products'
+          ? `ps:${target.productIds.join(',')}`
+          : '';
+  const seedKey = editing
+    ? `edit:${resolvedEditId}:${pendingIds.join(',')}`
+    : sourceKey;
 
   useEffect(() => {
     if (!open || !target || !sourceKey || editing) return;
@@ -481,19 +666,65 @@ export function RepostSheet({
     }
   }, [open, editCollectionId]);
 
-  // Create defaults for Who — skipped once edit detail hydrates.
+  // Create inherit from source pack — never grant more than received.
+  const createAudienceSeeded = useRef('');
   useEffect(() => {
     if (!open || !settings.data || editing || wantEdit) return;
+    if (target?.kind === 'collection' && packPreview.isLoading) return;
+    if (createAudienceSeeded.current === seedKey) return;
+    createAudienceSeeded.current = seedKey;
     const usual = readCompanyPublishDefaults(settings.data.tradeDefaults);
+    if (target?.kind === 'collection' && packPreview.data) {
+      const source = packPreview.data;
+      const effectiveMax = narrowestAudienceCeiling(maxAudience, source.audience ?? null);
+      const seededAudience = clampAudienceToCeiling(
+        source.audience || 'followers',
+        effectiveMax,
+      );
+      setPublishAudience(
+        restorePublishAudienceState({
+          audience: seededAudience,
+          audienceCompanyIds: [],
+          audienceGroupIds: [],
+          rateVisibility:
+            source.rateVisibility ||
+            (hasForeign ? RateVisibility.OnRequest : usual.rateVisibility),
+          allowForward:
+            source.allowForward !== false && maxAllowForward !== false,
+          allowDownload:
+            source.allowDownload === true && maxAllowDownload !== false,
+          showSourceShops: source.showSourceShops === true,
+          maxAudience: effectiveMax,
+        }),
+      );
+      return;
+    }
     setPublishAudience({
       ...emptyPublishAudienceState(usual),
       rateVisibility: hasForeign ? RateVisibility.OnRequest : usual.rateVisibility,
+      allowForward: usual.allowForward !== false && maxAllowForward !== false,
+      allowDownload: usual.allowDownload === true && maxAllowDownload !== false,
       showSourceShops: false,
-      policyHint: hasForeign
-        ? 'Rates stay on request when this collection includes others’ designs.'
-        : null,
+      policyHint: null,
     });
-  }, [open, settings.data, hasForeign, editing, wantEdit]);
+  }, [
+    open,
+    settings.data,
+    hasForeign,
+    editing,
+    wantEdit,
+    target,
+    packPreview.isLoading,
+    packPreview.data,
+    seedKey,
+    maxAudience,
+    maxAllowDownload,
+    maxAllowForward,
+  ]);
+
+  useEffect(() => {
+    if (!open) createAudienceSeeded.current = '';
+  }, [open]);
 
   // Resolve my existing child for this source (edit without stamp, or create when stamp lagged).
   useEffect(() => {
@@ -620,40 +851,42 @@ export function RepostSheet({
   });
 
   const supplierCue = useMemo(() => {
+    // Prefer disclosed member source rates — never buyer-facing as “Supplier”.
+    const fromMembers = (editDetail.data?.memberPricing ?? []).filter(
+      (row) =>
+        row.sourceDisclosed === true &&
+        row.sourceRate != null &&
+        Number.isFinite(row.sourceRate),
+    );
+    if (fromMembers.length > 0) {
+      const first = fromMembers[0]!.sourceRate!;
+      if (fromMembers.every((row) => row.sourceRate === first)) {
+        const label = formatCatalogRate({
+          rate: first,
+          catalogRateUnit:
+            editDetail.data?.catalogRateUnit ?? packPreview.data?.rateUnit ?? null,
+        });
+        return label && label !== 'On request' ? `Supplier ${label}` : null;
+      }
+      return null;
+    }
     const disclosed = editDesignRows.filter((row) => row.supplierRate != null);
     if (disclosed.length === 0) return null;
     if (disclosed.length === 1 && disclosed[0]?.supplierRateLabel) {
       return disclosed[0].supplierRateLabel;
     }
+    const rates = disclosed.map((row) => row.supplierRate!);
+    const first = rates[0]!;
+    if (!rates.every((rate) => rate === first)) return null;
     const band = formatCatalogRate({
-      rate: packPreview.data?.rateMin ?? null,
-      rateMax: packPreview.data?.rateMax ?? null,
+      rate: first,
       unit: packPreview.data?.rateUnit ?? null,
     });
     return band && band !== 'On request' ? `Supplier ${band}` : null;
-  }, [editDesignRows, packPreview.data?.rateMin, packPreview.data?.rateMax, packPreview.data?.rateUnit]);
-
-  const buyerRatePreview = useMemo(() => {
-    if (!showRates || !isPrototypeMarginMode(pricingForm.mode)) return null;
-    const base = packPreview.data?.rateMin;
-    if (base == null || !Number.isFinite(base)) return null;
-    const margin = Number(pricingForm.marginValue);
-    if (!Number.isFinite(margin)) return null;
-    const next =
-      pricingForm.mode === RepostPricingMode.MarginPercent
-        ? base * (1 + margin / 100)
-        : base + margin;
-    if (!Number.isFinite(next)) return null;
-    const label = formatCatalogRate({
-      rate: roundRepostBuyerFacing(next, packPreview.data?.rateUnit ?? null),
-      unit: packPreview.data?.rateUnit ?? null,
-    });
-    return label && label !== 'On request' ? label : null;
   }, [
-    showRates,
-    pricingForm.mode,
-    pricingForm.marginValue,
-    packPreview.data?.rateMin,
+    editDetail.data?.memberPricing,
+    editDetail.data?.catalogRateUnit,
+    editDesignRows,
     packPreview.data?.rateUnit,
   ]);
 
@@ -664,7 +897,9 @@ export function RepostSheet({
 
   const editMembershipOk =
     Boolean(membershipUnchanged) ||
-    (productIds.length >= 1 && productIds.every((id) => allowedIds.includes(id)));
+    (productIds.length >= 1 &&
+      pendingIds.every((id) => allowedIds.includes(id)) &&
+      productIds.some((id) => allowedIds.includes(id) || baselineProductIds.includes(id)));
 
   const canSubmit = editing
     ? Boolean(name.trim()) &&
@@ -786,13 +1021,17 @@ export function RepostSheet({
         ...(sourceCollectionId ? { sourceCollectionId } : {}),
       });
       const allowed = new Set(check.allowedProductIds ?? []);
-      if (productIds.length < 1 || productIds.some((id) => !allowed.has(id))) {
+      const baseline = new Set(baselineProductIds);
+      // Keep members already on the pack; only staged adds must pass curate-check.
+      const nextIds = productIds.filter((id) => baseline.has(id) || allowed.has(id));
+      const stagedFail = pendingIds.some((id) => !allowed.has(id) && !baseline.has(id));
+      if (nextIds.length < 1 || stagedFail) {
         setSheetError(MEMBERSHIP_UNAVAILABLE);
         void queryClient.invalidateQueries({ queryKey: ['collections', 'curate-check'] });
         return;
       }
       await api.put<CollectionDetailView>(`/collections/${resolvedEditId}/products`, {
-        productIds,
+        productIds: nextIds,
         ...(sourceCollectionId ? { sourceCollectionId } : {}),
       } satisfies SetCollectionProductsDto);
     }
@@ -808,7 +1047,7 @@ export function RepostSheet({
     void queryClient.invalidateQueries({ queryKey: ['collections', 'detail', resolvedEditId] });
     void queryClient.invalidateQueries({ queryKey: ['company-settings'] });
     onReposted?.(resolvedEditId);
-    showToast('Updated');
+    showToast(pendingIds.length > 0 ? 'Updated · designs added' : 'Updated');
     onClose();
   };
 
@@ -819,8 +1058,31 @@ export function RepostSheet({
     if (allowedIds.length < 1) throw new Error('Nothing you can put in a collection yet.');
 
     const cover = repostCoverUrl(
-      target.kind === 'collection' ? target.coverImage : target.thumbUrl,
+      target.kind === 'collection'
+        ? target.coverImage
+        : target.kind === 'product'
+          ? target.thumbUrl
+          : target.coverImage ??
+            target.members?.find((row) => row.thumbUrl)?.thumbUrl ??
+            null,
     );
+    const hop =
+      target.kind === 'collection'
+        ? { repostSourceCollectionId: target.collectionId }
+        : target.kind === 'product'
+          ? { repostSourceProductId: target.productId }
+          : uniqueSharedRepostHop(
+              (target.members?.length
+                ? target.members
+                : target.productIds.map((productId) => ({ productId }))
+              ).map((row) => ({
+                productId: row.productId,
+                collectionId:
+                  'sourceCollectionId' in row
+                    ? (row.sourceCollectionId ?? undefined)
+                    : undefined,
+              })),
+            );
 
     let createdId: string | undefined;
     try {
@@ -828,9 +1090,7 @@ export function RepostSheet({
         name: packName,
         categories: [],
         ...(cover ? { coverImage: cover } : {}),
-        ...(target.kind === 'collection'
-          ? { repostSourceCollectionId: target.collectionId }
-          : { repostSourceProductId: target.productId }),
+        ...hop,
       } satisfies CreateCollectionDto);
       createdId = created.id;
       await api.put<CollectionDetailView>(`/collections/${created.id}/products`, {
@@ -845,11 +1105,7 @@ export function RepostSheet({
       void queryClient.invalidateQueries({ queryKey: ['company-settings'] });
       void queryClient.invalidateQueries({ queryKey: ['company', 'me'] });
       onReposted?.(created.id);
-      showToast(
-        !publishAudience.allowForward
-          ? 'Reposted · Buyers can’t add these to collections.'
-          : 'Reposted',
-      );
+      showToast('Reposted');
 
       if (withLink) {
         try {
@@ -1167,7 +1423,6 @@ export function RepostSheet({
                     setSheetError(null);
                   }}
                   supplierCue={supplierCue}
-                  buyerRatePreview={buyerRatePreview}
                 />
               ) : null}
 
@@ -1187,6 +1442,8 @@ export function RepostSheet({
                 tradeDefaults={settings.data?.tradeDefaults}
                 maxAudience={maxAudience}
                 maxAllowDownload={hasForeign ? maxAllowDownload : null}
+                maxAllowForward={maxAllowForward}
+                excludeCompanyIds={sourceChainExcludeIds}
                 showSourceShopsOption={hasForeign}
                 hideShowRates
                 isVisibilityUpdate={editing}

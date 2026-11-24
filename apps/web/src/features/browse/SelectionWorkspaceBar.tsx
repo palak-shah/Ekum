@@ -51,20 +51,24 @@ import {
 } from '@/features/browse/useShortlistOrderFlow';
 import { HowManyEachSheet } from '@/features/orders/HowManyEachSheet';
 import { usePrepareCatalogOrder } from '@/features/browse/usePrepareCatalogOrder';
+import { usePrepareCatalogCurate } from '@/features/browse/usePrepareCatalogCurate';
+import { CurateFromSelectionSheet } from '@/features/browse/CurateFromSelectionSheet';
+import { curateDefaultPackName } from '@/features/browse/curateAlbumResolve';
 import {
   SELECTION_NEEDS_PUBLISHED_TOAST,
   selectionSkipToast,
   tradeableShortlistEntries,
 } from '@/features/browse/selectionEligibility';
+import { useTradePresence } from '@/lib/tradePresence';
 import { useToast } from '@/ui/Toast';
-import { CartIcon, ChatIcon, PaperPlaneIcon } from '@/ui/icons';
+import { CartIcon, ChatIcon, PaperPlaneIcon, RepostIcon } from '@/ui/icons';
 import { cx } from '@/ui/kit';
 
 /** @deprecated floater height — dock uses BottomTradeDock. Kept for tests. */
 export const SELECTION_FLOATER_MIN_H = 'min-h-12';
 
 /**
- * Explore Selecting dock: Add to cart · Message · Share + Order (right).
+ * Selecting dock: Add to cart · Message · Share · Repost (Trading) + Order (right).
  * Dock Add to cart merges staging into the cart and clears selection. Header Cart opens cart.
  * Order opens How many on the staging pile — does not write the cart.
  * No staging badge on Add to cart — count stays on SelectAllFloat; cart count stays on header.
@@ -77,11 +81,16 @@ export function SelectionWorkspaceBar() {
   const albumPick = useBrowseAlbumPick();
   const orderFlow = useShortlistOrderFlow();
   const me = useMyCompany();
+  const { trading } = useTradePresence();
   const [shareOpen, setShareOpen] = useState(false);
   const [messageOpen, setMessageOpen] = useState(false);
   const [qtyEntries, setQtyEntries] = useState<BrowseShortlistEntry[] | null>(null);
   const [lockedProductIds, setLockedProductIds] = useState<string[]>([]);
+  const [curateOpen, setCurateOpen] = useState(false);
+  const [curateProductIds, setCurateProductIds] = useState<string[] | undefined>(undefined);
+  const [curateDefaultName, setCurateDefaultName] = useState('');
   const { prepare: prepareCatalogOrder } = usePrepareCatalogOrder();
+  const { prepare: prepareCatalogCurate } = usePrepareCatalogCurate();
   const shopId = companyIdFromPath(location.pathname);
   const ownShop = Boolean(shopId && me.data?.id && shopId === me.data.id);
   const shopDockUp = shouldShowShopTradeDock({
@@ -184,6 +193,38 @@ export function SelectionWorkspaceBar() {
     setShareOpen(true);
   };
 
+  const startRepost = () => {
+    void (async () => {
+      const prepared = await prepareCatalogCurate({
+        albums: albumPick.entries,
+        shortlist: shortlist.entries,
+      });
+      if (prepared.kind === 'error') return;
+      if (prepared.kind === 'empty') {
+        showToast('Pick at least one design.');
+        return;
+      }
+      writeBrowseShortlist(prepared.shortlist);
+      writeBrowseAlbumPick(prepared.remainingAlbums);
+      if (prepared.kind === 'navigate' && prepared.navigateToCollectionId) {
+        writeResumeAfterAlbumPick('curate');
+        navigate(`/collections/${prepared.navigateToCollectionId}`, {
+          state: { enterSelect: true },
+        });
+        return;
+      }
+      if (prepared.shortlist.length < 1) return;
+      setCurateDefaultName(
+        curateDefaultPackName({
+          expandedAlbumNames: prepared.expandedAlbumNames,
+          allowedDesignNames: prepared.shortlist.map((row) => row.name),
+        }),
+      );
+      setCurateProductIds(prepared.shortlist.map((row) => row.productId));
+      setCurateOpen(true);
+    })();
+  };
+
   const qtySource = tradeableShortlistEntries(qtyEntries ?? shortlist.entries);
   const shareProducts = tradeableShortlistEntries(shortlist.entries);
   const shareCatalog = selectionShareCatalogPayload({
@@ -214,7 +255,12 @@ export function SelectionWorkspaceBar() {
                   className="flex items-stretch gap-2"
                   data-testid="selection-workspace-actions"
                 >
-                  <div className="grid min-w-0 flex-1 grid-cols-3 gap-1.5">
+                  <div
+                    className={cx(
+                      'grid min-w-0 flex-1 gap-1.5',
+                      trading ? 'grid-cols-4' : 'grid-cols-3',
+                    )}
+                  >
                     <DockIconButton
                       testId="selection-workspace-cart"
                       label="Add to cart"
@@ -239,6 +285,16 @@ export function SelectionWorkspaceBar() {
                     >
                       <PaperPlaneIcon width={22} height={22} />
                     </DockIconButton>
+                    {trading ? (
+                      <DockIconButton
+                        testId="selection-workspace-repost"
+                        label="Repost"
+                        disabled={nothingSelected}
+                        onClick={startRepost}
+                      >
+                        <RepostIcon width={22} height={22} />
+                      </DockIconButton>
+                    ) : null}
                   </div>
                   <button
                     type="button"
@@ -277,6 +333,17 @@ export function SelectionWorkspaceBar() {
         collections={shareCatalog.collections}
         products={shareCatalog.products}
         onShared={() => clearSelection()}
+      />
+      <CurateFromSelectionSheet
+        open={curateOpen}
+        onClose={() => {
+          setCurateOpen(false);
+          setCurateProductIds(undefined);
+          setCurateDefaultName('');
+        }}
+        productIds={curateProductIds}
+        defaultName={curateDefaultName}
+        onCurated={() => clearSelection()}
       />
       <HowManyEachSheet
         open={orderFlow.qtyOpen}

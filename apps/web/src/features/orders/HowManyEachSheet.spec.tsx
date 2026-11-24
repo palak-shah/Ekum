@@ -280,6 +280,75 @@ describe('HowManyEachSheet line chrome', () => {
     ).toHaveValue('12');
   });
 
+  it('footer: qty only when showBillTotal off; ₹ + sets=pcs when on', async () => {
+    const priced = {
+      ...product,
+      rate: 100,
+      piecesPerPack: 4,
+      dispatchUnit: 'pc',
+      catalogRateUnit: 'pc',
+    } as unknown as ProductView;
+    const user = userEvent.setup();
+
+    const clientOff = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const off = render(
+      <QueryClientProvider client={clientOff}>
+        <MemoryRouter>
+          <HowManyEachSheet
+            open
+            onClose={vi.fn()}
+            sellerId="bill-off"
+            products={[priced]}
+            onSendOrder={vi.fn()}
+            onAskRates={vi.fn()}
+            showBillTotal={false}
+          />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    const qtyOff = screen.getByRole('textbox', { name: /sets for Navy/i });
+    await user.clear(qtyOff);
+    await user.type(qtyOff, '2');
+    await waitFor(() => {
+      expect(within(screen.getByTestId('how-many-footer')).getByTestId('how-many-sets-summary')).toHaveTextContent(
+        '2 sets',
+      );
+    });
+    expect(within(screen.getByTestId('how-many-footer')).getByTestId('how-many-sets-summary')).not.toHaveTextContent(
+      '=',
+    );
+    expect(within(screen.getByTestId('how-many-footer')).queryByTestId('how-many-billing-total')).toBeNull();
+    off.unmount();
+
+    const clientOn = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={clientOn}>
+        <MemoryRouter>
+          <HowManyEachSheet
+            open
+            onClose={vi.fn()}
+            sellerId="bill-on"
+            products={[priced]}
+            onSendOrder={vi.fn()}
+            onAskRates={vi.fn()}
+            showBillTotal
+          />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    const qtyOn = screen.getByRole('textbox', { name: /sets for Navy/i });
+    await user.clear(qtyOn);
+    await user.type(qtyOn, '2');
+    await waitFor(() => {
+      expect(within(screen.getByTestId('how-many-footer')).getByTestId('how-many-sets-summary')).toHaveTextContent(
+        '2 sets = 8 pcs',
+      );
+    });
+    expect(within(screen.getByTestId('how-many-footer')).getByTestId('how-many-billing-total')).toHaveTextContent(
+      '₹800',
+    );
+  });
+
   it('puts optional Transporter after the design lines (not in sticky footer)', () => {
     renderSheet();
     const extras = screen.getByTestId('how-many-extras');

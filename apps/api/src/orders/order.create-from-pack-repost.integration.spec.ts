@@ -93,7 +93,9 @@ describe('createFromPack repost Edit pricing (Prisma integration)', () => {
   let buyerUserId = '';
   let productId = '';
   let millPackId = '';
+  let millPackBId = '';
   let traderPackId = '';
+  let traderPackBId = '';
 
   beforeAll(async () => {
     ready.ok = await dbReady();
@@ -191,6 +193,24 @@ describe('createFromPack repost Edit pricing (Prisma integration)', () => {
     });
     millPackId = millPack.id;
 
+    const millPackB = await prisma.collection.create({
+      data: {
+        companyId: millCompanyId,
+        name: `${TAG} Mill Pack B`,
+        status: 'published',
+        audience: 'followers',
+        rateVisibility: RateVisibility.Visible,
+        allowForward: true,
+        exploreActivityAt: new Date(),
+        createdByUserId: millUserId,
+        updatedByUserId: millUserId,
+        products: {
+          create: [{ productId, excluded: false, membershipOrigin: 'local' }],
+        },
+      },
+    });
+    millPackBId = millPackB.id;
+
     const traderPack = await prisma.collection.create({
       data: {
         companyId: traderCompanyId,
@@ -213,6 +233,28 @@ describe('createFromPack repost Edit pricing (Prisma integration)', () => {
       },
     });
     traderPackId = traderPack.id;
+
+    const traderPackB = await prisma.collection.create({
+      data: {
+        companyId: traderCompanyId,
+        name: `${TAG} Trader Repost B`,
+        status: 'published',
+        audience: 'followers',
+        rateVisibility: RateVisibility.Visible,
+        allowForward: true,
+        exploreActivityAt: new Date(),
+        repostSourceCollectionId: millPackBId,
+        repostRootCollectionId: millPackBId,
+        repostPricingMode: RepostPricingMode.MarginFixed,
+        repostMarginValue: new Prisma.Decimal(50),
+        createdByUserId: traderUserId,
+        updatedByUserId: traderUserId,
+        products: {
+          create: [{ productId, excluded: false, membershipOrigin: 'synced' }],
+        },
+      },
+    });
+    traderPackBId = traderPackB.id;
   }, 60_000);
 
   afterAll(async () => {
@@ -240,10 +282,16 @@ describe('createFromPack repost Edit pricing (Prisma integration)', () => {
         },
       });
       await prisma.collectionProduct.deleteMany({
-        where: { collectionId: { in: [millPackId, traderPackId].filter(Boolean) } },
+        where: {
+          collectionId: {
+            in: [millPackId, millPackBId, traderPackId, traderPackBId].filter(Boolean),
+          },
+        },
       });
       await prisma.collection.deleteMany({
-        where: { id: { in: [millPackId, traderPackId].filter(Boolean) } },
+        where: {
+          id: { in: [millPackId, millPackBId, traderPackId, traderPackBId].filter(Boolean) },
+        },
       });
       if (productId) await prisma.product.deleteMany({ where: { id: productId } });
       await prisma.follow.deleteMany({
@@ -329,5 +377,61 @@ describe('createFromPack repost Edit pricing (Prisma integration)', () => {
 
     const productStill = await prisma.product.findUniqueOrThrow({ where: { id: productId } });
     expect(Number(productStill.rate)).toBe(100);
+  }, 90_000);
+
+  it('two packs same product different margin stamp different Place ₹; edit A leaves both OrderItems', async () => {
+    if (!ready.ok) {
+      // eslint-disable-next-line no-console
+      console.warn('Skipping Prisma integration — DATABASE_URL unreachable');
+      return;
+    }
+
+    await prisma.collection.update({
+      where: { id: traderPackId },
+      data: { repostEditedRate: new Prisma.Decimal(125) },
+    });
+
+    const service = buildService(prisma);
+    const fromA = await service.createFromPack(buyerCompanyId, buyerUserId, {
+      collectionId: traderPackId,
+      kind: OrderKind.Standard,
+      intent: OrderIntent.Order,
+      items: [{ productId, quantity: 3 }],
+    });
+    const fromB = await service.createFromPack(buyerCompanyId, buyerUserId, {
+      collectionId: traderPackBId,
+      kind: OrderKind.Standard,
+      intent: OrderIntent.Order,
+      items: [{ productId, quantity: 3 }],
+    });
+
+    const lineA = fromA.downstream!.items.find((item) => item.productId === productId)!;
+    const lineB = fromB.downstream!.items.find((item) => item.productId === productId)!;
+    const rateA = typeof lineA.rate === 'number' ? lineA.rate : Number(lineA.rate);
+    const rateB = typeof lineB.rate === 'number' ? lineB.rate : Number(lineB.rate);
+    expect(rateA).toBe(125);
+    // Pack B margin_fixed +50 on mill ₹100 → ₹150
+    expect(rateB).toBe(150);
+
+    const storedA = await prisma.orderItem.findFirstOrThrow({
+      where: { orderId: fromA.downstream!.id, productId },
+    });
+    const storedB = await prisma.orderItem.findFirstOrThrow({
+      where: { orderId: fromB.downstream!.id, productId },
+    });
+    const stampedA = Number(storedA.rate);
+    const stampedB = Number(storedB.rate);
+
+    await prisma.collection.update({
+      where: { id: traderPackId },
+      data: { repostEditedRate: new Prisma.Decimal(199) },
+    });
+
+    expect(Number((await prisma.orderItem.findFirstOrThrow({ where: { id: storedA.id } })).rate)).toBe(
+      stampedA,
+    );
+    expect(Number((await prisma.orderItem.findFirstOrThrow({ where: { id: storedB.id } })).rate)).toBe(
+      stampedB,
+    );
   }, 90_000);
 });

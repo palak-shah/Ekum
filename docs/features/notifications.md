@@ -16,11 +16,13 @@ Every company. Open via header **bell** → `/notifications`.
 4. Adjust preferences (types / push) where settings expose them.
 5. Subscribe browser push when prompted / enabled; push click opens the same deep link as the in-app row.
 
+Page owns top chrome (one **Notifications** header + Settings) — no stacked shell title. Completeness: `2026-11-24-repost-audit-15-20-completeness`.
+
 ## Business rules
 
 | Type | Typical source |
 |------|----------------|
-| `order` | Place, rates, status changes, payment asks |
+| `order` | Place, rates, status changes, payment asks. **I-handle Place:** one buyer-facing “New order” per Place gesture for a recipient — do not stack mill-ticket duplicates for the same seller from `spawnHandleUpstreams`. Facilitator “Shared order” stays when that role differs. No supplier “someone reposted your pack” event. |
 | `return` | Return lifecycle (deep link uses the **order**) |
 | `request` | Access / view / relist grants |
 | `message` | Chat |

@@ -310,7 +310,7 @@ function ActionIcon({
   disabled?: boolean;
   hint?: string;
   onDisabledActivate?: () => void;
-  /** Done = full ink already-reposted (still clickable → edit). */
+  /** Done = accent ink already-reposted (still clickable → edit). */
   tone?: 'done';
   children: ReactNode;
 }) {
@@ -366,7 +366,9 @@ function ActionIcon({
         className={
           disabled
             ? 'flex h-9 w-9 shrink-0 items-center justify-center text-muted opacity-40'
-            : 'flex h-9 w-9 shrink-0 items-center justify-center text-ink'
+            : done
+              ? 'flex h-9 w-9 shrink-0 items-center justify-center text-accent'
+              : 'flex h-9 w-9 shrink-0 items-center justify-center text-ink'
         }
       >
         {children}

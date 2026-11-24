@@ -82,33 +82,47 @@ describe('AmendOrderSheet How many chrome', () => {
       'Order in Sets',
     );
     const footer = screen.getByTestId('order-amend-footer');
-    expect(within(footer).getByTestId('how-many-sets-summary')).toHaveTextContent('2 sets = 8 pcs');
+    expect(within(footer).getByTestId('how-many-sets-summary')).toHaveTextContent('2 sets');
+    expect(within(footer).getByTestId('how-many-sets-summary')).not.toHaveTextContent('=');
     expect(within(footer).queryByTestId('how-many-billing-total')).toBeNull();
     expect(within(footer).getByTestId('order-amend-save')).toBeInTheDocument();
   });
 
-  it('shows footer ₹ when showBillTotal is on', () => {
+  it('shows footer ₹ and pack conversion when showBillTotal is on', () => {
     const items = [
       item({ id: 'i1', productId: 'p1', name: 'Navy', quantity: 2, piecesPerPack: 4, rate: 40 }),
     ];
     renderSheet(items, { i1: '2' }, { showBillTotal: true });
+    expect(screen.getByTestId('how-many-sets-summary')).toHaveTextContent('2 sets = 8 pcs');
     expect(screen.getByTestId('how-many-billing-total')).toHaveTextContent('₹320');
   });
 
   it('groups mixed units and hides per-line unit captions', () => {
-    renderSheet([
-      item({
-        id: 'i2',
-        productId: 'p2',
-        name: 'Grey mill',
-        unit: 'mtr',
-        dispatchUnit: 'mtr',
-        piecesPerPack: null,
-        quantity: 70,
-        rate: 55,
-      }),
-      item({ id: 'i1', productId: 'p1', name: 'Navy', unit: 'set', piecesPerPack: 12, quantity: 2, rate: 10 }),
-    ]);
+    renderSheet(
+      [
+        item({
+          id: 'i2',
+          productId: 'p2',
+          name: 'Grey mill',
+          unit: 'mtr',
+          dispatchUnit: 'mtr',
+          piecesPerPack: null,
+          quantity: 70,
+          rate: 55,
+        }),
+        item({
+          id: 'i1',
+          productId: 'p1',
+          name: 'Navy',
+          unit: 'set',
+          piecesPerPack: 12,
+          quantity: 2,
+          rate: 10,
+        }),
+      ],
+      undefined,
+      { showBillTotal: true },
+    );
     expect(screen.getAllByTestId('how-many-unit-heading').map((el) => el.textContent)).toEqual([
       'Order in Sets',
       'Order in Mtrs',
@@ -192,11 +206,15 @@ describe('AmendOrderSheet How many chrome', () => {
     ).toBeNull();
   });
 
-  it('hides footer ₹ when a remaining line has no rate', () => {
-    renderSheet([
-      item({ id: 'i1', productId: 'p1', name: 'Navy', rate: 40, quantity: 2, piecesPerPack: 4 }),
-      item({ id: 'i2', productId: 'p2', name: 'Ivory', rate: null, quantity: 1, piecesPerPack: 4 }),
-    ]);
+  it('hides footer ₹ when a remaining line has no rate (conversion still when bill on)', () => {
+    renderSheet(
+      [
+        item({ id: 'i1', productId: 'p1', name: 'Navy', rate: 40, quantity: 2, piecesPerPack: 4 }),
+        item({ id: 'i2', productId: 'p2', name: 'Ivory', rate: null, quantity: 1, piecesPerPack: 4 }),
+      ],
+      undefined,
+      { showBillTotal: true },
+    );
     expect(screen.getByTestId('how-many-sets-summary')).toHaveTextContent('3 sets = 12 pcs');
     expect(screen.queryByTestId('how-many-billing-total')).toBeNull();
   });

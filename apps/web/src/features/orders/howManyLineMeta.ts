@@ -377,6 +377,26 @@ export function packQtyConversionWanted(line: {
   );
 }
 
+/** Album journey inputs — member Rate per, else pack `rateUnit` (call-site must not drop Rate per). */
+export function albumJourneyProductUnits(
+  products: Array<{
+    unit?: string | null;
+    dispatchUnit?: string | null;
+    catalogRateUnit?: string | null;
+  }>,
+  packCatalogRateUnit?: string | null,
+): Array<{
+  unit?: string | null;
+  dispatchUnit?: string | null;
+  catalogRateUnit?: string | null;
+}> {
+  return products.map((product) => ({
+    unit: product.unit,
+    dispatchUnit: product.dispatchUnit,
+    catalogRateUnit: product.catalogRateUnit ?? packCatalogRateUnit ?? null,
+  }));
+}
+
 /** Quiet line: default “Rates are per pc. Order and dispatch per set.” Follows each design’s units. */
 export function howManySetsBanner(
   products: Array<{

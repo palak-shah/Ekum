@@ -1,6 +1,6 @@
 # Feature gap matrix
 
-**Updated:** 2026-11-23 (Pack Edit rate + supplier notify)  
+**Updated:** 2026-11-24 (Repost audit #15–#20)  
 **Source:** Completeness reviews under `docs/superpowers/reviews/completeness/`  
 **Tracks:** Regression (`@smoke @regression` / BM-* units) · Functional (`@functional`)  
 **Audit:** [2026-10-22-functional-gap-audit.md](./2026-10-22-functional-gap-audit.md) — requirements vs code vs tests. Does not replace rows below.
@@ -10,8 +10,12 @@ Verification: Functional · Regression · Unit-only · Untested
 
 | Module | Capability | Product status | Verification | Completeness priority | Notes |
 |--------|------------|----------------|--------------|----------------------|-------|
+| Explore / Orders / Notifications | Audit #15–#20: create inherit+ceilings; Selected exclude chain; album ⋯/Select Repost; Explore leave clears explore-origin only; How many blank; notify header + Shared coalesce; drop feed new-design meta | Works | Unit | Required | Completeness 2026-11-24-repost-audit-15-20; no supplier “reposted” bell |
+| Explore | viewerReposted mill card + own child: Your ₹ + Supplier ₹ + Margin; edit sheets previous+supplier | Works | Unit | Required | Completeness 2026-11-24-owner-viewer-repost-feed-rates; Redesign of #7 not-on-Explore |
+| Explore / Orders | Owner Supplier ₹ cue; done icon accent + Reposted toast; feed bump on published member add; Place pack-scoped immutable rates; How many ₹ + sets=pcs gated by showBillTotalOnOrders | Works | Unit + Prisma integration + live API | Required | Completeness 2026-11-24-repost-supplier-rate-feed-bill; sheet #7–#10 #12; Clamp Redesign How many conversion |
+| Cart / Explore | Cart/You Repost New\|Existing; both use shared RepostSheet rates; Existing = pick then Edit + staged adds | Works | Unit | Required | Completeness 2026-11-24-cart-repost-same-sheet; no draft-then-navigate |
 | Explore / Catalog | Pack-only Edit on Repost; Margin pack+designs; dependent Edit clear on supplier rate + bell + chat with supplier; Margin never blanks | Works | Unit | Required | Completeness 2026-11-23-pack-edit-rate-supplier-notify; album design Edit override deferred |
-| Orders | How many subtle `{shop} · {pack}` separators (no N-orders banner); footer ₹ gated by showBillTotalOnOrders (default off) | Works | Unit | Required | Completeness 2026-11-22-how-many-separators-bill-total |
+| Orders | How many subtle `{shop} · {pack}` separators (no N-orders banner); footer ₹ **and** pack conversion gated by showBillTotalOnOrders (default off) | Works | Unit | Required | Completeness 2026-11-22-how-many-separators-bill-total + Clamp Redesign 2026-11-24-repost-supplier-rate-feed-bill |
 | Explore / Orders | Edit repost hydrate (Show rates + modes); trader calc Visible Clamp Redesign; buyer Explore/album/shop/via-pack ₹; createFromPack stamps buyer-facing; OrderItem immutable | Works | Unit + Prisma integration | Required | Completeness 2026-11-22-repost-edit-rates-buyer-facing; no Same wipe on rates-off Save |
 | Explore / Catalog | Remove repost (Edit sheet → Draft; preserve exploreActivityAt); mixed soft omit (local stay; honest chrome); no Delete on Explore | Works | Unit | Required | Completeness 2026-11-21-remove-repost-availability; Redesign of P1 whole-pack omit |
 | Explore | Own card + Trading → Edit post / Edit repost (shared RepostSheet; card id only; not-allowed = gray Repost; Message gray on own) | Works | Unit | Required | Completeness 2026-11-21-own-explore-edit; Redesign of own always-gray Repost |
@@ -326,6 +330,7 @@ Verification: Functional · Regression · Unit-only · Untested
 | Company / Home / You | Theme C color on Home/You (lime tab underline + accent icons + ink Business info; no field wash) | Redesigned | Unit | Required | Superseded by Orders-tab chrome 2026-11-17-professional-home-orders-tab-chrome |
 | Company / Home / You / Orders | Professional Home: shared `underlineTabChrome` (Orders bar); foam actions; Chip completeness; white catalogue; anti-loophole rules | Shipped | Unit | Required | Completeness 2026-11-17-professional-home-orders-tab-chrome; BM-11 screenshot vs Orders |
 | Company / Home | Profile sections: light border foam cards (catalogue + Business info header in-card) | Shipped | Unit | Required | Completeness 2026-11-17-profile-section-borders |
+| Company / Home | Own Home create under each catalogue tab (Collections → New collection, Designs → New design); empty shows tabs; visitors unchanged | Shipped | Unit | Required | Completeness 2026-11-24-home-create-per-tab; YouLibraryCreateRow |
 | Company / Home | Catalogue lands on first tab with rows (Collections, then Designs) | Shipped | Unit | Required | Completeness 2026-11-17-first-tab-with-content |
 | Company / Home | Profile catalogue matches You listings (underline tabs, collection rows, design tiles; own vs visitor ⋯; long-press dock on Home) | Shipped | Unit | Required | Completeness 2026-11-17-profile-catalogue-you-listings; no Catalogs tab; published-only |
 | Company / Home | 3D completeness nudge (Only you see this) after Home pills | Shipped | Unit | Required | Completeness 2026-11-16-business-profile-completeness-nudge |

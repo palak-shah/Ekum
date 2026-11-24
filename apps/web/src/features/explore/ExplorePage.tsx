@@ -178,6 +178,7 @@ function toggleExploreDesign(
     unit: product.unit ?? null,
     dispatchUnit: product.dispatchUnit ?? null,
     rate: product.rate ?? null,
+    selectionOrigin: 'explore',
     ...(product.catalogCollectionId
       ? { catalogCollectionId: product.catalogCollectionId }
       : {}),
@@ -205,6 +206,7 @@ function toggleExploreAlbum(
     orderPathPreference: collection.orderPathPreference,
     kind: collection.kind,
     orderMode: collection.orderMode,
+    selectionOrigin: 'explore',
   });
   exitExploreSelectIfEmpty(shortlist.count + next.length, shortlist, albumPick);
 }

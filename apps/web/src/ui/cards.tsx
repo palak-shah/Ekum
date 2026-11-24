@@ -30,9 +30,9 @@ import { ExploreFeedCaption } from '@/features/explore/ExploreFeedCaption';
 import { ExploreFeedActions } from '@/features/explore/ExploreFeedActions';
 import {
   exploreFeedCategoryLine,
-  exploreFeedNewDesignsLine,
   exploreFeedRateLine,
 } from '@/features/explore/exploreFeedCaptionLines';
+import { exploreOwnerRateChromeFromCard } from '@/features/collections/ownerSupplierRateCue';
 import { noteExploreCollectionOpen } from '@/features/explore/exploreScrollSession';
 import { useMyCompany } from '@/lib/queries';
 import { albumMediaAspectClass, albumOverflowLabel } from './albumMosaic';
@@ -239,11 +239,30 @@ export function OpportunityCollectionCard({
     if (selecting) onToggleSelect();
     else openAlbum();
   };
-  const rateLine = exploreFeedRateLine({
-    rate: collection.rateMin,
+  const rateChrome = exploreOwnerRateChromeFromCard({
+    rateMin: collection.rateMin,
     rateMax: collection.rateMax,
-    unit: collection.rateUnit,
+    rateUnit: collection.rateUnit,
+    isOwn,
+    isRepostChild: collection.isRepostChild === true,
+    viewerReposted: collection.viewerReposted === true,
+    viewerRepostRateMin: collection.viewerRepostRateMin,
+    viewerRepostRateMax: collection.viewerRepostRateMax,
+    viewerRepostRateUnit: collection.viewerRepostRateUnit,
+    viewerRepostSupplierRateMin: collection.viewerRepostSupplierRateMin,
+    viewerRepostPricingMode: collection.viewerRepostPricingMode,
+    viewerRepostMarginValue: collection.viewerRepostMarginValue,
+    ownerSupplierRateMin: collection.ownerSupplierRateMin,
+    ownerPricingMode: collection.ownerPricingMode,
+    ownerMarginValue: collection.ownerMarginValue,
   });
+  const rateLine =
+    rateChrome.rateLine ??
+    exploreFeedRateLine({
+      rate: collection.rateMin,
+      rateMax: collection.rateMax,
+      unit: collection.rateUnit,
+    });
   const categoryLine = exploreFeedCategoryLine(collection.categories);
   const headerCompany = isOwn
     ? { ...company, name: 'You' }
@@ -308,10 +327,9 @@ export function OpportunityCollectionCard({
       >
         <ExploreFeedCaption
           title={collection.name}
-          meta={exploreFeedNewDesignsLine(collection.exploreNewDesignCount, {
-            isOwn,
-          })}
           rateLine={rateLine}
+          supplierRateLabel={rateChrome.supplierRateLabel}
+          marginLabel={rateChrome.marginLabel}
           categoryLine={categoryLine}
         />
       </Link>

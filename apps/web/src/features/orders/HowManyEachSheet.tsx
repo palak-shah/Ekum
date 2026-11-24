@@ -49,7 +49,6 @@ import { HowManyLineNote } from '@/features/orders/HowManyLineNote';
 import { Button, InlineNotice, Sheet } from '@/ui/kit';
 import { PhotoViewer } from '@/ui/PhotoViewer';
 import { ManagedImage } from '@/ui/ManagedImage';
-import { readRememberedQty, rememberQty } from '@/features/orders/qtyEachMemory';
 import {
   readLastTransporter,
   rememberTransporter,
@@ -203,9 +202,9 @@ export function HowManyEachSheet({
 
   useEffect(() => {
     if (!open) return;
-    const remembered = readRememberedQty(qtyKey);
-    setSharedQty(remembered);
-    setSameDraft(remembered);
+    // Always blank — no per-shop qty memory (audit #19).
+    setSharedQty(null);
+    setSameDraft(null);
     setOverrides({});
     setNotes({});
     setRemoved(new Set());
@@ -248,17 +247,12 @@ export function HowManyEachSheet({
     [activeProducts, overrides, sharedQty, notes],
   );
 
-  const persistQty = (qty: number) => {
-    rememberQty(qtyKey, qty);
-  };
-
   const applyShared = (qty: number | null) => {
     if (qty == null || qty <= 0) return;
     setSharedQty(qty);
     setSameDraft(qty);
     setOverrides({});
     setSameOpen(false);
-    persistQty(qty);
   };
 
   const cancelSame = () => {
@@ -383,6 +377,7 @@ export function HowManyEachSheet({
           catalogRateUnit: product.catalogRateUnit,
           rate: product.rate ?? null,
         })),
+        { packConversion: billTotalAllowed },
       );
     }
     const synthetic: Parameters<typeof howManyOrderFooterSummary>[0] = [];
@@ -439,7 +434,7 @@ export function HowManyEachSheet({
       if (amount == null || money == null) money = null;
       else money += amount;
     }
-    const base = howManyOrderFooterSummary(synthetic);
+    const base = howManyOrderFooterSummary(synthetic, { packConversion: billTotalAllowed });
     if (!base) return base;
     if (money == null || money <= 0) return { rows: base.rows };
     return { rows: base.rows, money: `₹${money.toLocaleString('en-IN')}` };
@@ -486,8 +481,6 @@ export function HowManyEachSheet({
           data-testid="how-many-ask-rates"
           disabled={busy || !canPlace}
           onClick={() => {
-            const qty = lines[0]?.quantity;
-            if (qty != null) persistQty(qty);
             persistTransporter();
             onAskRates(payload(), placeOpts());
           }}
@@ -501,8 +494,6 @@ export function HowManyEachSheet({
           data-testid="how-many-place-order"
           disabled={busy || !canPlace}
           onClick={() => {
-            const qty = lines[0]?.quantity;
-            if (qty != null) persistQty(qty);
             persistTransporter();
             onSendOrder(payload(), placeOpts());
           }}
@@ -516,8 +507,6 @@ export function HowManyEachSheet({
           data-testid="how-many-choose-buyer"
           disabled={busy || !canPlace}
           onClick={() => {
-            const qty = lines[0]?.quantity;
-            if (qty != null) persistQty(qty);
             persistTransporter();
             openChooseBuyer();
           }}
@@ -609,7 +598,6 @@ export function HowManyEachSheet({
                     for (const member of row.items) nextMap[member.id] = next;
                     return nextMap;
                   });
-                  if (next != null) persistQty(next);
                 }}
               />
               </div>
@@ -742,7 +730,6 @@ export function HowManyEachSheet({
                                       ...prev,
                                       [product.id]: next,
                                     }));
-                                    if (next != null) persistQty(next);
                                   }}
                                 />
                               }

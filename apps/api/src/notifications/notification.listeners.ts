@@ -164,6 +164,7 @@ export class NotificationListeners {
     );
     const facilitatorId = event.facilitatorCompanyId;
     if (
+      !event.skipFacilitatorNotify &&
       facilitatorId &&
       facilitatorId !== event.sellerCompanyId &&
       facilitatorId !== event.buyerCompanyId

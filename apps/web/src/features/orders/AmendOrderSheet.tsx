@@ -109,6 +109,7 @@ export function AmendOrderSheet({
     (item) => item.unit,
   )?.id;
   const packSizesDiffer = howManyPackSizesDiffer(remaining);
+  const billTotalAllowed = showBillTotal === true;
   const footerSummary = howManyFooterWithoutMoneyUnlessAllowed(
     howManyOrderFooterSummary(
       remaining.map((item) => ({
@@ -118,8 +119,9 @@ export function AmendOrderSheet({
         dispatchUnit: item.dispatchUnit,
         rate: item.rate,
       })),
+      { packConversion: billTotalAllowed },
     ),
-    showBillTotal === true,
+    billTotalAllowed,
   );
   const canSave =
     remainingCount >= 1 &&

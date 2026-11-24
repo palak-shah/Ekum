@@ -10,19 +10,27 @@ export function CollectionPackDetails({
   description,
   rateBand,
   journeyLine,
+  supplierRateLabel,
+  marginLabel,
 }: {
   categories?: string[] | null;
   description?: string | null;
   rateBand?: string | null;
   /** Shared pack journey, e.g. “Rates are per pc. Order and dispatch per set.” */
   journeyLine?: string | null;
+  /** Owner curated only — quiet Supplier ₹… cue. */
+  supplierRateLabel?: string | null;
+  /** Owner curated only — quiet Margin cue. */
+  marginLabel?: string | null;
 }) {
   const facts = collectionFactsLine(categories, rateBand);
   const about = description?.trim() || null;
   const journey = journeyLine?.trim() || null;
+  const supplier = supplierRateLabel?.trim() || null;
+  const margin = marginLabel?.trim() || null;
   const [open, setOpen] = useState(false);
 
-  if (!facts && !about && !journey) return null;
+  if (!facts && !about && !journey && !supplier && !margin) return null;
 
   return (
     <div className="flex flex-col gap-1 px-0.5" data-testid="collection-pack-details">
@@ -43,6 +51,16 @@ export function CollectionPackDetails({
             </button>
           ) : null}
         </div>
+      ) : null}
+      {supplier ? (
+        <p className="text-xs leading-5 text-muted" data-testid="collection-pack-supplier-rate">
+          {supplier}
+        </p>
+      ) : null}
+      {margin ? (
+        <p className="text-xs leading-5 text-muted" data-testid="collection-pack-margin">
+          {margin}
+        </p>
       ) : null}
       {journey ? (
         <p className="text-xs leading-5 text-muted" data-testid="collection-pack-journey">

@@ -13,3 +13,10 @@ export function maxAllowDownloadForCuratedPack(
   if (foreign.length === 0) return true;
   return foreign.every((row) => row.allowDownload === true);
 }
+
+/** Allow Repost cannot exceed immediate source pack. Mirrors API `curatedPublishAllowForward`. */
+export function maxAllowForwardForCuratedPack(
+  sourcePackAllowForward?: boolean | null,
+): boolean {
+  return sourcePackAllowForward !== false;
+}

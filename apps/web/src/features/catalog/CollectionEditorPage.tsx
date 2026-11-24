@@ -33,6 +33,7 @@ import {
 } from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
 import { useMyCompany } from '@/lib/queries';
+import { ownerPackSupplierRateLabel } from '@/features/collections/ownerSupplierRateCue';
 import { defaultProfileMasterCategoryId } from './companyMasterOptions';
 import {
   readCollectionApplyToAll,
@@ -2390,6 +2391,24 @@ export function CollectionEditorPage() {
         <p className="text-xs font-body uppercase tracking-wide text-muted">
           {isCuratedAlbumEdit ? 'Your rate' : 'Product details'}
         </p>
+        {isCuratedAlbumEdit
+          ? (() => {
+              const supplier = ownerPackSupplierRateLabel({
+                isOwner: true,
+                isCuratedPack: true,
+                memberPricing: existing.data?.memberPricing,
+                catalogRateUnit: existing.data?.catalogRateUnit ?? packRateUnit,
+              });
+              if (!supplier) return null;
+              return (
+                <div className="flex flex-col gap-0.5" data-testid="curated-album-rate-cues">
+                  <p className="text-xs text-muted" data-testid="curated-album-supplier-rate">
+                    {supplier}
+                  </p>
+                </div>
+              );
+            })()
+          : null}
         <ProductDetailsSlots
           category={
             hasForeignMembers || isCuratedAlbumEdit ? null : (

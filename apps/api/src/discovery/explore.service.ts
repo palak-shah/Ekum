@@ -8,6 +8,7 @@ import {
   RateVisibility,
   VerificationStatus,
   isRepostPricingMode,
+  showBillTotalOnOrders,
   type CollectionCard,
   type CollectionPreviewView,
   type CompanyCard,
@@ -90,6 +91,8 @@ import {
   resolvePackMemberBuyerRates,
   resolvedBandsForPacks,
   buyerFacingViaCuratedPackForProduct,
+  curatedOwnerRateChromeForPackIds,
+  type CuratedOwnerRateChromeStamp,
 } from '../catalog/repost-pricing-resolve';
 import {
   interestHitLabel,
@@ -602,11 +605,13 @@ export class ExploreService {
       ),
     );
     const bands = await this.resolvedBandsByPack(viewerCompanyId, visible);
+    const chrome = await this.curatedChromeForRows(viewerCompanyId, visible, stamps.collections);
     return visible.map((row) => {
+      const childId = stamps.collections.get(row.id) ?? null;
       const card = this.discovery.toCollectionCard(row, {
         viewerCompanyId,
         viewerReposted: stamps.collections.has(row.id),
-        viewerRepostCollectionId: stamps.collections.get(row.id) ?? null,
+        viewerRepostCollectionId: childId,
         repostEligibleCount: eligible.get(row.id) ?? 0,
         sourceHops: sourceHopsFromRows(
           (row as { repostSourceCollectionId?: string | null }).repostSourceCollectionId,
@@ -614,6 +619,8 @@ export class ExploreService {
         ),
         hopRows: sourceHopRows,
         resolvedBand: bands.get(row.id) ?? null,
+        viewerRepostChrome: childId ? chrome.get(childId) ?? null : null,
+        ownerCuratedChrome: this.ownerCuratedChromeForRow(viewerCompanyId, row, chrome),
       });
       const memberCompanyIds = row.products.map((entry) => entry.product.companyId);
       return {
@@ -754,15 +761,28 @@ export class ExploreService {
               .repostSourceCollectionId,
         ),
       );
-      const bands = await this.resolvedBandsByPack(
+      const collectionRows = page
+        .filter((row) => row.collection)
+        .map((row) => row.collection!);
+      const bands = await this.resolvedBandsByPack(viewerCompanyId, collectionRows);
+      const chrome = await this.curatedChromeForRows(
         viewerCompanyId,
-        page.filter((row) => row.collection).map((row) => row.collection!),
+        collectionRows,
+        stamps.collections,
       );
       return toCursorPage(
         page,
         query.limit,
         (row) =>
-          this.toExplorePost(row, stamps, eligible, viewerCompanyId, sourceHopRows, bands),
+          this.toExplorePost(
+            row,
+            stamps,
+            eligible,
+            viewerCompanyId,
+            sourceHopRows,
+            bands,
+            chrome,
+          ),
         (row) => row.feedId,
       );
     }
@@ -852,15 +872,28 @@ export class ExploreService {
             .repostSourceCollectionId,
       ),
     );
-    const bands = await this.resolvedBandsByPack(
+    const collectionRows = page
+      .filter((row) => row.collection)
+      .map((row) => row.collection!);
+    const bands = await this.resolvedBandsByPack(viewerCompanyId, collectionRows);
+    const chrome = await this.curatedChromeForRows(
       viewerCompanyId,
-      page.filter((row) => row.collection).map((row) => row.collection!),
+      collectionRows,
+      stamps.collections,
     );
     return toCursorPage(
       page,
       query.limit,
       (row) =>
-        this.toExplorePost(row, stamps, eligible, viewerCompanyId, sourceHopRows, bands),
+        this.toExplorePost(
+          row,
+          stamps,
+          eligible,
+          viewerCompanyId,
+          sourceHopRows,
+          bands,
+          chrome,
+        ),
       (row) => row.feedId,
     );
   }
@@ -970,15 +1003,28 @@ export class ExploreService {
             .repostSourceCollectionId,
       ),
     );
-    const bands = await this.resolvedBandsByPack(
+    const collectionRows = page
+      .filter((row) => row.collection)
+      .map((row) => row.collection!);
+    const bands = await this.resolvedBandsByPack(viewerCompanyId, collectionRows);
+    const chrome = await this.curatedChromeForRows(
       viewerCompanyId,
-      page.filter((row) => row.collection).map((row) => row.collection!),
+      collectionRows,
+      stamps.collections,
     );
     return toCursorPage(
       page,
       query.limit,
       (row) =>
-        this.toExplorePost(row, stamps, eligible, viewerCompanyId, sourceHopRows, bands),
+        this.toExplorePost(
+          row,
+          stamps,
+          eligible,
+          viewerCompanyId,
+          sourceHopRows,
+          bands,
+          chrome,
+        ),
       (row) => row.feedId,
     );
   }
@@ -1664,6 +1710,12 @@ export class ExploreService {
           resolvedBand: resolvedAlbumBand,
         });
     const description = album.description?.trim() || null;
+    const ownerSettings = await this.prisma.companySettings.findUnique({
+      where: { companyId: album.companyId },
+      select: { tradeDefaults: true },
+    });
+    const billTotal = showBillTotalOnOrders(ownerSettings?.tradeDefaults);
+
     // Locked / soft-unavailable: name + shop — no cover, designs, rates, or supplier credit.
     // softUnavailable flag lets the client show unavailable chrome (not Ask).
     if (!showProducts) {
@@ -1683,6 +1735,7 @@ export class ExploreService {
         upstreamUnavailable: false,
         viewerTicket: null,
         directMillCompanyIds: [],
+        showBillTotalOnOrders: billTotal,
       };
     }
     return {
@@ -1699,6 +1752,7 @@ export class ExploreService {
       productCount: products?.length ?? 0,
       viewerTicket,
       directMillCompanyIds,
+      showBillTotalOnOrders: billTotal,
     };
   }
 
@@ -2293,10 +2347,16 @@ export class ExploreService {
       ),
     );
     const bands = await this.resolvedBandsByPack(viewerCompanyId, visible);
-    return toCursorPage(visible, limit, (row) =>
-      this.discovery.toCollectionCard(row, {
+    const chrome = await this.curatedChromeForRows(
+      viewerCompanyId,
+      visible,
+      stamps.collections,
+    );
+    return toCursorPage(visible, limit, (row) => {
+      const childId = stamps.collections.get(row.id) ?? null;
+      return this.discovery.toCollectionCard(row, {
         viewerReposted: stamps.collections.has(row.id),
-        viewerRepostCollectionId: stamps.collections.get(row.id) ?? null,
+        viewerRepostCollectionId: childId,
         viewerCompanyId,
         repostEligibleCount: eligible.get(row.id) ?? 0,
         sourceHops: sourceHopsFromRows(
@@ -2305,8 +2365,10 @@ export class ExploreService {
         ),
         hopRows: sourceHopRows,
         resolvedBand: bands.get(row.id) ?? null,
-      }),
-    );
+        viewerRepostChrome: childId ? chrome.get(childId) ?? null : null,
+        ownerCuratedChrome: this.ownerCuratedChromeForRow(viewerCompanyId, row, chrome),
+      });
+    });
   }
 
   private async loadSourceCreditHopRows(
@@ -2511,6 +2573,49 @@ export class ExploreService {
     return { collections, products };
   }
 
+  private async curatedChromeForRows(
+    viewerCompanyId: string,
+    rows: CollectionCardRow[],
+    viewerRepostChildBySourceId: Map<string, string>,
+  ): Promise<Map<string, CuratedOwnerRateChromeStamp>> {
+    const ownChildIds = rows
+      .filter(
+        (row) =>
+          row.companyId === viewerCompanyId &&
+          Boolean(
+            (row as { repostSourceCollectionId?: string | null }).repostSourceCollectionId ||
+              (row as { repostSourceProductId?: string | null }).repostSourceProductId,
+          ),
+      )
+      .map((row) => row.id);
+    const childIds = [...viewerRepostChildBySourceId.values(), ...ownChildIds];
+    return curatedOwnerRateChromeForPackIds(this.prisma, viewerCompanyId, childIds);
+  }
+
+  private ownerCuratedChromeForRow(
+    viewerCompanyId: string,
+    row: CollectionCardRow,
+    chrome: Map<string, CuratedOwnerRateChromeStamp>,
+  ): {
+    supplierRateMin: number | null;
+    pricingMode: string | null;
+    marginValue: number | null;
+  } | null {
+    if (row.companyId !== viewerCompanyId) return null;
+    const isChild = Boolean(
+      (row as { repostSourceCollectionId?: string | null }).repostSourceCollectionId ||
+        (row as { repostSourceProductId?: string | null }).repostSourceProductId,
+    );
+    if (!isChild) return null;
+    const stamp = chrome.get(row.id);
+    if (!stamp) return null;
+    return {
+      supplierRateMin: stamp.supplierRateMin,
+      pricingMode: stamp.pricingMode,
+      marginValue: stamp.marginValue,
+    };
+  }
+
   private toExplorePost(
     row: FeedRow,
     stamps: { collections: Map<string, string>; products: Map<string, string> },
@@ -2518,15 +2623,17 @@ export class ExploreService {
     viewerCompanyId: string,
     sourceHopRows: Map<string, SourceCreditHopRow> = new Map(),
     resolvedBands: Map<string, { rateMin: number | null; rateMax: number | null }> = new Map(),
+    chrome: Map<string, CuratedOwnerRateChromeStamp> = new Map(),
   ): ExplorePost {
     if (row.kind === 'collection' && row.collection) {
+      const childId = stamps.collections.get(row.collection.id) ?? null;
       return {
         kind: 'collection',
         id: row.feedId,
         postedAt: row.postedAt.toISOString(),
         collection: this.discovery.toCollectionCard(row.collection, {
           viewerReposted: stamps.collections.has(row.collection.id),
-          viewerRepostCollectionId: stamps.collections.get(row.collection.id) ?? null,
+          viewerRepostCollectionId: childId,
           viewerCompanyId,
           repostEligibleCount: eligible.collections.get(row.collection.id) ?? 0,
           sourceHops: sourceHopsFromRows(
@@ -2536,6 +2643,12 @@ export class ExploreService {
           ),
           hopRows: sourceHopRows,
           resolvedBand: resolvedBands.get(row.collection.id) ?? null,
+          viewerRepostChrome: childId ? chrome.get(childId) ?? null : null,
+          ownerCuratedChrome: this.ownerCuratedChromeForRow(
+            viewerCompanyId,
+            row.collection,
+            chrome,
+          ),
         }),
       };
     }

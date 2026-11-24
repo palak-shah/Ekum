@@ -76,6 +76,7 @@ export type DesignSheetProduct = Pick<
   | 'description'
   | 'unit'
   | 'dispatchUnit'
+  | 'catalogRateUnit'
   | 'moq'
   | 'rate'
   | 'rateMax'
@@ -113,6 +114,10 @@ export function DesignSheet({
   removeLabel = 'Remove from this collection',
   collectionId,
   packStamp,
+  supplierRateLabel = null,
+  marginLabel = null,
+  suppressBuyerRate = false,
+  showBillTotal,
   testIdPrefix = 'design-sheet',
 }: {
   product: DesignSheetProduct;
@@ -133,6 +138,14 @@ export function DesignSheet({
   onSetBuyerRate?: () => void;
   removeBusy?: boolean;
   removeLabel?: string;
+  /** Owner curated — quiet Supplier ₹… under the rate. */
+  supplierRateLabel?: string | null;
+  /** Owner curated — quiet Margin under Supplier. */
+  marginLabel?: string | null;
+  /** Owner curated Edit/±Margin — omit resulting buyer ₹ on this sheet. */
+  suppressBuyerRate?: boolean;
+  /** Seller Settings Show bill total — How many footer ₹ + conversion. */
+  showBillTotal?: boolean;
   /** When set, Remove from this collection may appear in ⋯. */
   collectionId?: string | null;
   packStamp?: {
@@ -526,12 +539,17 @@ export function DesignSheet({
             facts={designSheetUnderPhoto({
               categories: product.categories,
               description: product.description,
-              rateLabel: formatCatalogRate({
-                rate: product.rate,
-                rateMax: product.rateMax,
-                unit: product.unit,
-                dispatchUnit: product.dispatchUnit,
-              }),
+              rateLabel: suppressBuyerRate
+                ? null
+                : formatCatalogRate({
+                    rate: product.rate,
+                    rateMax: product.rateMax,
+                    unit: product.unit,
+                    dispatchUnit: product.dispatchUnit,
+                    catalogRateUnit: product.catalogRateUnit,
+                  }),
+              supplierRateLabel,
+              marginLabel,
             })}
           />
           {product.moq != null && product.moq > 0 ? (
@@ -596,6 +614,7 @@ export function DesignSheet({
         error={orderError}
         orderGoesToName={packPlaceGoesToName(placeLines) ?? undefined}
         collectionId={placeCollectionId}
+        showBillTotal={showBillTotal}
         sheetJob="order"
         onSendOrder={(lines, place) => {
           setOrderError(null);
@@ -626,10 +645,18 @@ function DesignSheetUnderPhotoBlock({
   testIdPrefix: string;
 }) {
   const tags = facts.tags;
-  if (tags.length === 0 && !facts.rate && !facts.description) return null;
+  if (
+    tags.length === 0 &&
+    !facts.rate &&
+    !facts.supplierRate &&
+    !facts.margin &&
+    !facts.description
+  ) {
+    return null;
+  }
   return (
     <div className="flex flex-col gap-2" data-testid={`${testIdPrefix}-under-photo`}>
-      {tags.length > 0 || facts.rate ? (
+      {tags.length > 0 || facts.rate || facts.supplierRate || facts.margin ? (
         <div className="flex items-start gap-3">
           <div
             className="flex min-w-0 flex-1 flex-wrap gap-1.5"
@@ -639,13 +666,33 @@ function DesignSheetUnderPhotoBlock({
               <Tag key={tag}>{tag}</Tag>
             ))}
           </div>
-          {facts.rate ? (
-            <p
-              className="shrink-0 text-sm font-emphasis text-ink"
-              data-testid={`${testIdPrefix}-rate`}
-            >
-              {facts.rate}
-            </p>
+          {facts.rate || facts.supplierRate || facts.margin ? (
+            <div className="flex shrink-0 flex-col items-end gap-0.5">
+              {facts.rate ? (
+                <p
+                  className="text-sm font-emphasis text-ink"
+                  data-testid={`${testIdPrefix}-rate`}
+                >
+                  {facts.rate}
+                </p>
+              ) : null}
+              {facts.supplierRate ? (
+                <p
+                  className="text-xs text-muted"
+                  data-testid={`${testIdPrefix}-supplier-rate`}
+                >
+                  {facts.supplierRate}
+                </p>
+              ) : null}
+              {facts.margin ? (
+                <p
+                  className="text-xs text-muted"
+                  data-testid={`${testIdPrefix}-margin`}
+                >
+                  {facts.margin}
+                </p>
+              ) : null}
+            </div>
           ) : null}
         </div>
       ) : null}

@@ -44,7 +44,10 @@ import {
   projectEligibleCollectionMembers,
   resolveBuyerRepostPackAvailability,
 } from '../catalog/load-upstream-packs';
-import { resolvedBandsForPacks } from '../catalog/repost-pricing-resolve';
+import {
+  curatedOwnerRateChromeForPackIds,
+  resolvedBandsForPacks,
+} from '../catalog/repost-pricing-resolve';
 import { collectionCardInclude, collectionPreviewFromRow } from '../discovery/collection-preview';
 import { isAllowedFollow } from '../discovery/follow-access';
 import { cursorArgs, toCursorPage } from '../discovery/pagination';
@@ -492,6 +495,24 @@ export class CompanyService {
       ),
     );
     const bands = await resolvedBandsForPacks(this.prisma, viewerCompanyId, visible);
+    const childIds = [
+      ...repostedCollections.values(),
+      ...visible
+        .filter(
+          (row) =>
+            row.companyId === viewerCompanyId &&
+            Boolean(
+              (row as { repostSourceCollectionId?: string | null }).repostSourceCollectionId ||
+                (row as { repostSourceProductId?: string | null }).repostSourceProductId,
+            ),
+        )
+        .map((row) => row.id),
+    ];
+    const chrome = await curatedOwnerRateChromeForPackIds(
+      this.prisma,
+      viewerCompanyId,
+      childIds,
+    );
     return toCursorPage(visible, query.limit, (row) => {
       const preview = collectionPreviewFromRow(row);
       const rate = collectionCardRateFields({
@@ -510,6 +531,15 @@ export class CompanyService {
         (row as { repostSourceCollectionId?: string | null }).repostSourceCollectionId,
         sourceHopRows,
       );
+      const childId = repostedCollections.get(row.id) ?? null;
+      const viewerChrome = childId ? chrome.get(childId) : null;
+      const isOwnChild =
+        row.companyId === viewerCompanyId &&
+        Boolean(
+          (row as { repostSourceCollectionId?: string | null }).repostSourceCollectionId ||
+            (row as { repostSourceProductId?: string | null }).repostSourceProductId,
+        );
+      const ownerChrome = isOwnChild ? chrome.get(row.id) : null;
       return {
         id: row.id,
         name: row.name,
@@ -551,7 +581,24 @@ export class CompanyService {
           (row as { repostSourceCollectionId?: string | null }).repostSourceCollectionId ||
             (row as { repostSourceProductId?: string | null }).repostSourceProductId,
         ),
-        viewerRepostCollectionId: repostedCollections.get(row.id) ?? null,
+        viewerRepostCollectionId: childId,
+        ...(viewerChrome
+          ? {
+              viewerRepostRateMin: viewerChrome.rateMin,
+              viewerRepostRateMax: viewerChrome.rateMax,
+              viewerRepostRateUnit: viewerChrome.rateUnit,
+              viewerRepostSupplierRateMin: viewerChrome.supplierRateMin,
+              viewerRepostPricingMode: viewerChrome.pricingMode,
+              viewerRepostMarginValue: viewerChrome.marginValue,
+            }
+          : {}),
+        ...(ownerChrome
+          ? {
+              ownerSupplierRateMin: ownerChrome.supplierRateMin,
+              ownerPricingMode: ownerChrome.pricingMode,
+              ownerMarginValue: ownerChrome.marginValue,
+            }
+          : {}),
         company: this.serializer.toPublicSummary(row.company),
       };
     });

@@ -4,6 +4,7 @@ import {
   audienceRank,
   assertProductsCuratable,
   curatedPublishAllowDownload,
+  curatedPublishAllowForward,
   curatedPublishRateVisibility,
 } from './curation-ceiling';
 
@@ -274,6 +275,36 @@ describe('curatedPublishAllowDownload', () => {
         sourcePackAllowDownload: true,
       }),
     ).toBe(true);
+  });
+});
+
+describe('curatedPublishAllowForward', () => {
+  it('honors requested off', () => {
+    expect(
+      curatedPublishAllowForward({
+        requested: false,
+        sourcePackAllowForward: true,
+      }),
+    ).toBe(false);
+  });
+
+  it('blocks when source pack forward is off', () => {
+    expect(
+      curatedPublishAllowForward({
+        requested: true,
+        sourcePackAllowForward: false,
+      }),
+    ).toBe(false);
+  });
+
+  it('allows when source pack allows or is unknown', () => {
+    expect(
+      curatedPublishAllowForward({
+        requested: true,
+        sourcePackAllowForward: true,
+      }),
+    ).toBe(true);
+    expect(curatedPublishAllowForward({ requested: true })).toBe(true);
   });
 });
 

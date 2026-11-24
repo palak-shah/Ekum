@@ -163,6 +163,8 @@ type CreateOrderOptions = {
   allowSourceItemIds?: boolean;
   /** From-pack whole catalog — stamp every line in this create. */
   catalogWholePack?: CatalogWholePackHint | null;
+  /** Coalesce multi-Direct Place — skip Shared order for facilitator. */
+  skipFacilitatorNotify?: boolean;
 };
 
 /** Chat body for line decisions — omit zero counts; Order # lives on the card title. */
@@ -371,6 +373,7 @@ export class OrderService {
         buyerCompanyId: order.buyerCompanyId,
         sellerCompanyId: order.sellerCompanyId,
         facilitatorCompanyId: order.facilitatorCompanyId,
+        skipFacilitatorNotify: resolvedOpts.skipFacilitatorNotify === true,
       });
     }
 
@@ -758,6 +761,8 @@ export class OrderService {
       if (youHop) upstreams.push(youHop);
     }
 
+    // Trader already got “New order” on Manage parent when present — skip Shared dups.
+    let skipFacilitatorNotify = Boolean(downstream);
     for (const [sellerCompanyId, group] of directGroups) {
       try {
         await this.upsertTradeLane(
@@ -780,9 +785,11 @@ export class OrderService {
             facilitatorCompanyId: collection.companyId,
             allowForeignProducts: true,
             skipLanePlace: true,
+            skipFacilitatorNotify,
           },
         );
         directs.push(direct);
+        skipFacilitatorNotify = true;
       } catch (err) {
         failures.push({
           sellerCompanyId,

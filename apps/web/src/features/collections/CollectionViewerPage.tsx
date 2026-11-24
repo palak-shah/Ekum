@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   CollectionStatus,
   ProductStatus,
+  RepostPricingMode,
   Unit,
   type CollectionDetailView,
   type CollectionPreviewView,
@@ -42,7 +43,10 @@ import { useBrowseShortlist } from '@/features/browse/useBrowseShortlist';
 import type { BrowseShortlistEntry } from '@/features/browse/browseShortlist';
 import { addStagingToCart } from '@/features/browse/addStagingToCart';
 import { CurateFromSelectionSheet } from '@/features/browse/CurateFromSelectionSheet';
+import { canExploreRepost } from '@/features/browse/curateCheck';
 import { curateDefaultPackName } from '@/features/browse/curateAlbumResolve';
+import { RepostSheet } from '@/features/explore/RepostSheet';
+import { useTradePresence } from '@/lib/tradePresence';
 import { usePrepareCatalogCurate } from '@/features/browse/usePrepareCatalogCurate';
 import { usePrepareCatalogOrder } from '@/features/browse/usePrepareCatalogOrder';
 import {
@@ -129,7 +133,16 @@ import {
   designTileRateOverlay,
 } from '@/features/collections/collectionViewerChrome';
 import { CollectionPackDetails } from '@/features/collections/CollectionPackDetails';
-import { howManySetsBanner } from '@/features/orders/howManyLineMeta';
+import {
+  memberSupplierRateLabel,
+  ownerCuratedMarginLabel,
+  ownerCuratedRateChrome,
+  ownerPackSupplierRateLabel,
+} from '@/features/collections/ownerSupplierRateCue';
+import {
+  albumJourneyProductUnits,
+  howManySetsBanner,
+} from '@/features/orders/howManyLineMeta';
 import { FeedDesignPhotoCarousel } from '@/features/collections/FeedDesignPhotoCarousel';
 import { DesignPhotoCarousel } from '@/ui/DesignPhotoCarousel';
 import { collectionPageIsSelecting } from '@/features/collections/collectionPageSelect';
@@ -220,6 +233,7 @@ import {
   MegaphoneIcon,
   MoreHorizontalIcon,
   PaperPlaneIcon,
+  RepostIcon,
   TrashIcon,
 } from '@/ui/icons';
 import { MoreActionsSheet } from '@/ui/MoreActionsSheet';
@@ -258,6 +272,7 @@ function toShortlistEntry(
     rate: product.rate ?? null,
     rateMax: product.rateMax ?? null,
     status: product.status,
+    selectionOrigin: 'travel',
     ...(product.catalogCollectionId
       ? { catalogCollectionId: product.catalogCollectionId }
       : {}),
@@ -306,6 +321,8 @@ export function CollectionViewerPage() {
   const [curateOpen, setCurateOpen] = useState(false);
   const [curateProductIds, setCurateProductIds] = useState<string[] | undefined>(undefined);
   const [curateDefaultName, setCurateDefaultName] = useState('');
+  const [packRepostOpen, setPackRepostOpen] = useState(false);
+  const { trading } = useTradePresence();
   const [qtyEntries, setQtyEntries] = useState<BrowseShortlistEntry[] | null>(null);
   const [manageBusy, setManageBusy] = useState(false);
   const [deleteSheetOpen, setDeleteSheetOpen] = useState(false);
@@ -1239,22 +1256,52 @@ export function CollectionViewerPage() {
       rateUnit: data?.rateUnit,
     }),
   });
-  const packFacts = collectionFactsLine(packIdentity.categories, packIdentity.rateBand);
+  const ownerChrome = ownerCuratedRateChrome({
+    isOwner,
+    isCuratedPack,
+    yourRate: data?.rateMin ?? null,
+    yourRateMax: data?.rateMax ?? null,
+    memberPricing: ownerDetail.data?.memberPricing,
+    pricingMode: ownerDetail.data?.repostPricingMode,
+    marginValue: ownerDetail.data?.repostMarginValue,
+    catalogRateUnit: data.rateUnit,
+  });
+  // Mode-silent: Edit/Margin omit resulting ₹ from facts; Same/visitors keep band.
+  const packRateBand =
+    isOwner && isCuratedPack
+      ? ownerChrome.yourRateLabel
+      : packIdentity.rateBand;
+  const packFacts = collectionFactsLine(packIdentity.categories, packRateBand);
+  const packSupplierRate =
+    isOwner && isCuratedPack
+      ? ownerChrome.supplierRateLabel
+      : ownerPackSupplierRateLabel({
+          isOwner,
+          isCuratedPack,
+          memberPricing: ownerDetail.data?.memberPricing,
+          catalogRateUnit: data.rateUnit,
+        });
+  const packMargin = isOwner && isCuratedPack ? ownerChrome.marginLabel : null;
   const journeyLine = collectionShowsPackOrderChrome(data.kind)
-    ? howManySetsBanner(
-        products.map((product) => ({
-          unit: product.unit,
-          dispatchUnit: product.dispatchUnit,
-        })),
-      )
+    ? howManySetsBanner(albumJourneyProductUnits(products, data.rateUnit))
     : null;
-  const showPackDetails = Boolean(packFacts || journeyLine || packIdentity.description);
+  const showPackDetails = Boolean(
+    packFacts || journeyLine || packIdentity.description || packSupplierRate || packMargin,
+  );
   const moreMenuNote = collectionMoreMenuNote({
     visitor: !isOwner,
     // Grant / follow look-through without Connect — not gated Ask (no products).
     lookOnly: Boolean(data?.products && !data.connected),
     allowForward: data?.allowForward !== false,
     kind: data.kind,
+  });
+  const visitorCanRepost = canExploreRepost({
+    isOwn: isOwner,
+    viewerReposted: data?.viewerReposted === true,
+    trading,
+    eligibleCount:
+      data?.repostEligibleCount ??
+      (data?.allowForward !== false ? products.length : 0),
   });
   const headerSubtitle = data
     ? isOwner
@@ -1313,8 +1360,10 @@ export function CollectionViewerPage() {
               <CollectionPackDetails
                 categories={packIdentity.categories}
                 description={packIdentity.description}
-                rateBand={packIdentity.rateBand}
+                rateBand={packRateBand}
                 journeyLine={journeyLine}
+                supplierRateLabel={packSupplierRate}
+                marginLabel={packMargin}
               />
             ) : null}
             {ownerSourceLine ? (
@@ -1493,7 +1542,22 @@ export function CollectionViewerPage() {
           noteTestId="collection-menu-note"
           items={visitorCollectionMoreIds({
             tradeDockUp: thisPackSelectedCount > 0,
+            canRepost: visitorCanRepost,
           }).flatMap((action): MoreActionItem[] => {
+            if (action === 'repost') {
+              return [
+                {
+                  id: 'repost',
+                  label: 'Repost',
+                  icon: <RepostIcon width={20} height={20} />,
+                  testId: 'collection-menu-repost',
+                  onClick: () => {
+                    setMoreOpen(false);
+                    setPackRepostOpen(true);
+                  },
+                },
+              ];
+            }
             if (action === 'message') {
               return [
                 {
@@ -1950,6 +2014,56 @@ export function CollectionViewerPage() {
           onIndex={setViewerIndex}
           onClose={() => setViewerProduct(null)}
           collectionId={id}
+          supplierRateLabel={(() => {
+            if (!isOwner || !isCuratedPack) return null;
+            const member = ownerDetail.data?.memberPricing?.find(
+              (row) => row.productId === viewerProduct.id,
+            );
+            const mode = member?.pricingMode ?? ownerDetail.data?.repostPricingMode;
+            // ±Margin: Margin only — no Supplier on this sheet.
+            if (
+              mode === RepostPricingMode.MarginFixed ||
+              mode === RepostPricingMode.MarginPercent
+            ) {
+              return null;
+            }
+            return memberSupplierRateLabel({
+              isOwner,
+              isCuratedPack,
+              productId: viewerProduct.id,
+              memberPricing: ownerDetail.data?.memberPricing,
+              unit: viewerProduct.unit,
+              dispatchUnit: viewerProduct.dispatchUnit,
+              catalogRateUnit: viewerProduct.catalogRateUnit ?? data.rateUnit,
+            });
+          })()}
+          marginLabel={
+            isOwner && isCuratedPack
+              ? ownerCuratedMarginLabel({
+                  pricingMode:
+                    ownerDetail.data?.memberPricing?.find(
+                      (row) => row.productId === viewerProduct.id,
+                    )?.pricingMode ?? ownerDetail.data?.repostPricingMode,
+                  marginValue:
+                    ownerDetail.data?.memberPricing?.find(
+                      (row) => row.productId === viewerProduct.id,
+                    )?.marginValue ?? ownerDetail.data?.repostMarginValue,
+                })
+              : null
+          }
+          suppressBuyerRate={(() => {
+            if (!isOwner || !isCuratedPack) return false;
+            const member = ownerDetail.data?.memberPricing?.find(
+              (row) => row.productId === viewerProduct.id,
+            );
+            const mode = member?.pricingMode ?? ownerDetail.data?.repostPricingMode;
+            // ±Margin only — omit resulting ₹; Edit keeps Your ₹ + Supplier.
+            return (
+              mode === RepostPricingMode.MarginFixed ||
+              mode === RepostPricingMode.MarginPercent
+            );
+          })()}
+          showBillTotal={data.showBillTotalOnOrders === true}
           canEdit={collectionOwnerCanEditDesign({
             isOwner,
             myCompanyId: me.data?.id,
@@ -2022,6 +2136,7 @@ export function CollectionViewerPage() {
         error={orderFlow.error}
         orderGoesToName={packPlaceGoesToName(orderFlow.waveEntries(qtySource))}
         collectionId={collectionIdForPackOrder(qtySource) ?? id}
+        showBillTotal={collection.data?.showBillTotalOnOrders === true}
         sheetJob="order"
         onRemoveProduct={(productId) => {
           shortlist.removeIds([productId]);
@@ -2047,6 +2162,18 @@ export function CollectionViewerPage() {
         productIds={curateProductIds}
         defaultName={curateDefaultName}
       />
+      {packRepostOpen && id && data && visitorCanRepost ? (
+        <RepostSheet
+          open={packRepostOpen}
+          onClose={() => setPackRepostOpen(false)}
+          target={{
+            kind: 'collection',
+            collectionId: id,
+            name: data.name,
+            coverImage: data.coverImage,
+          }}
+        />
+      ) : null}
     </div>
   );
 }

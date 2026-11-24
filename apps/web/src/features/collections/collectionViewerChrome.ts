@@ -224,6 +224,10 @@ export function collectionOwnerCanEditDesign(input: {
 export type DesignSheetUnderPhoto = {
   tags: string[];
   rate: string | null;
+  /** Owner curated only — quiet Supplier ₹… under the buyer-facing rate. */
+  supplierRate: string | null;
+  /** Owner curated only — quiet Margin under Supplier. */
+  margin: string | null;
   description: string | null;
 };
 
@@ -235,6 +239,8 @@ export function designSheetUnderPhoto(input: {
   categories?: string[] | null;
   description?: string | null;
   rateLabel?: string | null;
+  supplierRateLabel?: string | null;
+  marginLabel?: string | null;
 }): DesignSheetUnderPhoto {
   const slots = categoriesToTagSlots(input.categories ?? []);
   const tags = [slots.items, slots.sizes, slots.qualities]
@@ -244,6 +250,8 @@ export function designSheetUnderPhoto(input: {
   return {
     tags,
     rate: designSheetRateBand(input.rateLabel),
+    supplierRate: input.supplierRateLabel?.trim() || null,
+    margin: input.marginLabel?.trim() || null,
     description: input.description?.trim() || null,
   };
 }

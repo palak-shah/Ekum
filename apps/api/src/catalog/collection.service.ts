@@ -45,6 +45,7 @@ import { canDiscoverCollection, canViewCollectionProducts } from './audience-vis
 import {
   assertProductsCuratable,
   curatedPublishAllowDownload,
+  curatedPublishAllowForward,
   curatedPublishRateVisibility,
   type CuratableProduct,
 } from './curation-ceiling';
@@ -877,14 +878,14 @@ export class CollectionService {
           : (existing as { repostPricingMode?: string | null }).repostPricingMode,
     });
 
-    const sourcePackAllowDownload = existing.repostSourceCollectionId
-      ? (
-          await this.prisma.collection.findUnique({
-            where: { id: existing.repostSourceCollectionId },
-            select: { allowDownload: true },
-          })
-        )?.allowDownload
-      : undefined;
+    const sourcePackFlags = existing.repostSourceCollectionId
+      ? await this.prisma.collection.findUnique({
+          where: { id: existing.repostSourceCollectionId },
+          select: { allowDownload: true, allowForward: true },
+        })
+      : null;
+    const sourcePackAllowDownload = sourcePackFlags?.allowDownload;
+    const sourcePackAllowForward = sourcePackFlags?.allowForward;
 
     const startsAt = parseScheduleInstant(dto.startsAt, 'start');
     const endsAt = parseScheduleInstant(dto.endsAt, 'end');
@@ -895,7 +896,10 @@ export class CollectionService {
     // Pack alone on Explore. Own drafts become Published for Order/Share/Curate
     // inside the pack, but postedToMarketAt stays null (no design-tile flood).
     const memberIds = members.map((row) => row.productId);
-    const allowForward = dto.allowForward !== false;
+    const allowForward = curatedPublishAllowForward({
+      requested: dto.allowForward !== false,
+      sourcePackAllowForward,
+    });
     const allowDownload = curatedPublishAllowDownload({
       curatorCompanyId: companyId,
       requested: dto.allowDownload === true,

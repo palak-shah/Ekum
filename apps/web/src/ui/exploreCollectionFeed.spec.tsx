@@ -108,19 +108,14 @@ describe('Explore collection photo', () => {
     expect(screen.queryByTestId('explore-photo-prev')).toBeNull();
   });
 
-  it('shows quiet N new designs from exploreNewDesignCount only', () => {
+  it('omits new-design activity meta on the feed caption', () => {
     wrap(
       <OpportunityCollectionCard
         opportunity={opportunity({ exploreNewDesignCount: 2 })}
       />,
     );
-    expect(screen.getByText('2 new designs')).toBeTruthy();
-    wrap(
-      <OpportunityCollectionCard
-        opportunity={opportunity({ exploreNewDesignCount: 0 })}
-      />,
-    );
-    expect(screen.queryAllByText(/new designs/).length).toBe(1);
+    expect(screen.queryByText('2 new designs')).toBeNull();
+    expect(screen.queryByText(/You added/)).toBeNull();
   });
 
   it('adds a View more card when more photos exist, with no count line', async () => {

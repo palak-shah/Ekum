@@ -1,9 +1,25 @@
 import {
   collectionSourceShopNames,
   revealedCreditCompanyId,
+  sourceChainCompanyIdsForPack,
   sourceHopsFromRows,
   visitorDesignCreditCompanyName,
 } from './source-shop-credit';
+
+describe('sourceChainCompanyIdsForPack', () => {
+  it('includes pack owner, hops, and foreign mills', () => {
+    expect(
+      sourceChainCompanyIdsForPack({
+        packCompanyId: 't1',
+        foreignMemberCompanyIds: ['s1', 't1', 's2'],
+        sourceHops: [
+          { companyId: 't1', companyName: 'Trader', showSourceShops: true },
+          { companyId: 'mid', companyName: 'Mid', showSourceShops: false },
+        ],
+      }).sort(),
+    ).toEqual(['mid', 's1', 's2', 't1']);
+  });
+});
 
 describe('revealedCreditCompanyId', () => {
   it('returns mill when no hops or every hop revealed', () => {

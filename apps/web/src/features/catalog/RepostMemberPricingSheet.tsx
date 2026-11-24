@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { RepostPricingMode, type CollectionDetailView } from '@ekum/domain-types';
 import { api, ApiError } from '@/lib/apiClient';
+import { formatCatalogRate } from '@/lib/catalogRate';
 import { useToast } from '@/ui/Toast';
 import { Button, InlineNotice, Sheet } from '@/ui/kit';
 import { RepostPricingFields } from '@/features/catalog/RepostPricingFields';
@@ -133,6 +134,17 @@ export function RepostMemberPricingSheet({
             packModeHint={packMode}
             editInvalidated={row?.editInvalidated === true}
             testIdPrefix="member-pricing"
+            supplierCue={
+              row?.sourceDisclosed && row.sourceRate != null
+                ? (() => {
+                    const label = formatCatalogRate({
+                      rate: row.sourceRate,
+                      catalogRateUnit: detail.data?.catalogRateUnit ?? null,
+                    });
+                    return label && label !== 'On request' ? `Supplier ${label}` : null;
+                  })()
+                : null
+            }
           />
         )}
         {error ? <InlineNotice message={error} /> : null}

@@ -102,7 +102,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               toast.tone === 'danger' ? 'bg-danger text-white' : 'bg-ink text-white',
             )}
           >
-            <p className="min-w-0 truncate">{toast.message}</p>
+            <p className="min-w-0 line-clamp-2 text-left leading-snug">{toast.message}</p>
             {toast.action ? (
               <button
                 type="button"

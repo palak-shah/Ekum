@@ -585,7 +585,7 @@ export function Sheet({
           'ekum-sheet relative z-10 flex min-h-0 w-full max-w-md flex-col overflow-hidden bg-surface',
           full
             ? 'h-[100dvh] max-h-[100dvh] rounded-none px-4 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-[max(0.75rem,env(safe-area-inset-top))] shadow-none'
-            : 'max-h-[100dvh] rounded-t-2xl px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-3.5 shadow-[var(--shadow-soft)]',
+            : 'max-h-[100dvh] rounded-t-2xl px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-3.5 shadow-[var(--shadow-soft)]',
           panelClassName,
         )}
       >
@@ -666,7 +666,7 @@ export function Sheet({
           >
             <div className="shrink-0">{children}</div>
             {footer ? (
-              <div className="sticky bottom-0 z-[1] -mx-4 shrink-0 border-t border-line bg-canvas px-4 pt-3 pb-1">
+              <div className="sticky bottom-0 z-[1] -mx-4 shrink-0 border-t border-line bg-canvas px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
                 {footer}
               </div>
             ) : null}
@@ -675,7 +675,7 @@ export function Sheet({
           <>
             <div className="ekum-no-scrollbar min-h-0 flex-1 overflow-y-auto">{children}</div>
             {footer ? (
-              <div className="mt-3 shrink-0 border-t border-line pt-3.5">{footer}</div>
+              <div className="mt-3 shrink-0 border-t border-line pt-3.5 pb-1">{footer}</div>
             ) : null}
           </>
         )}

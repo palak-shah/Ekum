@@ -16,6 +16,7 @@ import { collectionMemberFind } from '../catalog/collection-member-find';
 import { isGeneralKind } from '../catalog/general-collection';
 import {
   collectionSourceShopNames,
+  sourceChainCompanyIdsForPack,
   type SourceCreditHop,
 } from './source-shop-credit';
 import { mapMediaUrlsForViewer } from '../media/media-url-token';
@@ -83,6 +84,21 @@ export class DiscoverySerializer {
       hopRows?: Map<string, import('./source-shop-credit').SourceCreditHopRow>;
       /** Batch 3: resolved buyer-facing band when pack uses calc modes. */
       resolvedBand?: { rateMin: number | null; rateMax: number | null } | null;
+      /** Viewer-only: chrome from viewer's child when viewerReposted. */
+      viewerRepostChrome?: {
+        rateMin: number | null;
+        rateMax: number | null;
+        rateUnit: string | null;
+        supplierRateMin: number | null;
+        pricingMode: string | null;
+        marginValue: number | null;
+      } | null;
+      /** Owner-only: supplier + margin on own curated child cards. */
+      ownerCuratedChrome?: {
+        supplierRateMin: number | null;
+        pricingMode: string | null;
+        marginValue: number | null;
+      } | null;
     },
   ): CollectionCard {
     const preview = collectionPreviewFromRow(collection);
@@ -121,6 +137,15 @@ export class DiscoverySerializer {
       updatedAt: (collection.exploreActivityAt ?? collection.updatedAt).toISOString(),
       allowForward: collection.allowForward,
       allowDownload: collection.allowDownload === true,
+      audience: collection.audience,
+      rateVisibility: collection.rateVisibility,
+      sourceChainCompanyIds: sourceChainCompanyIdsForPack({
+        packCompanyId: collection.companyId,
+        foreignMemberCompanyIds: (collection.products ?? [])
+          .map((row) => row.product?.companyId)
+          .filter((id): id is string => Boolean(id)),
+        sourceHops: opts?.sourceHops ?? [],
+      }),
       /** Legacy column ignored — path is TradeLane / Your paths. */
       orderPathPreference: null,
       rateMin: rate.rateMin,
@@ -146,6 +171,23 @@ export class DiscoverySerializer {
           (collection as { repostSourceProductId?: string | null }).repostSourceProductId,
       ),
       viewerRepostCollectionId: opts?.viewerRepostCollectionId ?? null,
+      ...(opts?.viewerRepostChrome
+        ? {
+            viewerRepostRateMin: opts.viewerRepostChrome.rateMin,
+            viewerRepostRateMax: opts.viewerRepostChrome.rateMax,
+            viewerRepostRateUnit: opts.viewerRepostChrome.rateUnit,
+            viewerRepostSupplierRateMin: opts.viewerRepostChrome.supplierRateMin,
+            viewerRepostPricingMode: opts.viewerRepostChrome.pricingMode,
+            viewerRepostMarginValue: opts.viewerRepostChrome.marginValue,
+          }
+        : {}),
+      ...(opts?.ownerCuratedChrome
+        ? {
+            ownerSupplierRateMin: opts.ownerCuratedChrome.supplierRateMin,
+            ownerPricingMode: opts.ownerCuratedChrome.pricingMode,
+            ownerMarginValue: opts.ownerCuratedChrome.marginValue,
+          }
+        : {}),
       repostEligibleCount:
         opts?.repostEligibleCount ?? collection._count.products,
       company: this.companySerializer.toPublicSummary(collection.company),

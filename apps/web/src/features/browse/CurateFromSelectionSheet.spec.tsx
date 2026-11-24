@@ -54,6 +54,7 @@ vi.mock('@/lib/apiClient', () => ({
     get: vi.fn(async () => []),
     post: vi.fn(async () => ({ allowedProductIds: [], blocked: [] })),
     put: vi.fn(async () => ({})),
+    patch: vi.fn(async () => ({})),
     del: vi.fn(async () => ({})),
   },
   ApiError: class ApiError extends Error {
@@ -83,7 +84,13 @@ function tree(
 
 describe('CurateFromSelectionSheet', () => {
   beforeEach(() => {
-    vi.mocked(api.get).mockImplementation(async () => []);
+    vi.mocked(api.get).mockImplementation(async (path: string) => {
+      if (path === '/collections') return [];
+      if (path === '/connections') return [];
+      if (path === '/broadcasts/lists') return [];
+      if (path === '/settings') return { tradeDefaults: {} };
+      return [];
+    });
     vi.mocked(api.post).mockImplementation(async (path: string) => {
       if (path === '/collections/curate-check') {
         return {
@@ -111,7 +118,28 @@ describe('CurateFromSelectionSheet', () => {
     expect(screen.queryByTestId('curate-blocked-ask')).toBeNull();
   });
 
-  it('keeps a typed name after the parent re-renders', async () => {
+  it('Add new opens shared RepostSheet with rates fields', async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.post).mockImplementation(async (path: string) => {
+      if (path === '/collections/curate-check') {
+        return { allowedProductIds: ['p1', 'p2'], blocked: [] };
+      }
+      if (path === '/relist-requests/access') {
+        return { pendingByProductId: {} };
+      }
+      return {};
+    });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(tree(client));
+    await user.click(await screen.findByTestId('repost-path-new'));
+    expect(await screen.findByTestId('repost-show-rates')).toBeTruthy();
+    expect(screen.getByTestId('repost-name')).toHaveValue('Wedding Edit');
+    await user.click(screen.getByTestId('repost-rates-on'));
+    expect(await screen.findByTestId('repost-pricing-choices')).toBeTruthy();
+    expect(screen.getByText('Who can see this?')).toBeTruthy();
+  });
+
+  it('keeps a typed name after the parent re-renders on RepostSheet', async () => {
     const user = userEvent.setup();
     vi.mocked(api.post).mockImplementation(async (path: string) => {
       if (path === '/collections/curate-check') {
@@ -133,9 +161,9 @@ describe('CurateFromSelectionSheet', () => {
     expect(screen.getByTestId('repost-name')).toHaveValue('My Wedding Edit');
   });
 
-  it('stamps the unique source pack hop on Add new', async () => {
+  it('stamps the unique source pack hop on Add new Repost', async () => {
     const user = userEvent.setup();
-    const created = { id: 'draft-1', products: [] };
+    const created = { id: 'child-1', products: [] };
     vi.mocked(api.post).mockImplementation(async (path: string) => {
       if (path === '/collections/curate-check') {
         return { allowedProductIds: ['p1', 'p2'], blocked: [] };
@@ -146,9 +174,12 @@ describe('CurateFromSelectionSheet', () => {
       if (path === '/collections') {
         return created;
       }
+      if (path === '/collections/child-1/publish') {
+        return created;
+      }
       return {};
     });
-    vi.mocked(api.put).mockResolvedValue({ id: 'draft-1', products: [] });
+    vi.mocked(api.put).mockResolvedValue({ id: 'child-1', products: [] });
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(tree(client));
     await user.click(await screen.findByTestId('repost-path-new'));
@@ -162,5 +193,71 @@ describe('CurateFromSelectionSheet', () => {
         }),
       );
     });
+  });
+
+  it('Existing pick opens Edit RepostSheet with rates', async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.get).mockImplementation(async (path: string) => {
+      if (path === '/collections') {
+        return [
+          {
+            id: 'mine-1',
+            name: 'My Lot',
+            status: 'published',
+            productCount: 2,
+          },
+        ];
+      }
+      if (path === '/collections/mine-1') {
+        return {
+          id: 'mine-1',
+          name: 'My Lot',
+          status: 'published',
+          products: [
+            {
+              id: 'old-1',
+              name: 'Old',
+              companyId: 'mill',
+              companyName: 'Mill',
+              images: [],
+              excluded: false,
+            },
+          ],
+          audience: 'followers',
+          rateVisibility: 'on_request',
+          allowForward: true,
+          allowDownload: false,
+          showSourceShops: false,
+          audienceCompanyIds: [],
+          audienceGroupIds: [],
+          repostPricingMode: 'margin_percent',
+          repostMarginValue: 5,
+          repostEditedRate: null,
+        };
+      }
+      if (path === '/connections') return [];
+      if (path === '/broadcasts/lists') return [];
+      if (path === '/settings') return { tradeDefaults: {} };
+      return [];
+    });
+    vi.mocked(api.post).mockImplementation(async (path: string) => {
+      if (path === '/collections/curate-check') {
+        return { allowedProductIds: ['p1', 'p2', 'old-1'], blocked: [] };
+      }
+      if (path === '/relist-requests/access') {
+        return { pendingByProductId: {} };
+      }
+      return {};
+    });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(tree(client));
+    await user.click(await screen.findByTestId('repost-path-existing'));
+    await user.click(await screen.findByTestId('repost-existing-mine-1'));
+    expect(await screen.findByRole('heading', { name: 'Edit repost' })).toBeTruthy();
+    expect(await screen.findByTestId('repost-show-rates')).toBeTruthy();
+    expect(await screen.findByTestId('repost-name')).toHaveValue('My Lot');
+    await user.click(screen.getByTestId('repost-rates-on'));
+    expect(await screen.findByTestId('repost-pricing-choices')).toBeTruthy();
+    expect(screen.getByTestId('repost-pricing-margin').className).toContain('border-accent');
   });
 });

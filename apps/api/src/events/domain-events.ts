@@ -33,6 +33,8 @@ export interface OrderCreatedEvent {
   buyerCompanyId: string;
   sellerCompanyId: string;
   facilitatorCompanyId?: string | null;
+  /** Multi-Direct / already-notified Place — skip duplicate Shared order. */
+  skipFacilitatorNotify?: boolean;
 }
 
 export interface OrderStatusChangedEvent {

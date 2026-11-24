@@ -18,6 +18,16 @@ const design = {
   thumbUrl: null,
   companyId: 'c1',
   companyName: 'Ahmedabad Loom Co',
+  selectionOrigin: 'explore' as const,
+};
+
+const travelDesign = {
+  productId: 'p-travel',
+  name: 'Album pick',
+  thumbUrl: null,
+  companyId: 'c1',
+  companyName: 'Ahmedabad Loom Co',
+  selectionOrigin: 'travel' as const,
 };
 
 const album = {
@@ -27,6 +37,7 @@ const album = {
   companyId: 'c1',
   companyName: 'Ahmedabad Loom Co',
   productCount: 12,
+  selectionOrigin: 'explore' as const,
 };
 
 afterEach(() => cleanup());
@@ -57,7 +68,7 @@ describe('clearExploreStaging', () => {
     resetBrowseAlbumPickSelectMode();
   });
 
-  it('empties staging and exits select mode without touching cart', () => {
+  it('empties Explore-origin staging and exits select mode without touching cart', () => {
     const shortlist = renderHook(() => useBrowseShortlist());
     const albumPick = renderHook(() => useBrowseAlbumPick());
     act(() => {
@@ -78,6 +89,13 @@ describe('clearExploreStaging', () => {
     expect(albumPick.result.current.selectMode).toBe(false);
     expect(readCartDesigns()).toHaveLength(1);
   });
+
+  it('keeps travel-origin picks when clearing Explore staging', () => {
+    toggleBrowseShortlistEntry(design);
+    toggleBrowseShortlistEntry(travelDesign);
+    clearExploreStaging();
+    expect(readBrowseShortlist().map((row) => row.productId)).toEqual(['p-travel']);
+  });
 });
 
 describe('noteExplorePathChange', () => {
@@ -89,11 +107,12 @@ describe('noteExplorePathChange', () => {
     resetBrowseAlbumPickSelectMode();
   });
 
-  it('clears staging when the pathname leaves /explore', () => {
+  it('clears Explore-origin staging when the pathname leaves /explore', () => {
     toggleBrowseShortlistEntry(design);
     toggleBrowseAlbumEntry(album);
+    toggleBrowseShortlistEntry(travelDesign);
     noteExplorePathChange('/explore', '/chats');
-    expect(readBrowseShortlist()).toHaveLength(0);
+    expect(readBrowseShortlist().map((row) => row.productId)).toEqual(['p-travel']);
     expect(readBrowseAlbumPick()).toHaveLength(0);
   });
 

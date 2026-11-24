@@ -65,3 +65,17 @@ export function clampAudienceToCeiling(
   }
   return maxAudience;
 }
+
+/** Narrowest of two ceilings (`null` = no ceiling). */
+export function narrowestAudienceCeiling(
+  a: string | null | undefined,
+  b: string | null | undefined,
+): string | null {
+  if (!a) return b ?? null;
+  if (!b) return a;
+  const ra = audienceRank(a);
+  const rb = audienceRank(b);
+  if (ra === null) return b;
+  if (rb === null) return a;
+  return ra <= rb ? a : b;
+}

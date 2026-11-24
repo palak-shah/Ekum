@@ -786,6 +786,8 @@ describe('CompanyProfilePage shop chrome', () => {
     expect(await screen.findByTestId('business-profile-catalogue')).toBeInTheDocument();
     expect(screen.queryByTestId('company-shop-dock')).toBeNull();
     expect(screen.queryByTestId('company-shop-select')).toBeNull();
+    expect(screen.queryByTestId('home-new-collection')).toBeNull();
+    expect(screen.queryByTestId('home-new-design')).toBeNull();
   });
 
   it('defaults to Designs when Collections is empty', async () => {
@@ -929,6 +931,8 @@ describe('CompanyProfilePage shop chrome', () => {
     expect(await screen.findByText('Surat Silk House')).toBeInTheDocument();
     expect(screen.queryByTestId('business-profile-catalogue')).toBeNull();
     expect(screen.queryByTestId('company-shop-tab-collections')).toBeNull();
+    expect(screen.queryByTestId('home-new-collection')).toBeNull();
+    expect(screen.queryByTestId('home-new-design')).toBeNull();
   });
 
   it('shows private stub and keeps Follow / Message', async () => {
@@ -1003,8 +1007,8 @@ describe('CompanyProfilePage home variant', () => {
           contactPhone: null,
           showContactPhone: false,
           capabilities: { publish: true, relist: true, refer: true },
-          tradePresence: { mill: false, trader: true, retailer: false },
-          role: 'Owner',
+          tradePresence: { buying: true, selling: true, trading: true },
+          role: 'owner',
           permissions: {
             uploads: true,
             chats: true,
@@ -1044,7 +1048,7 @@ describe('CompanyProfilePage home variant', () => {
     });
   });
 
-  it('renders name, cover, home pills; omits empty catalogue and Follow', async () => {
+  it('renders name, cover, home pills; empty catalogue still shows create path', async () => {
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(
       <QueryClientProvider client={client}>
@@ -1080,7 +1084,23 @@ describe('CompanyProfilePage home variant', () => {
     expect(screen.getByTestId('company-edit').className).not.toMatch(/bg-foam|bg-chip-on/);
     expect(screen.getByTestId('company-edit').className).toMatch(/flex-col/);
     expect(screen.queryByTestId('company-follow')).toBeNull();
-    expect(screen.queryByTestId('business-profile-catalogue')).toBeNull();
+    expect(await screen.findByTestId('business-profile-catalogue')).toBeInTheDocument();
+    expect(screen.getByTestId('company-shop-tab-collections')).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+    expect(screen.getByTestId('home-new-collection')).toHaveTextContent('New collection');
+    expect(screen.queryByTestId('home-new-design')).toBeNull();
+    expect(screen.getByTestId('business-profile-home-empty')).toHaveTextContent(
+      'Nothing published yet',
+    );
+    const user = userEvent.setup();
+    await user.click(screen.getByTestId('company-shop-tab-designs'));
+    expect(screen.getByTestId('home-new-design')).toHaveTextContent('New design');
+    expect(screen.queryByTestId('home-new-collection')).toBeNull();
+    expect(screen.getByTestId('business-profile-home-empty')).toHaveTextContent(
+      'Nothing published yet',
+    );
     expect(screen.getByTestId('business-info')).toBeInTheDocument();
     // Hero already has city + Silk — do not repeat; owner without GSTIN hides GST
     // and the Business info card itself when it would be empty.
@@ -1095,6 +1115,74 @@ describe('CompanyProfilePage home variant', () => {
     expect(since).toHaveTextContent(/On Ekum since/i);
     expect(screen.getByTestId('business-info').lastElementChild).toBe(since);
     expect(screen.getByTestId('business-profile-avatar-block').className).toMatch(/items-center/);
+  });
+
+  it('Home with collections shows New collection on Collections; New design on Designs', async () => {
+    vi.mocked(api.get).mockImplementation(async (path: string) => {
+      if (path === '/companies/seed-company-meena' || path === '/companies/me') {
+        return {
+          ...company,
+          id: 'seed-company-meena',
+          name: 'Jaipur Emporium',
+          coverUrl: 'https://cdn/cover.jpg',
+          showcaseUrls: ['https://cdn/s1.jpg'],
+          sellCategories: ['Silk'],
+          buyCategories: [],
+          gstNumber: null,
+          capabilities: { publish: true, relist: true, refer: true },
+          tradePresence: { buying: true, selling: true, trading: true },
+          role: 'owner',
+          permissions: {
+            uploads: true,
+            chats: true,
+            orders: true,
+            payments: true,
+            team: true,
+          },
+        };
+      }
+      if (path === '/connections') return [];
+      if (path === '/follows/following') return [];
+      if (path === '/companies/seed-company-meena/collections') {
+        return {
+          results: [shopPack('c1', 'Festive', { ...company, id: 'seed-company-meena' })],
+          nextCursor: null,
+        };
+      }
+      if (path === '/companies/seed-company-meena/designs') {
+        return { results: [], nextCursor: null };
+      }
+      if (path === '/team/members') return [];
+      return [];
+    });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={['/']}>
+          <Routes>
+            <Route
+              path="/"
+              element={<BusinessProfileBody companyId="seed-company-meena" variant="home" />}
+            />
+            <Route path="/catalog/collections/new" element={<div data-testid="new-collection" />} />
+            <Route path="/catalog/products/new" element={<div data-testid="new-design" />} />
+            <Route path="/more" element={<div />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    expect(await screen.findByTestId('business-profile-catalogue')).toBeInTheDocument();
+    expect(screen.getByTestId('company-shop-tab-collections')).toBeInTheDocument();
+    expect(screen.getByTestId('home-new-collection')).toBeInTheDocument();
+    expect(screen.queryByTestId('home-new-design')).toBeNull();
+    expect(screen.queryByTestId('business-profile-home-empty')).toBeNull();
+    const user = userEvent.setup();
+    await user.click(screen.getByTestId('company-shop-tab-designs'));
+    expect(screen.getByTestId('home-new-design')).toBeInTheDocument();
+    expect(screen.queryByTestId('home-new-collection')).toBeNull();
+    expect(screen.getByTestId('business-profile-home-empty')).toHaveTextContent(
+      'Nothing published yet',
+    );
   });
 
   it('About View more / View less stays with the about block', async () => {
@@ -1683,7 +1771,7 @@ describe('CompanyProfilePage home variant', () => {
           contactPhone: null,
           showContactPhone: false,
           capabilities: { publish: true, relist: true, refer: true },
-          tradePresence: { mill: false, trader: true, retailer: false },
+          tradePresence: { buying: true, selling: true, trading: true },
           role: 'Owner',
           permissions: {
             uploads: true,

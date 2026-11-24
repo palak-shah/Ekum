@@ -133,6 +133,17 @@ export interface CollectionCard {
   /** PhotoViewer Download / original tokens for visitors. */
   allowDownload?: boolean;
   /**
+   * Pack Who / Show rates for Repost create inherit (clamped on sheet).
+   * Omitted on anonymous/list cards when not needed.
+   */
+  audience?: string;
+  rateVisibility?: string;
+  /**
+   * Source-chain + foreign mill company ids to exclude from Selected Who.
+   * Immediate pack owner + hop companies + foreign member companies.
+   */
+  sourceChainCompanyIds?: string[];
+  /**
    * Pack Direct | I handle override. null = use owner Profile default.
    */
   orderPathPreference: string | null;
@@ -171,6 +182,25 @@ export interface CollectionCard {
    * Null/omit when not stamped or reusable draft/auto child.
    */
   viewerRepostCollectionId?: string | null;
+  /**
+   * Viewer-only when `viewerReposted`: your child buyer-facing band for feed caption.
+   * Mill `rateMin` stays the supplier band for everyone else.
+   */
+  viewerRepostRateMin?: number | null;
+  viewerRepostRateMax?: number | null;
+  viewerRepostRateUnit?: string | null;
+  /** Viewer-only: uniform disclosed supplier ₹ from that child (omit when mixed). */
+  viewerRepostSupplierRateMin?: number | null;
+  /** Viewer-only: child pack pricing mode + margin value for Margin cue. */
+  viewerRepostPricingMode?: string | null;
+  viewerRepostMarginValue?: number | null;
+  /**
+   * Owner-only on own curated child cards: disclosed uniform supplier ₹.
+   * `rateMin` is already buyer-facing when calc modes apply.
+   */
+  ownerSupplierRateMin?: number | null;
+  ownerPricingMode?: string | null;
+  ownerMarginValue?: number | null;
   /**
    * How many members this viewer can Curate (`checkCurateProducts`).
    * Explore Repost is on when > 0 (and Trading, not own, not already done).
@@ -357,6 +387,11 @@ export interface CollectionPreviewView extends CollectionCard {
    * as from-pack). Empty for the owner. How many partitions Direct then I-handle.
    */
   directMillCompanyIds?: string[];
+  /**
+   * Pack owner Settings “Show bill total on orders” — How many footer ₹ + pack conversion.
+   * Default off when omitted.
+   */
+  showBillTotalOnOrders?: boolean;
 }
 
 /** Cross-company product post. `visible=false` means body is gated (connections). */

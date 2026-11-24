@@ -9,19 +9,20 @@ No fixes in this pass — pick a row `#` to fix next.
 
 | Verdict | Count |
 |---|---:|
-| Fixed (this pass) | 6 (#1–#5, #11) |
-| Confirmed bug (remaining) | 12 |
-| Already fixed / WAD | 6 |
-| Misunderstanding | 3 |
-| Change / feature | 6 |
+| Fixed (this pass) | 15 (#1–#5, #7–#8, #11–#12, #15–#20) |
+| Already fixed / verified | 8 (#9–#10 + prior WAD) |
+| Confirmed bug (remaining) | 5 |
+| Misunderstanding | 2 |
+| Change / feature | 5 |
 | Text | 12 |
 | Discuss / Needs product lock | 2 |
-| Partial / needs more hops | 1 |
+| Partial / needs more hops | 0 |
 | **Total** | **48** |
 
 **Fixed this pass (#1–#5 + #11 via #1):** Completeness `2026-11-23-repost-catalog-margin-edit-completeness`. Live: new catalog curate → `kind=catalog`/`whole`; 1% margin → **₹424**; margin 0/−; album Edit strips Order/dispatch.  
+**Fixed / verified (#7–#10 + #12):** Completeness `2026-11-24-repost-supplier-rate-feed-bill-completeness`. Owner Supplier ₹; done icon accent + Reposted toast; feed bump on published member add; Place pack-scoped rates immutable (two-pack integration); How many ₹ + sets=pcs gated by Show bill total (default OFF).  
 **Fix next (High):** **#6** · **#15** · **#47** · **#17**  
-**Do not silent-fix:** **#12** · **#18**/#48 · **#30** · **#24–25**
+**Do not silent-fix:** **#18**/#48 · **#30** · **#24–25**
 
 ## Scenario notes
 
@@ -42,20 +43,20 @@ No fixes in this pass — pick a row `#` to fix next.
 | 4 | Trader · Margin | 1% shows ₹424.2 not rounded ₹ | **Fixed** | `roundRepostBuyerFacing`: pc → ₹1, mtr → 0.25. Live 1% on ₹420 → **424**. | Medium |
 | 5 | Trader · Edit collection | Shows ₹420; Order and dispatch + Apply-to-all editable | **Fixed** | Curated album Edit: name + own buyer-facing price; hides Order/dispatch + Apply-all + order-mode. | High |
 | 6 | Trader · ⋯ menu | Same as own collection; no Stop / Remove | **Confirmed bug** | Live ⋯: Share · Bookmark · Who · Add from existing · Add photos · Replace · Edit · Draft. No Rate & visibility / Stop new designs / Remove (Remove lives on Explore Edit repost only). Menu redesign vs [`OwnerCollectionMoreSheet`](apps/web/src/features/collections/OwnerCollectionMoreSheet.tsx). | High |
-| 7 | Trader · Repost page | Supplier rate hidden from trader | **Confirmed bug** | Owner album shows **₹424.2** + From mill credit; no separate supplier **₹420** line for the trader. | Medium |
-| 8 | Trader · Feed | Icon/toast after repost | **Already fixed** (partial polish) | Done path → muted Edit repost (`opacity-40`) shipped Nov 21. Toast still `text-muted` — readability polish only. | Low |
-| 9 | All · Feed | Sort / avatar letter | **Partial** | Not fully re-walked on this stamp feed. Rank / avatar are separate Explore chrome; defer unless you prioritize. | Medium |
-| 10 | Buyer1 · Old order rate | Old ticket supplier rate | **Needs more hops** | Order sheet live rate = trader ₹424.2. Historical `#5H9H` not on this DB — cannot confirm old-ticket bleed. | Medium |
+| 7 | Trader · Repost page | Supplier rate hidden from trader | **Fixed** (+ follow-up) | Owner curated album + DesignSheet quiet **Supplier ₹…**. **Follow-up (2026-11-24):** supplier Explore card when `viewerReposted` captions **your ₹ + Supplier ₹ (+ margin)** via viewer-only stamps; own child Explore too; edit sheets previous+supplier. Completeness `2026-11-24-owner-viewer-repost-feed-rates`. | Medium |
+| 8 | Trader · Feed | Icon/toast after repost | **Fixed** | Done / Edit repost icon `text-accent` (not opacity wash). Toast ink pill + `line-clamp-2`; short **Reposted**. | Low |
+| 9 | All · Feed | Sort / avatar letter | **Already fixed / verified** (sort only) | Live: published design re-added to live Cotton Dohar Lot bumped `exploreActivityAt`; Ravi Explore feed ranked that pack **#0**. Avatar letter mismatch deferred. | Medium |
+| 10 | Buyer1 · Old order rate | Old ticket supplier rate | **Already fixed / verified** | Place stamps **that** pack’s buyer-facing; Edit later does not rewrite OrderItems. Two packs same product different margin → different Place ₹ (integration). Historical `#5H9H` not re-litigated. | Medium |
 | 11 | Buyer1 · Order from repost | Inconsistent whole vs pick lines | **Fixed** (via #1) | New catalog curate child is `whole` — from-pack / How many use child kind/orderMode. Older regular children unchanged. | High |
-| 12 | Buyer1 · Order sheet | Total ₹ + sets=pcs | **Change / feature** | Product lock: sell-as conversion kept (Nov 17 #52–53); bill total = seller **Show bill total** (default off). Live footer showed qty units, not ₹. Do not strip conversion to match sheet. | High |
+| 12 | Buyer1 · Order sheet | Total ₹ + sets=pcs | **Fixed** (Clamp Redesign) | Settings **Show bill total on orders** (default OFF) gates **both** footer ₹ and pack `sets = pcs` on How many / Amend / builder. Sell-as math when ON unchanged. Completeness `2026-11-24-repost-supplier-rate-feed-bill`. | High |
 | 13 | Buyer1 · Routing | Mill / trio without Direct | **Already fixed / WAD** | Meena (no Direct): **Order goes to Surat Silk House** + I-handle copy. Matches [`orders.md`](docs/features/orders.md) Direct-only mill ticket rule. | Medium |
 | 14 | Buyer1 · Credit | From Supplier with Show supplier OFF | **Already fixed** | Meena: header **from Surat Silk House**; mill From line absent (`showSourceShops=false`). Owner still sees mill credit (owner-only). | High |
-| 15 | Buyer1 · Chain repost | Settings don’t inherit | **Confirmed bug** | Create path defaults On request / download defaults; ceiling helpers exist but sheet recreate from peer still resets. Align with inherit + never grant more than received (`curation-ceiling`). | High |
-| 16 | Buyer1 · Selected | Source parties listed | **Confirmed bug** | No source-chain exclude in Selected audience UI (picker lists follows/connections). | Medium |
-| 17 | Buyer1 · Collection Repost | No Repost in ⋯ / Select | **Confirmed bug** | Live visitor ⋯: Message · Share · Bookmark only ([`visitorCollectionMoreIds`](apps/web/src/features/collections/visitorCollectionMore.ts)). Select bar: Add to cart · Message · Share · Order — no Repost. | Medium |
-| 18 | Buyer2 · Explore select | Select mode after leave | **Misunderstanding** | Traveling Selection intentional (Nov 17 #71). Explore showed select chrome with selection from album — by design. Sheet wants clear — that is a product change. | Medium |
-| 19 | Buyer · Order sheet qty | Prefill differs; button clip | **Confirmed bug** (prefill) | Meena How many catalog qty prefilled **2** (MOQ). Sheet wants same empty/default for all buyers; clip not rechecked at 390 with stacked chrome. | Low |
-| 20 | Supplier · Notifications | Dup order notify; double header; no repost notify | **Confirmed bug** (likely) | Not fully re-walked bell UI this pass; duplicate order + double header known pattern. Repost notify may be intentional absence — confirm when fixing. | Low |
+| 15 | Buyer1 · Chain repost | Settings don’t inherit | **Fixed** | Create inherits source Who/rates/forward/download (clamped); API `curatedPublishAllowForward`. Completeness `2026-11-24-repost-audit-15-20-completeness`. | High |
+| 16 | Buyer1 · Selected | Source parties listed | **Fixed** | `sourceChainCompanyIds` on cards; Selected picker excludes chain. | Medium |
+| 17 | Buyer1 · Collection Repost | No Repost in ⋯ / Select | **Fixed** | Visitor ⋯ + SelectionWorkspaceBar Repost → same RepostSheet / Curate sheet. | Medium |
+| 18 | Buyer2 · Explore select | Select mode after leave | **Fixed** (Change) | Leave Explore clears Explore-origin staging only; travel pile stays (#71). | Medium |
+| 19 | Buyer · Order sheet qty | Prefill differs; button clip | **Fixed** | How many always blank; no qty memory; Sheet footer clearance. | Low |
+| 20 | Supplier · Notifications | Dup order notify; double header; no repost notify | **Fixed** (header + coalesce) | Page owns Notifications chrome; multi-Direct Shared order coalesce. No supplier “reposted” event (intentional). | Low |
 | 21 | Supplier · Who has access | Navigates to Edit behind pop-up | **Confirmed bug** | Pattern matches Edit collection details navigation side-effect; not re-clicked on catalogue this pass — keep Confirmed from sheet + known Who→edit coupling. | Low |
 | 22 | Buyer · Orders tab | Opens Selling | **Already fixed / WAD** | [`firstOrdersListTabWithContent`](apps/web/src/features/orders/ordersListDefault.spec.ts): empty Selling → Buying when buying has rows. Buyer-only empty-all still Selling. | Low |
 | 23 | All · Misc UI | Tick / Following / header | **Change / feature** | Multiple chrome dialect asks; needs design lock, not one patch. | Low |

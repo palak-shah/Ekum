@@ -413,6 +413,7 @@ describe('ExploreFeedActions', () => {
     const repost = screen.getByTestId('explore-feed-repost');
     expect(repost).toHaveAttribute('data-repost', 'done');
     expect(repost).toHaveAttribute('aria-label', 'Edit repost');
+    expect(repost.className).toMatch(/text-accent/);
     expect(repost.className).not.toMatch(/opacity-40|opacity-50/);
     expect(repost).not.toBeDisabled();
     await user.click(repost);

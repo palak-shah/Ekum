@@ -36,6 +36,8 @@ type CommonProps = {
   onMessageFound?: (companyId: string) => void;
   /** Find on Ekum finished with zero hits. */
   onFindMissChange?: (miss: boolean) => void;
+  /** Hide these company ids from the list and Find (e.g. source-chain). */
+  excludeCompanyIds?: string[];
   /** Direct Link mill: Ask to repost when Repost (pack) is off. */
   rowAction?: (companyId: string) => {
     selectable: boolean;
@@ -65,11 +67,26 @@ export function ConnectionPicker(props: ConnectionPickerProps) {
     findOnEkum = true,
     onMessageFound,
     onFindMissChange,
+    excludeCompanyIds = [],
   } = props;
   const findMode = findOnEkum === 'link' ? 'link' : findOnEkum === false ? 'off' : 'field';
+  const excludeSet = useMemo(
+    () => new Set(excludeCompanyIds.filter(Boolean)),
+    [excludeCompanyIds],
+  );
   const connections = useMemo(
-    () => uniqueConnectionsByCompany(connectionRows),
-    [connectionRows],
+    () =>
+      uniqueConnectionsByCompany(connectionRows).filter(
+        (row) => !excludeSet.has(row.company.id),
+      ),
+    [connectionRows, excludeSet],
+  );
+  const findExcludeIds = useMemo(
+    () => [
+      ...connections.map((row) => row.company.id),
+      ...excludeCompanyIds.filter(Boolean),
+    ],
+    [connections, excludeCompanyIds],
   );
 
   const [open, setOpen] = useState(false);
@@ -184,7 +201,7 @@ export function ConnectionPicker(props: ConnectionPickerProps) {
           onSelectConnected={(companyId) => toggle(companyId)}
           onMessage={onMessageFound}
           onMissChange={onFindMissChange}
-          excludeCompanyIds={connections.map((row) => row.company.id)}
+          excludeCompanyIds={findExcludeIds}
           connectedLabel={props.mode === 'multi' ? 'Add' : 'Select'}
         />
       ) : null}
@@ -193,7 +210,7 @@ export function ConnectionPicker(props: ConnectionPickerProps) {
           variant="link"
           inviteAlways
           externalQuery={query.trim()}
-          excludeCompanyIds={connections.map((row) => row.company.id)}
+          excludeCompanyIds={findExcludeIds}
           onSelectConnected={(companyId) => toggle(companyId)}
           onMessage={onMessageFound}
           onMissChange={onFindMissChange}

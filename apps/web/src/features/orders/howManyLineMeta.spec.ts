@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  albumJourneyProductUnits,
   howManyBelowMinimum,
   howManyLineExtra,
   howManyLineMeta,
@@ -180,6 +181,20 @@ describe('howManyLineMeta', () => {
     );
     expect(
       howManySetsBanner([{ unit: 'set', dispatchUnit: 'set', catalogRateUnit: 'mtr' }]),
+    ).toBe('Rates are per mtr. Order and dispatch per set.');
+    // Album call site: pack Rate per when members omit catalogRateUnit (BM — Edit mtr → journey).
+    expect(
+      howManySetsBanner(
+        albumJourneyProductUnits([{ unit: 'set', dispatchUnit: 'set' }], 'mtr'),
+      ),
+    ).toBe('Rates are per mtr. Order and dispatch per set.');
+    expect(
+      howManySetsBanner(
+        albumJourneyProductUnits(
+          [{ unit: 'set', dispatchUnit: 'set', catalogRateUnit: 'mtr' }],
+          'pc',
+        ),
+      ),
     ).toBe('Rates are per mtr. Order and dispatch per set.');
     expect(howManySetsBanner([{ unit: 'pc' }])).toBeNull();
     expect(

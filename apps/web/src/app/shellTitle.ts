@@ -24,6 +24,7 @@ export function pageOwnsTopChrome(pathname: string): boolean {
   if (pathname.startsWith('/designs/set')) return true;
   if (/^\/products\//.test(pathname)) return true;
   if (/^\/company\//.test(pathname)) return true;
+  if (pathname.startsWith('/notifications')) return true;
   return false;
 }
 
@@ -51,7 +52,7 @@ export function shellTitle(pathname: string): string | null {
   if (pathname.startsWith('/chats')) return pathname === '/chats' ? 'Chats' : null;
   if (pathname.startsWith('/orders')) return pathname === '/orders' ? 'Orders' : null;
   if (pathname.startsWith('/explore') || pathname.startsWith('/search')) return 'Explore';
-  if (pathname.startsWith('/notifications')) return 'Notifications';
+  if (pathname.startsWith('/notifications')) return null;
   if (pathname.startsWith('/team')) return 'Team';
   if (pathname === '/more') return 'My collections';
   if (pathname.startsWith('/settings') || pathname.startsWith('/profile')) {
